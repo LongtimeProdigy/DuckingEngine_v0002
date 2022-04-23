@@ -1,0 +1,6 @@
+<Appearance>
+	<Model>C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Model/ganfaul_m_aure/ganfaul_m_aure.fbx</Model>
+	<Skeleton>C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Model/ganfaul_m_aure/ganfaul_m_aure.fbx</Skeleton>
+	<AnimationSet>C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Animation/Walk.fbx</AnimationSet>
+	<ModelProperty>C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/ModelProperty/ganfaul_m_aure/ganfaul_m_aure.xml</ModelProperty>
+</Appearance>

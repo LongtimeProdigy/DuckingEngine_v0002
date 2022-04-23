@@ -1,0 +1,25 @@
+<ModelProperty>
+	<SubMesh Count="3">
+		<SubMesh Index = 0>
+			<Parameter>
+				<Texture>
+					<Item Name="Diffuse" Path=""></Item>
+				</Texture>
+			</Parameter>
+		</SubMesh>
+		<SubMesh Index = 0>
+			<Parameter>
+				<Texture>
+					<Item Name="Diffuse" Path=""></Item>
+				</Texture>
+			</Parameter>
+		</SubMesh>
+		<SubMesh Index = 0>
+			<Parameter>
+				<Texture>
+					<Item Name="Diffuse" Path=""></Item>
+				</Texture>
+			</Parameter>
+		</SubMesh>
+	</SubMesh>
+</ModelProperty>
