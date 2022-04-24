@@ -160,8 +160,12 @@
     <ClCompile Include="BufferView.cpp">
       <Filter>RenderModule\DirectX12\Object</Filter>
     </ClCompile>
-    <ClCompile Include="Skeleton.cpp" />
-    <ClCompile Include="Animation.cpp" />
+    <ClCompile Include="Skeleton.cpp">
+      <Filter>EngineCoreModule\Common\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation.cpp">
+      <Filter>EngineCoreModule\Common\Resource</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
@@ -322,8 +326,12 @@
     <ClInclude Include="BufferView.h">
       <Filter>RenderModule\DirectX12\Object</Filter>
     </ClInclude>
-    <ClInclude Include="Skeleton.h" />
-    <ClInclude Include="Animation.h" />
+    <ClInclude Include="Skeleton.h">
+      <Filter>EngineCoreModule\Common\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation.h">
+      <Filter>EngineCoreModule\Common\Resource</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="InputModule">

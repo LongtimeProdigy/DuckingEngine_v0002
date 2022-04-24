@@ -73,6 +73,18 @@ void InitMeshFromAssimpToSubMesh(_IN_ const aiMesh* assimpMesh, _OUT_ std::vecto
 		indices.push_back(face.mIndices[2]);
 	}
 }
+Bone CreateBoneByAIBone(const aiBone* foundBone)
+{
+	std::string boneName = foundBone->mName.C_Str();
+	aiVector3D aiLocation, aiRotation, aiScale;
+	foundBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiLocation);
+	float3 location(aiLocation.x, aiLocation.y, aiLocation.z);
+	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
+	float3 scale(aiScale.x, aiScale.y, aiScale.z);
+	Transform boneTransform(location, rotation, scale);
+
+	return Bone(boneName, boneTransform);
+}
 const bool LoadFBXMeshFromFileByAssimp(_IN_ const char* path, _OUT_ Model& outModel)
 {
 	const aiScene* scene = aiImportFile(path,
@@ -108,45 +120,157 @@ const bool LoadFBXMeshFromFileByAssimp(_IN_ const char* path, _OUT_ Model& outMo
 
 	return true;
 }
-void PushBoneHirarchy(
-	const std::unordered_map<const char*, const aiBone*>& bones, 
-	std::vector<Bone>& boneVec, 
-	const aiNode* aiNode
+
+Bone ConvertAIBoneToBone(const aiBone* sourceBone)
+{
+	std::string boneName(sourceBone->mName.C_Str());
+
+	aiVector3D aiPosition, aiRotation, aiScale;
+	sourceBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiPosition);
+	float3 position(aiPosition.x, aiPosition.y, aiPosition.z);
+	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
+	float3 scale(aiScale.x, aiScale.y, aiScale.z);
+
+	return Bone(boneName, Transform(position, rotation, scale));
+}
+//void BuildBoneVectorAndIndexHashMapChild(
+//	const std::unordered_map<const char*, const aiBone*>& boneHash,
+//	const aiNode* node,
+//	std::vector<Bone>& boneVector,
+//	std::unordered_map<const char*, uint>& boneIndexHash
+//);
+//void BuildBoneVectorAndIndexHashMap(
+//	const std::unordered_map<const char*, const aiBone*>& boneHash,
+//	const aiNode* node,
+//	std::vector<Bone>& boneVector,
+//	std::unordered_map<const char*, uint>& boneIndexHash
+//)
+//{
+//	const aiString& boneName = node->mName;
+//	const std::unordered_map<const char*, const aiBone*>::const_iterator boneIter = boneHash.find(boneName.C_Str());
+//	if (boneIter == boneHash.end())
+//	{
+//		DK_ASSERT_LOG(false, "%s에 해당하는 본을 Mesh에서 찾지 못했습니다.", boneName.C_Str());
+//		return;
+//	}
+//	std::unordered_map<const char*, uint>::iterator indexIter = boneIndexHash.find(boneName.C_Str());
+//	if (boneIter != boneHash.end())
+//	{
+//		DK_ASSERT_LOG(false, "중복되는 본이 검출된 것 같습니다. BoneName: %s", boneName.C_Str());
+//		return;
+//	}
+//
+//	uint boneIndex = static_cast<uint>(boneVector.size());
+//	boneVector.push_back(ConvertAIBoneToBone(boneIter->second));
+//	boneIndexHash.insert(std::make_pair(boneName.C_Str(), boneIndex));
+//
+//	BuildBoneVectorAndIndexHashMapChild(boneHash, node, boneVector, boneIndexHash);
+//}
+void BuildBoneVectorAndIndexHashMapChild(
+	const std::unordered_map<std::string, const aiBone*>& boneHash,
+	const aiNode* node, 
+	std::vector<Bone>& boneVector, 
+	std::unordered_map<std::string, uint>& boneIndexHash
 )
 {
-	// #todo- 이곳은  rootBone이 단 한개라는 가정하게 작성되었습니다.
-	const aiBone* foundBone = nullptr;
-	if (bones.find(aiNode->mName.C_Str()) != bones.end())
+	uint childCount = node->mNumChildren;
+	for (uint i = 0; i < childCount; ++i)
 	{
-		foundBone = bones.find(aiNode->mName.C_Str())->second;
+		const aiString boneName = node->mChildren[i]->mName;
+		const std::unordered_map<std::string, const aiBone*>::const_iterator boneIter = boneHash.find(boneName.C_Str());
+		if (boneIter == boneHash.end())
+		{
+			//DK_ASSERT_LOG(false, "%s에 해당하는 본을 Mesh에서 찾지 못했습니다.", boneName.C_Str());
+			continue;
+		}
+		//std::unordered_map<aiString, uint>::iterator indexIter = boneIndexHash.find(boneName);
+		//if (indexIter != boneIndexHash.end())
+		//{
+		//	DK_ASSERT_LOG(false, "중복되는 본이 검출된 것 같습니다. BoneName: %s", boneName.C_Str());
+		//	return;
+		//}
+
+		uint boneIndex = static_cast<uint>(boneVector.size());
+		boneVector.push_back(ConvertAIBoneToBone(boneIter->second));
+		boneIndexHash.insert(std::make_pair(boneName.C_Str(), boneIndex));
 	}
-	else
+
+	for (uint i = 0; i < childCount; ++i)
 	{
-		DK_ASSERT_LOG(false, "존재하지 않는 Bone을 구성합니다. 반드시 확인이 필요합니다.");
+		BuildBoneVectorAndIndexHashMapChild(boneHash, node->mChildren[i], boneVector, boneIndexHash);
+	}
+}
+void BuildBoneChildIndex(
+	const aiNode* node, 
+	const std::unordered_map<std::string, uint>& boneIndexHash,
+	std::vector<Bone>& boneVector
+)
+{
+	std::unordered_map<std::string, uint>::const_iterator parentBoneIter = boneIndexHash.find(node->mName.C_Str());
+	if (parentBoneIter == boneIndexHash.end())
+	{
+		//DK_ASSERT_LOG(false, "올바르지 않으 본을 참조합니다. %s", node->mName.C_Str());
 		return;
 	}
 
-	std::string boneName = foundBone->mName.C_Str();
-	aiVector3D aiLocation, aiRotation, aiScale;
-	foundBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiLocation);
-	float3 location(aiLocation.x, aiLocation.y, aiLocation.z);
-	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
-	float3 scale(aiScale.x, aiScale.y, aiScale.z);
-	Transform boneTransform(location, rotation, scale);
+	uint boneIndex = parentBoneIter->second;
+	Bone& bone = boneVector[boneIndex];
 
-	uint childCount = aiNode->mNumChildren;
-	std::vector<uint> childIndices;
-	childIndices.reserve(childCount);
-	uint boneIndex = boneVec.size();
+	uint childCount = node->mNumChildren;
 	for (uint i = 0; i < childCount; ++i)
 	{
-		childIndices.push_back(boneIndex + i);
+		std::unordered_map<std::string, uint>::const_iterator childBoneIter = boneIndexHash.find(node->mChildren[i]->mName.C_Str());
+		if (childBoneIter == boneIndexHash.end())
+		{
+			//DK_ASSERT_LOG(false, "올바르지 않으 본을 참조합니다. %s", node->mChildren[i]->mName.C_Str());
+			continue;
+		}
+
+		bone._childs.push_back(childBoneIter->second);
 	}
 
-	boneVec.push_back(Bone(boneName, boneTransform, childIndices));
 	for (uint i = 0; i < childCount; ++i)
 	{
-		boneVec.push_back(Bone(boneName, boneTransform, childIndices))
+		BuildBoneChildIndex(node->mChildren[i], boneIndexHash, boneVector);
+	}
+}
+void BuildMeshWeights(
+	const ModelRef& model,
+	const std::unordered_map<std::string, const aiBone*>& boneHash,
+	const std::unordered_map<std::string, uint>& boneIndexHash
+)
+{
+	for (auto iter = boneHash.begin(); iter != boneHash.end(); ++iter)
+	{
+		const aiBone* bone = iter->second;
+
+		if (boneIndexHash.find(bone->mName.C_Str()) == boneIndexHash.end())
+		{
+			DK_ASSERT_LOG(false, "존재하지 않는 본을 참조합니다. %s", bone->mName.C_Str());
+			continue;
+		}
+
+		uint weightCount = bone->mNumWeights;
+		for (uint i = 0; i < weightCount; ++i)
+		{
+			uint vertIndex = bone->mWeights[i].mVertexId;
+			float weight = bone->mWeights[i].mWeight;
+
+			std::vector<SubMesh>& submeshes = model->GetSubMeshesWritable();
+			for (uint j = 0; j < submeshes.size(); ++j)
+			{
+				if (vertIndex >= submeshes[j]._vertices.size())
+				{
+					continue;
+				}
+
+				Vertex& vert = submeshes[j]._vertices[vertIndex];
+				vert.boneIndices.push_back(boneIndexHash.find(bone->mName.C_Str())->second);
+				vert.weights.push_back(weight);
+
+				DK_ASSERT_LOG(vert.boneIndices.size() < 5, "Skinning weight는 4개를 넘을 수 없습니다.");
+			}
+		}
 	}
 }
 const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const ModelRef& model, _OUT_ Skeleton& outSkeleton)
@@ -171,91 +295,104 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 	CHECK_BOOL_AND_RETURN(scene != nullptr);
 
 	RenderModule* rm = DuckingEngine::_duckingEngine->GetRenderModuleWritable();
-	const aiMesh* mesh = scene->mMeshes[0];
-	if (mesh == nullptr || mesh->HasBones() == false)
-	{
-		return false;
-	}
 
-	const uint boneCount = mesh->mNumBones;
-	std::vector<Bone> bones;
-	bones.reserve(boneCount);
-#if 1
-	// 모든 본 hashing
-	std::unordered_map<const char*, aiBone*> boneIndexMapper;
-	boneIndexMapper.reserve(boneCount);
-	for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+	std::unordered_map<std::string, const aiBone* > boneHash;
+	for (uint i = 0; i < scene->mNumMeshes; ++i)
 	{
-		aiBone* aiBone = mesh->mBones[boneIndex];
-		const char* boneName = aiBone->mName.C_Str();
-
-		auto foundResult = boneIndexMapper.find(boneName);
-		if (foundResult != boneIndexMapper.end())
+		const aiMesh* mesh = scene->mMeshes[i];
+		if (mesh == nullptr || mesh->HasBones() == false)
 		{
 			continue;
 		}
 
-		boneIndexMapper.insert(std::make_pair(boneName, aiBone));
-	}
+		const uint boneCount = mesh->mNumBones;
 
-	// skeleton 구성
-	aiNode* rootNode = scene->mRootNode;
-	std::vector<int> rootBoneIndices;
-	for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
-	{
-		const aiBone* aiBone = mesh->mBones[boneIndex];
-	}
-#else
-	uint max = 0;
-	for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
-	{
-		const aiBone* aiBone = mesh->mBones[boneIndex];
-
-		std::string boneName = aiBone->mName.C_Str();
-		aiVector3D translation, rotation, scale;
-		aiBone->mOffsetMatrix.Decompose(scale, rotation, translation);
-		float3 translationF(translation.x, translation.y, translation.z);
-		float3 rotationF(rotation.x, rotation.y, rotation.z);
-		float3 scaleF(scale.x, scale.y, scale.z);
-		Transform boneTransform(translationF, rotationF, scaleF);
-
-		Bone newBone;
-#if defined(DK_DEBUG)
-		newBone._boneName = boneName;
-#endif
-		newBone._transform = boneTransform;
-		bones.push_back(newBone);
-
-		const uint weightCount = aiBone->mNumWeights;
-		for (uint weightIndex = 0; weightIndex < weightCount; ++weightIndex)
+		// 모든 본 hashing
+		boneHash.reserve(boneCount);
+		for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 		{
-			const aiVertexWeight& aiWeight = aiBone->mWeights[weightIndex];
-			const uint vertexIndex = aiWeight.mVertexId;
-			if (vertexIndex >= model->GetSubMeshes()[0]._vertices.size())
-			{
-				DK_ASSERT_LOG(false, "Skinning VertexIndex가 Vertex Count를 넘어섭니다. %d/%d", vertexIndex, model->GetSubMeshes()[0]._vertices.size());
-				continue;
-			}
-			const float weight = aiWeight.mWeight;
+			aiBone* aiBone = mesh->mBones[boneIndex];
+			const aiString& boneName = aiBone->mName;
 
-			std::vector<SubMesh>& submeshes = model->GetSubMeshesWritable();
-			Vertex& vertex = submeshes[0]._vertices[vertexIndex];
-			vertex.boneIndices.push_back(boneIndex);
-			vertex.weights.push_back(weight);
-			if (vertex.boneIndices.size() > 4)
+			auto foundResult = boneHash.find(boneName.C_Str());
+			if (foundResult != boneHash.end())
 			{
-				DK_ASSERT_LOG(false, "Skinning 한계개수를 넘어섰습니다. %d/%d", vertex.boneIndices.size(), 4);
 				continue;
 			}
+
+			boneHash.insert(std::make_pair(boneName.C_Str(), aiBone));
 		}
 	}
+
+#if 1
+	// 모든 본 vector로 build
+	const uint boneCount = boneHash.size();
+	const aiNode* rootNode = scene->mRootNode;
+	std::vector<Bone> bones;
+	std::unordered_map<std::string, uint> boneIndexHash;
+	BuildBoneVectorAndIndexHashMapChild(boneHash, rootNode, bones, boneIndexHash);
+	DK_ASSERT_LOG(boneCount == bones.size(), "Bone 구성이 잘 이루어지지 않았습니다.");
+	DK_ASSERT_LOG(boneCount == boneIndexHash.size(), "Bone 구성이 잘 이루어지지 않았습니다.");
+
+	// rootNode는 본이 아니기 떄문에 rootNode의 Child에서 시작해야함
+	uint childCount = rootNode->mNumChildren;
+	for (uint i = 0; i < childCount; ++i)
+	{
+		BuildBoneChildIndex(rootNode->mChildren[i], boneIndexHash, bones);
+	}
+
+	BuildMeshWeights(model, boneHash, boneIndexHash);
+#else
+		uint max = 0;
+		for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+		{
+			const aiBone* aiBone = mesh->mBones[boneIndex];
+
+			std::string boneName = aiBone->mName.C_Str();
+			aiVector3D translation, rotation, scale;
+			aiBone->mOffsetMatrix.Decompose(scale, rotation, translation);
+			float3 translationF(translation.x, translation.y, translation.z);
+			float3 rotationF(rotation.x, rotation.y, rotation.z);
+			float3 scaleF(scale.x, scale.y, scale.z);
+			Transform boneTransform(translationF, rotationF, scaleF);
+
+			Bone newBone;
+#if defined(DK_DEBUG)
+			newBone._boneName = boneName;
+#endif
+			newBone._transform = boneTransform;
+			bones.push_back(newBone);
+
+			const uint weightCount = aiBone->mNumWeights;
+			for (uint weightIndex = 0; weightIndex < weightCount; ++weightIndex)
+			{
+				const aiVertexWeight& aiWeight = aiBone->mWeights[weightIndex];
+				const uint vertexIndex = aiWeight.mVertexId;
+				if (vertexIndex >= model->GetSubMeshes()[0]._vertices.size())
+				{
+					DK_ASSERT_LOG(false, "Skinning VertexIndex가 Vertex Count를 넘어섭니다. %d/%d", vertexIndex, model->GetSubMeshes()[0]._vertices.size());
+					continue;
+				}
+				const float weight = aiWeight.mWeight;
+
+				std::vector<SubMesh>& submeshes = model->GetSubMeshesWritable();
+				Vertex& vertex = submeshes[0]._vertices[vertexIndex];
+				vertex.boneIndices.push_back(boneIndex);
+				vertex.weights.push_back(weight);
+				if (vertex.boneIndices.size() > 4)
+				{
+					DK_ASSERT_LOG(false, "Skinning 한계개수를 넘어섰습니다. %d/%d", vertex.boneIndices.size(), 4);
+					continue;
+				}
+			}
+}
 #endif
 
 	outSkeleton.SetBones(bones);
 
 	return true;
 }
-const bool LoadFBXAnimationFromFileByAssimp(_IN_ const char* path, _OUT_ Animation& outAnimation)
+const bool LoadFBXAnimationFromFileByAssimp(_IN_ const char* path, const Skeleton& skeleton, _OUT_ Animation& outAnimation)
 {
 	const aiScene* scene = aiImportFile(path,
 		aiProcess_JoinIdenticalVertices			// 동일한 꼭지점 결합, 인덱싱 최적화
@@ -282,10 +419,20 @@ const bool LoadFBXAnimationFromFileByAssimp(_IN_ const char* path, _OUT_ Animati
 
 	aiAnimation* animation = scene->mAnimations[0];
 	std::string animationName = animation->mName.C_Str();
-	float duration = animation->mDuration;
-	float tick = animation->mTicksPerSecond;
-	uint channelCount = animation->mNumChannels;
+	float duration = static_cast<float>(animation->mDuration);
+	float tick = static_cast<float>(animation->mTicksPerSecond);
 
+	const std::vector<Bone>& bones = skeleton.GetBones();
+	for (uint i = 0; i < bones.size(); ++i)
+	{
+		const std::string boneName = bones[i]._boneName;
+
+		uint channelCount = animation->mNumChannels;
+		for (uint i = 0; i < channelCount; ++i)
+		{
+			animation->mChannels[i];
+		}
+	}
 
 	return true;
 }

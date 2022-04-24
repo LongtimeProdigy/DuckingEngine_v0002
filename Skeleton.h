@@ -5,9 +5,18 @@
 struct Bone
 {
 public:
-	Bone(const std::string& boneName, const Transform& transform, const std::vector<uint>& childs)
-		: _boneName(boneName), _transform(transform), _childs(std::move(childs))
+#if defined(DK_DEBUG)
+	Bone(const std::string& boneName, const Transform& transform)
+		: _boneName(boneName), _transform(transform)
 	{}
+#else
+	Bone(const Transform& transform)
+		: _transform(transform)
+	{}
+#endif
+	//Bone(const std::string& boneName, const Transform& transform, const std::vector<uint>& childs)
+	//	: _boneName(boneName), _transform(transform), _childs(std::move(childs))
+	//{}
 
 #if defined(DK_DEBUG)
 	std::string _boneName;
