@@ -183,7 +183,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * large and contains RGB triplets for each of the 256 palette entries.
  * The default value is colormap.lmp. If the file is not found,
  * a default palette (from Quake 1) is used.
- * Property type: string.
+ * Property type: std::string.
  */
 #define AI_CONFIG_IMPORT_MDL_COLORMAP       \
     "IMPORT_MDL_COLORMAP"
@@ -800,7 +800,7 @@ enum aiComponent
 /** @brief  Configures the LWO loader to load just one layer from the model.
  *
  * LWO files consist of layers and in some cases it could be useful to load
- * only one of them. This property can be either a string - which specifies
+ * only one of them. This property can be either a std::string - which specifies
  * the name of the layer - or an integer - the index of the layer. If the
  * property is not set the whole LWO model is loaded. Loading fails if the
  * requested layer is not available. The layer index is zero-based and the

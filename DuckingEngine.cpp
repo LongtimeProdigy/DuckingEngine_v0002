@@ -9,13 +9,11 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
 #include "d3dx12.h"
-#include "ICommandList.h"
-#include "IResource.h"
 
 #pragma region System Modules
 #include "InputModule.h"
 #include "RenderModule.h"
-#include "RenderModuleDX12.h"
+#include "SceneRenderer.h"
 #pragma endregion
 
 #pragma region Engine Core Module
@@ -26,123 +24,92 @@
 #include "GameModule.h"
 #pragma endregion
 
+#include "EditorDebugDrawManager.h"
+
 #include "Camera.h"
 #include "SceneObject.h"
 #include "SkinnedMeshComponent.h"
-#include "IResource.h"
 
-struct CameraConstantBufferStruct
-{
-	Matrix4x4 cameraWorldMatrix;
-	Matrix4x4 cameraProjectionMatrix;
-};
-
-const DuckingEngine* DuckingEngine::_duckingEngine = nullptr;
+DuckingEngine* DuckingEngine::_duckingEngine;
 RenderModule* DuckingEngine::_renderModule = nullptr;
+SceneRenderer* DuckingEngine::_sceneRenderer = nullptr;
 TextureManager* DuckingEngine::_textureManager = nullptr;
 ResourceManager* DuckingEngine::_resourceManager = nullptr;
 SceneObjectManager* DuckingEngine::_sceneObjectManager = nullptr;
 GameModule* DuckingEngine::_gameModule = nullptr;
 
-DuckingEngine::~DuckingEngine()
-{
-	dk_delete _renderModule;
-
-	dk_delete _textureManager;
-	dk_delete _resourceManager;
-	dk_delete _sceneObjectManager;
-	dk_delete _gameModule;
-}
-
-static SceneObject plane;
 bool DuckingEngine::Initialize(HWND hwnd, int width, int height)
 {
-#pragma region System Modules
-	if (InputModule::InitializePCController() == false)
-	{
-		DK_ASSERT_LOG(false, "ComputerController 생성에 실패했습니다.");
-		return false;
-	}
-	if (InputModule::InitializeXBOXController(0) == false)
-	{
-		DK_ASSERT_LOG(false, "XBOXController 생성에 실패했습니다.");
-		return false;
-	}
-
-	_renderModule = RenderModule::CreateRenderModule(RenderModuleType::DIRECTX12, 3);
-	if (_renderModule == nullptr)
-	{
-		DK_ASSERT_LOG(false, "RenderModule 생성에 실패했습니다.");
-		return false;
-	}
-	if (_renderModule->Initialize(hwnd, width, height) == false)
-	{
-		DK_ASSERT_LOG(false, "RenderModule 초기화에 실패했습니다.");
-		return false;
-	}
+#pragma region Input Modules
+	if (InputModule::InitializePCController() == false) return false;
+	if (InputModule::InitializeXBOXController(0) == false) return false;
 #pragma endregion
 
 #pragma region MainCamera
 	Camera::gMainCamera = dk_new Camera(60.0f, width, height);
-	Transform cameraTransform(float3(0, 0, 0), float3(0, 0, 0), float3::Identity);
+	Transform cameraTransform(float3(0, 1, -3), float3::Identity, float3::Identity);
 	Camera::gMainCamera->SetWorldTransform(cameraTransform);
-
-	CameraConstantBufferStruct cameraConstanceBufferData;
-	Camera::gMainCamera->GetCameraWorldMatrix(cameraConstanceBufferData.cameraWorldMatrix);
-	Camera::gMainCamera->GetCameraProjectionMaterix(cameraConstanceBufferData.cameraProjectionMatrix);
-	Camera::gCameraConstantBuffer = _renderModule->CreateUploadBuffer(&cameraConstanceBufferData, sizeof(cameraConstanceBufferData));
 #pragma endregion
 
-#pragma region Editor&Game Modules
+	// SceneRenderer의 Initialize에 RenderModule이 필요하기때문에 먼저 생성
+	// #todo- RenderModule은 SceneRenderer에서만 쓰기로 할 수 있다면.. SceneRenderer의 생성자에서 RenderModule을 initialize하는 방향이 좋아보임
+	// >> DuckingEngine::getInstance().getRenderModule()을 통해서 RenderModule에 접근하는 코드가 너무 많음
+#pragma region RenderModule
+	_renderModule = dk_new RenderModule;
+	if (_renderModule->initialize(hwnd, width, height) == false) return false;
+#pragma endregion
+
+	// Camera 정보가 필요하기 때문에 이 곳에서 SceneConstantBuffer를 생성합니다.
+	// #todo- 어차피 매프레임 업데이트하기 때문에 굳이 이렇게 할 필요는 없음.. PreRender직후 바로 업데이트하기 때문
+#pragma region SceneRenderer
+	_sceneRenderer = dk_new SceneRenderer;
+	_sceneRenderer->createSceneConstantBuffer();	// renderModule과 Camera가 필요하기 때문에 후에 업데이트
+#pragma endregion
+
+#pragma region Core Module
+	_textureManager = dk_new TextureManager;
 	_resourceManager = dk_new ResourceManager;
-
 	_sceneObjectManager = dk_new SceneObjectManager;
-
-	_gameModule = dk_new GameModule;
-	_gameModule->Initialize();
 #pragma endregion
 
-#pragma region Plane Test Model
-	SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
-	plane._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
-	plane._sceneObjectConstantBuffer = _renderModule->CreateUploadBuffer(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
-	if (plane._sceneObjectConstantBuffer == nullptr)
-	{
-		DK_ASSERT_LOG(false, "Test Plane Initialize failed");
-	}
-	SkinnedMeshComponent* planeMesh = dk_new SkinnedMeshComponent;
-	planeMesh->LoadResource("Plane", nullptr, nullptr, nullptr, &plane);
+#pragma region Editor Modules
+#if defined(_DK_DEBUG_)
+	// 현재 Editor는 사용하지 않아 아무것도 하지 않습니다.
+	EditorDebugDrawManager::getSingleton().initialize();
+#endif
+#pragma endregion
 
-	plane.AddComponent(planeMesh);
+#pragma region Game Module
+	_gameModule = dk_new GameModule;
+	if (_gameModule->Initialize() == false) return false;
 #pragma endregion
 
 	return true;
 }
 
-void DuckingEngine::Update() const
+void DuckingEngine::Update(float deltaTime) const
 {
 	InputModule::Update();
 
 	Camera::gMainCamera->Update();
+
+	_sceneObjectManager->Update(deltaTime);
 }
 
 void DuckingEngine::Render() const
 {
 	// #todo- 오클루전 컬링?
 
-	// #todo- 나중에는 Renderer를 추가하는 게 조아보임 (DX11, DX12, Vulkan...도 마찬가지자만.. staticmesh, character등등으로도)
+	// #todo- _renderModule과 _sceneRenderer의 확실한 기능을 구분해야함
+	// _renderModule은 Graphics API를 사용하는 용도
+	// _sceneRenderer는 renderModule을 이용하여 Rendering하는 용도
+	// 따라서 이곳은 sceneRenderer->PreRender가 되어야할듯
 	_renderModule->PreRender();
 
-	// #todo- 카메라 Transform 버퍼 업데이트
-	CameraConstantBufferStruct cameraConstantBufferData;
-	Camera::gMainCamera->GetCameraProjectionMaterix(cameraConstantBufferData.cameraProjectionMatrix);
-	Camera::gMainCamera->GetCameraWorldMatrix(cameraConstantBufferData.cameraWorldMatrix);
-	cameraConstantBufferData.cameraProjectionMatrix.Transpose();
-	cameraConstantBufferData.cameraWorldMatrix.Transpose();
-	uint8* cameraConstantBufferAddress = Camera::gMainCamera->gCameraConstantBuffer->Map();
-	memcpy(cameraConstantBufferAddress, &cameraConstantBufferData, sizeof(cameraConstantBufferData));
+	// SceneConstantBufer Upload
+	_sceneRenderer->uploadSceneConstantBuffer();
 
-	// #todo- Render StaticMesh Object
+	// #todo- Render StaticMesh Object	// 현재는 Plane이 임시로 SkinnedMesh로 구현되어있기 때문에 이렇게 해두었습니다.
 	{
 		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 		plane._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
@@ -167,7 +134,7 @@ void DuckingEngine::Render() const
 	}
 
 	// Render Character
-	const std::unordered_map<uint, SceneObject>& sceneObjects = _sceneObjectManager->GetCharacterSceneObjectContainer();
+	const DKHashMap<uint, SceneObject>& sceneObjects = _sceneObjectManager->GetCharacterSceneObjectContainer();
 	for (auto iter = sceneObjects.begin(); iter != sceneObjects.end(); iter++)
 	{
 		const SceneObject& characterSceneObject = iter->second;
@@ -195,7 +162,6 @@ void DuckingEngine::Render() const
 		}
 	}
 
-	// render UI
 	_renderModule->RenderUI();
 
 	_renderModule->EndRender();

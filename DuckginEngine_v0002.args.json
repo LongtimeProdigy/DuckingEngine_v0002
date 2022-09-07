@@ -1,0 +1,10 @@
+{
+  "FileVersion": 2,
+  "Id": "efd261d3-7fec-499e-a359-d6c71a613790",
+  "Items": [
+    {
+      "Id": "e097fe89-1ae7-484d-8550-dffad2d84a4a",
+      "Command": "-resourcePath=\"C:\\\""
+    }
+  ]
+}

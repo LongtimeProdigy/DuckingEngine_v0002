@@ -428,7 +428,7 @@ public:
     * specified by "ifFalse".
     *
     * Currently the data types supported for the input property are
-    * limited to "integer", "boolean", "float", "double" and "string".
+    * limited to "integer", "boolean", "float", "double" and "std::string".
     * \param pOperator Operator running on the object.
     * \param pObject The object that will be evaluated.
     * \param pResultType The type of the result to be returned.
@@ -792,7 +792,7 @@ public:
 
 
 
-/** A symbol(string) operator that search the string table and return its corresponding unique id, based on
+/** A symbol(std::string) operator that search the std::string table and return its corresponding unique id, based on
   * the value of a predicate property.
   */
 class FbxSymbolIDBOF : public FbxBindingOperator::Function
@@ -801,7 +801,7 @@ public:
 	//! Name of the operation function.
     static const char* FunctionName;
 
-    /** Check in the symbol table the string and returns its unique ID as an integer
+    /** Check in the symbol table the std::string and returns its unique ID as an integer
     *
     * \param pOperator Operator running on the object.
     * \param pObject The object that will be evaluated.

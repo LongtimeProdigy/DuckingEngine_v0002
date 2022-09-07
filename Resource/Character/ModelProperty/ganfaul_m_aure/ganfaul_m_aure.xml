@@ -1,25 +1,8 @@
 <ModelProperty>
 	<SubMesh Count="3">
-		<SubMesh Index = 0>
-			<Parameter>
-				<Texture>
-					<Item Name="Diffuse" Path=""></Item>
-				</Texture>
-			</Parameter>
-		</SubMesh>
-		<SubMesh Index = 0>
-			<Parameter>
-				<Texture>
-					<Item Name="Diffuse" Path=""></Item>
-				</Texture>
-			</Parameter>
-		</SubMesh>
-		<SubMesh Index = 0>
-			<Parameter>
-				<Texture>
-					<Item Name="Diffuse" Path=""></Item>
-				</Texture>
-			</Parameter>
+		<SubMesh Index = 0 Name="SkinnedMeshStandard">
+			<Parameter Name="DiffuseTexture">...</Parameter>
+			<Parameter Name="Opacity">1.0</Parameter>
 		</SubMesh>
 	</SubMesh>
 </ModelProperty>

@@ -9,7 +9,6 @@
 #include "ComputerController.h"
 
 Camera* Camera::gMainCamera = nullptr;
-IResource* Camera::gCameraConstantBuffer = nullptr;
 
 void Camera::Update()
 {
@@ -17,31 +16,31 @@ void Camera::Update()
 	float2 rJoystick = InputModule::GetJoystickR();
 
 	static const float limit = 0.1f;
+	static const float friction = 0.01f;
 	if (abs(lJoystick.y) > limit)
-		Camera::gMainCamera->MoveForward(lJoystick.y);
+		Camera::gMainCamera->MoveForward(lJoystick.y * friction);
 
 	if (abs(lJoystick.x) > limit)
-		Camera::gMainCamera->MoveRight(lJoystick.x);
+		Camera::gMainCamera->MoveRight(lJoystick.x * friction);
 
 	if (abs(rJoystick.x) > limit || abs(rJoystick.y) > limit)
 	{
-		static const float friction = 0.01f;
 		Camera::gMainCamera->GetWorldTransformWritable().Rotate(float3(rJoystick.y, -rJoystick.x, 0) * friction);
 	}
 
 	Transform offsetTransform = Transform::Identity;
 	if (InputModule::GetXJoypadDown(XboxState::XBOX_DPAD_LEFT) || InputModule::GetKeyDown(KeyboardState::KEYBOARD_LEFT))
-		offsetTransform.MovePosition(float3(-1, 0, 0));
+		offsetTransform.MovePosition(float3(-1 * friction, 0, 0));
 	if (InputModule::GetXJoypadDown(XboxState::XBOX_DPAD_RIGHT) || InputModule::GetKeyDown(KeyboardState::KEYBOARD_RIGHT))
-		offsetTransform.MovePosition(float3(1, 0, 0));
+		offsetTransform.MovePosition(float3(1 * friction, 0, 0));
 	if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_UP))
-		offsetTransform.MovePosition(float3(0, 0, 1));
+		offsetTransform.MovePosition(float3(0, 0, 1 * friction));
 	if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_DOWN))
-		offsetTransform.MovePosition(float3(0, 0, -1));
+		offsetTransform.MovePosition(float3(0, 0, -1 * friction));
 	if (InputModule::GetXJoypadDown(XboxState::XBOX_DPAD_UP) || InputModule::GetKeyDown(KeyboardState::KEYBOARD_PAGEUP))
-		offsetTransform.MovePosition(float3(0, 1, 0));
+		offsetTransform.MovePosition(float3(0, 1 * friction, 0));
 	if (InputModule::GetXJoypadDown(XboxState::XBOX_DPAD_DOWN) || InputModule::GetKeyDown(KeyboardState::KEYBOARD_PAGEDOWN))
-		offsetTransform.MovePosition(float3(0, -1, 0));
+		offsetTransform.MovePosition(float3(0, -1 * friction, 0));
 	Camera::gMainCamera->MoveOffset(offsetTransform);
 }
 

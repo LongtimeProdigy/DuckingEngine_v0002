@@ -1,0 +1,327 @@
+<Skeleton Count=65>
+	<Bone Name=Hips>
+		<Position>0.000019 -0.001851 1.201485</Position>
+		<Rotation>-0.332425 -0.008397 0.008397 0.943055</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=Spine Parent=Hips>
+		<Position>0.001137 -0.064517 0.086992</Position>
+		<Rotation>0.898259 0.000099 -0.011875 0.439306</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=Spine1 Parent=Spine>
+		<Position>0.000000 0.126281 0.000000</Position>
+		<Rotation>0.008361 0.000000 0.000000 0.999965</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=Spine2 Parent=Spine1>
+		<Position>0.000000 0.144301 0.000000</Position>
+		<Rotation>-0.033618 -0.000000 -0.000000 0.999435</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=Neck Parent=Spine2>
+		<Position>-0.000000 0.161972 0.010909</Position>
+		<Rotation>0.033618 0.000000 0.000000 0.999435</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=Head Parent=Neck>
+		<Position>-0.000000 0.067614 0.000000</Position>
+		<Rotation>0.052933 -0.000000 -0.000000 0.998598</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=HeadTop_End Parent=Head>
+		<Position>0.000000 0.231333 -0.000000</Position>
+		<Rotation>-0.052933 0.000000 0.000000 0.998598</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftShoulder Parent=Spine2>
+		<Position>0.109527 0.133840 -0.005454</Position>
+		<Rotation>-0.870407 -0.490832 -0.024854 0.029278</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftArm Parent=LeftShoulder>
+		<Position>0.000000 0.165792 -0.000000</Position>
+		<Rotation>0.085808 -0.149704 -0.140020 0.974997</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftForeArm Parent=LeftArm>
+		<Position>0.000000 0.287129 0.000000</Position>
+		<Rotation>-0.019660 0.025632 0.000359 0.999478</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHand Parent=LeftForeArm>
+		<Position>0.000000 0.202323 -0.000000</Position>
+		<Rotation>0.054033 -0.062204 0.036628 0.995926</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandThumb1 Parent=LeftHand>
+		<Position>-0.058251 0.042053 -0.012740</Position>
+		<Rotation>-0.259871 0.439294 0.195418 0.837436</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandThumb2 Parent=LeftHandThumb1>
+		<Position>-0.000000 0.058372 0.000000</Position>
+		<Rotation>0.000003 -0.000016 0.000009 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandThumb3 Parent=LeftHandThumb2>
+		<Position>0.000000 0.066538 -0.000000</Position>
+		<Rotation>0.000009 -0.000005 -0.000020 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandThumb4 Parent=LeftHandThumb3>
+		<Position>-0.000000 0.059493 0.000000</Position>
+		<Rotation>0.000000 -0.318123 0.373868 0.871218</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandIndex1 Parent=LeftHand>
+		<Position>-0.026273 0.153022 -0.058696</Position>
+		<Rotation>-0.054033 0.062205 -0.036627 0.995926</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandIndex2 Parent=LeftHandIndex1>
+		<Position>0.000000 0.055057 0.000000</Position>
+		<Rotation>0.000021 -0.000029 -0.000007 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandIndex3 Parent=LeftHandIndex2>
+		<Position>0.000000 0.041447 -0.000000</Position>
+		<Rotation>-0.000009 0.000011 -0.000005 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandIndex4 Parent=LeftHandIndex3>
+		<Position>-0.000000 0.058875 -0.000000</Position>
+		<Rotation>-0.093679 0.093679 -0.128110 0.982871</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandMiddle1 Parent=LeftHand>
+		<Position>0.011082 0.165888 -0.018770</Position>
+		<Rotation>-0.047222 0.038109 -0.075113 0.995327</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandMiddle2 Parent=LeftHandMiddle1>
+		<Position>-0.000000 0.059034 0.000000</Position>
+		<Rotation>-0.010035 0.021639 0.039223 0.998946</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandMiddle3 Parent=LeftHandMiddle2>
+		<Position>0.000000 0.045496 -0.000000</Position>
+		<Rotation>-0.000000 -0.000000 -0.000003 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandMiddle4 Parent=LeftHandMiddle3>
+		<Position>-0.000000 0.065942 -0.000000</Position>
+		<Rotation>-0.093656 0.093656 -0.128113 0.982875</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandRing1 Parent=LeftHand>
+		<Position>0.031059 0.160309 0.026110</Position>
+		<Rotation>-0.054021 0.062184 -0.036637 0.995928</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandRing2 Parent=LeftHandRing1>
+		<Position>0.000000 0.054081 0.000000</Position>
+		<Rotation>0.000002 -0.000005 -0.000011 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandRing3 Parent=LeftHandRing2>
+		<Position>0.000000 0.039319 0.000000</Position>
+		<Rotation>0.024839 -0.025508 0.030913 0.998888</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandRing4 Parent=LeftHandRing3>
+		<Position>0.000000 0.054667 0.000000</Position>
+		<Rotation>-0.118365 0.118365 -0.158278 0.973102</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandPinky1 Parent=LeftHand>
+		<Position>0.042382 0.150135 0.064096</Position>
+		<Rotation>-0.054040 0.062223 -0.036606 0.995926</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandPinky2 Parent=LeftHandPinky1>
+		<Position>0.000000 0.039812 0.000000</Position>
+		<Rotation>0.000013 -0.000022 -0.000024 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandPinky3 Parent=LeftHandPinky2>
+		<Position>0.000000 0.028079 -0.000000</Position>
+		<Rotation>0.000010 -0.000010 0.000011 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftHandPinky4 Parent=LeftHandPinky3>
+		<Position>0.000000 0.041973 -0.000000</Position>
+		<Rotation>-0.093679 0.093679 -0.128131 0.982869</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightShoulder Parent=Spine2>
+		<Position>-0.109527 0.133840 -0.005454</Position>
+		<Rotation>0.024854 -0.029278 0.870407 0.490832</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightArm Parent=RightShoulder>
+		<Position>0.000000 0.165792 -0.000000</Position>
+		<Rotation>-0.026953 0.043393 -0.257865 0.964830</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightForeArm Parent=RightArm>
+		<Position>-0.000000 0.199669 0.000000</Position>
+		<Rotation>0.030395 -0.030395 -0.010615 0.999019</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHand Parent=RightForeArm>
+		<Position>0.000000 0.287827 0.000000</Position>
+		<Rotation>-0.039363 0.039363 0.011167 0.998387</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandIndex1 Parent=RightHand>
+		<Position>0.001206 0.158641 0.049892</Position>
+		<Rotation>0.039383 -0.039384 -0.011160 0.998385</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandIndex2 Parent=RightHandIndex1>
+		<Position>-0.000000 0.030560 0.000000</Position>
+		<Rotation>-0.000033 0.000033 0.000004 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandIndex3 Parent=RightHandIndex2>
+		<Position>-0.000000 0.027519 -0.000000</Position>
+		<Rotation>0.000028 -0.000028 -0.000026 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandIndex4 Parent=RightHandIndex3>
+		<Position>-0.000000 0.035448 -0.000000</Position>
+		<Rotation>-0.000013 0.000013 0.000015 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandMiddle1 Parent=RightHand>
+		<Position>0.003236 0.168046 0.013402</Position>
+		<Rotation>0.039377 -0.039376 -0.011193 0.998386</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandMiddle2 Parent=RightHandMiddle1>
+		<Position>-0.000000 0.033125 0.000000</Position>
+		<Rotation>-0.000042 0.000042 0.000054 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandMiddle3 Parent=RightHandMiddle2>
+		<Position>0.000000 0.026786 -0.000000</Position>
+		<Rotation>0.000056 -0.000056 -0.000043 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandMiddle4 Parent=RightHandMiddle3>
+		<Position>0.000000 0.035865 -0.000000</Position>
+		<Rotation>-0.000025 0.000025 0.000015 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandRing1 Parent=RightHand>
+		<Position>0.007230 0.164604 -0.021299</Position>
+		<Rotation>0.039370 -0.039369 -0.011173 0.998386</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandRing2 Parent=RightHandRing1>
+		<Position>-0.000000 0.028856 -0.000000</Position>
+		<Rotation>0.000012 -0.000012 -0.000024 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandRing3 Parent=RightHandRing2>
+		<Position>-0.000000 0.023375 -0.000000</Position>
+		<Rotation>-0.000013 0.000013 0.000020 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandRing4 Parent=RightHandRing3>
+		<Position>-0.000000 0.032620 -0.000000</Position>
+		<Rotation>-0.000004 0.000004 0.000009 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandPinky1 Parent=RightHand>
+		<Position>0.008434 0.149958 -0.053323</Position>
+		<Rotation>0.039372 -0.039372 -0.011164 0.998386</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandPinky2 Parent=RightHandPinky1>
+		<Position>-0.000000 0.022761 0.000000</Position>
+		<Rotation>-0.000050 0.000050 -0.000016 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandPinky3 Parent=RightHandPinky2>
+		<Position>0.000000 0.018435 -0.000000</Position>
+		<Rotation>0.000072 -0.000072 0.000019 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandPinky4 Parent=RightHandPinky3>
+		<Position>-0.000000 0.021784 -0.000000</Position>
+		<Rotation>-0.000029 0.000029 -0.000007 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandThumb1 Parent=RightHand>
+		<Position>-0.020107 0.038937 0.011328</Position>
+		<Rotation>0.326180 -0.344641 0.138961 0.869206</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandThumb2 Parent=RightHandThumb1>
+		<Position>-0.000000 0.047360 0.000000</Position>
+		<Rotation>0.000001 0.000007 0.000011 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandThumb3 Parent=RightHandThumb2>
+		<Position>-0.000000 0.051287 -0.000000</Position>
+		<Rotation>-0.000003 -0.000019 -0.000028 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightHandThumb4 Parent=RightHandThumb3>
+		<Position>0.000000 0.042598 -0.000000</Position>
+		<Rotation>-0.300760 0.300760 -0.149151 0.892659</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftUpLeg Parent=Hips>
+		<Position>0.132265 0.040483 -0.046342</Position>
+		<Rotation>-0.028766 0.894030 -0.444513 0.047862</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftLeg Parent=LeftUpLeg>
+		<Position>-0.000000 0.520637 -0.000000</Position>
+		<Rotation>-0.061751 0.047419 0.003374 0.996959</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftFoot Parent=LeftLeg>
+		<Position>-0.000000 0.509941 0.000000</Position>
+		<Rotation>0.015473 0.824282 0.555564 0.108015</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftToeBase Parent=LeftFoot>
+		<Position>0.000000 0.220427 0.000000</Position>
+		<Rotation>-0.252912 0.030705 0.055763 0.965393</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=LeftToe_End Parent=LeftToeBase>
+		<Position>-0.000000 0.091294 -0.000000</Position>
+		<Rotation>0.020530 0.045916 0.045916 0.997678</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightUpLeg Parent=Hips>
+		<Position>-0.133402 0.043208 -0.040650</Position>
+		<Rotation>-0.024147 -0.893123 0.444770 0.062670</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightLeg Parent=RightUpLeg>
+		<Position>0.000000 0.520637 -0.000000</Position>
+		<Rotation>-0.061781 -0.034341 -0.002963 0.997494</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightFoot Parent=RightLeg>
+		<Position>-0.000000 0.509941 0.000000</Position>
+		<Rotation>0.017137 -0.824622 -0.555537 0.105279</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightToeBase Parent=RightFoot>
+		<Position>-0.000000 0.220427 -0.000000</Position>
+		<Rotation>-0.252913 -0.030705 -0.055763 0.965393</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=RightToe_End Parent=RightToeBase>
+		<Position>0.000000 0.091294 -0.000000</Position>
+		<Rotation>0.020530 -0.045916 -0.045916 0.997678</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+</Skeleton>

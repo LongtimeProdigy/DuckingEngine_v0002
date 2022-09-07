@@ -1,13 +1,8 @@
 #include "stdafx.h"
 #include "Object.h"
 
-#include "IResource.h"
-
 #include "Component.h"
 
-Object::Object()
-{
-}
 Object::~Object()
 {
 	if (_components.size() != 0)
@@ -27,7 +22,7 @@ void Object::SetWorldTransform(const Transform& worldTransform) noexcept
 	_worldTransform = worldTransform;
 }
 
-void Object::AddComponent(Component* component) noexcept
+void Object::AddComponent(Component&& component) noexcept
 {
 	_components.push_back(component);
 }

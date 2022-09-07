@@ -1,105 +1,85 @@
 #include "stdafx.h"
 #include "Material.h"
 
+// #todo- 지울 수 있으면 지울 것
+// D3D12_RESOURCE_STATE_GENERIC_READ 래핑하면 가능함
 #pragma comment(lib, "d3d12.lib")
 #include <d3d12.h>
-#include <DirectXMath.h>
-
-// #todo- Camera삭제할 것
-#include "Camera.h"
+#pragma comment(lib, "dxgi.lib")
+#include <dxgi1_6.h>
+#pragma comment(lib, "d3dcompiler.lib")
+#include <d3dcompiler.h>
+#include "d3dx12.h"
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
-#include "RenderModuleDX12.h"
-
-#include "ITexture.h"
 #include "MaterialParameter.h"
-#include "IDescriptorHeap.h"
-#include "IResource.h"
-#include "SceneObject.h"
 
-IRootParameter::IRootParameter()
+Material* Material::createMaterial(const MaterialDefinition& data)
 {
+	Material* newMaterial = dk_new Material(data._materialName);
 
-}
-IRootParameter::~IRootParameter()
-{
-	dk_delete _constantBuffer;
-	dk_delete _descriptor;
-}
+	// 기존의 Parameter들의 Value들은 유지하면서 MaterialDefinition의 Parameter들로 Material::Parameters를 구성합니다.
+	RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
+	const MaterialDefinition* materialDefinition = rm.findRenderPassByMaterialName(newMaterial->_materialName);
+	DK_ASSERT_LOG(materialDefinition != nullptr, "RenderPass에 없는 Material을 만들려합니다! 절대 발생하면 안됩니다!");
 
-Material::~Material()
-{
-	// #todo- RootSignature와 PSO는 RenderModule의 Container에서 관리될 예정입니다.
-	// RefCount만 감소시켜야합니다.
-	//dk_delete _rootSignature;
-	//dk_delete _pipelineStateObject;
-
-	if (_parameters.size() != 0)
+	// RenderPass로부터 Parameter를 세팅
+	uint32 parameterBufferSize = 0;
+	const uint32 parameterCount = materialDefinition->_parameters.size();
+	newMaterial->_parameters.reserve(parameterCount);
+	for (uint32 i = 0; i < parameterCount; ++i)
 	{
-		dk_delete_array& _parameters[0];
-		_parameters.clear();
+		MaterialParameter* newParameter = MaterialParameter::createMaterialParameter(materialDefinition->_parameters[i]);
+		newMaterial->_parameters.push_back(std::move(newParameter));
+
+		parameterBufferSize += newParameter.getSize();
 	}
+	
+	// CPU 및 GPU 버퍼 생성 및 Parameter ValuePtr 세팅
+	uint32 offset = 0;
+	newMaterial->_parameterBufferForCPU.resize(parameterBufferSize);
+	for (uint32 i = 0; i < parameterCount; ++i)
+	{
+		newMaterial->_parameters[i].setValuePtr(&newMaterial->_parameterBufferForCPU[offset]);
+		offset += newMaterial->_parameters[i].getSize();
+	}
+	newMaterial->_parameterBufferForGPU = rm.createUploadBuffer(newMaterial->_parameterBufferForCPU.data(), parameterBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ);
+
+	if (newMaterial->setModelProperty(data) == false)
+		return nullptr;
+
+	return newMaterial;
 }
 
-void Material::UpdateTechnique(const SceneObject* sceneObject) noexcept
+bool Material::setModelProperty(const MaterialDefinition& materialDefinition)
 {
-	RenderModule* rm = DuckingEngine::GetRenderModuleWritable();
-	RenderModuleDX12* rmDX12 = static_cast<RenderModuleDX12*>(rm);
-	// #todo- 현재 rootSignature, pso를 만드는 데에 실패할 수 있지만.. UpdateTechnique는 절대 실패하지 않는다고 가정합니다.
-	// 반드시 항상 성공할 수 있는 방법이 있는지 고민해야합니다.
-	// defaultMaterial은 어떤가? 엔진 시작시 만들어진 defaultMaterial을 반환?
-	bool success = rmDX12->LoadRootSignature(_type, _rootSignature);
-	CHECK_BOOL_AND_CUSTOMRETURN(success, );
-	success = rmDX12->LoadPipelineStateObject(_type, *_rootSignature.get(), _pipelineStateObject);
-	CHECK_BOOL_AND_CUSTOMRETURN(success, );
+	DK_ASSERT_LOG(_materialName == materialDefinition._materialName, "MaterialName이 ModelProperty의 MaterialName과 일치하지 않습니다!");
+	DK_ASSERT_LOG(_parameters.size() != 0, "Parameters가 비어있습니다. UpdateTechnique가 먼저 이루어져야합니다.");
 
-	// Create Parameters
-	switch (_type)
+	const uint32 parameterCount = _parameters.size();
+	const uint32 parameterDefinitionCount = materialDefinition._parameters.size();
+	for (uint32 i = 0; i < parameterDefinitionCount; ++i)
 	{
-	case MaterialType::SKINNEDMESH:
-	{
-		_constantBufferParamters.resize(3);
-		_constantBufferParamters[0]._rootParameterIndex = 0;
-		_constantBufferParamters[0]._constantBuffer = Camera::gCameraConstantBuffer;
-
-		_constantBufferParamters[1]._rootParameterIndex = 1;
-		_constantBufferParamters[1]._constantBuffer = sceneObject->_sceneObjectConstantBuffer;
-
-		_constantBufferParamters[2]._rootParameterIndex = 2;
-		_constantBufferParamters[2]._constantBuffer = sceneObject->_skeletonConstantBuffer;
-
-		IDescriptorHeap* descriptor = dk_new IDescriptorHeap;
-		const bool success = rmDX12->CreateDescriptorHeap(_type, *descriptor);
-		if (success == false)
+		const MaterialParameterDefinition& parameterDefinition = materialDefinition._parameters[i];
+		for (uint32 j = 0; j < parameterCount; ++j)
 		{
-			DK_ASSERT_LOG(false, "잘못된 MaterialType에 대하여 UpdateTechnique를 시도중입니다. 반드시 검토바랍니다.");
-			return;
+			MaterialParameter& parameter = _parameters[j];
+			if (parameterDefinition._name == parameter.getName())
+			{
+				switch (parameterDefinition._type)
+				{
+					case MaterialParameterType::FLOAT:
+						parameter.setValue(parameterDefinition._value);
+						break;
+					case MaterialParameterType::TEXTURE:
+						break;
+					default:
+						break;
+				}
+			}
 		}
-
-		_descriptorHeapParameters.resize(1);
-		_descriptorHeapParameters[0]._rootParameterIndex = 3;
-		_descriptorHeapParameters[0]._descriptor = descriptor;
-
-		// #todo- 일단 diffuseTexture만 생성해서 넣자!
-		// #todo- 원래는 ModelProperty에서 값을 받아와야하는데.. 일단은 ModelProperty 구현이 안되어있으니 여기서 하드코딩합니다.
-		static const char* diffuseTexturePath = "Resource/Character/Model/ganfaul_m_aure/textures/Ganfaul_diffuse.png";
-		D3D12_CPU_DESCRIPTOR_HANDLE descriptorHeapHandle = descriptor->GetCPUDescriptorHandleForHeapStart();
-		ITexture diffuseTexture = rmDX12->CreateTexture(diffuseTexturePath, descriptorHeapHandle);
-
-		// #todo- MaterialEditor도입되면 MaterialParameter만들어서 넣어야할듯?
-		//_parameters.resize(1);
-		//_parameters[0] = dk_new MaterialParameterTexture(std::move(diffuseTexture));
 	}
-	break;
-	case MaterialType::STATICMESH:
-	default:
-		DK_ASSERT_LOG(false, "잘못된 MaterialType에 대하여 UpdateTechnique를 시도중입니다. 반드시 검토바랍니다.");
-	return;
-	}
-}
 
-void Material::UploadParameters() const noexcept
-{
-
+	return true;
 }

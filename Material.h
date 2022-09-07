@@ -1,55 +1,34 @@
 #pragma once
 
-class IRootSignature;
-class IPipelineStateObject;
-class IDescriptorHeap;
-
-class IMaterialParameter;
-
 class SceneObject;
 
-class IRootParameter
-{
-public:
-	IRootParameter();
-	~IRootParameter();
+struct MaterialParameterDefinition;
+class MaterialParameter;
 
-public:
-	uint _rootParameterIndex = -1;
-	uint _constanceData;						// RootParameter Constant 일 경우에만 사용됩니다.
-	IResource* _constantBuffer;					// RootParameter Constant 일 경우에만 사용됩니다.
-	IDescriptorHeap* _descriptor;
-};
-
-enum class MaterialType : uint8
+struct MaterialDefinition
 {
-	STATICMESH, 
-	SKINNEDMESH, 
-	COUNT
+	DKString _materialName;
+	DKVector<MaterialParameterDefinition> _parameters;
 };
 
 class Material
 {
 public:
-	Material(const MaterialType type)
-		: _type(type)
-	{}
-	~Material();
+	static Material* createMaterial(const MaterialDefinition& data);
 
 public:
-	void UpdateTechnique(const SceneObject* sceneObject) noexcept;
-	void UploadParameters() const noexcept;
+	Material(const DKString& materialname)
+		: _materialName(materialname)
+	{
+	}
 
 public:
-	const MaterialType _type;
+	bool setModelProperty(const MaterialDefinition& materialDefinition);
 
-	IRootSignatureRef _rootSignature = nullptr;
-	IPipelineStateObjectRef _pipelineStateObject = nullptr;
+private:
+	const DKString _materialName;
+	DKVector<Ptr<MaterialParameter>> _parameters;
 
-	std::vector<IRootParameter> _constant32BitParamters;
-	std::vector<IRootParameter> _constantBufferParamters;
-	std::vector<IRootParameter> _descriptorHeapParameters;
-
-	// Paramters
-	std::vector<IMaterialParameter*> _parameters;
+	DKVector<char> _parameterBufferForCPU;
+	ID3D12Resource* _parameterBufferForGPU;
 };

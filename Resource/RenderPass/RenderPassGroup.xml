@@ -1,0 +1,11 @@
+<RenderPassGroup>
+	<RenderPass Name="SkinnedMeshStandardRenderPass">
+		<VertexShader Entry="VSmain">"C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.hlsl"</VertexShader>
+		<PixelShader Entry="PSMain">"C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.hlsl"</PixelShader>
+		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"></Parameter>
+		<Parameter Name="SceneObjectConstantBuffer" Type="Buffer" Register="1"></Parameter>
+		<Parameter Name="SkeletonConstantBuffer" Type="Buffer" Register="2"></Parameter>
+		<Parameter Name="ModelPropertyBufferStruct" Type="Buffer" Register="3"></Parameter>
+		<Material>"C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.xml"</Material>
+	</RenderPass>
+</RenderPassGroup>

@@ -23,20 +23,10 @@
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DuckingEngine.cpp" />
-    <ClCompile Include="ICommandAllocator.cpp" />
-    <ClCompile Include="ICommandList.cpp" />
-    <ClCompile Include="ICommandQueue.cpp" />
-    <ClCompile Include="IDescriptorHeap.cpp" />
-    <ClCompile Include="IDevice.cpp" />
-    <ClCompile Include="IFence.cpp" />
-    <ClCompile Include="IRootSignature.cpp" />
-    <ClCompile Include="IShader.cpp" />
-    <ClCompile Include="ITexture.cpp" />
+    <ClCompile Include="EditorDebugDrawManager.cpp" />
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="InputModule.cpp" />
     <ClCompile Include="ComputerController.cpp" />
-    <ClCompile Include="IResource.cpp" />
-    <ClCompile Include="ISwapChain.cpp" />
     <ClCompile Include="lib\tinyXML\tinystr.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
@@ -63,9 +53,6 @@
     </ClCompile>
     <ClCompile Include="MaterialParameter.cpp" />
     <ClCompile Include="Model.cpp" />
-    <ClCompile Include="IPipelineStateObject.cpp" />
-    <ClCompile Include="RenderModuleDX.cpp" />
-    <ClCompile Include="RenderModuleDX12.cpp" />
     <ClCompile Include="SceneObject.cpp" />
     <ClCompile Include="float2.cpp" />
     <ClCompile Include="float3.cpp" />
@@ -120,6 +107,7 @@
     <ClCompile Include="Matrix3x3.cpp" />
     <ClCompile Include="Matrix4x4.cpp" />
     <ClCompile Include="SceneObjectManager.cpp" />
+    <ClCompile Include="SceneRenderer.cpp" />
     <ClCompile Include="Skeleton.cpp" />
     <ClCompile Include="SkinnedMeshComponent.cpp" />
     <ClCompile Include="Object.cpp" />
@@ -128,7 +116,6 @@
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="TextureManager.cpp" />
     <ClCompile Include="Transform.cpp" />
-    <ClCompile Include="BufferView.cpp" />
     <ClCompile Include="XBOXController.cpp" />
     <ClCompile Include="XboxState.cpp" />
   </ItemGroup>
@@ -137,27 +124,14 @@
     <ClInclude Include="Application.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DuckingEngine.h" />
-    <ClInclude Include="ICommandAllocator.h" />
-    <ClInclude Include="ICommandList.h" />
-    <ClInclude Include="ICommandQueue.h" />
-    <ClInclude Include="IDescriptorHeap.h" />
-    <ClInclude Include="IDevice.h" />
-    <ClInclude Include="IFence.h" />
-    <ClInclude Include="IRootSignature.h" />
-    <ClInclude Include="IShader.h" />
-    <ClInclude Include="ITexture.h" />
+    <ClInclude Include="EditorDebugDrawManager.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="InputModule.h" />
     <ClInclude Include="ComputerController.h" />
-    <ClInclude Include="IResource.h" />
-    <ClInclude Include="ISwapChain.h" />
     <ClInclude Include="lib\tinyXML\tinystr.h" />
     <ClInclude Include="lib\tinyXML\tinyxml.h" />
     <ClInclude Include="MaterialParameter.h" />
     <ClInclude Include="Model.h" />
-    <ClInclude Include="IPipelineStateObject.h" />
-    <ClInclude Include="RenderModuleDX.h" />
-    <ClInclude Include="RenderModuleDX12.h" />
     <ClInclude Include="SceneObject.h" />
     <ClInclude Include="float2.h" />
     <ClInclude Include="float3.h" />
@@ -178,6 +152,7 @@
     <ClInclude Include="Matrix3x3.h" />
     <ClInclude Include="Matrix4x4.h" />
     <ClInclude Include="SceneObjectManager.h" />
+    <ClInclude Include="SceneRenderer.h" />
     <ClInclude Include="Skeleton.h" />
     <ClInclude Include="SkinnedMeshComponent.h" />
     <ClInclude Include="Object.h" />
@@ -186,17 +161,8 @@
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="TextureManager.h" />
     <ClInclude Include="Transform.h" />
-    <ClInclude Include="BufferView.h" />
     <ClInclude Include="XBOXController.h" />
     <ClInclude Include="XboxState.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Shader\PixelShader.hlsl">
-      <FileType>Document</FileType>
-    </None>
-    <None Include="Shader\VertexShader.hlsl">
-      <FileType>Document</FileType>
-    </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

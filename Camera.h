@@ -4,13 +4,11 @@
 
 struct Transform;
 class InputModule;
-class IResource;
 
 class Camera : public Object
 {
 public:
 	static Camera* gMainCamera;
-	static IResource* gCameraConstantBuffer;
 
 public:
 	Camera(const float fov, const int width, const int height)

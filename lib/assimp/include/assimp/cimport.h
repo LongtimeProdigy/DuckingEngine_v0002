@@ -105,7 +105,7 @@ typedef int aiBool;
  * this file. If the import fails, NULL is returned instead. Call
  * aiGetErrorString() to retrieve a human-readable error text.
  * @param pFile Path and filename of the file to be imported,
- *   expected to be a null-terminated c-string. NULL is not a valid value.
+ *   expected to be a null-terminated c-std::string. NULL is not a valid value.
  * @param pFlags Optional post processing steps to be executed after
  *   a successful import. Provide a bitwise combination of the
  *   #aiPostProcessSteps flags.
@@ -126,7 +126,7 @@ ASSIMP_API const C_STRUCT aiScene* aiImportFile(
  * this file. If the import fails, NULL is returned instead. Call
  * aiGetErrorString() to retrieve a human-readable error text.
  * @param pFile Path and filename of the file to be imported,
- *   expected to be a null-terminated c-string. NULL is not a valid value.
+ *   expected to be a null-terminated c-std::string. NULL is not a valid value.
  * @param pFlags Optional post processing steps to be executed after
  *   a successful import. Provide a bitwise combination of the
  *   #aiPostProcessSteps flags.
@@ -145,7 +145,7 @@ ASSIMP_API const C_STRUCT aiScene* aiImportFileEx(
 /** Same as #aiImportFileEx, but adds an extra parameter containing importer settings.
  *
  * @param pFile Path and filename of the file to be imported,
- *   expected to be a null-terminated c-string. NULL is not a valid value.
+ *   expected to be a null-terminated c-std::string. NULL is not a valid value.
  * @param pFlags Optional post processing steps to be executed after
  *   a successful import. Provide a bitwise combination of the
  *   #aiPostProcessSteps flags.
@@ -178,7 +178,7 @@ ASSIMP_API const C_STRUCT aiScene* aiImportFileExWithProperties(
  *   #aiPostProcessSteps flags. If you wish to inspect the imported
  *   scene first in order to fine-tune your post-processing setup,
  *   consider to use #aiApplyPostProcessing().
- * @param pHint An additional hint to the library. If this is a non empty string,
+ * @param pHint An additional hint to the library. If this is a non empty std::string,
  *   the library looks for a loader to support the file extension specified by pHint
  *   and passes the file to the first matching loader. If this loader is unable to
  *   completely the request, the library continues and tries to determine the file
@@ -210,7 +210,7 @@ ASSIMP_API const C_STRUCT aiScene* aiImportFileFromMemory(
  *   #aiPostProcessSteps flags. If you wish to inspect the imported
  *   scene first in order to fine-tune your post-processing setup,
  *   consider to use #aiApplyPostProcessing().
- * @param pHint An additional hint to the library. If this is a non empty string,
+ * @param pHint An additional hint to the library. If this is a non empty std::string,
  *   the library looks for a loader to support the file extension specified by pHint
  *   and passes the file to the first matching loader. If this loader is unable to
  *   completely the request, the library continues and tries to determine the file
@@ -421,7 +421,7 @@ ASSIMP_API void aiSetImportPropertyFloat(
     ai_real value);
 
 // --------------------------------------------------------------------------------
-/** Set a string property.
+/** Set a std::string property.
  *
  *  This is the C-version of #Assimp::Importer::SetPropertyString(). In the C
  *  interface, properties are always shared by all imports. It is not possible to

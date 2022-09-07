@@ -3,7 +3,6 @@
 #include "float2.h"
 #include "float3.h"
 
-class IResource;
 class Material;
 
 #define MAX_SKINNING_COUNT 4
@@ -31,27 +30,23 @@ public:
 	const float3 _normal = float3::Zero;
 	const float2 _uv = float2::Zero;
 
-	std::vector<uint> boneIndices;
-	std::vector<float> weights;
+	uint boneIndices[MAX_SKINNING_COUNT] = { static_cast<uint>(-1), static_cast<uint>(-1), static_cast<uint>(-1), static_cast<uint>(-1) };
+	float weights[MAX_SKINNING_COUNT] = { 0.0f, };
 };
 
 class SubMesh
 {
 public:
 	SubMesh() = default;
-	SubMesh(std::vector<Vertex>& vertices, std::vector<uint>& indices)
+	SubMesh(DKVector<Vertex>& vertices, DKVector<uint>& indices)
 		: _vertices(vertices)
 		, _indices(indices)
 	{}
-	~SubMesh()
-	{
-		_vertices.clear();
-		_indices.clear();
-	}
+	~SubMesh();
 
 public:
-	std::vector<Vertex> _vertices;
-	std::vector<uint> _indices;
+	DKVector<Vertex> _vertices;
+	DKVector<uint> _indices;
 	VertexBufferViewRef _vertexBufferView;
 	IndexBufferViewRef _indexBufferView;
 
@@ -68,19 +63,19 @@ public:
 		_subMeshes.clear();
 	}
 	
-	dk_inline void SetSubMeshes(std::vector<SubMesh>& subMeshes)
+	dk_inline void MoveSubMeshesFrom(DKVector<SubMesh>& subMeshes)
 	{
 		_subMeshes = std::move(subMeshes);
 	}
-	dk_inline const std::vector<SubMesh>& GetSubMeshes() const noexcept
+	dk_inline const DKVector<SubMesh>& GetSubMeshes() const noexcept
 	{
 		return _subMeshes;
 	}
-	dk_inline std::vector<SubMesh>& GetSubMeshesWritable() noexcept
+	dk_inline DKVector<SubMesh>& GetSubMeshesWritable() noexcept
 	{
 		return _subMeshes;
 	}
 
 private:
-	std::vector<SubMesh> _subMeshes;
+	DKVector<SubMesh> _subMeshes;
 };

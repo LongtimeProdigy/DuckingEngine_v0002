@@ -93,7 +93,7 @@ public:
         /** Recursively look for the FbxAnimCurveNode matching the passed named argument.
           * \param pName Name of the FbxAnimCurveNode we are looking for.
           * \return The found anim curve node or NULL.
-          * \remarks If pName is an empty string, this function automatically return NULL.
+          * \remarks If pName is an empty std::string, this function automatically return NULL.
           */
         FbxAnimCurveNode* Find(const char* pName);
 

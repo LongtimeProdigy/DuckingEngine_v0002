@@ -5,8 +5,8 @@
 struct Bone
 {
 public:
-#if defined(DK_DEBUG)
-	Bone(const std::string& boneName, const Transform& transform)
+#if defined(_DK_DEBUG_)
+	Bone(const DKString& boneName, const Transform& transform)
 		: _boneName(boneName), _transform(transform)
 	{}
 #else
@@ -14,29 +14,29 @@ public:
 		: _transform(transform)
 	{}
 #endif
-	//Bone(const std::string& boneName, const Transform& transform, const std::vector<uint>& childs)
+	//Bone(const string& boneName, const Transform& transform, const DKVector<uint>& childs)
 	//	: _boneName(boneName), _transform(transform), _childs(std::move(childs))
 	//{}
 
-#if defined(DK_DEBUG)
-	std::string _boneName;
+#if defined(_DK_DEBUG_)
+	DKString _boneName;
 #endif
 	Transform _transform = Transform::Identity;
-	std::vector<uint> _childs;
+	DKVector<uint> _childs;
 };
 
 class Skeleton
 {
 public:
-	dk_inline const std::vector<Bone>& GetBones() const noexcept
+	dk_inline const DKVector<Bone>& GetBones() const noexcept
 	{
 		return _bones;
 	}
-	dk_inline void  SetBones(std::vector<Bone>& bones) noexcept
+	dk_inline void  SetBones(DKVector<Bone>& bones) noexcept
 	{
 		_bones.swap(bones);
 	}
 
 private:
-	std::vector<Bone> _bones;
+	DKVector<Bone> _bones;
 };

@@ -44,8 +44,8 @@ public:
     // Properties
     //
     //////////////////////////////////////////////////////////////////////////
-    /** This property stores a description string of this animation stack.
-      * This string can be used to display, in a human readable format, information 
+    /** This property stores a description std::string of this animation stack.
+      * This std::string can be used to display, in a human readable format, information 
       * relative to this animation stack object. 
       * Default value is "".
       * \remarks The applications using the FBX SDK are not required to manipulate this information.
