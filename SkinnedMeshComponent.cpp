@@ -7,17 +7,10 @@
 
 #include "Model.h"
 #include "Material.h"
-#include "MaterialParameter.h"
 #include "Skeleton.h"
 #include "Animation.h"
 
-const char* ConvertModelPathToModelPropertyPath(const char* modelPath)
-{
-	DK_ASSERT_LOG(false, "아직 ModelProperty를 구현하지 않았는데 해당 함수를 사용합니다. 꼭 확인!!!!!");
-	return nullptr;
-}
-
-bool SkinnedMeshComponent::LoadResource(const char* modelPath, const char* skeletonPath, const char* animationSetPath, const char* modelPropertyPath)
+bool SkinnedMeshComponent::LoadResource(const DKString& modelPath, const DKString& skeletonPath, const DKString& animationSetPath, const DKString& modelPropertyPath)
 {
 	ResourceManager& resourceManager = DuckingEngine::getInstance().GetResourceManagerWritable();
 
@@ -28,54 +21,48 @@ bool SkinnedMeshComponent::LoadResource(const char* modelPath, const char* skele
 	// Load Animation
 	if (resourceManager.LoadAnimation(animationSetPath, _skeleton, _animation) == false) return false;
 
-	// Load ModelProperty (Model Property는 Character 별로 존재한다. 따라서 ResourceManager를 써선안된다)
-	DKVector<MaterialDefinition> modelProperties;
 #if defined(USE_TINYXML)
 	TiXmlDocument doc;
-	doc.LoadFile(modelPropertyPath);
+	doc.LoadFile(modelPropertyPath.c_str());
 
 	const TiXmlElement* rootNode = doc.FirstChildElement("ModelProperty");
 
-	const TiXmlElement* subMeshNode = rootNode->FirstChildElement("SubMesh");
-	const uint subMeshCount = atoi(subMeshNode->Attribute("Count"));
-	modelProperties.reserve(subMeshCount);
-
-#if defined(_DK_DEBUG_)
-	const uint32 modelSubMeshCount = _model->GetSubMeshes().size();
-	DK_ASSERT_LOG(subMeshCount == modelSubMeshCount, "Load된 SubMesh개수와 Total SubMesh개수가 다릅니다.");
-#endif	// _DK_DEBUG_
-	for (const TiXmlElement* childNode = subMeshNode->FirstChildElement(); childNode != nullptr; childNode = childNode->NextSiblingElement())
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	DKVector<SubMesh>& subMeshes = _model->GetSubMeshesWritable();
+	const TiXmlElement* subMeshesNode = rootNode->FirstChildElement("SubMeshes");
+	const uint subMeshCount = atoi(subMeshesNode->Attribute("Count"));
+	DK_ASSERT_LOG(subMeshCount == _model->GetSubMeshes().size(), "Load된 SubMesh개수와 Total SubMesh개수가 다릅니다.");
+	DKVector<MaterialDefinition> modelProperties;
+	const TiXmlElement* subMeshNode = subMeshesNode->ToElement()->FirstChildElement();
+	for (uint32 i = 0; i < subMeshCount; ++i)
 	{
-		const DKString materialName = subMeshNode->Attribute("Name");
-
-		MaterialDefinition modelPropertyRaw;
-		modelPropertyRaw._materialName = materialName;
-
-		const TiXmlElement* parametersNode = subMeshNode->FirstChildElement("Parameters");
-		for (const TiXmlElement* parameterNode = parametersNode->FirstChildElement(); parameterNode != nullptr; parameterNode = parameterNode->NextSiblingElement())
+		MaterialDefinition modelProperty;
+		modelProperty._materialName = subMeshNode->Attribute("Name");
+		for (const TiXmlElement* childNode = subMeshNode->FirstChildElement(); childNode != nullptr; childNode = childNode->NextSiblingElement())
 		{
-			MaterialParameterDefinition parameterRaw;
-			parameterRaw._name = parameterNode->Attribute("Name");
-			parameterRaw._value = parameterNode->Value();
+			const TiXmlElement* parametersNode = subMeshNode->FirstChildElement("Parameters");
+			for (const TiXmlElement* parameterNode = parametersNode->FirstChildElement(); parameterNode != nullptr; parameterNode = parameterNode->NextSiblingElement())
+			{
+				MaterialParameterDefinition parameterRaw;
+				parameterRaw._name = parameterNode->Attribute("Name");
+				parameterRaw._type = convertStringToEnum(parameterNode->Attribute("Type"));
+				parameterRaw._value = parameterNode->GetText();
+				modelProperty._parameters.push_back(std::move(parameterRaw));
+			}
 
-			modelPropertyRaw._parameters.push_back(std::move(parameterRaw));
+			modelProperties.push_back(std::move(modelProperty));
 		}
 
-		modelProperties.push_back(std::move(modelPropertyRaw));
+		subMeshNode = subMeshNode->NextSiblingElement();
 	}
 #else	// USE_TINYXML
 	static_assert(false, "XML Loader가 없습니다.");
 #endif	// USE_TINYXML
 
-	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-	DKVector<SubMesh>& subMeshes = _model->GetSubMeshesWritable();
-	const uint32 subMeshCount = subMeshes.size();
-
 	for (uint subMeshIndex = 0; subMeshIndex < subMeshCount; ++subMeshIndex)
 	{
 		SubMesh& submesh = subMeshes[subMeshIndex];
-		submesh._material = Material::createMaterial(modelProperties[subMeshIndex]);
-		if (submesh._material == nullptr) return false;
+		if (Material::createMaterial(modelProperties[subMeshIndex], submesh._material) == false) return false;
 	}
 
 	for (uint subMeshIndex = 0; subMeshIndex < subMeshCount; ++subMeshIndex)
@@ -83,36 +70,47 @@ bool SkinnedMeshComponent::LoadResource(const char* modelPath, const char* skele
 		SubMesh& submesh = subMeshes[subMeshIndex];
 		if (submesh._vertexBufferView.get() == nullptr)
 		{
-			const bool vertexBufferSuccess = renderModule.loadVertexBuffer(
-				modelPath, subMeshIndex, &submesh._vertices[0], sizeof(Vertex), sizeof(Vertex) * static_cast<uint>(submesh._vertices.size()), submesh._vertexBufferView
+			const bool vertexBufferSuccess = renderModule.createVertexBuffer(
+				&submesh._vertices[0], sizeof(Vertex), sizeof(Vertex) * static_cast<uint>(submesh._vertices.size()), submesh._vertexBufferView
 			);
 			if (vertexBufferSuccess == false) return false;
 		}
 
 		if (submesh._indexBufferView.get() == nullptr)
 		{
-			const bool indexBufferSuccess = renderModule.loadIndexBuffer(
+			const bool indexBufferSuccess = renderModule.createIndexBuffer(
 				&submesh._indices[0], sizeof(uint) * static_cast<uint>(submesh._indices.size()), submesh._indexBufferView
 			);
 			if (indexBufferSuccess == false) return false;
 		}
 	}
 
+	const uint32 boneCount = static_cast<uint32>(_skeleton->GetBones().size());
+	DKVector<Matrix4x4> animationMatrices;
+	animationMatrices.resize(boneCount);
+	for (uint32 i = 0; i < boneCount; ++i)
+	{
+		const Bone& bone = _skeleton->GetBones()[i];
+		bone._transform.ToMatrix4x4(animationMatrices[i]);
+	}
+
+	_skeletonConstantBuffer = renderModule.createUploadBuffer(animationMatrices.data(), sizeof(Matrix4x4) * static_cast<uint32>(animationMatrices.size()));
+
 	return true;
 }
 
-void SkinnedMeshComponent::Update(float deltaTime)
+void SkinnedMeshComponent::update(float deltaTime)
 {
 	const DKVector<Bone>& bones = _skeleton->GetBones();
 	const uint boneCount = static_cast<uint>(bones.size());
 
 	const DKVector<Animation::BoneAnimation>& boneAnimations = _animation->GetBoneAnimation();
-	const float currentAnimationTime = static_cast<const float>(fmodf(_animation->GetAnimationTime() + deltaTime * 30, _animation->GetFrameCount()));
+	const float currentAnimationTime = fmodf(_animation->GetAnimationTime() + deltaTime, static_cast<const float>(_animation->GetFrameCount()));
 	_animation->SetAnimationTime(currentAnimationTime);
 
 	DK_ASSERT_LOG(boneCount == boneAnimations.size(), "Skeleton과 Animation의 Bone Count가 다릅니다.");
 
-	// build CharacterSpace DressPose Bone InvertMatrix
+	// build InvertMatrix by CharacterSpace Bone DressPose
 	DKVector<Matrix4x4> characterSpaceBoneMatrix;
 	characterSpaceBoneMatrix.resize(boneCount);
 	DKVector<Matrix4x4> characterSpaceInvertBoneMatrix;
@@ -121,7 +119,7 @@ void SkinnedMeshComponent::Update(float deltaTime)
 	{
 		Matrix4x4 outMatrix;
 		bones[boneIndex]._transform.ToMatrix4x4(outMatrix);
-		characterSpaceBoneMatrix[boneIndex] = outMatrix * characterSpaceBoneMatrix[boneIndex];
+		characterSpaceBoneMatrix[boneIndex] = characterSpaceBoneMatrix[boneIndex] * outMatrix;	// parent * current(child)
 
 		Transform tempTransform = bones[boneIndex]._transform;
 		tempTransform.Invert();
@@ -146,7 +144,7 @@ void SkinnedMeshComponent::Update(float deltaTime)
 		Matrix4x4 outMatrix = boneAnimations[boneIndex]._animation[static_cast<size_t>(currentAnimationTime)];
 		//Matrix4x4 outMatrix = boneAnimations[boneIndex]._animation[static_cast<size_t>(0)];
 
-		currentCharacterSpaceBoneAnimation[boneIndex] = outMatrix * currentCharacterSpaceBoneAnimation[boneIndex];
+		currentCharacterSpaceBoneAnimation[boneIndex] = currentCharacterSpaceBoneAnimation[boneIndex] * outMatrix;	// parent * current(child)
 
 		const Bone& bone = bones[boneIndex];
 		for (uint childBoneIndex = 0; childBoneIndex < bone._childs.size(); ++childBoneIndex)
@@ -155,17 +153,21 @@ void SkinnedMeshComponent::Update(float deltaTime)
 		}
 	}
 
-	// skinning
+	/*
+	* Skinning Matrix 자체는 Vertex단위로 있어야합니다. 이 곳에서는 bone단위의 Invert * Animation을 구하고
+	* 셰이더에서 Vertex단위로 weight를 곱해주도록 합니다.
+	*/
+	// Build Skinning Matrix(Bone)
 	_currentCharacterSpaceBoneAnimation.clear();
 	_currentCharacterSpaceBoneAnimation.resize(boneCount);
 	for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
-		Matrix4x4 boneSpaceAnimationMatrix = 
-			//characterSpaceBoneMatrix[boneIndex];
-			characterSpaceInvertBoneMatrix[boneIndex]
-			* currentCharacterSpaceBoneAnimation[boneIndex];
-
+		// Skinning : (Invert * Animation) * weight
+		Matrix4x4 boneSpaceAnimationMatrix = characterSpaceInvertBoneMatrix[boneIndex] * currentCharacterSpaceBoneAnimation[boneIndex];
 		_currentCharacterSpaceBoneAnimation[boneIndex] = boneSpaceAnimationMatrix;
+
 		_currentCharacterSpaceBoneAnimation[boneIndex].Transpose();
+
+		//_currentCharacterSpaceBoneAnimation[boneIndex] = Matrix4x4::Identity;
 	}
 }

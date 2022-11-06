@@ -2,6 +2,7 @@
 
 struct ID3D12Resource;
 struct ID3D12DescriptorHeap;
+enum DXGI_FORMAT;
 
 class TextureRaw
 {
@@ -17,8 +18,12 @@ public:
 class ITexture
 {
 public:
-	ITexture(const DKString& path)
+	using TextureSRVType = uint32;
+	static constexpr TextureSRVType kErrorTextureSRV = -1;
+public:
+	ITexture(const DKString& path, const TextureSRVType& textureSRV)
 		: _path(path)
+		, _textureSRV(textureSRV)
 	{}
 
 	dk_inline const DKString& getPath() const
@@ -26,9 +31,14 @@ public:
 		return _path;
 	}
 
+	dk_inline const TextureSRVType& getSRV() const noexcept
+	{
+		return _textureSRV;
+	}
+
 private:
 	DKString _path;
-	ID3D12Resource* _resource;
+	TextureSRVType _textureSRV = kErrorTextureSRV;
 };
 
 class TextureManager
@@ -36,11 +46,20 @@ class TextureManager
 public:
 	bool initialize();
 
-	ITextureRef createTexture(const DKString& texturePath, uint32& outindex);
+	const ITextureRef& createTexture(const DKString& texturePath);
+
+	dk_inline const RenderResourcePtr<ID3D12DescriptorHeap>& getTextureDescriptorHeap() const
+	{
+		return _textureDescriptorHeap;
+	}
+	dk_inline RenderResourcePtr<ID3D12DescriptorHeap>& getTextureDescriptorHeapWritable()
+	{
+		return _textureDescriptorHeap;
+	}
 
 private:
-	DKHashMap<DKString, uint32> _pathMap;	// key: path, value: index(_textures)
-	DKVector<ITextureRef> _textures;
+	DKHashMap<DKString, ITextureRef> _textureContainer;
+	RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
 
-	ID3D12DescriptorHeap* _textureDescriptorHeap;
+	DKVector<ITexture::TextureSRVType> _deletedTextureSRV;
 };

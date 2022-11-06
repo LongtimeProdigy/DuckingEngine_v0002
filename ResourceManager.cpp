@@ -31,36 +31,82 @@ float2 parseFloat2FromString(const std::string& str)
 {
 	DKVector<std::string> tokens = split(str, " ");
 	return float2(
-		static_cast<float>(atof(tokens[0].c_str())),
-		static_cast<float>(atof(tokens[1].c_str()))
+		DK::StringUtil::atof(tokens[0].c_str()),
+		DK::StringUtil::atof(tokens[1].c_str())
 	);
 }
 float3 parseFloat3FromString(const std::string& str)
 {
 	DKVector<std::string> tokens = split(str, " ");
 	return float3(
-		static_cast<float>(atof(tokens[0].c_str())),
-		static_cast<float>(atof(tokens[1].c_str())),
-		static_cast<float>(atof(tokens[2].c_str()))
+		DK::StringUtil::atof(tokens[0].c_str()),
+		DK::StringUtil::atof(tokens[1].c_str()),
+		DK::StringUtil::atof(tokens[2].c_str())
 	);
 }
 float4 parseFloat4FromString(const std::string& str)
 {
 	DKVector<std::string> tokens = split(str, " ");
 	return float4(
-		static_cast<float>(atof(tokens[0].c_str())),
-		static_cast<float>(atof(tokens[1].c_str())),
-		static_cast<float>(atof(tokens[2].c_str())),
-		static_cast<float>(atof(tokens[3].c_str()))
+		DK::StringUtil::atof(tokens[0].c_str()),
+		DK::StringUtil::atof(tokens[1].c_str()),
+		DK::StringUtil::atof(tokens[2].c_str()),
+		DK::StringUtil::atof(tokens[3].c_str())
 	);
 }
-const bool LoadMeshInternal(const char* modelPath, ModelRef& outModel)
+const bool LoadMeshInternal(const DKString& modelPath, ModelRef& outModel)
 {
+	static const char* errorString[] =
+	{
+		"None", 
+		"Operation not permitted",
+		"No such file or directory",
+		"No such process",
+		"Interrupted function",
+		"I/O error",
+		"No such device or address",
+		"Argument list too long",
+		"Exec format error",
+		"Bad file number",
+		"No spawned processes",
+		"No more processes or not enough memoty or maximum nesting level reached",
+		"Not enough memory",
+		"Permission denied",
+		"Bad address",
+		"Device or resource busy",
+		"File exists",
+		"Cross-device link",
+		"No such device",
+		"Not a directory",
+		"Is a directory",
+		"Invalid argument",
+		"Too many files open in system",
+		"Too many open files",
+		"Inappropriate I/O control operation",
+		"File too large",
+		"No space left on device",
+		"Invalid seek",
+		"Read-only file system",
+		"Too many links",
+		"Broken pipe",
+		"Math argument",
+		"Result too large",
+		"Resource deadlock would occur",
+		"Same as EDEADLK for compatibility with older Microsoft C versions",
+		"Filename too long",
+		"No locks available",
+		"Function not supported",
+		"Directory not empty",
+		"Directory not empty",
+		"Illegal byte sequence",
+		"String was truncated"
+	};
+
 	FILE* fp = nullptr;
-	errno_t err = fopen_s(&fp, modelPath, "rb");
+	errno_t err = fopen_s(&fp, modelPath.c_str(), "rb");
 	if (err != 0)
 	{
-		DK_ASSERT_LOG(false, "파일을 Open하지 못했습니다. 이미 실행중인 파일이거나 관리자 문제일 수 있습니다. path: %s", modelPath);
+		DK_ASSERT_LOG(false, "파일을 Open하지 못했습니다.\n%s\npath: %s", errorString[err], modelPath.c_str());
 		return false;
 	}
 
@@ -101,7 +147,7 @@ const bool LoadMeshInternal(const char* modelPath, ModelRef& outModel)
 		std::memcpy(vertexBuffer.data(), &buffer[bufferOffset], vertexCount * sizeof(Vertex));
 		bufferOffset += vertexCount * sizeof(Vertex);
 
-		submeshes.push_back(std::move(SubMesh(vertexBuffer, indexBuffer)));
+		submeshes.push_back(SubMesh(vertexBuffer, indexBuffer));
 	}
 
 	DK_ASSERT_LOG(feof(fp) == 0, "파일이 끝에 도달하지 못했습니다. %d/%d", ftell(fp), blockSize);
@@ -115,10 +161,10 @@ const bool LoadMeshInternal(const char* modelPath, ModelRef& outModel)
 }
 
 #ifdef USE_TINYXML
-const bool LoadSkeletonInternal(const char* skeletonPath, SkeletonRef& outSkeleton)
+const bool LoadSkeletonInternal(const DKString& skeletonPath, SkeletonRef& outSkeleton)
 {
 	TiXmlDocument doc;
-	if (doc.LoadFile(skeletonPath) == false)
+	if (doc.LoadFile(skeletonPath.c_str()) == false)
 		return false;
 
 	TiXmlElement* rootNode = doc.FirstChildElement("Skeleton");
@@ -175,10 +221,10 @@ const bool LoadSkeletonInternal(const char* skeletonPath, SkeletonRef& outSkelet
 
 	return true;
 }
-const bool LoadAnimationInternal(const char* animationPath, const SkeletonRef& skeleton, AnimationRef& outAnimation)
+const bool LoadAnimationInternal(const DKString& animationPath, const SkeletonRef& skeleton, AnimationRef& outAnimation)
 {
 	TiXmlDocument doc;
-	doc.LoadFile(animationPath);
+	doc.LoadFile(animationPath.c_str());
 	TiXmlElement* rootNode = doc.FirstChildElement("Animation");
 	if (rootNode == nullptr)
 	{
@@ -288,10 +334,10 @@ const bool LoadAnimationInternal(const char* animationPath, const SkeletonRef& s
 }
 #endif
 
-const bool ResourceManager::LoadMesh(const char* modelPath, ModelRef& outModel)
+const bool ResourceManager::LoadMesh(const DKString& modelPath, ModelRef& outModel)
 {
-	typedef DKPair<DKHashMap<const char*, ModelRef>::iterator, bool> InsertResult;
-	InsertResult success = _modelContainer.insert(DKPair<const char*, ModelRef>(modelPath, dk_new Model));
+	typedef DKPair<DKHashMap<DKString, ModelRef>::iterator, bool> InsertResult;
+	InsertResult success = _modelContainer.insert(DKPair<DKString, ModelRef>(modelPath, dk_new Model));
 	if (success.second == false)
 	{
 		outModel = success.first->second;
@@ -306,7 +352,7 @@ const bool ResourceManager::LoadMesh(const char* modelPath, ModelRef& outModel)
 	if (LoadMeshInternal(modelPath, model) == false)
 #endif
 	{
-		DK_ASSERT_LOG(true, "Model Loading Failed. path: %s", modelPath);
+		DK_ASSERT_LOG(true, "Model Loading Failed. path: %s", modelPath.c_str());
 		_modelContainer.erase(modelPath);
 		return false;
 	}
@@ -314,10 +360,10 @@ const bool ResourceManager::LoadMesh(const char* modelPath, ModelRef& outModel)
 	outModel = success.first->second;
 	return true;
 }
-const bool ResourceManager::LoadSkeleton(const char* skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton)
+const bool ResourceManager::LoadSkeleton(const DKString& skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton)
 {
-	typedef DKPair<DKHashMap<const char*, SkeletonRef>::iterator, bool> InsertResult;
-	InsertResult success = _skeletonContainer.insert(DKPair<const char*, SkeletonRef>(skeletonPath, dk_new Skeleton));
+	typedef DKPair<DKHashMap<DKString, SkeletonRef>::iterator, bool> InsertResult;
+	InsertResult success = _skeletonContainer.insert(DKPair<DKString, SkeletonRef>(skeletonPath, dk_new Skeleton));
 	if (success.second == false)
 	{
 		outSkeleton = success.first->second;
@@ -332,7 +378,7 @@ const bool ResourceManager::LoadSkeleton(const char* skeletonPath, const ModelRe
 	if(LoadSkeletonInternal(skeletonPath, skeleton) == false)
 #endif
 	{
-		DK_ASSERT_LOG(true, "Skeleton Loading Failed. path: %s", skeletonPath);
+		DK_ASSERT_LOG(true, "Skeleton Loading Failed. path: %s", skeletonPath.c_str());
 		_modelContainer.erase(skeletonPath);
 		return false;
 	}
@@ -340,10 +386,10 @@ const bool ResourceManager::LoadSkeleton(const char* skeletonPath, const ModelRe
 	outSkeleton = success.first->second;
 	return true;
 }
-const bool ResourceManager::LoadAnimation(const char* animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation)
+const bool ResourceManager::LoadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation)
 {
-	typedef DKPair<DKHashMap<const char*, AnimationRef>::iterator, bool> InsertResult;
-	InsertResult success = _animationContainer.insert(DKPair<const char*, AnimationRef>(animationPath, dk_new Animation));
+	typedef DKPair<DKHashMap<DKString, AnimationRef>::iterator, bool> InsertResult;
+	InsertResult success = _animationContainer.insert(DKPair<DKString, AnimationRef>(animationPath, dk_new Animation));
 	if (success.second == false)
 	{
 		outAnimation = success.first->second;
@@ -359,7 +405,7 @@ const bool ResourceManager::LoadAnimation(const char* animationPath, SkeletonRef
 	if(LoadAnimationInternal(animationPath, skeleton, animation) == false)
 #endif
 	{
-		DK_ASSERT_LOG(true, "Animation Loading Failed. path: %s", animationPath);
+		DK_ASSERT_LOG(true, "Animation Loading Failed. path: %s", animationPath.c_str());
 		_modelContainer.erase(animationPath);
 		return false;
 	}

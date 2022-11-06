@@ -12,7 +12,7 @@
 
 const AppearanceRawRef SceneObjectManager::loadCharacter_LoadAppearanceFile(const char* appearancePath)
 {
-	using FindResult = DKHashMap<const char*, AppearanceRawRef>::iterator;
+	using FindResult = DKHashMap<DKString, AppearanceRawRef>::iterator;
 	FindResult findResult = _appearanceRawContainers.find(appearancePath);
 	if (findResult != _appearanceRawContainers.end())
 	{
@@ -42,57 +42,51 @@ const AppearanceRawRef SceneObjectManager::loadCharacter_LoadAppearanceFile(cons
 
 	return insertResult.first->second;
 }
-SceneObject* SceneObjectManager::CreateCharacter(const char* appearancePath)
+SceneObject* SceneObjectManager::createCharacter(const char* appearancePath)
 {
 	SceneObject newSceneObject;
 
+	SceneObjectManager& thisXXX = DuckingEngine::getInstance().GetSceneObjectManagerWritable();
+	const AppearanceRawRef appearanceRaw = thisXXX.loadCharacter_LoadAppearanceFile(appearancePath);
+	SkinnedMeshComponent* mainSkinnedMeshComponent = dk_new SkinnedMeshComponent;
+	if (mainSkinnedMeshComponent->LoadResource(
+		appearanceRaw->_modelPath.c_str(), appearanceRaw->_skeletonPath.c_str(), 
+		appearanceRaw->_animationSetPath.c_str(), appearanceRaw->_modelPropertyPath.c_str()
+	) == false)
 	{
-		const AppearanceRawRef appearanceRaw = loadCharacter_LoadAppearanceFile(appearancePath);
-		SkinnedMeshComponent mainSkinnedMeshComponent;
-		if (mainSkinnedMeshComponent.LoadResource(
-			appearanceRaw->_modelPath.c_str(),
-			appearanceRaw->_skeletonPath.c_str(),
-			appearanceRaw->_animationSetPath.c_str(),
-			appearanceRaw->_modelPropertyPath.c_str()) == false
-			)
-		{
-			DK_ASSERT_LOG(false, "SkinnedMeshComponent::LoadResource에 실패");
-			return nullptr;
-		}
-		newSceneObject.AddComponent(std::move(mainSkinnedMeshComponent));
+		DK_ASSERT_LOG(false, "SkinnedMeshComponent::LoadResource에 실패");
+		return nullptr;
 	}
+	newSceneObject.AddComponent(mainSkinnedMeshComponent);
 
 	// for GPU resource
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+	newSceneObject._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
+	newSceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
+	if (newSceneObject._sceneObjectConstantBuffer.get() == nullptr)
 	{
-		const RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModule();
-		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
-		newSceneObject._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
-		newSceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
-		if (newSceneObject._sceneObjectConstantBuffer == nullptr)
-		{
-			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
-			return nullptr;
-		}
+		DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
+		return nullptr;
 	}
 
-	const uint key = static_cast<uint>(_characterSceneObjectContainer.size());
-	auto success = _characterSceneObjectContainer.insert(DKPair<const uint, SceneObject>(key, std::move(newSceneObject)));
+	const uint32 key = static_cast<uint32>(thisXXX._characterSceneObjectContainer.size());
+	auto success = thisXXX._characterSceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, std::move(newSceneObject)));
 	if (success.second == false)
 		return nullptr;
 
 	return &success.first->second;
 }
 
-void SceneObjectManager::Update(float deltaTime)
+void SceneObjectManager::update(float deltaTime)
 {
 	for (auto iter = _characterSceneObjectContainer.begin(); iter != _characterSceneObjectContainer.end(); ++iter)
 	{
 		SceneObject& sceneObject = iter->second;
-		uint componentCount = static_cast<uint>(sceneObject._components.size());
-		for (uint i = 0; i < componentCount; ++i)
+		uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+		for (uint32 i = 0; i < componentCount; ++i)
 		{
-			SkinnedMeshComponent& skinnedMeshComponent = static_cast<SkinnedMeshComponent&>(sceneObject._components[i]);
-			skinnedMeshComponent.Update(deltaTime);
+			sceneObject._components[i]->update(deltaTime);
 		}
 	}
 }

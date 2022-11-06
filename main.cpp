@@ -7,7 +7,7 @@
 
 #include <strsafe.h>
 
-#if defined(_DK_DEBUG_) and defined(USE_PIX)
+#if defined(USE_PIX)
 static std::wstring GetLatestWinPixGpuCapturerPath()
 {
     LPWSTR programFilesPath = nullptr;
@@ -57,7 +57,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 {
 	try
 	{
-#if defined(_DK_DEBUG_) and defined(USE_PIX)
+#if defined(USE_PIX)
         // PIX dll 로딩 (출처: https://devblogs.microsoft.com/pix/taking-a-capture/)
         // Check to see if a copy of WinPixGpuCapturer.dll has already been injected into the application.
         // This may happen if the application is launched through the PIX UI. 
@@ -76,9 +76,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
             DK_ASSERT_LOG(false, "Commandline Parsing Failed");
             return -1;
         }
-        for (uint i = 0; i < num; ++i)
+        for (int i = 0; i < num; ++i)
         {
-            DK_WLOG(L"%#", argv[i]);
+            DK_WLOG(L"%s", argv[i]);
         }
         LocalFree(argv);
 #endif

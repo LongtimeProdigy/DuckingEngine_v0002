@@ -1,11 +1,33 @@
 #include "stdafx.h"
 #include "SceneRenderer.h"
 
+#pragma region Lib
+#pragma comment(lib, "d3d12.lib")
+#include <d3d12.h>
+#pragma comment(lib, "dxgi.lib")
+#include <dxgi1_6.h>
+#pragma comment(lib, "d3dcompiler.lib")
+#include <d3dcompiler.h>
+#include "d3dx12.h"
+
+#ifdef USE_IMGUI
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx12.h"
+#endif
+#pragma endregion
+
 #include "Matrix4x4.h"
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
+#include "TextureManager.h"
+#include "SceneObjectManager.h"
 #include "Camera.h"
+#include "SkinnedMeshComponent.h"
+#include "Model.h"
+#include "SceneObject.h"
+#include "Material.h"
 
 struct SceneConstantBufferStruct
 {
@@ -13,7 +35,186 @@ struct SceneConstantBufferStruct
 	Matrix4x4 cameraProjectionMatrix;
 };
 
-void SceneRenderer::createSceneConstantBuffer() noexcept
+bool SceneRenderer::initialize()
+{
+	if (initialize_createRenderPass() == false) return false;
+	if (initialize_createMaterialDefinition() == false) return false;
+	if (initialize_createSceneConstantBuffer() == false) return false;
+
+	return true;
+}
+
+constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderVariableType::Count)] =
+{
+	"Buffer",
+	"None"
+};
+ShaderVariableType convertStringToEnum2(const char* str)
+{
+	for (uint32 i = 0; i < static_cast<uint32>(ShaderVariableType::Count); ++i)
+	{
+		if (strcmp(str, ShaderVariableTypeString[i]) == 0)
+		{
+			return static_cast<ShaderVariableType>(i);
+		}
+	}
+
+	return ShaderVariableType::Count;
+};
+#if defined(USE_TINYXML)
+bool parseShaderVariable(TiXmlElement* variableNode, ShaderVariable& outVariable)
+#else
+static_assert("현재 지원되는 XML 로더가 없습니다.");
+#endif
+{
+	const char* variableName = variableNode->ToElement()->Attribute("Name");
+	const char* variableTypeRaw = variableNode->ToElement()->Attribute("Type");
+	const char* variableRegisterRaw = variableNode->ToElement()->Attribute("Register");
+
+	DK_ASSERT_LOG(variableName != nullptr && variableTypeRaw != nullptr && variableRegisterRaw != nullptr, "RenderPass의 Parameter가 비정상인 상황. 엔진이 비정상 작동할 수 있습니다.");
+
+	const ShaderVariableType variableType = convertStringToEnum2(variableTypeRaw);
+	const uint32 variableRegister = atoi(variableRegisterRaw);
+	const char* variableValue = variableNode->ToElement()->Value();
+
+	if (variableType == ShaderVariableType::Count)
+	{
+		DK_ASSERT_LOG(false, "현재 지원하지 않는 MaterialType을 사용하였습니다. ParameterName: %s, ParameterType: %d", variableName, variableType);
+		return false;
+	}
+
+	outVariable._name = variableName;
+	outVariable._type = variableType;
+	outVariable._register = variableRegister;
+
+	return true;
+}
+bool SceneRenderer::initialize_createRenderPass()
+{
+	static const char* renderPassGroupPath = "C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/RenderPass/RenderPassGroup.xml";
+#if defined(USE_TINYXML)
+	TiXmlDocument doc;
+	doc.LoadFile(renderPassGroupPath);
+	TiXmlElement* rootNode = doc.FirstChildElement("RenderPassGroup");
+	if (rootNode == nullptr) return false;
+
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	for (TiXmlNode* renderPassNode = rootNode->FirstChild(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSibling())
+	{
+		// parsing
+		RenderPass::CreateInfo info;
+		info._renderPassName = renderPassNode->ToElement()->Attribute("Name");
+
+		DKVector<ShaderVariable> shaderVariables;
+		for (TiXmlNode* childNode = renderPassNode->FirstChild(); childNode != nullptr; childNode = childNode->NextSibling())
+		{
+			if (childNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
+				continue;
+
+			DKString nodeName = childNode->Value();
+			if (nodeName == "VertexShader")
+			{
+				info._vertexShaderEntry = childNode->ToElement()->Attribute("Entry");
+				info._vertexShaderPath = childNode->ToElement()->GetText();
+			}
+			else if (nodeName == "PixelShader")
+			{
+				info._pixelShaderEntry = childNode->ToElement()->Attribute("Entry");
+				info._pixelShaderPath = childNode->ToElement()->GetText();
+			}
+			else if (nodeName == "Parameter")
+			{
+				ShaderVariable variable;
+				if (parseShaderVariable(childNode->ToElement(), variable) == false)
+				{
+					return false;
+				}
+				info._variables.push_back(std::move(variable));
+			}
+			else
+			{
+				DK_ASSERT_LOG(false, "지원하지 RenderPass ChildNode입니다. NodeName: %s", nodeName.c_str());
+				return false;
+			}
+		}
+
+		if (renderModule.createRenderPass(std::move(info)) == false)
+			return false;
+	}
+
+	return true;
+#else
+	static_assert("현재 지원하지 XML 로더가 없습니다.");
+	return false;
+#endif
+}
+
+bool SceneRenderer::initialize_createMaterialDefinition()
+{
+	// #todo- 나중에 MaterialGroup을 추가하고 Technique로 RenderPass와 연결시켜줘야할듯?
+	static const char* materialDefinitionGroupPass = "C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Material/SkinnedMeshStandard.xml";
+#if defined(USE_TINYXML)
+	TiXmlDocument doc;
+	doc.LoadFile(materialDefinitionGroupPass);
+	TiXmlElement* rootNode = doc.FirstChildElement("Material");
+	if (rootNode == nullptr) return false;
+
+	MaterialDefinition materialDefinition;
+	const DKString materialName = rootNode->Attribute("Name");
+
+	using FindResult = DKHashMap<DKString, MaterialDefinition>::iterator;
+	FindResult findResult = _materialDefinitionMap.find(materialName);
+	if (findResult != _materialDefinitionMap.end())
+	{
+		DK_ASSERT_LOG(false, "중복된 이름의 MaterialDefinition이 있습니다.");
+		return false;
+	}
+
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	for (TiXmlNode* parameterNode = rootNode->FirstChild(); parameterNode != nullptr; parameterNode = parameterNode->NextSibling())
+	{
+		const char* name = parameterNode->ToElement()->Attribute("Name");
+		const char* typeRaw = parameterNode->ToElement()->Attribute("Type");
+		const MaterialParameterType type = convertStringToEnum(typeRaw);
+		const char* value = parameterNode->ToElement()->GetText();
+
+		MaterialParameterDefinition parameterDefinition;
+		parameterDefinition._name = name;
+		parameterDefinition._type = type;
+		switch (type)
+		{
+		case MaterialParameterType::FLOAT:
+		{
+			parameterDefinition._value = value;
+		}
+		break;
+		case MaterialParameterType::TEXTURE:
+			parameterDefinition._value = value;
+		break;
+		default:
+			DK_ASSERT_LOG(false, "지원하지 않는 MaterialParameterDefinition Type입니다.");
+		break;
+		}
+
+		materialDefinition._parameters.push_back(std::move(parameterDefinition));
+	}
+#else
+	static_assert("현재 지원하지 XML 로더가 없습니다.");
+	return false;
+#endif
+	
+	using InsertResult = DKPair<DKHashMap<DKString, MaterialDefinition>::iterator, bool>;
+	InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, std::move(materialDefinition)));
+	if (insertResult.second == false)
+	{
+		DK_ASSERT_LOG(false, "HashMap Insert 실패!");
+		return false;
+	}
+
+	return true;
+}
+
+bool SceneRenderer::initialize_createSceneConstantBuffer()
 {
 	DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
@@ -21,21 +222,63 @@ void SceneRenderer::createSceneConstantBuffer() noexcept
 	SceneConstantBufferStruct cameraConstanceBufferData;
 	Camera::gMainCamera->GetCameraWorldMatrix(cameraConstanceBufferData.cameraWorldMatrix);
 	Camera::gMainCamera->GetCameraProjectionMaterix(cameraConstanceBufferData.cameraProjectionMatrix);
-	_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModule().createUploadBuffer(&cameraConstanceBufferData, sizeof(cameraConstanceBufferData), D3D12_RESOURCE_STATE_GENERIC_READ);
+	_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(&cameraConstanceBufferData, sizeof(cameraConstanceBufferData));
+
+	return true;
 }
 
-void SceneRenderer::uploadSceneConstantBuffer() const noexcept
+const MaterialDefinition* SceneRenderer::getMaterialDefinition(const DKString& materialName) const
 {
-	SceneConstantBufferStruct cameraConstantBufferData;
-	Camera::gMainCamera->GetCameraProjectionMaterix(cameraConstantBufferData.cameraProjectionMatrix);
-	Camera::gMainCamera->GetCameraWorldMatrix(cameraConstantBufferData.cameraWorldMatrix);
-	cameraConstantBufferData.cameraProjectionMatrix.Transpose();
-	cameraConstantBufferData.cameraWorldMatrix.Transpose();
-	uint8* cameraConstantBufferAddress = _sceneConstantBuffer->Map();
-	memcpy(cameraConstantBufferAddress, &cameraConstantBufferData, sizeof(cameraConstantBufferData));
+	using FindResult = DKHashMap<DKString, MaterialDefinition>::const_iterator;
+	FindResult findResult = _materialDefinitionMap.find(materialName);
+	if (findResult == _materialDefinitionMap.end())
+	{
+		return nullptr;
+	}
+
+	return &findResult->second;
 }
 
-void SceneRenderer::PreRender() const noexcept
+void SceneRenderer::prepareShaderData() noexcept
+{
+	// Upload Scene ConstantBuffer
+	SceneConstantBufferStruct cameraConstantBufferData;
+	Camera::gMainCamera->GetCameraWorldMatrix(cameraConstantBufferData.cameraWorldMatrix);
+	cameraConstantBufferData.cameraWorldMatrix.Transpose();
+	Camera::gMainCamera->GetCameraProjectionMaterix(cameraConstantBufferData.cameraProjectionMatrix);
+	cameraConstantBufferData.cameraProjectionMatrix.Transpose();
+	_sceneConstantBuffer->upload(&cameraConstantBufferData, sizeof(cameraConstantBufferData));
+
+	// Render Character SceneObject
+	DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
+	for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+	{
+		SceneObject& sceneObject = iter->second;
+
+		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+		sceneObject._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
+		sceneObjectConstantBufferData._worldMatrix.Transpose();
+		sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
+
+		uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+		for (uint i = 0; i < componentCount; ++i)
+		{
+			// #todo- component 완전 개편 필요해보임.
+			// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+			// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+			SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[i].get());
+
+			// SkinnedMesh ConstantBuffer
+			const DKVector<Matrix4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->GetCurrentCharacterSpaceBoneAnimation();
+			if (currentCharacterSpaceBoneAnimation.empty() == false)
+			{
+				Ptr<IBuffer>& skeletonBuffer = skinnedMeshComponent->getSkeletonConstantBufferWritable();
+				skeletonBuffer->upload(currentCharacterSpaceBoneAnimation.data(), sizeof(Matrix4x4) * static_cast<uint32>(currentCharacterSpaceBoneAnimation.size()));
+			}
+		}
+	}
+}
+void SceneRenderer::preRender() const noexcept
 {
 #if defined(USE_IMGUI)
 	ImGui_ImplDX12_NewFrame();
@@ -85,134 +328,60 @@ void SceneRenderer::PreRender() const noexcept
 	ImGui::Render();
 #endif
 
-	WaitForPreviousFrame();
-
-	D3D12_RESOURCE_BARRIER barrier;
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	barrier.Transition.pResource = _renderTargetResources[_currentFrame]->GetResourceWritable();
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	_commandList->ResourceBarrier(1, &barrier);
-
-	const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	rtvHandle.ptr += rtvDescriptorSize * _currentFrame;
-
-	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-
-	_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-	const float clearColor[] = { 0.5f, 0.5f, 0.9f, 1.0f };
-	_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
-	_commandList->RSSetViewports(1, &_viewport);
-	_commandList->RSSetScissorRects(1, &_scissorRect);
-	_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	renderModule.preRender();
 }
-
-void SceneRenderer::RenderSkinnedMesh(const SkinnedMeshComponent* skinnedMeshComponent) const noexcept
+void SceneRenderer::updateRender() noexcept
 {
-	if (skinnedMeshComponent == nullptr)
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+
+	// Render StaticMesh SceneObject
 	{
-		return;
+		__noop;
 	}
 
-	// SkinnedMesh ConstantBuffer
-	const DKVector<Matrix4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->GetCurrentCharacterSpaceBoneAnimation();
-	if (currentCharacterSpaceBoneAnimation.empty() == false)
+	// Render Character SceneObject
+	static const char* skinnedMeshRenderPassName = "SkinnedMeshStandardRenderPass";
+	startRenderPass(renderModule, skinnedMeshRenderPassName)
 	{
-		const IResource* skeletonBuffer = skinnedMeshComponent->getSkeletonConstantBuffer();
-		uint8* skeletonConstantBufferAddress = skeletonBuffer->Map();
-		memcpy(skeletonConstantBufferAddress, &currentCharacterSpaceBoneAnimation[0], sizeof(Matrix4x4) * currentCharacterSpaceBoneAnimation.size());
-		skeletonBuffer->UnMap();
-	}
+		setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
-	// Material Parameters
-	const DKVector<SubMesh>& subMeshes = skinnedMeshComponent->GetModel()->GetSubMeshes();
-	for (uint i = 0; i < subMeshes.size(); ++i)
-	{
-		const SubMesh& subMesh = subMeshes[i];
-
-		_commandList->SetGraphicsRootSignature(subMesh._material->_rootSignature.get());
-		_commandList->SetPipelineState(subMesh._material->_pipelineStateObject.get());
-
-		for (uint i = 0; i < subMesh._material->_constant32BitParamters.size(); ++i)
+		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
+		for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 		{
-			_commandList->SetGraphicsRoot32BitConstant(
-				subMesh._material->_constant32BitParamters[i]._rootParameterIndex,
-				subMesh._material->_constant32BitParamters[i]._constanceData,
-				0
-			);
-		}
-		for (uint i = 0; i < subMesh._material->_constantBufferParamters.size(); ++i)
-		{
-			if (subMesh._material->_constantBufferParamters[i]._constantBuffer == nullptr)
+			SceneObject& sceneObject = iter->second;
+			setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
+
+			uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+			for (uint i = 0; i < componentCount; ++i)
 			{
-				continue;
-			}
+				// #todo- component 완전 개편 필요해보임.
+				// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+				// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+				SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[i].get());
 
-			_commandList->SetGraphicsRootConstantBufferView(
-				subMesh._material->_constantBufferParamters[i]._rootParameterIndex,
-				subMesh._material->_constantBufferParamters[i]._constantBuffer->GetResourceWritable()->GetGPUVirtualAddress()
-			);
-		}
+				setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->getSkeletonConstantBufferWritable()->getGPUVirtualAddress());
 
-		DKVector<ID3D12DescriptorHeap*> descriptorArr;
-		descriptorArr.resize(subMesh._material->_descriptorHeapParameters.size());
-		for (uint i = 0; i < subMesh._material->_descriptorHeapParameters.size(); ++i)
-		{
-			descriptorArr[i] = subMesh._material->_descriptorHeapParameters[i]._descriptor->GetDescriptorHeapWritable();
-		}
-		_commandList->SetDescriptorHeaps(descriptorArr);
-		for (uint i = 0; i < subMesh._material->_descriptorHeapParameters.size(); ++i)
-		{
-			_commandList->SetGraphicsRootDescriptorTable(
-				subMesh._material->_descriptorHeapParameters[i]._rootParameterIndex,
-				subMesh._material->_descriptorHeapParameters[i]._descriptor->GetGPUDescriptorHandleForHeapStart()
-			);
-		}
+				// Material Parameters
+				DKVector<SubMesh>& subMeshes = skinnedMeshComponent->GetModelWritable()->GetSubMeshesWritable();
+				for (uint i = 0; i < subMeshes.size(); ++i)
+				{
+					SubMesh& subMesh = subMeshes[i];
 
-		_commandList->IASetVertexBuffers(0, 1, &subMesh._vertexBufferView.get()->GetViewWritable());
-		_commandList->IASetIndexBuffer(&subMesh._indexBufferView.get()->GetViewWritable());
-		uint maxValue = 0;
-		for (uint i = 0; i < subMesh._indices.size(); ++i)
-		{
-			if (subMesh._indices[i] > maxValue)
-			{
-				maxValue = subMesh._indices[i];
+					Material& material = subMesh._material;
+					// 랜더패스 메터리얼 이름에 대응하는 버퍼를 알아야할듯..
+					setConstantBuffer(material.getMaterialName().c_str(), material.getParameterBufferWritable()->getGPUVirtualAddress());
+
+					renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+					renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+				}
 			}
 		}
-		_commandList->DrawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
 	}
+	endRenderPass();
 }
-
-void SceneRenderer::RenderUI() const noexcept
-{
-#ifdef USE_IMGUI
-	DKVector<ID3D12DescriptorHeap*> descriptorHeaps;
-	descriptorHeaps.push_back(g_pd3dSrvDescHeap.GetDescriptorHeapWritable());
-	_commandList->SetDescriptorHeaps(descriptorHeaps);
-
-	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _commandList->GetCommandListWritable());
-#endif // USE_IMGUI
-}
-
 void SceneRenderer::EndRender() const noexcept
 {
-	D3D12_RESOURCE_BARRIER barrier;
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	barrier.Transition.pResource = _renderTargetResources[_currentFrame]->GetResourceWritable();
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	_commandList->ResourceBarrier(1, &barrier);
-
-	ExcuteCommandList();
-
-	UINT syncInterval = 0; //gVSync ? 1 : 0;
-	UINT presentFlags = 0; // CheckTearingSupport() && !gVSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
-	bool success = _swapChain->Present(syncInterval, presentFlags);
+	DuckingEngine::getInstance().GetRenderModuleWritable().endRender();
 }

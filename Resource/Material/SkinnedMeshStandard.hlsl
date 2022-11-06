@@ -1,93 +1,89 @@
-#define MAX_SKINNING_COUNT 4
-#define MAX_BONE_COUNT 55
-#define INVALID_BONE_INDEX 0xffffffff
-#define INVALID_TEXTURE_INDEX 0xffffffff
-
 struct VS_INPUT
 {
-    float4 pos : POSITION;
-    float4 normal : NORMAL;
-    float2 texCoord: TEXCOORD;
-
-    uint4 boneIndices : BONEINDICES;
-    float4 weights : WEIGHTS;
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 uv0 : TEXCOORD0;
+    uint4 boneIndexes : BONEINDEXES;
+    float4 boneWeights : BONEWEIGHTS;
 };
 
 struct VS_OUTPUT
 {
-    float4 pos: SV_POSITION;
+    float4 position : SV_POSITION;
     float4 normal : NORMAL;
-    float2 texCoord: TEXCOORD;
-    float4 color : COLOR;
+    float2 uv0 : TEXCOORD0;
 };
 
-Texture2D texture2DTable[] : register(t0, space0)
+#define BINDLESSTEXTUREARRAY_SPACE space10
+Texture2D gBindlessTextureArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE);
+SamplerState normalSampler : register(s0);
 
-// per Scene
-cbuffer CameraConstantBufferStruct : register(b0)
+cbuffer SceneConstantBuffer : register(b0)
 {
-    float4x4 cameraWorldMatrix;
-    float4x4 cameraProjectionMatrix;
-};
-
-// per SceneObject
-cbuffer SceneObjectConstantBufferStruct : register(b1)
+    float4x4 _cameraWorldMatrix;
+	float4x4 _cameraProjectionMatrix;
+}
+cbuffer SceneObjectConstantBuffer : register(b1)
 {
-    float4x4 worldMatrix;
-};
-
-// per SkinnedMeshComponent
-cbuffer SkeletonConstantBufferStruct : register(b2)
+    float4x4 _worldMatrix;
+}
+#define MAX_SKINNING_COUNT 4
+#define MAX_BONE_COUNT 100
+cbuffer SkeletonConstantBuffer : register(b2)
 {
-    float4x4 skeletonMatrixBuffer[MAX_BONE_COUNT];
-};
-
-// per SubMesh
-cbuffer ModelPropertyBufferStruct : register(b3)
+    float4x4 _skeletonMatrixBuffer[MAX_BONE_COUNT];
+}
+#define TextureParameter uint
+cbuffer SkinnedMeshStandard : register(b3)
 {
-    uint diffuseTexture;
-    float opacity;
-};
+    TextureParameter _diffuseTexture;
+    float _opacity;
+}
 
 VS_OUTPUT VSMain(VS_INPUT input)
 {
     VS_OUTPUT output;
+    output.position = float4(input.position, 1.0f);
+    output.normal = float4(input.normal, 1.0f);
+    output.uv0 = input.uv0;
+#if 0
+    float4x4 temp = 
+    {
+        1, 0, 0, 0, 
+        0, 1, 0, -1, 
+        0, 0, 1, 1, 
+        0, 0, 0, 1
+    };
+    float4x4 temp2 =
+    {
+        0.562500179, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1.00100100, -1.00100100,
+        0, 0, 1, 0
+    };
+    output.position = mul(temp, output.position);
+    output.position = mul(temp2, output.position);
+#else
 
-    float4x4  identityMatrix = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
-    int boneIndex1 = input.boneIndices.x, boneIndex2 = input.boneIndices.y, boneIndex3 = input.boneIndices.z, boneIndex4 = input.boneIndices.w;
-    float weight1 = input.weights.x, weight2 = input.weights.y, weight3 = input.weights.z, weight4 = input.weights.w;
-    float4x4 skinningMatrix =
-        (boneIndex1 != INVALID_BONE_INDEX ? skeletonMatrixBuffer[boneIndex1] : identityMatrix) * weight1 +
-        (boneIndex2 != INVALID_BONE_INDEX ? skeletonMatrixBuffer[boneIndex2] : identityMatrix) * weight2 + 
-        (boneIndex3 != INVALID_BONE_INDEX ? skeletonMatrixBuffer[boneIndex3] : identityMatrix) * weight3 + 
-        (boneIndex4 != INVALID_BONE_INDEX ? skeletonMatrixBuffer[boneIndex4] : identityMatrix) * weight4;
-    output.pos = mul(input.pos, skinningMatrix);
+    // Skinning
+    float4x4 skinMatrix = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    for(uint i = 0; i < MAX_SKINNING_COUNT; ++i)
+    {
+        skinMatrix += (input.boneIndexes[i] == 4294967295 || input.boneWeights[i] == 0.0) ? 0.0 : _skeletonMatrixBuffer[input.boneIndexes[i]] * input.boneWeights[i];
+    }
 
-    output.pos = mul(input.pos, worldMatrix);
-    output.pos = mul(output.pos, cameraWorldMatrix);
-    output.pos = mul(output.pos, cameraProjectionMatrix);
+    output.position = mul(skinMatrix, output.position);
+    output.position = mul(_worldMatrix, output.position);
+    output.position = mul(_cameraWorldMatrix, output.position);
+    output.position = mul(_cameraProjectionMatrix, output.position);
 
-    output.normal = mul(input.normal, worldMatrix);
-    output.texCoord = input.texCoord;
-
-    //output.color = float4(
-    //    boneIndex1 != errorIndex ? 1.0f : 0.0f, 
-    //    boneIndex2 != errorIndex ? 1.0f : 0.0f, 
-    //    boneIndex3 != errorIndex ? 1.0f : 0.0f, 
-    //    1.0f
-    //    );
-
-    //output.color = float4(1, 0, 1, 1);
-
+    output.normal = mul(_cameraWorldMatrix, output.normal);
+#endif
     return output;
 }
 
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
-    if(diffuseTexture == INVALID_TEXTURE_INDEX)
-    {
-        return float4(0, 1, 1, 1);
-    }
-
-    return texture2DTable[diffuseTexture].Sample(s0, input.texCoord);
+    Texture2D diffuseTexture = gBindlessTextureArray[_diffuseTexture];
+    return diffuseTexture.Sample(normalSampler, input.uv0);
 }

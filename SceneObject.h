@@ -1,13 +1,13 @@
 #pragma once
 #include "Object.h"
 
+struct IBuffer;
+
 class SceneObject : public Object
 {
 public:
-	virtual ~SceneObject() override final;
-
 	virtual void Update() override final {}
 
 public:
-	IResource* _sceneObjectConstantBuffer = nullptr;
+	Ptr<IBuffer> _sceneObjectConstantBuffer = nullptr;
 };

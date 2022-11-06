@@ -1,6 +1,6 @@
 #pragma once
 
-class float3;
+struct float3;
 
 class EditorDebugDrawManager
 {

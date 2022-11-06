@@ -25,7 +25,6 @@ struct SceneObjectConstantBufferStruct
 struct SkeletonConstantBufferStruct
 {
 	Matrix4x4 _skeletonMatrixBuffer[MAX_BONE_COUNT];
-	uint32 _diffuseTexture;
 };
 
 class SceneObject;
@@ -33,15 +32,23 @@ class SceneObject;
 class SceneObjectManager
 {
 public:
-	static SceneObject* CreateStaticMesh(const char* modelPath);
-	static SceneObject* CreateCharacter(const char* appearancePath);
+	static SceneObject* createCharacter(const char* appearancePath);
 
-	void Update(float deltaTime);
+	void update(float deltaTime);
+
+	dk_inline const DKHashMap<uint32, SceneObject>& getCharacterSceneObjects() const
+	{
+		return _characterSceneObjectContainer;
+	}
+	dk_inline DKHashMap<uint32, SceneObject>& getCharacterSceneObjectsWritable()
+	{
+		return _characterSceneObjectContainer;
+	}
 
 private:
-	static const AppearanceRawRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
+	const AppearanceRawRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
 
 private:
-	static DKHashMap<const char*, AppearanceRawRef> _appearanceRawContainers;
-	static DKHashMap<const uint, SceneObject> _characterSceneObjectContainer;
+	DKHashMap<DKString, AppearanceRawRef> _appearanceRawContainers;
+	DKHashMap<uint32, SceneObject> _characterSceneObjectContainer;
 };

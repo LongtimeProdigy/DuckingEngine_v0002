@@ -25,7 +25,7 @@ void Camera::Update()
 
 	if (abs(rJoystick.x) > limit || abs(rJoystick.y) > limit)
 	{
-		Camera::gMainCamera->GetWorldTransformWritable().Rotate(float3(rJoystick.y, -rJoystick.x, 0) * friction);
+		Camera::gMainCamera->GetWorldTransformWritable().Rotate(float3(rJoystick.y, 0/*-rJoystick.x*/, 0) * friction);
 	}
 
 	Transform offsetTransform = Transform::Identity;
@@ -77,10 +77,12 @@ void Camera::GetCameraWorldMatrix(Matrix4x4& outMatrix) noexcept
 
 void Camera::GetCameraProjectionMaterix(Matrix4x4& outMaterix)
 {
-	float h = 1 / tanf(_fov);
-	float w = h / (_width / _height);
+	float aspect = static_cast<float>(_width) / static_cast<float>(_height);
+
+	float h = 1.0f / tanf(_halfFov);
+	float w = h / aspect;
 	float a = _farPlaneDistance / (_farPlaneDistance - _nearPlaneDistance);
-	float b = -_nearPlaneDistance * a;
+	float b = -a * _nearPlaneDistance;
 
 	outMaterix._11 = w;
 	outMaterix._22 = h;

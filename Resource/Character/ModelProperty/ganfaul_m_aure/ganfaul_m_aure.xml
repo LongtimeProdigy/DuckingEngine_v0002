@@ -1,8 +1,16 @@
 <ModelProperty>
-	<SubMesh Count="3">
-		<SubMesh Index = 0 Name="SkinnedMeshStandard">
-			<Parameter Name="DiffuseTexture">...</Parameter>
-			<Parameter Name="Opacity">1.0</Parameter>
+	<SubMeshes Count="2">
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\Base\7_npc_ip_kezhanlaoban_001.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\Base\7_npc_ip_kezhanlaoban_001.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">0.7</Parameter>
+			</Parameters>
 		</SubMesh>
 	</SubMesh>
 </ModelProperty>

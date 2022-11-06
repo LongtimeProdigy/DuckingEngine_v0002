@@ -109,9 +109,6 @@
     <ClCompile Include="Material.cpp">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="MaterialParameter.cpp">
-      <Filter>1. EngineCore\Renderer</Filter>
-    </ClCompile>
     <ClCompile Include="RenderModule.cpp">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClCompile>
@@ -231,9 +228,6 @@
       <Filter>3. Game</Filter>
     </ClInclude>
     <ClInclude Include="Material.h">
-      <Filter>1. EngineCore\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="MaterialParameter.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
     <ClInclude Include="RenderModule.h">

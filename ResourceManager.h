@@ -141,14 +141,16 @@ public:
 	~ResourceManager()
 	{
 		_modelContainer.clear();
+		_skeletonContainer.clear();
+		_animationContainer.clear();
 	}
 
-	const bool LoadMesh(const char* modelPath, ModelRef& outModel);
-	const bool LoadSkeleton(const char* skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton);
-	const bool LoadAnimation(const char* animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation);
+	const bool LoadMesh(const DKString& modelPath, ModelRef& outModel);
+	const bool LoadSkeleton(const DKString& skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton);
+	const bool LoadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation);
 
 private:
-	DKHashMap<const char*, ModelRef> _modelContainer;
-	DKHashMap<const char*, SkeletonRef> _skeletonContainer;
-	DKHashMap<const char*, AnimationRef> _animationContainer;
+	DKHashMap<DKString, ModelRef> _modelContainer;
+	DKHashMap<DKString, SkeletonRef> _skeletonContainer;
+	DKHashMap<DKString, AnimationRef> _animationContainer;
 };

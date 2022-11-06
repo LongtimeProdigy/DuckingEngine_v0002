@@ -228,51 +228,49 @@ bool loadImageDataFromFile(const char* fileName, _OUT_ TextureRaw& textureRaw)
 
 bool TextureManager::initialize()
 {
-	if (DuckingEngine::getInstance().GetRenderModule().createTextureBindlessDescriptorHeap(_textureDescriptorHeap) == false)
+	if (DuckingEngine::getInstance().GetRenderModuleWritable().createTextureBindlessDescriptorHeap(_textureDescriptorHeap) == false)
 		return false;
+
+	return true;
 }
 
-ITextureRef TextureManager::createTexture(const DKString& texturePath, uint32& outindex)
+const ITextureRef& TextureManager::createTexture(const DKString& texturePath)
 {
-	auto success = _pathMap.find(texturePath);
-	if (success != _pathMap.end())
+	DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(texturePath);
+	if (findResult != _textureContainer.end())
 	{
-		return _textures[success->second];
+		return findResult->second;
 	}
 
-	// 텍스쳐 로딩
 	TextureRaw textureRaw;
 	const bool loadingTextureSuccess = loadImageDataFromFile(texturePath.c_str(), textureRaw);
 	if (loadingTextureSuccess == false)
 	{
 		DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
-		return false;
+		// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 	}
 
-	// #todo- index가 항상 _textures 맨 뒤를 반환하는데.. Texture가 지워질 경우를 생각하면 앞 공간을 재활용할 방법을 찾아야함
-	uint index = _textures.size();
+	ITexture::TextureSRVType index = static_cast<ITexture::TextureSRVType>(_textureContainer.size());
+	if (_deletedTextureSRV.empty() == false)
+	{
+		index = _deletedTextureSRV.back();
+		_deletedTextureSRV.pop_back();
+	}
+
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	handle.ptr += index;
-	// Upload Texture To GPU
-	if (DuckingEngine::getInstance().GetRenderModule().createTexture(textureRaw, handle) == false)
+	if (DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(textureRaw, handle, index) == false)
 	{
 		DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
-		return false;
+		// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 	}
 
-	ITextureRef newTexture(dk_new ITexture(texturePath));
-
-	_textures.push_back(newTexture);
-
-	using InsertResult = DKPair<DKHashMap<DKString, uint32>::iterator, bool>;
-	InsertResult insertResult = _pathMap.insert(DKPair<DKString, uint32>(texturePath, index));
-
+	using InsertResult = DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool>;
+	InsertResult insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(texturePath, dk_new ITexture(texturePath, index)));
 	if (insertResult.second == false)
 	{
-		DK_ASSERT_LOG(true, "Texture insert Failed. path: %s", texturePath);
-		_textures.erase(_textures.end());
-		return nullptr;
+		DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
+		// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 	}
 
-	return (*_textures.end());
+	return insertResult.first->second;
 }

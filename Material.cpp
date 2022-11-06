@@ -1,85 +1,134 @@
 #include "stdafx.h"
 #include "Material.h"
 
-// #todo- 지울 수 있으면 지울 것
-// D3D12_RESOURCE_STATE_GENERIC_READ 래핑하면 가능함
-#pragma comment(lib, "d3d12.lib")
-#include <d3d12.h>
-#pragma comment(lib, "dxgi.lib")
-#include <dxgi1_6.h>
-#pragma comment(lib, "d3dcompiler.lib")
-#include <d3dcompiler.h>
-#include "d3dx12.h"
-
 #include "DuckingEngine.h"
 #include "RenderModule.h"
-#include "MaterialParameter.h"
+#include "SceneRenderer.h"
+#include "TextureManager.h"
 
-Material* Material::createMaterial(const MaterialDefinition& data)
+template<typename T>
+void MaterialParameterTemplate<T>::setValue(const T& value) noexcept
 {
-	Material* newMaterial = dk_new Material(data._materialName);
+	_value = value;
+	memcpy(_valuePtr, &_value, getSize());
+}
 
+ITextureRef createTexture(const DKString& texturePath)
+{
+	return DuckingEngine::getInstance().getTextureManagerWritable().createTexture(texturePath);
+}
+
+MaterialParameter* MaterialParameter::createMaterialParameter(const MaterialParameterDefinition& parameterDefinition)
+{
+	switch (parameterDefinition._type)
+	{
+	case MaterialParameterType::FLOAT:
+	{
+		return dk_new MaterialParameterFloat(parameterDefinition._name, DK::StringUtil::atof(parameterDefinition._value.c_str()));
+	}
+	case MaterialParameterType::TEXTURE:
+	{
+		ITextureRef texture = createTexture(parameterDefinition._value);
+		return dk_new MaterialParameterTexture(parameterDefinition._name, texture);
+	}
+	default:
+		DK_ASSERT_LOG(false, "ParameterMaterial이 지정되지 않았습니다. RenderPass를 확인바랍니다.");
+		break;
+	}
+
+	return nullptr;
+}
+
+void MaterialParameterTexture::setValue(const ITextureRef& value) noexcept
+{
+	DK_ASSERT_LOG(value != nullptr, "value가 nullptr입니다. 크래시가 날 것입니다.");
+	_value = value;
+	memcpy(_valuePtr, &_value->getSRV(), getSize());
+}
+
+template <>
+uint32 MaterialParameterTexture::getSize() const noexcept
+{
+	return sizeof(ITexture::TextureSRVType);
+}
+
+bool Material::createMaterial(const MaterialDefinition& modelProperty, Material& outMaterial)
+{
 	// 기존의 Parameter들의 Value들은 유지하면서 MaterialDefinition의 Parameter들로 Material::Parameters를 구성합니다.
-	RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
-	const MaterialDefinition* materialDefinition = rm.findRenderPassByMaterialName(newMaterial->_materialName);
+	SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
+	const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(modelProperty._materialName);
 	DK_ASSERT_LOG(materialDefinition != nullptr, "RenderPass에 없는 Material을 만들려합니다! 절대 발생하면 안됩니다!");
 
 	// RenderPass로부터 Parameter를 세팅
 	uint32 parameterBufferSize = 0;
-	const uint32 parameterCount = materialDefinition->_parameters.size();
-	newMaterial->_parameters.reserve(parameterCount);
+	const uint32 parameterCount = static_cast<uint32>(materialDefinition->_parameters.size());
+	outMaterial._materialName = modelProperty._materialName;
+	outMaterial._parameters.resize(parameterCount);
 	for (uint32 i = 0; i < parameterCount; ++i)
 	{
 		MaterialParameter* newParameter = MaterialParameter::createMaterialParameter(materialDefinition->_parameters[i]);
-		newMaterial->_parameters.push_back(std::move(newParameter));
+		outMaterial._parameters[i] = newParameter;
 
-		parameterBufferSize += newParameter.getSize();
+		parameterBufferSize += outMaterial._parameters[i]->getSize();
 	}
 	
 	// CPU 및 GPU 버퍼 생성 및 Parameter ValuePtr 세팅
 	uint32 offset = 0;
-	newMaterial->_parameterBufferForCPU.resize(parameterBufferSize);
+	outMaterial._parameterBufferForCPU.resize(parameterBufferSize);
 	for (uint32 i = 0; i < parameterCount; ++i)
 	{
-		newMaterial->_parameters[i].setValuePtr(&newMaterial->_parameterBufferForCPU[offset]);
-		offset += newMaterial->_parameters[i].getSize();
+		outMaterial._parameters[i]->setValuePtr(&outMaterial._parameterBufferForCPU[offset]);
+		offset += outMaterial._parameters[i]->getSize();
 	}
-	newMaterial->_parameterBufferForGPU = rm.createUploadBuffer(newMaterial->_parameterBufferForCPU.data(), parameterBufferSize, D3D12_RESOURCE_STATE_GENERIC_READ);
 
-	if (newMaterial->setModelProperty(data) == false)
-		return nullptr;
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	outMaterial._parameterBufferForGPU = renderModule.createUploadBuffer(outMaterial._parameterBufferForCPU.data(), parameterBufferSize);
 
-	return newMaterial;
+	if (outMaterial.setModelProperty(modelProperty) == false)
+		return false;
+
+	return true;
 }
 
-bool Material::setModelProperty(const MaterialDefinition& materialDefinition)
+bool Material::setModelProperty(const MaterialDefinition& modelProperty)
 {
-	DK_ASSERT_LOG(_materialName == materialDefinition._materialName, "MaterialName이 ModelProperty의 MaterialName과 일치하지 않습니다!");
+	DK_ASSERT_LOG(_materialName == modelProperty._materialName, "MaterialName이 ModelProperty의 MaterialName과 일치하지 않습니다!");
 	DK_ASSERT_LOG(_parameters.size() != 0, "Parameters가 비어있습니다. UpdateTechnique가 먼저 이루어져야합니다.");
 
-	const uint32 parameterCount = _parameters.size();
-	const uint32 parameterDefinitionCount = materialDefinition._parameters.size();
+	const uint32 parameterCount = static_cast<uint32>(_parameters.size());
+	const uint32 parameterDefinitionCount = static_cast<uint32>(modelProperty._parameters.size());
 	for (uint32 i = 0; i < parameterDefinitionCount; ++i)
 	{
-		const MaterialParameterDefinition& parameterDefinition = materialDefinition._parameters[i];
+		const MaterialParameterDefinition& parameterDefinition = modelProperty._parameters[i];
 		for (uint32 j = 0; j < parameterCount; ++j)
 		{
-			MaterialParameter& parameter = _parameters[j];
-			if (parameterDefinition._name == parameter.getName())
+			MaterialParameter* parameter = _parameters[j].get();
+			if (parameterDefinition._name == parameter->getName())
 			{
 				switch (parameterDefinition._type)
 				{
 					case MaterialParameterType::FLOAT:
-						parameter.setValue(parameterDefinition._value);
-						break;
+					{
+						MaterialParameterFloat* floatParameter = static_cast<MaterialParameterFloat*>(parameter);
+						floatParameter->setValue(DK::StringUtil::atof(parameterDefinition._value.c_str()));
+					}
+					break;
 					case MaterialParameterType::TEXTURE:
-						break;
+					{
+						ITextureRef texture = createTexture(parameterDefinition._value);
+						MaterialParameterTexture* textureParameter = static_cast<MaterialParameterTexture*>(parameter);
+						textureParameter->setValue(texture);
+					}
+					break;
 					default:
-						break;
+						DK_ASSERT_LOG(false, "아직 지원하지 않는 MaterialParameter Type입니다.");
+					break;
 				}
 			}
 		}
 	}
+
+	_parameterBufferForGPU->upload(_parameterBufferForCPU.data(), static_cast<uint32>(_parameterBufferForCPU.size()));
 
 	return true;
 }

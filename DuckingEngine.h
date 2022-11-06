@@ -39,6 +39,8 @@ public:
 
 	dk_inline const RenderModule& GetRenderModule() const noexcept { return *_renderModule; }
 	dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule; }
+	dk_inline const SceneRenderer& getSceneRender() const noexcept { return *_sceneRenderer; }
+	dk_inline SceneRenderer& getSceneRenderWritable() noexcept { return *_sceneRenderer; }
 	dk_inline const TextureManager& getTextureManager() const noexcept { return *_textureManager; }
 	dk_inline TextureManager& getTextureManagerWritable() noexcept { return *_textureManager; }
 	dk_inline const ResourceManager& GetResourceManager() const noexcept { return *_resourceManager; }

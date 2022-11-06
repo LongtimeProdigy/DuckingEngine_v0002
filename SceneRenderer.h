@@ -1,18 +1,32 @@
 #pragma once
 
-struct ID3D12Resource;
+struct IBuffer;
+
+class SkinnedMeshComponent;
+struct MaterialDefinition;
 
 class SceneRenderer
 {
 public:
-	void createSceneConstantBuffer() noexcept;
-	void uploadSceneConstantBuffer() const noexcept;
+	// Initialize
+	bool initialize();
 
-	void PreRender() const noexcept;
-	void RenderSkinnedMesh(const SkinnedMeshComponent* skinnedMeshComponent) const noexcept;
-	void RenderUI() const noexcept;
+	// Helper
+	const MaterialDefinition* getMaterialDefinition(const DKString& materialName) const;
+
+	// Render
+	void prepareShaderData() noexcept;
+	void preRender() const noexcept;
+	void updateRender() noexcept;
 	void EndRender() const noexcept;
 
 private:
-	ID3D12Resource* _sceneConstantBuffer = nullptr;
+	bool initialize_createRenderPass();
+	bool initialize_createMaterialDefinition();
+	bool initialize_createSceneConstantBuffer();
+
+private:
+	DKHashMap<DKString, MaterialDefinition> _materialDefinitionMap;
+
+	Ptr<IBuffer> _sceneConstantBuffer = nullptr;
 };

@@ -26,6 +26,7 @@
 #include "Model.h"
 #include "Skeleton.h"
 #include "Animation.h"
+#include "Material.h"
 
 float3 ToEulerAnglesInternal(const float4 quaternion)
 {
@@ -157,11 +158,14 @@ const bool LoadFBXMeshFromFileByAssimp(_IN_ const char* path, _OUT_ Model& outMo
 
 	RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
 	DKVector<SubMesh> subMeshes;
-	subMeshes.resize(numSubMesh);
+	subMeshes.reserve(numSubMesh);
 	for (uint i = 0; i < numSubMesh; ++i)
 	{
+		DKVector<Vertex> vertices;
+		DKVector<uint32> indices;
 		const aiMesh* mesh = scene->mMeshes[i];
-		InitMeshFromAssimpToSubMesh(mesh, subMeshes[i]._vertices, subMeshes[i]._indices);
+		InitMeshFromAssimpToSubMesh(mesh, vertices, indices);
+		subMeshes.push_back(SubMesh(vertices, indices));
 	}
 	outModel.MoveSubMeshesFrom(subMeshes);
 
@@ -302,7 +306,7 @@ void BuildMeshWeights(
 				}
 
 				Vertex& vert = submeshes[submeshIndex]._vertices[vertIndex];
-				vert.boneIndices[weightIndices[submeshIndex][vertIndex]] = boneIndexHash.find(bone->mName.C_Str())->second;
+				vert.boneIndexes[weightIndices[submeshIndex][vertIndex]] = boneIndexHash.find(bone->mName.C_Str())->second;
 				vert.weights[weightIndices[submeshIndex][vertIndex]] = weight;
 
 				weightIndices[submeshIndex][vertIndex] += 1;

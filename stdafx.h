@@ -49,8 +49,7 @@ typedef unsigned long long uint64;
 #include <Windows.h>	// for OutputDebugStringA
 /////////////////////// #todo- 나중에 꼭 삭제할 것 /////////////////////// 
 
-#define MAX_LOG_BUFFER_LENGTH 1024
-
+#define MAX_LOG_BUFFER_LENGTH 32768
 #define DK_LOG(text, ...)												\
 {																		\
 	char buffer[MAX_LOG_BUFFER_LENGTH];									\
@@ -91,7 +90,9 @@ typedef unsigned long long uint64;
 */
 #define USE_IMGUI
 #define USE_ASSIMP
+#ifdef _DK_DEBUG_
 #define USE_PIX
+#endif
 
 #include <vector>
 #include <unordered_map>
@@ -104,6 +105,8 @@ using DKString = std::string;
 
 #define USE_TINYXML
 #include "tinyxml.h"
+
+#define DK_COUNT_OF ARRAYSIZE
 
 /*
 * RAII 관련
@@ -132,19 +135,38 @@ public:
 	}
 	~Ptr()
 	{
-		dk_delete _ptr;
+		release();
 	}
 
-	Ptr(const T* ptr)
+	Ptr(T* ptr)
 		: _ptr(ptr)
 	{}
 
-	//Ptr(Ptr& ptr) = delete;
-	//Ptr(const Ptr& ptr) = delete;
-	//Ptr(Ptr&& ptr) = delete;
-	//Ptr(const Ptr&& ptr) = delete;
+	Ptr(Ptr& rhs) : _ptr(rhs._ptr)
+	{
+		rhs._ptr = nullptr;
+	}
+	Ptr(Ptr&& rhs) : _ptr(rhs._ptr)
+	{
+		rhs._ptr = nullptr;
+	}
 
-	dk_inline void assign(const T* ptr) noexcept
+	dk_inline const Ptr& operator=(Ptr& rhs)
+	{
+		_ptr = rhs._ptr;
+		rhs._ptr = nullptr;
+
+		return *this;
+	}
+	dk_inline const Ptr& operator=(Ptr&& rhs)
+	{
+		_ptr = rhs._ptr;
+		rhs._ptr = nullptr;
+
+		return *this;
+	}
+
+	dk_inline void assign(T* ptr) noexcept
 	{
 		release();
 		_ptr = ptr;
@@ -172,6 +194,65 @@ private:
 	T* _ptr;
 };
 
+template <typename T>
+class RenderResourcePtr
+{
+public:
+	dk_inline RenderResourcePtr()
+	{
+		_ptr = nullptr;
+	}
+	dk_inline ~RenderResourcePtr();
+
+	dk_inline RenderResourcePtr(T* ptr)
+		: _ptr(ptr)
+	{}
+	RenderResourcePtr(RenderResourcePtr& rhs) : _ptr(rhs._ptr)
+	{
+		rhs._ptr = nullptr;
+	}
+	RenderResourcePtr(RenderResourcePtr&& rhs) : _ptr(rhs._ptr)
+	{
+		rhs._ptr = nullptr;
+	}
+
+	dk_inline const RenderResourcePtr& operator=(RenderResourcePtr& rhs)
+	{
+		_ptr = rhs._ptr;
+		rhs._ptr = nullptr;
+
+		return *this;
+	}
+	dk_inline const RenderResourcePtr& operator=(RenderResourcePtr&& rhs)
+	{
+		_ptr = rhs._ptr;
+		rhs._ptr = nullptr;
+
+		return *this;
+	}
+
+	dk_inline T* operator->() noexcept
+	{
+		return _ptr;
+	}
+	dk_inline const T* operator->() const noexcept
+	{
+		return operator->();
+	}
+
+	dk_inline T* get() noexcept
+	{
+		return _ptr;
+	}
+	dk_inline T** getAddress() noexcept
+	{
+		return &_ptr;
+	}
+
+private:
+	T* _ptr;
+};
+
 /*
 * ETC Helper 함수
 */
@@ -179,4 +260,29 @@ template <typename T>
 void Swap(T&& lhs, T&& rhs) noexcept
 {
 	std::swap(lhs, rhs);
+}
+
+namespace DK
+{
+	class StringUtil
+	{
+	public:
+		static float atof(const char* str) noexcept
+		{
+			return static_cast<float>(std::atof(str));
+		}
+	};
+}
+
+/*
+* Math Utility
+*/
+namespace DK
+{
+	class Math
+	{
+	public:
+		constexpr static float PI = 3.141592f;
+		constexpr static float kToRadian = PI / 180.0f;
+	};
 }
