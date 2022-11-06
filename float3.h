@@ -25,6 +25,11 @@ struct float3
 		return float3(x + rhs.x, y + rhs.y, z + rhs.z);
 	}
 
+	dk_inline float3 operator-(const float3& rhs) const noexcept
+	{
+		return float3(x - rhs.x, y - rhs.y, z - rhs.z);
+	}
+
 	dk_inline void operator*=(const int rhs) noexcept
 	{
 		x *= rhs;

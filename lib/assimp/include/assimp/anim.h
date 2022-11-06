@@ -352,7 +352,7 @@ struct aiNodeAnim {
  *  point in time. */
 struct aiMeshAnim
 {
-    /** Name of the mesh to be animated. An empty string is not allowed,
+    /** Name of the mesh to be animated. An empty std::string is not allowed,
      *  animated meshes need to be named (not necessarily uniquely,
      *  the name can basically serve as wild-card to select a group
      *  of meshes with similar animation setup)*/
@@ -383,7 +383,7 @@ struct aiMeshAnim
 /** Describes a morphing animation of a given mesh. */
 struct aiMeshMorphAnim
 {
-    /** Name of the mesh to be animated. An empty string is not allowed,
+    /** Name of the mesh to be animated. An empty std::string is not allowed,
      *  animated meshes need to be named (not necessarily uniquely,
      *  the name can basically serve as wildcard to select a group
      *  of meshes with similar animation setup)*/

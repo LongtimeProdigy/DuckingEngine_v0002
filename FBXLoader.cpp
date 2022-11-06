@@ -4,7 +4,6 @@
 #pragma region LIB
 #include "fbxsdk.h"
 
-#define USE_ASSIMP
 #ifdef USE_ASSIMP
 #include "assimp/Importer.hpp"
 #include "assimp/cimport.h"
@@ -13,18 +12,67 @@
 #endif
 #pragma endregion
 
+#ifdef USE_TINYXML
+#include "tinyxml.h"
+#endif
+
 #include "float2.h"
 #include "float3.h"
 #include "Transform.h"
+#include "Matrix4x4.h"
 
 #include "DuckingEngine.h"
 
 #include "Model.h"
 #include "Skeleton.h"
 #include "Animation.h"
+#include "Material.h"
+
+float3 ToEulerAnglesInternal(const float4 quaternion)
+{
+	float3 angles;
+
+	const float x = quaternion.z;
+	const float y = quaternion.x;
+	const float z = quaternion.y;
+	const float w = quaternion.w;
+
+	// roll (x-axis rotation)
+	double sinr_cosp = 2 * (w * x + y * z);
+	double cosr_cosp = 1 - 2 * (x * x + y * y);
+	angles.z = static_cast<float>(std::atan2(sinr_cosp, cosr_cosp));
+
+	static float math_pi = 3.141592f;
+
+	// pitch (y-axis rotation)
+	double sinp = 2 * (w * y - z * x);
+	if (std::abs(sinp) >= 1)
+		angles.x = static_cast<float>(std::copysign(math_pi / 2, sinp)); // use 90 degrees if out of range
+	else
+		angles.x = static_cast<float>(std::asin(sinp));
+
+	// yaw (z-axis rotation)
+	double siny_cosp = 2 * (w * z + x * y);
+	double cosy_cosp = 1 - 2 * (y * y + z * z);
+	angles.y = static_cast<float>(std::atan2(siny_cosp, cosy_cosp));
+	return angles;
+}
+
+float3 ToEulerAngles(const float4 quaternion)
+{
+	return ToEulerAnglesInternal(quaternion);
+}
 
 #ifdef USE_ASSIMP
-void InitMeshFromAssimpToSubMesh(_IN_ const aiMesh* assimpMesh, _OUT_ std::vector<Vertex>& vertices, _OUT_ std::vector<uint>& indices)
+float3 ToEulerAngles(const aiQuaternion& q) {
+	const auto x = q.z;
+	const auto y = q.x;
+	const auto z = q.y;
+	const auto w = q.w;
+	return ToEulerAnglesInternal(float4(x, y, z, w));
+}
+
+void InitMeshFromAssimpToSubMesh(_IN_ const aiMesh* assimpMesh, _OUT_ DKVector<Vertex>& vertices, _OUT_ DKVector<uint>& indices)
 {
 	const uint numVertices = assimpMesh->mNumVertices;
 	vertices.reserve(numVertices);
@@ -75,7 +123,7 @@ void InitMeshFromAssimpToSubMesh(_IN_ const aiMesh* assimpMesh, _OUT_ std::vecto
 }
 Bone CreateBoneByAIBone(const aiBone* foundBone)
 {
-	std::string boneName = foundBone->mName.C_Str();
+	DKString boneName = foundBone->mName.C_Str();
 	aiVector3D aiLocation, aiRotation, aiScale;
 	foundBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiLocation);
 	float3 location(aiLocation.x, aiLocation.y, aiLocation.z);
@@ -104,26 +152,29 @@ const bool LoadFBXMeshFromFileByAssimp(_IN_ const char* path, _OUT_ Model& outMo
 		| aiProcess_SortByPType					// 단일타입의 프리미티브로 구성된 '깨끗한' 매쉬를 만듦
 	);
 
-	CHECK_BOOL_AND_RETURN(scene != nullptr);
+	if (scene == nullptr) return false;
 
 	uint numSubMesh = scene->mNumMeshes;		// 서브매쉬 개수
 
-	RenderModule* rm = DuckingEngine::_duckingEngine->GetRenderModuleWritable();
-	std::vector<SubMesh> subMeshes;
-	subMeshes.resize(numSubMesh);
+	RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
+	DKVector<SubMesh> subMeshes;
+	subMeshes.reserve(numSubMesh);
 	for (uint i = 0; i < numSubMesh; ++i)
 	{
+		DKVector<Vertex> vertices;
+		DKVector<uint32> indices;
 		const aiMesh* mesh = scene->mMeshes[i];
-		InitMeshFromAssimpToSubMesh(mesh, subMeshes[i]._vertices, subMeshes[i]._indices);
+		InitMeshFromAssimpToSubMesh(mesh, vertices, indices);
+		subMeshes.push_back(SubMesh(vertices, indices));
 	}
-	outModel.SetSubMeshes(subMeshes);
+	outModel.MoveSubMeshesFrom(subMeshes);
 
 	return true;
 }
 
 Bone ConvertAIBoneToBone(const aiBone* sourceBone)
 {
-	std::string boneName(sourceBone->mName.C_Str());
+	DKString boneName(sourceBone->mName.C_Str());
 
 	aiVector3D aiPosition, aiRotation, aiScale;
 	sourceBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiPosition);
@@ -131,67 +182,50 @@ Bone ConvertAIBoneToBone(const aiBone* sourceBone)
 	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
 	float3 scale(aiScale.x, aiScale.y, aiScale.z);
 
-	return Bone(boneName, Transform(position, rotation, scale));
+	Transform transform(position * -1, rotation * -1, scale);
+	return Bone(boneName, transform);
 }
-//void BuildBoneVectorAndIndexHashMapChild(
-//	const std::unordered_map<const char*, const aiBone*>& boneHash,
-//	const aiNode* node,
-//	std::vector<Bone>& boneVector,
-//	std::unordered_map<const char*, uint>& boneIndexHash
-//);
-//void BuildBoneVectorAndIndexHashMap(
-//	const std::unordered_map<const char*, const aiBone*>& boneHash,
-//	const aiNode* node,
-//	std::vector<Bone>& boneVector,
-//	std::unordered_map<const char*, uint>& boneIndexHash
-//)
-//{
-//	const aiString& boneName = node->mName;
-//	const std::unordered_map<const char*, const aiBone*>::const_iterator boneIter = boneHash.find(boneName.C_Str());
-//	if (boneIter == boneHash.end())
-//	{
-//		DK_ASSERT_LOG(false, "%s에 해당하는 본을 Mesh에서 찾지 못했습니다.", boneName.C_Str());
-//		return;
-//	}
-//	std::unordered_map<const char*, uint>::iterator indexIter = boneIndexHash.find(boneName.C_Str());
-//	if (boneIter != boneHash.end())
-//	{
-//		DK_ASSERT_LOG(false, "중복되는 본이 검출된 것 같습니다. BoneName: %s", boneName.C_Str());
-//		return;
-//	}
-//
-//	uint boneIndex = static_cast<uint>(boneVector.size());
-//	boneVector.push_back(ConvertAIBoneToBone(boneIter->second));
-//	boneIndexHash.insert(std::make_pair(boneName.C_Str(), boneIndex));
-//
-//	BuildBoneVectorAndIndexHashMapChild(boneHash, node, boneVector, boneIndexHash);
-//}
+Bone ConvertNodeToBone(const aiNode* sourceNode)
+{
+	DKString boneName(sourceNode->mName.C_Str());
+
+	aiVector3D aiPosition, aiRotation, aiScale;
+	sourceNode->mTransformation.Decompose(aiScale, aiRotation, aiPosition);
+
+	float3 position(aiPosition.x, aiPosition.y, aiPosition.z);
+	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
+	float3 scale(aiScale.x, aiScale.y, aiScale.z);
+
+	Transform transform(position, rotation, scale);
+	return Bone(boneName, transform);
+}
 void BuildBoneVectorAndIndexHashMapChild(
-	const std::unordered_map<std::string, const aiBone*>& boneHash,
+	const DKHashMap<DKString, const aiBone*>& boneHash,
 	const aiNode* node, 
-	std::vector<Bone>& boneVector, 
-	std::unordered_map<std::string, uint>& boneIndexHash
+	DKVector<Bone>& boneVector,
+	DKHashMap<DKString, uint>& boneIndexHash
 )
 {
 	uint childCount = node->mNumChildren;
 	for (uint i = 0; i < childCount; ++i)
 	{
 		const aiString boneName = node->mChildren[i]->mName;
-		const std::unordered_map<std::string, const aiBone*>::const_iterator boneIter = boneHash.find(boneName.C_Str());
+		const DKHashMap<DKString, const aiBone*>::const_iterator boneIter = boneHash.find(boneName.C_Str());
 		if (boneIter == boneHash.end())
 		{
 			//DK_ASSERT_LOG(false, "%s에 해당하는 본을 Mesh에서 찾지 못했습니다.", boneName.C_Str());
 			continue;
 		}
-		//std::unordered_map<aiString, uint>::iterator indexIter = boneIndexHash.find(boneName);
-		//if (indexIter != boneIndexHash.end())
-		//{
-		//	DK_ASSERT_LOG(false, "중복되는 본이 검출된 것 같습니다. BoneName: %s", boneName.C_Str());
-		//	return;
-		//}
+		DKHashMap<DKString, uint>::iterator indexIter = boneIndexHash.find(boneName.C_Str());
+		if (indexIter != boneIndexHash.end())
+		{
+			DK_ASSERT_LOG(false, "중복되는 본이 검출된 것 같습니다. BoneName: %s", boneName.C_Str());
+			return;
+		}
 
 		uint boneIndex = static_cast<uint>(boneVector.size());
-		boneVector.push_back(ConvertAIBoneToBone(boneIter->second));
+		//boneVector.push_back(ConvertAIBoneToBone(boneIter->second));
+		boneVector.push_back(ConvertNodeToBone(node->mChildren[i]));
 		boneIndexHash.insert(std::make_pair(boneName.C_Str(), boneIndex));
 	}
 
@@ -202,11 +236,11 @@ void BuildBoneVectorAndIndexHashMapChild(
 }
 void BuildBoneChildIndex(
 	const aiNode* node, 
-	const std::unordered_map<std::string, uint>& boneIndexHash,
-	std::vector<Bone>& boneVector
+	const DKHashMap<DKString, uint>& boneIndexHash,
+	DKVector<Bone>& boneVector
 )
 {
-	std::unordered_map<std::string, uint>::const_iterator parentBoneIter = boneIndexHash.find(node->mName.C_Str());
+	DKHashMap<DKString, uint>::const_iterator parentBoneIter = boneIndexHash.find(node->mName.C_Str());
 	if (parentBoneIter == boneIndexHash.end())
 	{
 		//DK_ASSERT_LOG(false, "올바르지 않으 본을 참조합니다. %s", node->mName.C_Str());
@@ -219,7 +253,7 @@ void BuildBoneChildIndex(
 	uint childCount = node->mNumChildren;
 	for (uint i = 0; i < childCount; ++i)
 	{
-		std::unordered_map<std::string, uint>::const_iterator childBoneIter = boneIndexHash.find(node->mChildren[i]->mName.C_Str());
+		DKHashMap<DKString, uint>::const_iterator childBoneIter = boneIndexHash.find(node->mChildren[i]->mName.C_Str());
 		if (childBoneIter == boneIndexHash.end())
 		{
 			//DK_ASSERT_LOG(false, "올바르지 않으 본을 참조합니다. %s", node->mChildren[i]->mName.C_Str());
@@ -236,10 +270,17 @@ void BuildBoneChildIndex(
 }
 void BuildMeshWeights(
 	const ModelRef& model,
-	const std::unordered_map<std::string, const aiBone*>& boneHash,
-	const std::unordered_map<std::string, uint>& boneIndexHash
+	const DKHashMap<DKString, const aiBone*>& boneHash,
+	const DKHashMap<DKString, uint>& boneIndexHash
 )
 {
+	DKVector<DKVector<uint>> weightIndices;
+	weightIndices.resize(model->GetSubMeshes().size());
+	for (uint i = 0; i < weightIndices.size(); ++i)
+	{
+		weightIndices[i].resize(model->GetSubMeshes()[i]._vertices.size());
+	}
+
 	for (auto iter = boneHash.begin(); iter != boneHash.end(); ++iter)
 	{
 		const aiBone* bone = iter->second;
@@ -256,22 +297,44 @@ void BuildMeshWeights(
 			uint vertIndex = bone->mWeights[i].mVertexId;
 			float weight = bone->mWeights[i].mWeight;
 
-			std::vector<SubMesh>& submeshes = model->GetSubMeshesWritable();
-			for (uint j = 0; j < submeshes.size(); ++j)
+			DKVector<SubMesh>& submeshes = model->GetSubMeshesWritable();
+			for (uint submeshIndex = 0; submeshIndex < submeshes.size(); ++submeshIndex)
 			{
-				if (vertIndex >= submeshes[j]._vertices.size())
+				if (vertIndex >= submeshes[submeshIndex]._vertices.size())
 				{
 					continue;
 				}
 
-				Vertex& vert = submeshes[j]._vertices[vertIndex];
-				vert.boneIndices.push_back(boneIndexHash.find(bone->mName.C_Str())->second);
-				vert.weights.push_back(weight);
+				Vertex& vert = submeshes[submeshIndex]._vertices[vertIndex];
+				vert.boneIndexes[weightIndices[submeshIndex][vertIndex]] = boneIndexHash.find(bone->mName.C_Str())->second;
+				vert.weights[weightIndices[submeshIndex][vertIndex]] = weight;
 
-				DK_ASSERT_LOG(vert.boneIndices.size() < 5, "Skinning weight는 4개를 넘을 수 없습니다.");
+				weightIndices[submeshIndex][vertIndex] += 1;
+
+				DK_ASSERT_LOG(weightIndices[submeshIndex][vertIndex] <= MAX_SKINNING_COUNT, "Skinning weight는 4개를 넘을 수 없습니다.");
 			}
 		}
 	}
+
+#if defined(_DK_DEBUG_)
+	DKVector<SubMesh>& submeshes = model->GetSubMeshesWritable();
+	for (uint i = 0; i < submeshes.size(); ++i)
+	{
+		for (uint j = 0; j < submeshes[i]._vertices.size(); ++j)
+		{
+			Vertex& vert = submeshes[i]._vertices[j];
+
+			float weight = 0.0f;
+			for (uint k = 0; k < MAX_SKINNING_COUNT; ++k)
+			{
+				weight += vert.weights[k];
+			}
+
+			static float epsilon = 0.00001f;
+			//DK_ASSERT_LOG(abs(weight - 1.0f) <= epsilon, "Vertex의 Weight가 1.0이 아닙니다.");
+		}
+	}
+#endif
 }
 const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const ModelRef& model, _OUT_ Skeleton& outSkeleton)
 {
@@ -292,11 +355,14 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 		| aiProcess_SortByPType					// 단일타입의 프리미티브로 구성된 '깨끗한' 매쉬를 만듦
 	);
 
-	CHECK_BOOL_AND_RETURN(scene != nullptr);
+	if (scene == nullptr)
+	{
+		DK_ASSERT_LOG(false, "scene가 초기화되지 않았습니다.");
+		return false;
+	}
 
-	RenderModule* rm = DuckingEngine::_duckingEngine->GetRenderModuleWritable();
-
-	std::unordered_map<std::string, const aiBone* > boneHash;
+	// 모든 Submesh에 있는 Bone들을 Name을 Key로 가지는 hashmap을 만듭니다. (아래에 본 구성에서 사용될 예정)
+	DKHashMap<DKString, const aiBone* > boneHash;
 	for (uint i = 0; i < scene->mNumMeshes; ++i)
 	{
 		const aiMesh* mesh = scene->mMeshes[i];
@@ -326,10 +392,10 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 
 #if 1
 	// 모든 본 vector로 build
-	const uint boneCount = boneHash.size();
+	const uint boneCount = static_cast<const uint>(boneHash.size());
 	const aiNode* rootNode = scene->mRootNode;
-	std::vector<Bone> bones;
-	std::unordered_map<std::string, uint> boneIndexHash;
+	DKVector<Bone> bones;
+	DKHashMap<DKString, uint> boneIndexHash;
 	BuildBoneVectorAndIndexHashMapChild(boneHash, rootNode, bones, boneIndexHash);
 	DK_ASSERT_LOG(boneCount == bones.size(), "Bone 구성이 잘 이루어지지 않았습니다.");
 	DK_ASSERT_LOG(boneCount == boneIndexHash.size(), "Bone 구성이 잘 이루어지지 않았습니다.");
@@ -348,7 +414,7 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 		{
 			const aiBone* aiBone = mesh->mBones[boneIndex];
 
-			std::string boneName = aiBone->mName.C_Str();
+			DKString boneName = aiBone->mName.C_Str();
 			aiVector3D translation, rotation, scale;
 			aiBone->mOffsetMatrix.Decompose(scale, rotation, translation);
 			float3 translationF(translation.x, translation.y, translation.z);
@@ -357,7 +423,7 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 			Transform boneTransform(translationF, rotationF, scaleF);
 
 			Bone newBone;
-#if defined(DK_DEBUG)
+#if defined(_DK_DEBUG_)
 			newBone._boneName = boneName;
 #endif
 			newBone._transform = boneTransform;
@@ -375,7 +441,7 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 				}
 				const float weight = aiWeight.mWeight;
 
-				std::vector<SubMesh>& submeshes = model->GetSubMeshesWritable();
+				DKVector<SubMesh>& submeshes = model->GetSubMeshesWritable();
 				Vertex& vertex = submeshes[0]._vertices[vertexIndex];
 				vertex.boneIndices.push_back(boneIndex);
 				vertex.weights.push_back(weight);
@@ -392,7 +458,8 @@ const bool LoadFBXSkeletonFromFileByAssimp(_IN_ const char* path, _IN_ const Mod
 
 	return true;
 }
-const bool LoadFBXAnimationFromFileByAssimp(_IN_ const char* path, const Skeleton& skeleton, _OUT_ Animation& outAnimation)
+
+const bool LoadFBXAnimationFromFileByAssimp(_IN_ const char* path, const SkeletonRef& skeleton, _OUT_ Animation& outAnimation)
 {
 	const aiScene* scene = aiImportFile(path,
 		aiProcess_JoinIdenticalVertices			// 동일한 꼭지점 결합, 인덱싱 최적화
@@ -411,28 +478,136 @@ const bool LoadFBXAnimationFromFileByAssimp(_IN_ const char* path, const Skeleto
 		| aiProcess_SortByPType					// 단일타입의 프리미티브로 구성된 '깨끗한' 매쉬를 만듦
 	);
 
-	CHECK_BOOL_AND_RETURN(scene != nullptr);
+	if (scene == nullptr)
+	{
+		DK_ASSERT_LOG(false, "scene가 초기화되지 않았습니다.");
+		return false;
+	}
 
-	//uint numAnimation = scene->mNumAnimations;	// 애니메이션 개수	
-
-	RenderModule* rm = DuckingEngine::_duckingEngine->GetRenderModuleWritable();
-
+	// 애니메이션 파일당 애니메이션은 하나만 있다는 가정입니다.
 	aiAnimation* animation = scene->mAnimations[0];
-	std::string animationName = animation->mName.C_Str();
+	DKString animationName = animation->mName.C_Str();
 	float duration = static_cast<float>(animation->mDuration);
 	float tick = static_cast<float>(animation->mTicksPerSecond);
+	static float epsilon = 0.00001f;
+	uint animationFrameCount = static_cast<uint>(duration - epsilon) + 1;
 
-	const std::vector<Bone>& bones = skeleton.GetBones();
+	aiMatrix4x4 aiGlobalMatrix = scene->mRootNode->mTransformation;
+	Matrix4x4 globalMatrix(
+		aiGlobalMatrix.a1, aiGlobalMatrix.a2, aiGlobalMatrix.a3, aiGlobalMatrix.a4, 
+		aiGlobalMatrix.b1, aiGlobalMatrix.b2, aiGlobalMatrix.b3, aiGlobalMatrix.b4, 
+		aiGlobalMatrix.c1, aiGlobalMatrix.c2, aiGlobalMatrix.c3, aiGlobalMatrix.c4, 
+		aiGlobalMatrix.d1, aiGlobalMatrix.d2, aiGlobalMatrix.d3, aiGlobalMatrix.d4
+	);
+	Matrix4x4 fbxConvertingMatrix(
+		1, 0, 0, 0, 
+		0, 0, 1, 0, 
+		0, 1, 0, 0, 
+		0, 0, 0, 1
+	);
+
+	std::unordered_set<DKString> boneNames;
+	const DKVector<Bone>& bones = skeleton->GetBones();
+	DKVector<Animation::BoneAnimation> boneAnimation;
+	boneAnimation.resize(bones.size());
 	for (uint i = 0; i < bones.size(); ++i)
 	{
-		const std::string boneName = bones[i]._boneName;
-
-		uint channelCount = animation->mNumChannels;
-		for (uint i = 0; i < channelCount; ++i)
+		const DKString boneName = bones[i]._boneName;
+		std::unordered_set<DKString>::iterator iter = boneNames.find(boneName.c_str());
+		if (iter != boneNames.end())
 		{
-			animation->mChannels[i];
+			DK_ASSERT_LOG(false, "%s 본에 대한 중복 애니메이션이 발견되었습니다. 잘못된 애니메이션 파일입니다.", boneName.c_str());
+			continue;
 		}
+
+		boneNames.insert(boneName);
+
+		aiNodeAnim* foundBoneAnimationNode = nullptr;
+		uint channelCount = animation->mNumChannels;
+		for (uint j = 0; j < channelCount; ++j)
+		{
+			const aiString& animationBoneName = animation->mChannels[j]->mNodeName;
+			if (strcmp(animationBoneName.C_Str(), boneName.c_str()) != 0)
+			{
+				continue;
+			}
+
+			foundBoneAnimationNode = animation->mChannels[j];
+
+			break;
+		}
+
+		Animation::BoneAnimation& newBoneAnimation = boneAnimation[i];
+		newBoneAnimation._boneName = boneName.c_str();
+
+		DKVector<Matrix4x4> newAnimation;
+		newAnimation.resize(animationFrameCount);
+
+		if (foundBoneAnimationNode == nullptr)
+		{
+			DK_ASSERT_LOG(foundBoneAnimationNode != nullptr, "Bone[%s] Animation을 찾지 못했습니다. 애니메이션이 제대로 작동하지 않습니다.", boneName.c_str());
+			for (uint j = 0; j < animationFrameCount; ++j)
+			{
+				Matrix4x4 temp;
+				bones[i]._transform.ToMatrix4x4(temp);
+				newAnimation[j] = temp;
+			}
+		}
+		else
+		{
+			uint positionCount = foundBoneAnimationNode->mNumPositionKeys;
+			uint rotationCount = foundBoneAnimationNode->mNumRotationKeys;
+			uint scaleCount = foundBoneAnimationNode->mNumScalingKeys;
+			DK_ASSERT_LOG((positionCount == rotationCount) && (rotationCount == scaleCount), "애니메이션 프레임이 다릅니다. %d, %d, %d", positionCount, rotationCount, scaleCount);
+
+			uint positionIndex = 0;
+			uint rotationIndex = 0;
+			uint scaleIndex = 0;
+			float3 prevPosition, prevRotation, prevScale;
+			uint maxCount = positionCount < rotationCount ? (rotationCount < scaleCount ? scaleCount : rotationCount) : (positionCount < scaleCount ? scaleCount : positionCount);
+			for (uint j = 0; j < animationFrameCount; ++j)
+			{
+				// animation channel은 position, rotation, scale 모두 time은 같습니다.
+				// 가령 rotation만 달라지는 애니메이션 이라도 position, scale모두 channel이 같은 시간에 들어있습니다.
+				if (j > static_cast<uint>(foundBoneAnimationNode->mPositionKeys[positionIndex].mTime))
+				{
+					positionIndex = positionIndex + 1 < maxCount ? positionIndex + 1 : positionIndex;
+				}
+				if (j > static_cast<uint>(foundBoneAnimationNode->mRotationKeys[rotationIndex].mTime))
+				{
+					rotationIndex = rotationIndex + 1 < maxCount ? rotationIndex + 1 : positionIndex;
+				}
+				if (j > static_cast<uint>(foundBoneAnimationNode->mScalingKeys[scaleIndex].mTime))
+				{
+					scaleIndex = scaleIndex + 1 < maxCount ? scaleIndex + 1 : positionIndex;
+				}
+				aiVector3D position = foundBoneAnimationNode->mPositionKeys[positionIndex].mValue;
+				float3 newPosition(position.x, position.y, position.z);
+
+				aiVector3D scale = foundBoneAnimationNode->mScalingKeys[scaleIndex].mValue;
+				float3 newScale(scale.x, scale.y, scale.z);
+
+				aiQuaternion& rotation = foundBoneAnimationNode->mRotationKeys[rotationIndex].mValue;
+				aiMatrix3x3 aiRotationMat = rotation.GetMatrix();
+				Matrix4x4 animationMatrix(
+					aiRotationMat.a1 * scale.x,	aiRotationMat.a2,			aiRotationMat.a3,			0, 
+					aiRotationMat.b1,			aiRotationMat.b2 * scale.y, aiRotationMat.b3,			0, 
+					aiRotationMat.c1,			aiRotationMat.c2,			aiRotationMat.c3 * scale.z, 0, 
+					newPosition.x, newPosition.y, newPosition.z, 1
+				);
+
+				//Transform boneTransform = bones[i]._transform;
+				//Matrix4x4 temp;
+				//Transform(newPosition, newRotation, newScale).ToMatrix4x4(temp);
+				newAnimation[j] = animationMatrix;
+			}
+		}
+
+		newBoneAnimation._animation = std::move(newAnimation);
 	}
+
+	outAnimation.SetFrameCount(animationFrameCount);
+	outAnimation.SetBoneAnimations(boneAnimation);
 
 	return true;
 }
@@ -446,7 +621,7 @@ const bool FBXLoader::LoadFBXMeshFromFile(_IN_ const char* path, _OUT_ Model& ou
 	/*
 	* todo- path 검증 먼저 해야함 (무조건 fbx파일을 가리켜야합니다)
 	*/
-	// 일단은 무조건 fbx라고 합시다. (string helper 제작 후에는 검증할 것!)
+	// 일단은 무조건 fbx라고 합시다. (DKString helper 제작 후에는 검증할 것!)
 	CHECK_BOOL_AND_RETURN(IsFBXExtension(path));
 
 	static FbxManager* fbxManager = nullptr;
@@ -656,8 +831,8 @@ const bool FBXLoader::CreateSubMesh(FbxMesh* mesh, FbxNode* node, float3& transl
 	}
 
 	const uint triCount = mesh->GetPolygonCount();
-	std::vector<Vertex> vertices;
-	std::vector<uint> indices;
+	DKVector<Vertex> vertices;
+	DKVector<uint> indices;
 	uint vertexCounter = 0;
 	for (uint i = 0; i < triCount; ++i)
 	{
@@ -718,11 +893,10 @@ const bool FBXLoader::LoadFBXSkeletonFromFile(_IN_ const char* path, _IN_ const 
 	return true;
 }
 
-const bool FBXLoader::LoadFBXAnimationFromFile(_IN_ const char* path, _OUT_ Animation& outAnimation)
+const bool FBXLoader::LoadFBXAnimationFromFile(_IN_ const char* path, const SkeletonRef& skeleton, _OUT_ Animation& outAnimation)
 {
-#ifdef USE_ASSIMP
-	LoadFBXAnimationFromFileByAssimp(path, outAnimation);
-#else
+#if defined(USE_ASSIMP)
+	LoadFBXAnimationFromFileByAssimp(path, skeleton, outAnimation);
 #endif
 	return true;
 }

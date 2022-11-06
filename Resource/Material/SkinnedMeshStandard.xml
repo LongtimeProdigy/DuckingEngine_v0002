@@ -1,0 +1,4 @@
+<Material Name="SkinnedMeshStandard">
+	<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Texture\0x00000000.png</Parameter>
+	<Parameter Name="Opacity" Type="float">1.0</Parameter>
+</Material>

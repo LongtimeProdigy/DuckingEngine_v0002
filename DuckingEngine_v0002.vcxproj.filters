@@ -5,402 +5,298 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="Object.cpp">
-      <Filter>EngineCoreModule\Common\Object</Filter>
+      <Filter>1. EngineCore\Object</Filter>
     </ClCompile>
     <ClCompile Include="Component.cpp">
-      <Filter>EngineCoreModule\Common\Component</Filter>
+      <Filter>1. EngineCore\Component</Filter>
     </ClCompile>
     <ClCompile Include="Camera.cpp">
-      <Filter>EngineCoreModule\Common\Object</Filter>
+      <Filter>1. EngineCore\Object</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_demo.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_draw.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_tables.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\imgui_widgets.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\backends\imgui_impl_dx12.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI\BackEnds</Filter>
+      <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
     </ClCompile>
     <ClCompile Include="lib\imgui\backends\imgui_impl_win32.cpp">
-      <Filter>EngineCoreModule\Common\UI\IMGUI\BackEnds</Filter>
+      <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
     </ClCompile>
     <ClCompile Include="float3.cpp">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="float2.cpp">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="Matrix3x3.cpp">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="Matrix4x4.cpp">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="float4.cpp">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="Transform.cpp">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClCompile>
     <ClCompile Include="XBOXController.cpp">
-      <Filter>InputModule\XBOX</Filter>
-    </ClCompile>
-    <ClCompile Include="EditorModule.cpp">
-      <Filter>EngineCoreModule\Editor</Filter>
-    </ClCompile>
-    <ClCompile Include="GameModule.cpp">
-      <Filter>EngineCoreModule\Game</Filter>
+      <Filter>1. EngineCore\Input\XBOX</Filter>
     </ClCompile>
     <ClCompile Include="SceneObject.cpp">
-      <Filter>EngineCoreModule\Common\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderModule.cpp">
-      <Filter>RenderModule</Filter>
+      <Filter>1. EngineCore\Object</Filter>
     </ClCompile>
     <ClCompile Include="SkinnedMeshComponent.cpp">
-      <Filter>EngineCoreModule\Common\Component</Filter>
+      <Filter>1. EngineCore\Component</Filter>
     </ClCompile>
     <ClCompile Include="lib\tinyXML\tinystr.cpp">
-      <Filter>0. Lib</Filter>
+      <Filter>Lib</Filter>
     </ClCompile>
     <ClCompile Include="lib\tinyXML\tinyxml.cpp">
-      <Filter>0. Lib</Filter>
+      <Filter>Lib</Filter>
     </ClCompile>
     <ClCompile Include="lib\tinyXML\tinyxmlerror.cpp">
-      <Filter>0. Lib</Filter>
+      <Filter>Lib</Filter>
     </ClCompile>
     <ClCompile Include="lib\tinyXML\tinyxmlparser.cpp">
-      <Filter>0. Lib</Filter>
+      <Filter>Lib</Filter>
     </ClCompile>
     <ClCompile Include="DuckingEngine.cpp">
-      <Filter>EngineCoreModule</Filter>
+      <Filter>1. EngineCore</Filter>
     </ClCompile>
     <ClCompile Include="InputModule.cpp">
-      <Filter>InputModule</Filter>
+      <Filter>1. EngineCore\Input</Filter>
     </ClCompile>
     <ClCompile Include="XboxState.cpp">
-      <Filter>InputModule\XBOX</Filter>
+      <Filter>1. EngineCore\Input\XBOX</Filter>
     </ClCompile>
     <ClCompile Include="ComputerController.cpp">
-      <Filter>InputModule\Computer</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderModuleDX.cpp">
-      <Filter>RenderModule\DirectX12</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderModuleDX12.cpp">
-      <Filter>RenderModule\DirectX12</Filter>
-    </ClCompile>
-    <ClCompile Include="ICommandAllocator.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="ICommandList.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="ICommandQueue.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="IDescriptorHeap.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="IDevice.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="IFence.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="IResource.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="ISwapChain.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="ResourceManager.cpp">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
-    </ClCompile>
-    <ClCompile Include="TextureManager.cpp">
-      <Filter>EngineCoreModule\Common</Filter>
+      <Filter>1. EngineCore\Input\Computer</Filter>
     </ClCompile>
     <ClCompile Include="FBXLoader.cpp">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Model.cpp">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
-    </ClCompile>
-    <ClCompile Include="SceneObjectManager.cpp">
-      <Filter>EngineCoreModule\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Material.cpp">
-      <Filter>RenderModule</Filter>
-    </ClCompile>
-    <ClCompile Include="IRootSignature.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="IPipelineStateObject.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="MaterialParameter.cpp">
-      <Filter>RenderModule</Filter>
-    </ClCompile>
-    <ClCompile Include="IShader.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="ITexture.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClCompile>
-    <ClCompile Include="BufferView.cpp">
-      <Filter>RenderModule\DirectX12\Object</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Skeleton.cpp">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Animation.cpp">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="EditorDebugDrawManager.cpp">
+      <Filter>2. Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneRenderer.cpp">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="GameModule.cpp">
+      <Filter>3. Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Material.cpp">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderModule.cpp">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="EditorModule.cpp">
+      <Filter>2. Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneObjectManager.cpp">
+      <Filter>1. EngineCore</Filter>
+    </ClCompile>
+    <ClCompile Include="TextureManager.cpp">
+      <Filter>1. EngineCore</Filter>
+    </ClCompile>
+    <ClCompile Include="ResourceManager.cpp">
+      <Filter>1. EngineCore</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Object.h">
-      <Filter>EngineCoreModule\Common\Object</Filter>
+      <Filter>1. EngineCore\Object</Filter>
     </ClInclude>
     <ClInclude Include="Component.h">
-      <Filter>EngineCoreModule\Common\Component</Filter>
+      <Filter>1. EngineCore\Component</Filter>
     </ClInclude>
     <ClInclude Include="Camera.h">
-      <Filter>EngineCoreModule\Common\Object</Filter>
+      <Filter>1. EngineCore\Object</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imconfig.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imgui.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imgui_internal.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imstb_rectpack.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imstb_textedit.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\imstb_truetype.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI</Filter>
+      <Filter>1. EngineCore\UI\IMGUI</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\backends\imgui_impl_dx12.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI\BackEnds</Filter>
+      <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
     </ClInclude>
     <ClInclude Include="lib\imgui\backends\imgui_impl_win32.h">
-      <Filter>EngineCoreModule\Common\UI\IMGUI\BackEnds</Filter>
+      <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
     </ClInclude>
     <ClInclude Include="float3.h">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="float2.h">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="Matrix3x3.h">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="Matrix4x4.h">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="float4.h">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="Transform.h">
-      <Filter>Common\Math</Filter>
+      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="XBOXController.h">
-      <Filter>InputModule\XBOX</Filter>
-    </ClInclude>
-    <ClInclude Include="EditorModule.h">
-      <Filter>EngineCoreModule\Editor</Filter>
-    </ClInclude>
-    <ClInclude Include="GameModule.h">
-      <Filter>EngineCoreModule\Game</Filter>
+      <Filter>1. EngineCore\Input\XBOX</Filter>
     </ClInclude>
     <ClInclude Include="SceneObject.h">
-      <Filter>EngineCoreModule\Common\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderModule.h">
-      <Filter>RenderModule</Filter>
+      <Filter>1. EngineCore\Object</Filter>
     </ClInclude>
     <ClInclude Include="SkinnedMeshComponent.h">
-      <Filter>EngineCoreModule\Common\Component</Filter>
+      <Filter>1. EngineCore\Component</Filter>
     </ClInclude>
     <ClInclude Include="lib\tinyXML\tinystr.h">
-      <Filter>0. Lib</Filter>
+      <Filter>Lib</Filter>
     </ClInclude>
     <ClInclude Include="lib\tinyXML\tinyxml.h">
-      <Filter>0. Lib</Filter>
+      <Filter>Lib</Filter>
     </ClInclude>
     <ClInclude Include="DuckingEngine.h">
-      <Filter>EngineCoreModule</Filter>
+      <Filter>1. EngineCore</Filter>
     </ClInclude>
     <ClInclude Include="InputModule.h">
-      <Filter>InputModule</Filter>
+      <Filter>1. EngineCore\Input</Filter>
     </ClInclude>
     <ClInclude Include="XboxState.h">
-      <Filter>InputModule\XBOX</Filter>
+      <Filter>1. EngineCore\Input\XBOX</Filter>
     </ClInclude>
     <ClInclude Include="ComputerController.h">
-      <Filter>InputModule\Computer</Filter>
-    </ClInclude>
-    <ClInclude Include="d3dx12.h">
-      <Filter>RenderModule\DirectX12</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderModuleDX.h">
-      <Filter>RenderModule\DirectX12</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderModuleDX12.h">
-      <Filter>RenderModule\DirectX12</Filter>
-    </ClInclude>
-    <ClInclude Include="ICommandAllocator.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="ICommandList.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="ICommandQueue.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="IDescriptorHeap.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="IDevice.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="IFence.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="IResource.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="ISwapChain.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="ResourceManager.h">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
-    </ClInclude>
-    <ClInclude Include="TextureManager.h">
-      <Filter>EngineCoreModule\Common</Filter>
+      <Filter>1. EngineCore\Input\Computer</Filter>
     </ClInclude>
     <ClInclude Include="FBXLoader.h">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Model.h">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
-    </ClInclude>
-    <ClInclude Include="SceneObjectManager.h">
-      <Filter>EngineCoreModule\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Material.h">
-      <Filter>RenderModule</Filter>
-    </ClInclude>
-    <ClInclude Include="IRootSignature.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="IPipelineStateObject.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="MaterialParameter.h">
-      <Filter>RenderModule</Filter>
-    </ClInclude>
-    <ClInclude Include="IShader.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="ITexture.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="BufferView.h">
-      <Filter>RenderModule\DirectX12\Object</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Skeleton.h">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Animation.h">
-      <Filter>EngineCoreModule\Common\Resource</Filter>
+      <Filter>1. EngineCore\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="EditorDebugDrawManager.h">
+      <Filter>2. Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneRenderer.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="GameModule.h">
+      <Filter>3. Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Material.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderModule.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="EditorModule.h">
+      <Filter>2. Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneObjectManager.h">
+      <Filter>1. EngineCore</Filter>
+    </ClInclude>
+    <ClInclude Include="d3dx12.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="TextureManager.h">
+      <Filter>1. EngineCore</Filter>
+    </ClInclude>
+    <ClInclude Include="ResourceManager.h">
+      <Filter>1. EngineCore</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="InputModule">
-      <UniqueIdentifier>{7660a6bb-5da2-431a-8242-98d256d04735}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="RenderModule">
-      <UniqueIdentifier>{e289434c-88d9-4b31-8d16-fbc157162c75}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="InputModule\XBOX">
-      <UniqueIdentifier>{c1e6d0be-c7c7-4449-9fe4-19f7e2332160}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Common">
+    <Filter Include="0. Common">
       <UniqueIdentifier>{b14bf9ba-700f-4773-8525-c9af8904f960}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Common\Math">
+    <Filter Include="0. Common\Math">
       <UniqueIdentifier>{b0f2166a-dbd3-4d52-8ea4-d73731daa64a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="0. Lib">
-      <UniqueIdentifier>{656105a8-597a-48bb-97dd-2bdf9d43d9e4}</UniqueIdentifier>
+    <Filter Include="2. Editor">
+      <UniqueIdentifier>{6e543bce-24f6-49ec-8dc0-3d238331caa0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="EngineCoreModule">
+    <Filter Include="3. Game">
+      <UniqueIdentifier>{0520b6e9-9052-45f7-b400-cc0bc2c2cd75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="1. EngineCore">
       <UniqueIdentifier>{e2a1e2ba-7b42-4bae-86e2-690260b95e4c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="EngineCoreModule\Game">
-      <UniqueIdentifier>{2c1f75b5-6253-4fc7-a380-56bfa1a399b1}</UniqueIdentifier>
+    <Filter Include="1. EngineCore\Input">
+      <UniqueIdentifier>{7660a6bb-5da2-431a-8242-98d256d04735}</UniqueIdentifier>
     </Filter>
-    <Filter Include="EngineCoreModule\Editor">
-      <UniqueIdentifier>{cfa09841-b2ab-479b-8a8f-e5d28115ca35}</UniqueIdentifier>
+    <Filter Include="1. EngineCore\Input\XBOX">
+      <UniqueIdentifier>{c1e6d0be-c7c7-4449-9fe4-19f7e2332160}</UniqueIdentifier>
     </Filter>
-    <Filter Include="EngineCoreModule\Common">
-      <UniqueIdentifier>{753bd7a4-7243-4473-9fb2-a758e365b64e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="EngineCoreModule\Common\Component">
-      <UniqueIdentifier>{b9eb1dd2-6fdc-4d0c-9993-22141ccb91dc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="EngineCoreModule\Common\Object">
-      <UniqueIdentifier>{08f9c653-8265-455e-900c-4556700e5fe1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="EngineCoreModule\Common\UI">
-      <UniqueIdentifier>{bfde6d5f-b722-4052-a94f-a5d1573f8cbe}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="EngineCoreModule\Common\UI\IMGUI">
-      <UniqueIdentifier>{b4bb6577-ee97-403f-b847-028c80c89677}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="EngineCoreModule\Common\UI\IMGUI\BackEnds">
-      <UniqueIdentifier>{05450934-12eb-48c5-95d3-dd45349995c7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Shader">
-      <UniqueIdentifier>{030ba7dd-2f25-40ed-8a2a-fc69458d7b2a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="InputModule\Computer">
+    <Filter Include="1. EngineCore\Input\Computer">
       <UniqueIdentifier>{c72c5ed4-41f8-41f2-848e-29bb3e5b69ce}</UniqueIdentifier>
     </Filter>
-    <Filter Include="RenderModule\DirectX12">
-      <UniqueIdentifier>{fb6465ee-47ad-46c2-a4a1-27ac1e2cda2e}</UniqueIdentifier>
+    <Filter Include="1. EngineCore\Renderer">
+      <UniqueIdentifier>{0be8094d-2c35-47eb-b04a-58f34e836159}</UniqueIdentifier>
     </Filter>
-    <Filter Include="RenderModule\DirectX12\Object">
-      <UniqueIdentifier>{f4282e0c-6a0f-4fc5-ae74-46f5c4cf1baf}</UniqueIdentifier>
+    <Filter Include="1. EngineCore\Component">
+      <UniqueIdentifier>{b9eb1dd2-6fdc-4d0c-9993-22141ccb91dc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="EngineCoreModule\Common\Resource">
+    <Filter Include="1. EngineCore\Object">
+      <UniqueIdentifier>{08f9c653-8265-455e-900c-4556700e5fe1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="1. EngineCore\Resource">
       <UniqueIdentifier>{1a49e01c-6d74-41e5-9298-234240e62877}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Shader\VertexShader.hlsl">
-      <Filter>Shader</Filter>
-    </None>
-    <None Include="Shader\PixelShader.hlsl">
-      <Filter>Shader</Filter>
-    </None>
+    <Filter Include="1. EngineCore\UI">
+      <UniqueIdentifier>{bfde6d5f-b722-4052-a94f-a5d1573f8cbe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="1. EngineCore\UI\IMGUI">
+      <UniqueIdentifier>{b4bb6577-ee97-403f-b847-028c80c89677}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="1. EngineCore\UI\IMGUI\BackEnds">
+      <UniqueIdentifier>{05450934-12eb-48c5-95d3-dd45349995c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Lib">
+      <UniqueIdentifier>{656105a8-597a-48bb-97dd-2bdf9d43d9e4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

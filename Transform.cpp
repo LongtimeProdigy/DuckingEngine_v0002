@@ -4,7 +4,7 @@
 #include "Matrix3x3.h"
 #include "Matrix4x4.h"
 
-const Transform Transform::Identity = Transform(float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0));
+const Transform Transform::Identity = Transform(float3(0, 0, 0), float3(0, 0, 0), float3(1, 1, 1));
 
 void Transform::ToMatrix4x4(Matrix4x4& outMatrix) const noexcept 
 {

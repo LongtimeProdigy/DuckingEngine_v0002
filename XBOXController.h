@@ -22,7 +22,7 @@ public:
 		DWORD Result = XInputGetState(_playerNumber, &_xInputState);
 
 		_joyStickL = float2((float)_xInputState.Gamepad.sThumbLX / 32767, (float)_xInputState.Gamepad.sThumbLY / 32767);
-		_joyStickR = float2((float)_xInputState.Gamepad.sThumbLX / 32767, (float)_xInputState.Gamepad.sThumbLY / 32767);
+		_joyStickR = float2((float)_xInputState.Gamepad.sThumbRX / 32767, (float)_xInputState.Gamepad.sThumbRY / 32767);
 
 		return Result == ERROR_SUCCESS;
 	}

@@ -3,8 +3,7 @@
 #include "float2.h"
 #include "float3.h"
 
-class IResource;
-class Material;
+#include "Material.h"
 
 #define MAX_SKINNING_COUNT 4
 
@@ -31,15 +30,21 @@ public:
 	const float3 _normal = float3::Zero;
 	const float2 _uv = float2::Zero;
 
-	std::vector<uint> boneIndices;
-	std::vector<float> weights;
+	uint32 boneIndexes[MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), };
+	float weights[MAX_SKINNING_COUNT] = { 0.0f, };
 };
 
 class SubMesh
 {
 public:
-	SubMesh() = default;
-	SubMesh(std::vector<Vertex>& vertices, std::vector<uint>& indices)
+	SubMesh(SubMesh&& rhs)
+		: _vertices(std::move(rhs._vertices))
+		, _indices(std::move(rhs._indices))
+		, _vertexBufferView(std::move(rhs._vertexBufferView))
+		, _indexBufferView(std::move(rhs._indexBufferView))
+		, _material(std::move(rhs._material))
+	{}
+	SubMesh(DKVector<Vertex>& vertices, DKVector<uint>& indices)
 		: _vertices(vertices)
 		, _indices(indices)
 	{}
@@ -50,37 +55,35 @@ public:
 	}
 
 public:
-	std::vector<Vertex> _vertices;
-	std::vector<uint> _indices;
+	DKVector<Vertex> _vertices;
+	DKVector<uint> _indices;
 	VertexBufferViewRef _vertexBufferView;
 	IndexBufferViewRef _indexBufferView;
 
-	Material* _material = nullptr;
+	Material _material;
 };
 
 class Model
 {
 public:
-	Model() = default;
-	Model(Model&& rvalue) = default;
 	~Model()
 	{
 		_subMeshes.clear();
 	}
 	
-	dk_inline void SetSubMeshes(std::vector<SubMesh>& subMeshes)
+	dk_inline void MoveSubMeshesFrom(DKVector<SubMesh>& subMeshes)
 	{
 		_subMeshes = std::move(subMeshes);
 	}
-	dk_inline const std::vector<SubMesh>& GetSubMeshes() const noexcept
+	dk_inline const DKVector<SubMesh>& GetSubMeshes() const noexcept
 	{
 		return _subMeshes;
 	}
-	dk_inline std::vector<SubMesh>& GetSubMeshesWritable() noexcept
+	dk_inline DKVector<SubMesh>& GetSubMeshesWritable() noexcept
 	{
 		return _subMeshes;
 	}
 
 private:
-	std::vector<SubMesh> _subMeshes;
+	DKVector<SubMesh> _subMeshes;
 };

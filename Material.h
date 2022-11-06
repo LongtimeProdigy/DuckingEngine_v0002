@@ -1,55 +1,143 @@
 #pragma once
 
-class IRootSignature;
-class IPipelineStateObject;
-class IDescriptorHeap;
+struct IBuffer;
 
-class IMaterialParameter;
-
-class SceneObject;
-
-class IRootParameter
+#pragma region Definition
+enum class MaterialParameterType : uint8
 {
-public:
-	IRootParameter();
-	~IRootParameter();
-
-public:
-	uint _rootParameterIndex = -1;
-	uint _constanceData;						// RootParameter Constant 일 경우에만 사용됩니다.
-	IResource* _constantBuffer;					// RootParameter Constant 일 경우에만 사용됩니다.
-	IDescriptorHeap* _descriptor;
-};
-
-enum class MaterialType : uint8
-{
-	STATICMESH, 
-	SKINNEDMESH, 
+	INT,
+	UINT,
+	FLOAT,
+	TEXTURE,
 	COUNT
 };
+constexpr static const char* gMaterialParameterTypeName[static_cast<uint32>(MaterialParameterType::COUNT)]
+{
+	"int",
+	"uint",
+	"float",
+	"Texture",
+};
+static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_COUNT_OF(gMaterialParameterTypeName) - 1), "Type과 TypeName 개수가 일치되어야합니다.");
+dk_inline MaterialParameterType convertStringToEnum(const char* str)
+{
+	const uint32 count = static_cast<uint32>(MaterialParameterType::COUNT);
+	for (uint32 i = 0; i < count; ++i)
+	{
+		if (_stricmp(str, gMaterialParameterTypeName[i]) == 0)
+		{
+			return static_cast<MaterialParameterType>(i);
+		}
+	}
 
+	return MaterialParameterType::COUNT;
+}
+
+struct MaterialParameterDefinition
+{
+	DKString _name;
+	MaterialParameterType _type;
+	DKString _value;
+};
+
+struct MaterialDefinition
+{
+	DKString _materialName;
+	DKVector<MaterialParameterDefinition> _parameters;
+};
+#pragma endregion
+
+#pragma region Parameter
+class MaterialParameter
+{
+public:
+	static MaterialParameter* createMaterialParameter(const MaterialParameterDefinition& parameterDefinition);
+
+public:
+	MaterialParameter(const DKString& name)
+		: _name(name)
+	{}
+	virtual ~MaterialParameter() {}
+
+	dk_inline const DKString& getName() const noexcept
+	{
+		return _name;
+	}
+
+	dk_inline virtual void setValuePtr(void* valuePtr) noexcept
+	{
+		_valuePtr = valuePtr;
+	}
+
+	dk_inline virtual uint32 getSize() const noexcept = 0;
+
+protected:
+	DKString _name;
+	void* _valuePtr;
+};
+
+template <typename T>
+class MaterialParameterTemplate : public MaterialParameter
+{
+public:
+	MaterialParameterTemplate(const DKString& name, const T& defaultValue)
+		: MaterialParameter(name)
+		, _defaultValue(defaultValue)
+	{}
+
+	virtual void setValue(const T& value) noexcept;
+
+	dk_inline virtual uint32 getSize() const noexcept
+	{
+		return sizeof(T);
+	}
+
+private:
+	const T _defaultValue;
+	T _value;				// ITexture의 RefCount 관리를 위해서 들고 있어야합니다.
+};
+
+using MaterialParameterFloat = MaterialParameterTemplate<float>;
+using MaterialParameterTexture = MaterialParameterTemplate<ITextureRef>;
+
+void MaterialParameterTexture::setValue(const ITextureRef& value) noexcept;
+template <>
+uint32 MaterialParameterTexture::getSize() const noexcept;
+#pragma endregion
+
+#pragma region Material
 class Material
 {
 public:
-	Material(const MaterialType type)
-		: _type(type)
-	{}
-	~Material();
+	static bool createMaterial(const MaterialDefinition& modelProperty, Material& outMaterial);
 
 public:
-	void UpdateTechnique(const SceneObject* sceneObject) noexcept;
-	void UploadParameters() const noexcept;
+	Material() {};
+	Material(const DKString& materialname)
+		: _materialName(materialname)
+	{};
 
 public:
-	const MaterialType _type;
+	dk_inline const DKString& getMaterialName() const noexcept
+	{
+		return _materialName;
+	};
+	dk_inline const Ptr<IBuffer>& getParameterBuffer() const noexcept
+	{
+		return _parameterBufferForGPU;
+	};
+	dk_inline Ptr<IBuffer>& getParameterBufferWritable() noexcept
+	{
+		return _parameterBufferForGPU;
+	};
 
-	IRootSignatureRef _rootSignature = nullptr;
-	IPipelineStateObjectRef _pipelineStateObject = nullptr;
+	bool setModelProperty(const MaterialDefinition& modelProperty);
 
-	std::vector<IRootParameter> _constant32BitParamters;
-	std::vector<IRootParameter> _constantBufferParamters;
-	std::vector<IRootParameter> _descriptorHeapParameters;
+private:
+	DKString _materialName;
+	DKVector<Ptr<MaterialParameter>> _parameters;
 
-	// Paramters
-	std::vector<IMaterialParameter*> _parameters;
+	DKVector<char> _parameterBufferForCPU;
+	Ptr<IBuffer> _parameterBufferForGPU;
 };
+#pragma endregion

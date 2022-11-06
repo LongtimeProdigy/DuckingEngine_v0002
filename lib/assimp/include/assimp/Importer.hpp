@@ -634,7 +634,7 @@ protected:
 
 
 // ----------------------------------------------------------------------------
-// For compatibility, the interface of some functions taking a std::string was
+// For compatibility, the interface of some functions taking a string was
 // changed to const char* to avoid crashes between binary incompatible STL
 // versions. This code her is inlined,  so it shouldn't cause any problems.
 // ----------------------------------------------------------------------------

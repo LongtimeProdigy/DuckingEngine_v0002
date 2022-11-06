@@ -2,14 +2,14 @@
 
 #include "Transform.h"
 
+#include "Component.h"
+
 class Component;
-class IResource;
 
 class Object
 {
 public:
-	Object();
-	virtual ~Object();
+	virtual ~Object() {}
 
 	virtual void Update() = 0;
 
@@ -18,7 +18,6 @@ public:
 	void AddComponent(Component* component) noexcept;
 
 public:
-	std::vector<Component*> _components;
+	DKVector<Ptr<Component>> _components;
 	Transform _worldTransform;
-	IResource* _sceneObjectConstantBuffer = nullptr;
 };

@@ -135,40 +135,22 @@ class Model;
 //    FORCE_UINT                  = 0xffffffff
 //};
 
-class TextureRaw
-{
-public:
-	TextureRaw() = default;
-	TextureRaw(TextureRaw&& rvalue) = default;
-
-public:
-	uint _width;
-	uint _height;
-	uint _bitsPerPixel;
-	byte* _data;
-	DXGI_FORMAT _format;
-};
-
 class ResourceManager
 {
 public:
-	ResourceManager()
-	{}
 	~ResourceManager()
 	{
 		_modelContainer.clear();
-		_textureRawContainer.clear();
+		_skeletonContainer.clear();
+		_animationContainer.clear();
 	}
 
-	const bool LoadMesh(const char* modelPath, ModelRef& outModel);
-	const bool LoadSkeleton(const char* skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton);
-	const bool LoadAnimation(const char* animationPath, AnimationRef& outAnimation);
-
-	const TextureRawRef LoadTextureRaw(const char* texturePath);
+	const bool LoadMesh(const DKString& modelPath, ModelRef& outModel);
+	const bool LoadSkeleton(const DKString& skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton);
+	const bool LoadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation);
 
 private:
-	std::unordered_map<const char*, ModelRef> _modelContainer;
-	std::unordered_map<const char*, SkeletonRef> _skeletonContainer;
-	std::unordered_map<const char*, AnimationRef> _animationContainer;
-	std::unordered_map<const char*, TextureRawRef> _textureRawContainer;
+	DKHashMap<DKString, ModelRef> _modelContainer;
+	DKHashMap<DKString, SkeletonRef> _skeletonContainer;
+	DKHashMap<DKString, AnimationRef> _animationContainer;
 };

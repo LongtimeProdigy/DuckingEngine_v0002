@@ -52,7 +52,7 @@ public:
 	void SetBindingTableName(const char* pName);
 
 	/** Get the entry type.
-	* \return       Entry type as string "FbxBindingsEntry".
+	* \return       Entry type as std::string "FbxBindingsEntry".
 	* \remarks Always use EntryType() to get the right entry type.
 	*/
 	virtual const char* EntryType() const;

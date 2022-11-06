@@ -4,30 +4,21 @@
 
 struct Transform;
 class InputModule;
-class IResource;
 
 class Camera : public Object
 {
 public:
 	static Camera* gMainCamera;
-	static IResource* gCameraConstantBuffer;
 
 public:
 	Camera(const float fov, const int width, const int height)
-		: _fov(fov)
+		: _halfFov((fov / 2.0f) * DK::Math::kToRadian)
 		, _width(width)
 		, _height(height)
 	{}
 
-	virtual ~Camera() override final 
-	{}
-
 	virtual void Update() override final;
 
-	dk_inline const float GetFOV() const noexcept
-	{
-		return _fov;
-	}
 	dk_inline const int GetWidth() const noexcept
 	{
 		return _width;
@@ -73,11 +64,10 @@ public:
 	void GetCameraProjectionMaterix(Matrix4x4& outMaterix);
 
 private:
-	float _fov = 45.0f;
+	float _halfFov = 45.0f * DK::Math::kToRadian;
 	int _width = 1920;
 	int _height = 1080;
 
-	// #todo- 일단은 설정없이 1~1000을 고정값으로 사용합니다. 나중에 받을 수 있도록 변경?
-	float _nearPlaneDistance = 1.0f;
+	float _nearPlaneDistance = 0.01f;
 	float _farPlaneDistance = 1000.0f;
 };

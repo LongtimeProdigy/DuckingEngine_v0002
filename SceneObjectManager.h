@@ -20,9 +20,11 @@ struct SceneObjectConstantBufferStruct
 	Matrix4x4 _worldMatrix;
 };
 
+#define MAX_BONE_COUNT 55
+#define INVALID_TEXTURE_INDEX 0xffffffff
 struct SkeletonConstantBufferStruct
 {
-	Matrix4x4 _skeletonMatrixBuffer[];
+	Matrix4x4 _skeletonMatrixBuffer[MAX_BONE_COUNT];
 };
 
 class SceneObject;
@@ -30,21 +32,23 @@ class SceneObject;
 class SceneObjectManager
 {
 public:
-	SceneObjectManager();
-	~SceneObjectManager();
+	static SceneObject* createCharacter(const char* appearancePath);
 
-	// Helper Function
-	// #todo- 비동기 처리 필요
-	SceneObject* CreateCharacter(const char* appearancePath);
+	void update(float deltaTime);
 
-	dk_inline const std::unordered_map<uint, SceneObject>& GetCharacterSceneObjectContainer() const noexcept
+	dk_inline const DKHashMap<uint32, SceneObject>& getCharacterSceneObjects() const
 	{
 		return _characterSceneObjectContainer;
 	}
+	dk_inline DKHashMap<uint32, SceneObject>& getCharacterSceneObjectsWritable()
+	{
+		return _characterSceneObjectContainer;
+	}
+
+private:
 	const AppearanceRawRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
 
 private:
-	std::unordered_map<const char*, AppearanceRawRef> _appearanceRawContainers;
-
-	std::unordered_map<uint, SceneObject> _characterSceneObjectContainer;
+	DKHashMap<DKString, AppearanceRawRef> _appearanceRawContainers;
+	DKHashMap<uint32, SceneObject> _characterSceneObjectContainer;
 };

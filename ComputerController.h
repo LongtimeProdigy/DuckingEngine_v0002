@@ -150,11 +150,6 @@ enum class KeyboardState : uint8
 class ComputerController
 {
 public:
-	ComputerController()
-	{}
-	~ComputerController()
-	{}
-
 	void Update();
 	dk_inline bool GetKeyDown(KeyboardState keyCode)
 	{
@@ -169,10 +164,6 @@ public:
 		// 128은 0이었던 상태에서 눌리고 있는 상태(떼면 1이됨)
 		// 129는 1이었던 상태에서 눌리고 있는 상태(떼면 0이됨)
 		return _keyStates[static_cast<uint>(keyCode)] == 128 || _keyStates[static_cast<uint>(keyCode)] == 129;
-	}
-	dk_inline float2 IsMouseMove()
-	{
-
 	}
 
 private:

@@ -5,30 +5,21 @@
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
-#include "IResource.h"
 
 #include "SceneObject.h"
 #include "SkinnedMeshComponent.h"
 #include "Skeleton.h"
 
-SceneObjectManager::SceneObjectManager()
-{
-}
-
-SceneObjectManager::~SceneObjectManager()
-{
-	_characterSceneObjectContainer.clear();
-}
-
 const AppearanceRawRef SceneObjectManager::loadCharacter_LoadAppearanceFile(const char* appearancePath)
 {
-	using FindResult = std::unordered_map<const char*, AppearanceRawRef>::iterator;
+	using FindResult = DKHashMap<DKString, AppearanceRawRef>::iterator;
 	FindResult findResult = _appearanceRawContainers.find(appearancePath);
 	if (findResult != _appearanceRawContainers.end())
 	{
 		return findResult->second;
 	}
 
+#if defined(USE_TINYXML)
 	TiXmlDocument ReadDoc;
 	ReadDoc.LoadFile(appearancePath);
 
@@ -41,80 +32,61 @@ const AppearanceRawRef SceneObjectManager::loadCharacter_LoadAppearanceFile(cons
 	const char* animationPath = animationSetNode->GetText();
 	TiXmlElement* modelPropertyNode = ReadRoot->FirstChildElement("ModelProperty");
 	const char* modelPropertyPath = modelPropertyNode->GetText();
+#else
+	static_assert("아직 지원되는 XML Loader가 없습니다.");
+#endif
 
 	auto insertResult = _appearanceRawContainers.insert(
-		std::pair<const char*, AppearanceRawRef>(
-			appearancePath, dk_new AppearanceRaw(modelPath, skeletonPath, animationPath, modelPropertyPath)
-			)
+		DKPair<const char*, AppearanceRawRef>(appearancePath, dk_new AppearanceRaw(modelPath, skeletonPath, animationPath, modelPropertyPath))
 	);
 
 	return insertResult.first->second;
 }
-
-SceneObject* SceneObjectManager::CreateCharacter(const char* appearancePath)
+SceneObject* SceneObjectManager::createCharacter(const char* appearancePath)
 {
-	// load appearance
-	const AppearanceRawRef appearanceRaw = loadCharacter_LoadAppearanceFile(appearancePath);
+	SceneObject newSceneObject;
 
-	// #todo- SceneObject가 GUID를 가지고 있고 해당 GUID를 Key로 쓰는 게 좋아보이긴함..
-	// 현재 구조에서는 4byte를 넘는 캐릭터가 생성되면 문제가 있음
-	// 캐릭터가 삭제되는 경우에도 삭제된 key를 쓸 수 없는 문제가 있음
-	const uint key = static_cast<uint>(_characterSceneObjectContainer.size());
-	auto success =_characterSceneObjectContainer.insert(std::pair<const uint, SceneObject>(key, SceneObject()));
-	if (success.second == false)
-	{
-		return &success.first->second;
-	}
-
-	SceneObject& sceneObject = success.first->second;
-
-	// Transform GPU resource
-	const RenderModule* renderModule = DuckingEngine::_duckingEngine->GetRenderModule();
-	SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
-	sceneObject._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
-	sceneObject._sceneObjectConstantBuffer = renderModule->CreateUploadBuffer(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
-	if (sceneObject._sceneObjectConstantBuffer == nullptr)
-	{
-		DK_ASSERT_LOG(false, "잘못된 MaterialType에 대하여 UpdateTechnique를 시도중입니다. 반드시 검토바랍니다.");
-		_characterSceneObjectContainer.erase(key);
-		return nullptr;
-	}
-
-	// Skeleton GPU resource
-	SkeletonConstantBufferStruct skeletonConstantBuffer;
-	sceneObject._skeletonConstantBuffer = renderModule->CreateUploadBuffer(&skeletonConstantBuffer, sizeof(skeletonConstantBuffer));
-	if (sceneObject._skeletonConstantBuffer == nullptr)
-	{
-		DK_ASSERT_LOG(false, "잘못된 MaterialType에 대하여 UpdateTechnique를 시도중입니다. 반드시 검토바랍니다.");
-		_characterSceneObjectContainer.erase(key);
-		return nullptr;
-	}
-
+	SceneObjectManager& thisXXX = DuckingEngine::getInstance().GetSceneObjectManagerWritable();
+	const AppearanceRawRef appearanceRaw = thisXXX.loadCharacter_LoadAppearanceFile(appearancePath);
 	SkinnedMeshComponent* mainSkinnedMeshComponent = dk_new SkinnedMeshComponent;
 	if (mainSkinnedMeshComponent->LoadResource(
-		appearanceRaw->_modelPath.c_str(), 
-		appearanceRaw->_skeletonPath.c_str(), 
-		appearanceRaw->_animationSetPath.c_str(), 
-		appearanceRaw->_modelPropertyPath.c_str(), &sceneObject) == false
-		)
+		appearanceRaw->_modelPath.c_str(), appearanceRaw->_skeletonPath.c_str(), 
+		appearanceRaw->_animationSetPath.c_str(), appearanceRaw->_modelPropertyPath.c_str()
+	) == false)
 	{
-		DK_ASSERT_LOG(false, "SkinnedMeshComponent LoadResource - Failed");
-		_characterSceneObjectContainer.erase(key);
+		DK_ASSERT_LOG(false, "SkinnedMeshComponent::LoadResource에 실패");
 		return nullptr;
 	}
-	sceneObject.AddComponent(mainSkinnedMeshComponent);
+	newSceneObject.AddComponent(mainSkinnedMeshComponent);
 
-	const std::vector<Bone>& bones = mainSkinnedMeshComponent->GetSkeleton()->GetBones();
-	uint boneCount = bones.size();
-	std::vector<Matrix4x4> boneMatrices;
-	boneMatrices.resize(boneCount);
-	for (uint i = 0; i < boneCount; ++i)
+	// for GPU resource
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+	newSceneObject._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
+	newSceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
+	if (newSceneObject._sceneObjectConstantBuffer.get() == nullptr)
 	{
-		bones[i]._transform.ToMatrix4x4(boneMatrices[i]);
+		DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
+		return nullptr;
 	}
-	uint8* skeletonConstantBufferAddress = sceneObject._skeletonConstantBuffer->Map();
-	memcpy(skeletonConstantBufferAddress, &boneMatrices[0], sizeof(Matrix4x4) * boneMatrices.size());
-	sceneObject._skeletonConstantBuffer->UnMap();
 
-	return &sceneObject;
+	const uint32 key = static_cast<uint32>(thisXXX._characterSceneObjectContainer.size());
+	auto success = thisXXX._characterSceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, std::move(newSceneObject)));
+	if (success.second == false)
+		return nullptr;
+
+	return &success.first->second;
+}
+
+void SceneObjectManager::update(float deltaTime)
+{
+	for (auto iter = _characterSceneObjectContainer.begin(); iter != _characterSceneObjectContainer.end(); ++iter)
+	{
+		SceneObject& sceneObject = iter->second;
+		uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+		for (uint32 i = 0; i < componentCount; ++i)
+		{
+			sceneObject._components[i]->update(deltaTime);
+		}
+	}
 }

@@ -145,15 +145,33 @@ public:
 	{
 		return _position;
 	}
+	dk_inline void SetPosition(const float3& position) noexcept
+	{
+		_position = position;
+	}
 
 	dk_inline const float3& GetRotation() const noexcept
 	{
 		return _rotation;
 	}
+	dk_inline void SetRotation(const float3& rotation) noexcept
+	{
+		_rotation = rotation;
+	}
 
 	dk_inline const float3& GetScale() const noexcept
 	{
 		return _scale;
+	}
+	dk_inline void SetScale(const float3& scale) noexcept
+	{
+		_scale = scale;
+	}
+
+	dk_inline void Invert() noexcept
+	{
+		_position *= -1;
+		_rotation *= -1;
 	}
 
 private:
