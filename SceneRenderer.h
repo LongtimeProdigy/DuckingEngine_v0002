@@ -18,6 +18,9 @@ public:
 	void prepareShaderData() noexcept;
 	void preRender() const noexcept;
 	void updateRender() noexcept;
+#ifdef _DK_DEBUG_
+	void updateRender_Editor() noexcept;
+#endif
 	void EndRender() const noexcept;
 
 private:

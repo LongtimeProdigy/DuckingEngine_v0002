@@ -28,6 +28,7 @@
 #include "Model.h"
 #include "SceneObject.h"
 #include "Material.h"
+#include "EditorDebugDrawManager.h"
 
 struct SceneConstantBufferStruct
 {
@@ -47,7 +48,7 @@ bool SceneRenderer::initialize()
 constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderVariableType::Count)] =
 {
 	"Buffer",
-	"None"
+	"StructuredBuffer"
 };
 ShaderVariableType convertStringToEnum2(const char* str)
 {
@@ -74,6 +75,7 @@ static_assert("현재 지원되는 XML 로더가 없습니다.");
 	DK_ASSERT_LOG(variableName != nullptr && variableTypeRaw != nullptr && variableRegisterRaw != nullptr, "RenderPass의 Parameter가 비정상인 상황. 엔진이 비정상 작동할 수 있습니다.");
 
 	const ShaderVariableType variableType = convertStringToEnum2(variableTypeRaw);
+	DK_ASSERT_LOG(variableType != ShaderVariableType::Count, "RenderPass의 ParameterType이 정확하지 않습니다.\nType: %s", variableTypeRaw);
 	const uint32 variableRegister = atoi(variableRegisterRaw);
 	const char* variableValue = variableNode->ToElement()->Value();
 
@@ -99,14 +101,14 @@ bool SceneRenderer::initialize_createRenderPass()
 	if (rootNode == nullptr) return false;
 
 	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-	for (TiXmlNode* renderPassNode = rootNode->FirstChild(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSibling())
+	for (TiXmlElement* renderPassNode = rootNode->FirstChildElement(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSiblingElement())
 	{
 		// parsing
 		RenderPass::CreateInfo info;
-		info._renderPassName = renderPassNode->ToElement()->Attribute("Name");
+		info._renderPassName = renderPassNode->Attribute("Name");
 
 		DKVector<ShaderVariable> shaderVariables;
-		for (TiXmlNode* childNode = renderPassNode->FirstChild(); childNode != nullptr; childNode = childNode->NextSibling())
+		for (TiXmlElement* childNode = renderPassNode->FirstChildElement(); childNode != nullptr; childNode = childNode->NextSiblingElement())
 		{
 			if (childNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
 				continue;
@@ -114,18 +116,18 @@ bool SceneRenderer::initialize_createRenderPass()
 			DKString nodeName = childNode->Value();
 			if (nodeName == "VertexShader")
 			{
-				info._vertexShaderEntry = childNode->ToElement()->Attribute("Entry");
-				info._vertexShaderPath = childNode->ToElement()->GetText();
+				info._vertexShaderEntry = childNode->Attribute("Entry");
+				info._vertexShaderPath = childNode->GetText();
 			}
 			else if (nodeName == "PixelShader")
 			{
-				info._pixelShaderEntry = childNode->ToElement()->Attribute("Entry");
-				info._pixelShaderPath = childNode->ToElement()->GetText();
+				info._pixelShaderEntry = childNode->Attribute("Entry");
+				info._pixelShaderPath = childNode->GetText();
 			}
 			else if (nodeName == "Parameter")
 			{
 				ShaderVariable variable;
-				if (parseShaderVariable(childNode->ToElement(), variable) == false)
+				if (parseShaderVariable(childNode, variable) == false)
 				{
 					return false;
 				}
@@ -247,7 +249,7 @@ void SceneRenderer::prepareShaderData() noexcept
 	cameraConstantBufferData.cameraWorldMatrix.Transpose();
 	Camera::gMainCamera->GetCameraProjectionMaterix(cameraConstantBufferData.cameraProjectionMatrix);
 	cameraConstantBufferData.cameraProjectionMatrix.Transpose();
-	_sceneConstantBuffer->upload(&cameraConstantBufferData, sizeof(cameraConstantBufferData));
+	_sceneConstantBuffer->upload(&cameraConstantBufferData);
 
 	// Render Character SceneObject
 	DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
@@ -258,7 +260,7 @@ void SceneRenderer::prepareShaderData() noexcept
 		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 		sceneObject._worldTransform.ToMatrix4x4(sceneObjectConstantBufferData._worldMatrix);
 		sceneObjectConstantBufferData._worldMatrix.Transpose();
-		sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData, sizeof(sceneObjectConstantBufferData));
+		sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
 
 		uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 		for (uint i = 0; i < componentCount; ++i)
@@ -273,7 +275,7 @@ void SceneRenderer::prepareShaderData() noexcept
 			if (currentCharacterSpaceBoneAnimation.empty() == false)
 			{
 				Ptr<IBuffer>& skeletonBuffer = skinnedMeshComponent->getSkeletonConstantBufferWritable();
-				skeletonBuffer->upload(currentCharacterSpaceBoneAnimation.data(), sizeof(Matrix4x4) * static_cast<uint32>(currentCharacterSpaceBoneAnimation.size()));
+				skeletonBuffer->upload(currentCharacterSpaceBoneAnimation.data());
 			}
 		}
 	}
@@ -381,6 +383,32 @@ void SceneRenderer::updateRender() noexcept
 	}
 	endRenderPass();
 }
+
+#ifdef _DK_DEBUG_
+void SceneRenderer::updateRender_Editor() noexcept
+{
+	RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+	EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
+	debugDrawManager.prepareShaderData();
+
+	static const char* debugDrawElementPassName = "DebugDrawElementRenderPass";
+	startRenderPass(renderModule, debugDrawElementPassName)
+	{
+		setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+		setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.getSphereDebugDrawElementBufferWritable()->getGPUVirtualAddress());
+
+		const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& primitiveInfo = debugDrawManager.getSpherePrimitiveInfo();
+		const uint32 sphereCount = static_cast<uint32>(primitiveInfo.size());
+		renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
+		renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
+		renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), sphereCount, 0, 0, 0);
+	}
+	endRenderPass();
+
+	debugDrawManager.endUpdateRender();
+}
+#endif
+
 void SceneRenderer::EndRender() const noexcept
 {
 	DuckingEngine::getInstance().GetRenderModuleWritable().endRender();

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "float3.h"
-
 struct Matrix3x3
 {
 	static const Matrix3x3 Identity;

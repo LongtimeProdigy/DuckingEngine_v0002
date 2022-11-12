@@ -100,7 +100,7 @@ void GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** ppAdapter)
 //
 //	return allowTearing == TRUE;
 //}
-bool RenderModule::initialize(const HWND hwnd, const uint width, const uint height)
+bool RenderModule::initialize(const HWND hwnd, const uint32 width, const uint height)
 {
 	if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) return false;
 	_commandList.assign(createCommandList());
@@ -408,32 +408,35 @@ bool RenderModule::createRootSignature(RenderPass& inoutRenderPass)
 	uint rootParameterIndex = 0;
 
 	// Bindless Texture 2D Table
-	D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
-	texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
-	texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;			// TextureBindless 전용 space
-	texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
-	texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0; //D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
-	texture2DTableDescriptorTable.NumDescriptorRanges = _countof(texture2DTableDescriptorRange);
-	texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
+	{
+		D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
+		texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
+		texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+		texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
+		texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0;
+		D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
+		texture2DTableDescriptorTable.NumDescriptorRanges = _countof(texture2DTableDescriptorRange);
+		texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
 
-	rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
-	rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	++rootParameterIndex;
+		rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
+		rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		++rootParameterIndex;
+	}
 
 	// RenderPass Parameters
-	for (const ShaderVariable& parameterDefinition : inoutRenderPass._shaderVariables)
+	for (ShaderVariable& parameterDefinition : inoutRenderPass._shaderVariables)
 	{
 		D3D12_ROOT_DESCRIPTOR constantBufferDescriptor = {};
 		constantBufferDescriptor.RegisterSpace = 0;		// 현재 DuckingEngine은 0번 Space만 사용합니다.
 		constantBufferDescriptor.ShaderRegister = parameterDefinition._register;
 
-		rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootParameters[rootParameterIndex].ParameterType = parameterDefinition._type == ShaderVariableType::StructuredBuffer ? D3D12_ROOT_PARAMETER_TYPE_SRV : D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootParameters[rootParameterIndex].Descriptor = constantBufferDescriptor;
 		rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
+		parameterDefinition._rootParameterIndex = rootParameterIndex;
 		++rootParameterIndex;
 	}
 
@@ -615,7 +618,7 @@ bool RenderModule::createPipelineObjectState(const char* vsPath, const char* vsE
 	}
 
 	// #todo- 나중에 RenderPass에서 받아올 수 있도록 할 것
-	static D3D12_INPUT_ELEMENT_DESC inputLayout[] =
+	static D3D12_INPUT_ELEMENT_DESC skinnedMeshStandardInputLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -623,16 +626,20 @@ bool RenderModule::createPipelineObjectState(const char* vsPath, const char* vsE
 		{ "BONEINDEXES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "BONEWEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
+	static D3D12_INPUT_ELEMENT_DESC debugDrawElementInputLayout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
-	inputLayoutDesc.NumElements = ARRAYSIZE(inputLayout);
-	inputLayoutDesc.pInputElementDescs = inputLayout;
+	inputLayoutDesc.NumElements = inoutRenderPass._shaderVariables.size() == 4 ? ARRAYSIZE(skinnedMeshStandardInputLayout) : ARRAYSIZE(debugDrawElementInputLayout);
+	inputLayoutDesc.pInputElementDescs = inoutRenderPass._shaderVariables.size() == 4 ? skinnedMeshStandardInputLayout : debugDrawElementInputLayout;
 
 	D3D12_RASTERIZER_DESC rasterizerDesc = {};
 	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 	//rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
-	rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+	//rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 	rasterizerDesc.FrontCounterClockwise = FALSE;
 	rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
 	rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
@@ -788,11 +795,11 @@ ID3D12Resource* RenderModule::createBufferInternal(const void* data, const uint 
 
 	return returnBuffer;
 }
-ID3D12Resource* RenderModule::createDefaultBuffer(const void* data, const uint size, const D3D12_RESOURCE_STATES state)
+ID3D12Resource* RenderModule::createDefaultBuffer(const void* data, const uint32 size, const D3D12_RESOURCE_STATES state)
 {
 	return createBufferInternal(data, size, D3D12_HEAP_TYPE_DEFAULT, state);
 }
-IBuffer* RenderModule::createUploadBuffer(const void* data, const uint size)
+IBuffer* RenderModule::createUploadBuffer(const void* data, const uint32 size)
 {
 	RenderResourcePtr<ID3D12Resource> buffers[RenderModule::kFrameCount];
 	uint32 alignedSize = (size + 255) & ~255;
@@ -801,9 +808,9 @@ IBuffer* RenderModule::createUploadBuffer(const void* data, const uint size)
 		buffers[i] = createBufferInternal(data, alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
 	}
 
-	return dk_new IBuffer(buffers);
+	return dk_new IBuffer(buffers, size);
 }
-ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, const uint bufferSize)
+ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, const uint32 bufferSize)
 {
 	ID3D12Resource* uploadBuffer = createBufferInternal(data, bufferSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
 	if (uploadBuffer == nullptr)
@@ -832,31 +839,33 @@ ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, c
 
 	return defaultBuffer;
 }
-const bool RenderModule::createVertexBuffer(const void* data, const uint strideSize, const uint bufferSize, VertexBufferViewRef& outView)
+const bool RenderModule::createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView)
 {
-	ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSize);
+	uint32 bufferSizeInBytes = strideSize * vertexCount;
+	ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes);
 	if (defaultBuffer == nullptr)
 		return false;
 
 	D3D12_VERTEX_BUFFER_VIEW view;
 	view.BufferLocation = defaultBuffer->GetGPUVirtualAddress();
 	view.StrideInBytes = strideSize;
-	view.SizeInBytes = bufferSize;
+	view.SizeInBytes = bufferSizeInBytes;
 
 	outView = std::make_shared<D3D12_VERTEX_BUFFER_VIEW>(view);
 
 	return true;
 }
-const bool RenderModule::createIndexBuffer(const void* data, const uint bufferSize, IndexBufferViewRef& outView)
+const bool RenderModule::createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView)
 {
-	ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSize);
+	uint32 bufferSizeInBytes = sizeof(uint32) * bufferSize;
+	ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes);
 	if (defaultBuffer == nullptr)
 		return false;
 
 	D3D12_INDEX_BUFFER_VIEW view;
 	view.BufferLocation = defaultBuffer->GetGPUVirtualAddress();
 	view.Format = DXGI_FORMAT_R32_UINT;
-	view.SizeInBytes = bufferSize;
+	view.SizeInBytes = bufferSizeInBytes;
 
 	outView = std::make_shared<D3D12_INDEX_BUFFER_VIEW>(view);
 
@@ -1008,7 +1017,11 @@ bool RenderModule::bindRenderPass(RenderPass& renderPass)
 }
 void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress)
 {
-	_commandList->_commandList->SetGraphicsRootConstantBufferView(rootParameterIndex + 1, gpuAdress);
+	_commandList->_commandList->SetGraphicsRootConstantBufferView(rootParameterIndex, gpuAdress);
+}
+void RenderModule::bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress)
+{
+	_commandList->_commandList->SetGraphicsRootShaderResourceView(rootParameterIndex, gpuAdress);
 }
 void RenderModule::setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* views)
 {
@@ -1055,12 +1068,13 @@ bool DKCommandList::reset()
 	return false;
 }
 
-void IBuffer::upload(const void* data, uint32 size)
+void IBuffer::upload(const void* data)
 {
+	DK_ASSERT_LOG(data != nullptr, "nullptr인 data를 upload요청하려고합니다.");
 	void* address = nullptr;
 	HRESULT hr = _buffers[0]->Map(0, nullptr, &address);
 	DK_ASSERT_LOG(SUCCEEDED(hr), "Map에 실패하였습니다.");
-	memcpy(address, data, size);
+	memcpy(address, data, _bufferSize);
 	_buffers[0]->Unmap(0, nullptr);
 }
 

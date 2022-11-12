@@ -5,24 +5,21 @@
 struct Bone
 {
 public:
+	Bone(const DKString& boneName, const DKString& parentBoneName, const uint32 parentBoneIndex, const Transform& transform)
 #if defined(_DK_DEBUG_)
-	Bone(const DKString& boneName, const Transform& transform)
-		: _boneName(boneName), _transform(transform)
-	{}
-#else
-	Bone(const Transform& transform)
-		: _transform(transform)
-	{}
+		: _boneName(boneName)
+		, _parentBoneName(parentBoneName)
 #endif
-	//Bone(const string& boneName, const Transform& transform, const DKVector<uint>& childs)
-	//	: _boneName(boneName), _transform(transform), _childs(std::move(childs))
-	//{}
+		, _parentBoneIndex(parentBoneIndex)
+		, _transform(transform)
+	{}
 
 #if defined(_DK_DEBUG_)
 	DKString _boneName;
+	DKString _parentBoneName;
 #endif
+	uint32 _parentBoneIndex;
 	Transform _transform = Transform::Identity;
-	DKVector<uint> _childs;
 };
 
 class Skeleton

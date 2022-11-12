@@ -17,7 +17,6 @@
 #endif
 
 #include "float2.h"
-#include "float3.h"
 #include "Transform.h"
 #include "Matrix4x4.h"
 
@@ -121,18 +120,18 @@ void InitMeshFromAssimpToSubMesh(_IN_ const aiMesh* assimpMesh, _OUT_ DKVector<V
 		indices.push_back(face.mIndices[2]);
 	}
 }
-Bone CreateBoneByAIBone(const aiBone* foundBone)
-{
-	DKString boneName = foundBone->mName.C_Str();
-	aiVector3D aiLocation, aiRotation, aiScale;
-	foundBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiLocation);
-	float3 location(aiLocation.x, aiLocation.y, aiLocation.z);
-	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
-	float3 scale(aiScale.x, aiScale.y, aiScale.z);
-	Transform boneTransform(location, rotation, scale);
-
-	return Bone(boneName, boneTransform);
-}
+//Bone CreateBoneByAIBone(const aiBone* foundBone)
+//{
+//	DKString boneName = foundBone->mName.C_Str();
+//	aiVector3D aiLocation, aiRotation, aiScale;
+//	foundBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiLocation);
+//	float3 location(aiLocation.x, aiLocation.y, aiLocation.z);
+//	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
+//	float3 scale(aiScale.x, aiScale.y, aiScale.z);
+//	Transform boneTransform(location, rotation, scale);
+//
+//	return Bone(boneName, boneTransform);
+//}
 const bool LoadFBXMeshFromFileByAssimp(_IN_ const char* path, _OUT_ Model& outModel)
 {
 	const aiScene* scene = aiImportFile(path,
@@ -172,33 +171,33 @@ const bool LoadFBXMeshFromFileByAssimp(_IN_ const char* path, _OUT_ Model& outMo
 	return true;
 }
 
-Bone ConvertAIBoneToBone(const aiBone* sourceBone)
-{
-	DKString boneName(sourceBone->mName.C_Str());
-
-	aiVector3D aiPosition, aiRotation, aiScale;
-	sourceBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiPosition);
-	float3 position(aiPosition.x, aiPosition.y, aiPosition.z);
-	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
-	float3 scale(aiScale.x, aiScale.y, aiScale.z);
-
-	Transform transform(position * -1, rotation * -1, scale);
-	return Bone(boneName, transform);
-}
-Bone ConvertNodeToBone(const aiNode* sourceNode)
-{
-	DKString boneName(sourceNode->mName.C_Str());
-
-	aiVector3D aiPosition, aiRotation, aiScale;
-	sourceNode->mTransformation.Decompose(aiScale, aiRotation, aiPosition);
-
-	float3 position(aiPosition.x, aiPosition.y, aiPosition.z);
-	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
-	float3 scale(aiScale.x, aiScale.y, aiScale.z);
-
-	Transform transform(position, rotation, scale);
-	return Bone(boneName, transform);
-}
+//Bone ConvertAIBoneToBone(const aiBone* sourceBone)
+//{
+//	DKString boneName(sourceBone->mName.C_Str());
+//
+//	aiVector3D aiPosition, aiRotation, aiScale;
+//	sourceBone->mOffsetMatrix.Decompose(aiScale, aiRotation, aiPosition);
+//	float3 position(aiPosition.x, aiPosition.y, aiPosition.z);
+//	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
+//	float3 scale(aiScale.x, aiScale.y, aiScale.z);
+//
+//	Transform transform(position * -1, rotation * -1, scale);
+//	return Bone(boneName, transform);
+//}
+//Bone ConvertNodeToBone(const aiNode* sourceNode)
+//{
+//	DKString boneName(sourceNode->mName.C_Str());
+//
+//	aiVector3D aiPosition, aiRotation, aiScale;
+//	sourceNode->mTransformation.Decompose(aiScale, aiRotation, aiPosition);
+//
+//	float3 position(aiPosition.x, aiPosition.y, aiPosition.z);
+//	float3 rotation(aiRotation.x, aiRotation.y, aiRotation.z);
+//	float3 scale(aiScale.x, aiScale.y, aiScale.z);
+//
+//	Transform transform(position, rotation, scale);
+//	return Bone(boneName, transform);
+//}
 void BuildBoneVectorAndIndexHashMapChild(
 	const DKHashMap<DKString, const aiBone*>& boneHash,
 	const aiNode* node, 
@@ -225,7 +224,7 @@ void BuildBoneVectorAndIndexHashMapChild(
 
 		uint boneIndex = static_cast<uint>(boneVector.size());
 		//boneVector.push_back(ConvertAIBoneToBone(boneIter->second));
-		boneVector.push_back(ConvertNodeToBone(node->mChildren[i]));
+		//boneVector.push_back(ConvertNodeToBone(node->mChildren[i]));
 		boneIndexHash.insert(std::make_pair(boneName.C_Str(), boneIndex));
 	}
 
@@ -260,7 +259,7 @@ void BuildBoneChildIndex(
 			continue;
 		}
 
-		bone._childs.push_back(childBoneIter->second);
+		//bone._childs.push_back(childBoneIter->second);
 	}
 
 	for (uint i = 0; i < childCount; ++i)

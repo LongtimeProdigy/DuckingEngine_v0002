@@ -128,7 +128,7 @@ bool Material::setModelProperty(const MaterialDefinition& modelProperty)
 		}
 	}
 
-	_parameterBufferForGPU->upload(_parameterBufferForCPU.data(), static_cast<uint32>(_parameterBufferForCPU.size()));
+	_parameterBufferForGPU->upload(_parameterBufferForCPU.data());
 
 	return true;
 }

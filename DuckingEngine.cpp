@@ -104,5 +104,8 @@ void DuckingEngine::Render() const
 
 	_sceneRenderer->preRender();
 	_sceneRenderer->updateRender();
+#ifdef _DK_DEBUG_
+	_sceneRenderer->updateRender_Editor();
+#endif
 	_sceneRenderer->EndRender();
 }

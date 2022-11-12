@@ -35,7 +35,7 @@ struct IBuffer;
 enum class ShaderVariableType
 {
 	Buffer,
-	None, 
+	StructuredBuffer, 
 	Count
 };
 
@@ -44,6 +44,7 @@ struct ShaderVariable
 	DKString _name;
 	ShaderVariableType _type;
 	uint32 _register;
+	uint32 _rootParameterIndex;		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
 };
 
 struct RenderPass
@@ -87,7 +88,6 @@ do \
 { \
 	if(currentRenderPass == nullptr) \
 	{ \
-		DK_ASSERT_LOG(false, "존재하지 않는 RenderPass를 사용"); \
 		break; \
 	} \
 	currentRenderModule.bindRenderPass(*currentRenderPass);
@@ -95,19 +95,6 @@ do \
 #define endRenderPass() \
 } while(false)
 
-#if 0
-#define setConstantBuffer(name, address) \
-[](RenderModule& renderModule, const RenderPass* renderPass, const char* shaderVariableName, const D3D12_GPU_VIRTUAL_ADDRESS& virtualAddress) \
-{ \
-	static const ShaderVariable* shaderVariable = renderPass->getShaderVariable(shaderVariableName); \
-	if(shaderVariable == nullptr) \
-	{ \
-		DK_ASSERT_LOG(false, "존재하지 않는 ShaderVariable입니다."); \
-		return; \
-	} \
-	renderModule.bindConstantBuffer(shaderVariable->_register, virtualAddress); \
-}(currentRenderModule, currentRenderPass, name, address);
-#else
 #define setConstantBuffer(name, address) \
 { \
 	static const ShaderVariable* shaderVariable = currentRenderPass->getShaderVariable(name); \
@@ -116,9 +103,18 @@ do \
 		DK_ASSERT_LOG(false, "존재하지 않는 ShaderVariable입니다."); \
 		break; \
 	} \
-	currentRenderModule.bindConstantBuffer(shaderVariable->_register, address); \
+	currentRenderModule.bindConstantBuffer(shaderVariable->_rootParameterIndex, address); \
 }
-#endif
+#define setShaderResourceView(name, address) \
+{ \
+	static const ShaderVariable* shaderVariable = currentRenderPass->getShaderVariable(name); \
+	if(shaderVariable == nullptr) \
+	{ \
+		DK_ASSERT_LOG(false, "존재하지 않는 ShaderVariable입니다."); \
+		break; \
+	} \
+	currentRenderModule.bindShaderResourceView(shaderVariable->_rootParameterIndex, address); \
+}
 
 class RenderModule
 {
@@ -129,13 +125,13 @@ public:
 public:
 	~RenderModule();
 
-	bool initialize(const HWND hwnd, const uint width, const uint height);
+	bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
 	
 	bool createRenderPass(RenderPass::CreateInfo&& info);
 	// #todo- Container 이용해도될듯?
-	IBuffer* createUploadBuffer(const void* data, const uint size);
-	const bool createVertexBuffer(const void* data, const uint strideSize, const uint bufferSize, VertexBufferViewRef& outView);
-	const bool createIndexBuffer(const void* data, const uint bufferSize, IndexBufferViewRef& outView);
+	IBuffer* createUploadBuffer(const void* data, const uint32 size);
+	const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView);
+	const bool createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView);
 
 	// Texture Manager 전용함수! 사용시 주의할것!
 	const bool createTextureBindlessDescriptorHeap(RenderResourcePtr<ID3D12DescriptorHeap>& outDescriptorHeap);
@@ -145,6 +141,7 @@ public:
 	void preRender();			// RenderTaget 등을 설정하는데.. 이건 RenderPass Set으로 옮겨야할듯. 지금은 RenderTarget이 하나니 하나로 빼둠
 	bool bindRenderPass(RenderPass& renderPass);
 	void bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress);
+	void bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress);
 	void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
 	void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
 	void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
@@ -158,7 +155,7 @@ public:
 
 		if (find == _renderPassMap.end())
 		{
-			DK_ASSERT_LOG(false, "존재하지 않는 RenderPass를 Bind시도합니다.\nName: %s", find->first.c_str());
+			//DK_ASSERT_LOG(false, "존재하지 않는 RenderPass를 Bind시도합니다.\nName: %s", renderPassName.c_str());
 			return nullptr;
 		}
 
@@ -223,7 +220,8 @@ struct DKCommandList
 struct IBuffer
 {
 public:
-	IBuffer(RenderResourcePtr<ID3D12Resource> buffers[RenderModule::kFrameCount])
+	IBuffer(RenderResourcePtr<ID3D12Resource> buffers[RenderModule::kFrameCount], const uint32 bufferSize)
+		: _bufferSize(bufferSize)
 	{
 		for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
 		{
@@ -231,9 +229,10 @@ public:
 		}
 	}
 
-	void upload(const void* data, uint32 size);
+	void upload(const void* data);
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress();
 
 private:
 	RenderResourcePtr<ID3D12Resource> _buffers[RenderModule::kFrameCount];
+	const uint32 _bufferSize;
 };

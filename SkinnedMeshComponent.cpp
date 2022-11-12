@@ -10,6 +10,8 @@
 #include "Skeleton.h"
 #include "Animation.h"
 
+#include "EditorDebugDrawManager.h"
+
 bool SkinnedMeshComponent::LoadResource(const DKString& modelPath, const DKString& skeletonPath, const DKString& animationSetPath, const DKString& modelPropertyPath)
 {
 	ResourceManager& resourceManager = DuckingEngine::getInstance().GetResourceManagerWritable();
@@ -71,7 +73,7 @@ bool SkinnedMeshComponent::LoadResource(const DKString& modelPath, const DKStrin
 		if (submesh._vertexBufferView.get() == nullptr)
 		{
 			const bool vertexBufferSuccess = renderModule.createVertexBuffer(
-				&submesh._vertices[0], sizeof(Vertex), sizeof(Vertex) * static_cast<uint>(submesh._vertices.size()), submesh._vertexBufferView
+				&submesh._vertices[0], sizeof(Vertex), static_cast<uint32>(submesh._vertices.size()), submesh._vertexBufferView
 			);
 			if (vertexBufferSuccess == false) return false;
 		}
@@ -79,7 +81,7 @@ bool SkinnedMeshComponent::LoadResource(const DKString& modelPath, const DKStrin
 		if (submesh._indexBufferView.get() == nullptr)
 		{
 			const bool indexBufferSuccess = renderModule.createIndexBuffer(
-				&submesh._indices[0], sizeof(uint) * static_cast<uint>(submesh._indices.size()), submesh._indexBufferView
+				&submesh._indices[0], static_cast<uint32>(submesh._indices.size()), submesh._indexBufferView
 			);
 			if (indexBufferSuccess == false) return false;
 		}
@@ -112,27 +114,27 @@ void SkinnedMeshComponent::update(float deltaTime)
 
 	// build InvertMatrix by CharacterSpace Bone DressPose
 	DKVector<Matrix4x4> characterSpaceBoneMatrix;
-	characterSpaceBoneMatrix.resize(boneCount);
 	DKVector<Matrix4x4> characterSpaceInvertBoneMatrix;
+	characterSpaceBoneMatrix.resize(boneCount);
 	characterSpaceInvertBoneMatrix.resize(boneCount);
 	for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
 		Matrix4x4 outMatrix;
 		bones[boneIndex]._transform.ToMatrix4x4(outMatrix);
-		characterSpaceBoneMatrix[boneIndex] = characterSpaceBoneMatrix[boneIndex] * outMatrix;	// parent * current(child)
+		if(bones[boneIndex]._parentBoneIndex != 0xffffffff)
+			characterSpaceBoneMatrix[boneIndex] = characterSpaceBoneMatrix[bones[boneIndex]._parentBoneIndex];	// parent * current(child)
+		characterSpaceBoneMatrix[boneIndex] = characterSpaceBoneMatrix[boneIndex] * outMatrix;
 
 		Transform tempTransform = bones[boneIndex]._transform;
 		tempTransform.Invert();
 		Matrix4x4 outInvertMatrix;
 		tempTransform.ToMatrix4x4(outInvertMatrix);
 		characterSpaceInvertBoneMatrix[boneIndex] = characterSpaceInvertBoneMatrix[boneIndex] * outInvertMatrix;
+	}
 
-		const Bone& bone = bones[boneIndex];
-		for (uint childBoneIndex = 0; childBoneIndex < bone._childs.size(); ++childBoneIndex)
-		{
-			characterSpaceBoneMatrix[bone._childs[childBoneIndex]] = characterSpaceBoneMatrix[boneIndex];
-			characterSpaceInvertBoneMatrix[bone._childs[childBoneIndex]] = characterSpaceInvertBoneMatrix[boneIndex];
-		}
+	for (const Matrix4x4& characterSpacePosition : characterSpaceBoneMatrix)
+	{
+		EditorDebugDrawManager::getSingleton().addSphere(characterSpacePosition.getTranslation(), float3(1, 1, 1), 0.02f);
 	}
 
 	// build CharacterSpace Animated Bone Matrix
@@ -142,15 +144,9 @@ void SkinnedMeshComponent::update(float deltaTime)
 	for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
 		Matrix4x4 outMatrix = boneAnimations[boneIndex]._animation[static_cast<size_t>(currentAnimationTime)];
-		//Matrix4x4 outMatrix = boneAnimations[boneIndex]._animation[static_cast<size_t>(0)];
-
+		if (bones[boneIndex]._parentBoneIndex != 0xffffffff)
+			currentCharacterSpaceBoneAnimation[boneIndex] = currentCharacterSpaceBoneAnimation[bones[boneIndex]._parentBoneIndex];	// parent * current(child)
 		currentCharacterSpaceBoneAnimation[boneIndex] = currentCharacterSpaceBoneAnimation[boneIndex] * outMatrix;	// parent * current(child)
-
-		const Bone& bone = bones[boneIndex];
-		for (uint childBoneIndex = 0; childBoneIndex < bone._childs.size(); ++childBoneIndex)
-		{
-			currentCharacterSpaceBoneAnimation[bone._childs[childBoneIndex]] = currentCharacterSpaceBoneAnimation[boneIndex];
-		}
 	}
 
 	/*

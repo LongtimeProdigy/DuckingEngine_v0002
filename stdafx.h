@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef __DEFINE_STDAFX__
+#define __DEFINE_STDAFX__
+
 /*
 * DEV ฐüทร
 */
@@ -277,12 +280,118 @@ namespace DK
 /*
 * Math Utility
 */
+struct float3
+{
+	static const float3 Identity;
+	static const float3 Zero;
+
+	float3()
+		: m{ 0, 0, 0 }
+	{}
+
+	float3(float _x, float _y, float _z)
+		: m{ _x, _y, _z }
+	{}
+
+	dk_inline void operator+=(const float3& rhs) noexcept
+	{
+		x += rhs.x;
+		y += rhs.y;
+		z += rhs.z;
+	}
+
+	dk_inline const float3 operator+(const float3& rhs) const noexcept
+	{
+		return float3(x + rhs.x, y + rhs.y, z + rhs.z);
+	}
+
+	dk_inline float3 operator-(const float3& rhs) const noexcept
+	{
+		return float3(x - rhs.x, y - rhs.y, z - rhs.z);
+	}
+
+	dk_inline void operator*=(const int rhs) noexcept
+	{
+		x *= rhs;
+		y *= rhs;
+		z *= rhs;
+	}
+
+	dk_inline float3 operator*(const int rhs) const
+	{
+		return float3(x * rhs, y * rhs, z * rhs);
+	}
+	dk_inline float3 operator*(const float rhs) const
+	{
+		return float3(x * rhs, y * rhs, z * rhs);
+	}
+
+public:
+	union
+	{
+		float m[3];
+		struct
+		{
+			float x, y, z;
+		};
+	};
+};
+
 namespace DK
 {
 	class Math
 	{
 	public:
 		constexpr static float PI = 3.141592f;
+		constexpr static float Half_PI = 3.141592f / 2.0f;
 		constexpr static float kToRadian = PI / 180.0f;
+
+		static float cos(const float rad)
+		{
+			return ::cos(rad);
+		}
+		static float sin(const float rad)
+		{
+			return ::sin(rad);
+		}
+		static float asin(const float rad)
+		{
+			return ::asin(rad);
+		}
+		static float tan(const float rad)
+		{
+			return ::tan(rad);
+		}
+		static float atan2(const float x1, const float x2)
+		{
+			return ::atan2(x1, x2);
+		}
+
+		static float copysign(const float number, float sign)
+		{
+			return std::copysign(number, sign);
+		}
+	};
+
+	struct Quaternion
+	{
+	public:
+		Quaternion()
+			: x(0.0f), y(0.0f), z(0.0f), w(1.0f)
+		{}
+		Quaternion(float _x, float _y, float _z, float _w)
+			: x(_x), y(_y), z(_z), w(_w)
+		{}
+
+	public:
+		union
+		{
+			float m[4];
+			struct
+			{
+				float x, y, z, w;
+			};
+		};
 	};
 }
+#endif // !__DEFINE_STDAFX__
