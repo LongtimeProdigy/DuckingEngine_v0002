@@ -1,6 +1,5 @@
 #pragma once
 
-#include "float3.h"
 #include "Matrix3x3.h"
 
 struct Matrix4x4;

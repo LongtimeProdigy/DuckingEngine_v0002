@@ -68,6 +68,6 @@ private:
 	int _width = 1920;
 	int _height = 1080;
 
-	float _nearPlaneDistance = 0.01f;
+	float _nearPlaneDistance = 0.1f;
 	float _farPlaneDistance = 1000.0f;
 };

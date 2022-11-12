@@ -54,7 +54,6 @@
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="SceneObject.cpp" />
     <ClCompile Include="float2.cpp" />
-    <ClCompile Include="float3.cpp" />
     <ClCompile Include="float4.cpp" />
     <ClCompile Include="lib\imgui\backends\imgui_impl_dx12.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
@@ -132,7 +131,6 @@
     <ClInclude Include="Model.h" />
     <ClInclude Include="SceneObject.h" />
     <ClInclude Include="float2.h" />
-    <ClInclude Include="float3.h" />
     <ClInclude Include="float4.h" />
     <ClInclude Include="lib\imgui\backends\imgui_impl_dx12.h" />
     <ClInclude Include="lib\imgui\backends\imgui_impl_win32.h" />

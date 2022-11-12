@@ -1,9 +1,5 @@
 #pragma once
 
-#include "float3.h"
-
-struct float3;
-
 struct float4
 {
 	float4()

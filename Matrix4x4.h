@@ -55,9 +55,13 @@ struct Matrix4x4
 	}
 
 	void Transpose() noexcept;
-	void SetPosition(const float4& position) noexcept
+	dk_inline void SetPosition(const float4& position) noexcept
 	{
 		_rows[3] = position;
+	}
+	dk_inline const float3 getTranslation() const noexcept
+	{
+		return float3(_rows[3].x, _rows[3].y, _rows[3].z);
 	}
 
 	union

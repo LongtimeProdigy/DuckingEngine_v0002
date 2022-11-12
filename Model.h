@@ -1,8 +1,6 @@
 #pragma once
 
 #include "float2.h"
-#include "float3.h"
-
 #include "Material.h"
 
 #define MAX_SKINNING_COUNT 4
@@ -44,7 +42,7 @@ public:
 		, _indexBufferView(std::move(rhs._indexBufferView))
 		, _material(std::move(rhs._material))
 	{}
-	SubMesh(DKVector<Vertex>& vertices, DKVector<uint>& indices)
+	SubMesh(DKVector<Vertex>& vertices, DKVector<uint32>& indices)
 		: _vertices(vertices)
 		, _indices(indices)
 	{}
@@ -56,7 +54,7 @@ public:
 
 public:
 	DKVector<Vertex> _vertices;
-	DKVector<uint> _indices;
+	DKVector<uint32> _indices;
 	VertexBufferViewRef _vertexBufferView;
 	IndexBufferViewRef _indexBufferView;
 

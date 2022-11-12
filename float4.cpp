@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "float4.h"
 
-#include "float3.h"
-
 float4::float4(float _x, float _y, float _z, float _w)
 	: x(_x), y(_y), z(_z), w(_w)
 {}

@@ -34,9 +34,6 @@
     <ClCompile Include="lib\imgui\backends\imgui_impl_win32.cpp">
       <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
     </ClCompile>
-    <ClCompile Include="float3.cpp">
-      <Filter>0. Common\Math</Filter>
-    </ClCompile>
     <ClCompile Include="float2.cpp">
       <Filter>0. Common\Math</Filter>
     </ClCompile>
@@ -160,9 +157,6 @@
     </ClInclude>
     <ClInclude Include="lib\imgui\backends\imgui_impl_win32.h">
       <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
-    </ClInclude>
-    <ClInclude Include="float3.h">
-      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="float2.h">
       <Filter>0. Common\Math</Filter>

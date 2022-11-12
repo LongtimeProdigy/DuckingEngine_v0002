@@ -13,6 +13,51 @@
 #include "Skeleton.h"
 #include "Animation.h"
 
+namespace DK
+{
+	Quaternion toQuaternion(float roll, float pitch, float yaw) // roll (z), pitch (x), yaw (y)
+	{
+		// Abbreviations for the various angular functions
+
+		float cr = Math::cos(roll * 0.5f);
+		float sr = Math::sin(roll * 0.5f);
+		float cp = Math::cos(pitch * 0.5f);
+		float sp = Math::sin(pitch * 0.5f);
+		float cy = Math::cos(yaw * 0.5f);
+		float sy = Math::sin(yaw * 0.5f);
+
+		Quaternion q;
+		q.w = cr * cp * cy + sr * sp * sy;
+		q.x = sr * cp * cy - cr * sp * sy;
+		q.y = cr * sp * cy + sr * cp * sy;
+		q.z = cr * cp * sy - sr * sp * cy;
+
+		return q;
+	};
+	float3 toEulerAngles(Quaternion q) {
+		float3 angles;
+
+		// roll (z-axis rotation)
+		float sinr_cosp = 2 * (q.w * q.x + q.y * q.z);
+		float cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+		angles.z = Math::atan2(sinr_cosp, cosr_cosp);
+
+		// pitch (x-axis rotation)
+		float sinp = 2 * (q.w * q.y - q.z * q.x);
+		if (std::abs(sinp) >= 1)
+			angles.x = Math::copysign(Math::Half_PI, sinp); // use 90 degrees if out of range
+		else
+			angles.x = Math::asin(sinp);
+
+		// yaw (z-axis rotation)
+		float siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+		float cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+		angles.y = Math::atan2(siny_cosp, cosy_cosp);
+
+		return angles;
+	}
+}
+
 DKVector<std::string> split(const std::string& str, const std::string& delim)
 {
 	DKVector<std::string> tokens;
@@ -44,10 +89,10 @@ float3 parseFloat3FromString(const std::string& str)
 		DK::StringUtil::atof(tokens[2].c_str())
 	);
 }
-float4 parseFloat4FromString(const std::string& str)
+DK::Quaternion parseQuaternionFromString(const std::string& str)
 {
 	DKVector<std::string> tokens = split(str, " ");
-	return float4(
+	return DK::Quaternion(
 		DK::StringUtil::atof(tokens[0].c_str()),
 		DK::StringUtil::atof(tokens[1].c_str()),
 		DK::StringUtil::atof(tokens[2].c_str()),
@@ -147,6 +192,19 @@ const bool LoadMeshInternal(const DKString& modelPath, ModelRef& outModel)
 		std::memcpy(vertexBuffer.data(), &buffer[bufferOffset], vertexCount * sizeof(Vertex));
 		bufferOffset += vertexCount * sizeof(Vertex);
 
+#ifdef _DK_DEBUG_
+		for (auto vertex : vertexBuffer)
+		{
+			float sumWeight = 0.0f;
+			for (uint32 i = 0; i < MAX_SKINNING_COUNT; ++i)
+			{
+				sumWeight += vertex.weights[i];
+			}
+#define EPSILON 0.000001f
+			DK_ASSERT_LOG(1.0f - sumWeight < EPSILON, "weight의 합이 1.0이 되지 않습니다.");
+		}
+#endif
+
 		submeshes.push_back(SubMesh(vertexBuffer, indexBuffer));
 	}
 
@@ -190,30 +248,42 @@ const bool LoadSkeletonInternal(const DKString& skeletonPath, SkeletonRef& outSk
 
 	DKVector<Bone> bones;
 	bones.reserve(boneCount);
-	for (TiXmlNode* boneNode = rootNode->FirstChild(); boneNode != nullptr; boneNode = boneNode->NextSibling())
+	for (TiXmlElement* boneNode = rootNode->FirstChildElement(); boneNode != nullptr; boneNode = boneNode->NextSiblingElement())
 	{
-		std::string boneName = boneNode->ToElement()->FirstAttribute()->Value();
+		DKString boneName = boneNode->Attribute("Name");
+		DKString parentBoneName = boneNode->Attribute("Parent") != nullptr ? boneNode->Attribute("Parent") : "";
 
-		TiXmlNode* positionNode = boneNode->FirstChild("Position");
-		TiXmlNode* rotationNode = boneNode->FirstChild("Rotation");
-		TiXmlNode* scaleNode = boneNode->FirstChild("Scale");
+		TiXmlElement* positionNode = boneNode->FirstChildElement("Position");
+		TiXmlElement* rotationNode = boneNode->FirstChildElement("Rotation");
+		TiXmlElement* scaleNode = boneNode->FirstChildElement("Scale");
 		if (positionNode == nullptr || rotationNode == nullptr || scaleNode == nullptr)
 		{
 			DK_ASSERT_LOG(false, "Transform노드를 Decompose할 수 없습니다.");
 			return false;
 		}
 
-		std::string positionStr = positionNode->FirstChild()->Value();
-		std::string rotationStr = rotationNode->FirstChild()->Value();
-		std::string scaleStr = scaleNode->FirstChild()->Value();
+		DKString positionStr = positionNode->GetText();
+		DKString rotationStr = rotationNode->GetText();
+		DKString scaleStr = scaleNode->GetText();
 
 		float3 position = parseFloat3FromString(positionStr);
-		//float4 rotation = parseFloat4FromString(rotationStr);
-		float3 rotation = parseFloat3FromString(rotationStr);
+		DK::Quaternion rotation = parseQuaternionFromString(rotationStr);
+		float3 eulerRotation = toEulerAngles(rotation);
 		float3 scale = parseFloat3FromString(scaleStr);
 
-		Bone bone(boneName, Transform(position, rotation, scale));
+		uint32 currentBoneCount = static_cast<uint32>(bones.size());
+		uint32 parentBoneIndex = -1;
+		for (uint32 i = 0; i < currentBoneCount; ++i)
+		{
+			if (bones[i]._boneName == parentBoneName)
+			{
+				parentBoneIndex = i;
+				break;
+			}
+		}
+		DK_ASSERT_LOG(parentBoneName.empty() == true || parentBoneIndex != -1, "parentBone을 찾을 수 없습니다. 스키닝이 정상동작하지 않을 수 있습니다.");
 
+		Bone bone(boneName, parentBoneName, parentBoneIndex, Transform(position, eulerRotation, scale));
 		bones.push_back(bone);
 	}
 
