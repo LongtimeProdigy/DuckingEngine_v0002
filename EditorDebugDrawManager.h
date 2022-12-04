@@ -1,77 +1,114 @@
 #pragma once
 
-#ifdef _DK_DEBUG_
-struct IBuffer;
-
-struct float3;
-
-class EditorDebugDrawManager
+namespace DK
 {
-public:
-	struct SpherePrimitiveInfo
+#ifdef _DK_DEBUG_
+	struct IBuffer;
+
+	class EditorDebugDrawManager
 	{
-		static VertexBufferViewRef kVertexBufferView;
-		static IndexBufferViewRef kIndexBufferView;
-		static uint32 indexCount;
+	public:
+		struct SpherePrimitiveInfo
+		{
+			static VertexBufferViewRef kVertexBufferView;
+			static IndexBufferViewRef kIndexBufferView;
+			static uint32 indexCount;
 
-		SpherePrimitiveInfo()
-			: _worldPosition(float3::Zero)
-			, _color(float3::Zero)
-			, _radius(1.0f)
-		{}
-		SpherePrimitiveInfo(const float3& worldPosition, const float3& color, const float& radius)
-			: _worldPosition(worldPosition)
-			, _color(color)
-			, _radius(radius)
-		{}
+			SpherePrimitiveInfo(const float3& worldPosition, const float3& color, const float& radius)
+				: _worldPosition(worldPosition)
+				, _color(color)
+				, _radius(radius)
+			{}
 
-		float3 _worldPosition;
-		float _radius = 1.0f;	// _radius를 _color 밑으로내리면 class alignment로 인해서 data upload시에 값이 틀어짐
-		float3 _color;
-		float _padding = 1.0f;
-	};
+			float3 _worldPosition;
+			float _radius = 1.0f;	// _radius를 _color 밑으로내리면 class alignment로 인해서 data upload시에 값이 틀어짐
+			float3 _color;
+			float _padding = 1.0f;
+		};
+		struct LinePrimitiveInfo
+		{
+			static VertexBufferViewRef kVertexBufferView;
+			static IndexBufferViewRef kIndexBufferView;
+			static uint32 indexCount;
 
-private:
-	static EditorDebugDrawManager* _this;
-public:
-	static EditorDebugDrawManager& getSingleton() noexcept
-	{
-		if (_this == nullptr)
-			_this = dk_new EditorDebugDrawManager;
+			LinePrimitiveInfo(const float3& startWorldPosition, const float3& endWorldPosition, const float3& color)
+				: _startWorldPosition(startWorldPosition)
+				, _endWorldPosition(endWorldPosition)
+				, _color(color)
+			{}
 
-		return *_this;
-	}
+			float3 _startWorldPosition;
+			float3 _endWorldPosition;
+			float3 _color;
+		};
 
-	bool initialize();
+	private:
+		static EditorDebugDrawManager* _this;
+	public:
+		static EditorDebugDrawManager& getSingleton() noexcept
+		{
+			if (_this == nullptr)
+				_this = dk_new EditorDebugDrawManager;
 
-	void prepareShaderData();
-	void endUpdateRender();
+			return *_this;
+		}
 
-private:
-	bool initialize_Sphere();
+		bool initialize();
 
-public:
+		void prepareShaderData();
+		void endUpdateRender();
+
 #define MAX_ELEMENT_COUNT 1024
-	dk_inline void addSphere(const float3& worldPosition, const float3& color, const float radius)
-	{
-		DK_ASSERT_LOG(_spherePrimitiveInfoArr.size() < MAX_ELEMENT_COUNT, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다.");
-		_spherePrimitiveInfoArr.push_back(SpherePrimitiveInfo(worldPosition, color, radius));
-	}
-	dk_inline const DKVector<SpherePrimitiveInfo>& getSpherePrimitiveInfo() const noexcept
-	{
-		return _spherePrimitiveInfoArr;
-	}
-	dk_inline const Ptr<IBuffer>& getSphereDebugDrawElementBuffer() const noexcept
-	{
-		return _sphereDebugDrawElementBuffer;
-	}
-	dk_inline Ptr<IBuffer>& getSphereDebugDrawElementBufferWritable() noexcept
-	{
-		return _sphereDebugDrawElementBuffer;
-	}
+		dk_inline void addSphere(const float3& worldPosition, const float3& color, const float radius)
+		{
+			if (_primitiveInfoSphereArr.size() >= MAX_ELEMENT_COUNT)
+			{
+				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
+				return;
+			}
+			_primitiveInfoSphereArr.push_back(SpherePrimitiveInfo(worldPosition, color, radius));
+		}
+		dk_inline void addLine(const float3& startWorldPosition, const float3& endWorldPosition, const float3& color)
+		{
+			if (_primitiveInfoLineArr.size() >= MAX_ELEMENT_COUNT)
+			{
+				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
+				return;
+			}
+			_primitiveInfoLineArr.push_back(LinePrimitiveInfo(startWorldPosition, endWorldPosition, color));
+		}
+		dk_inline void addAxis(const float4x4& worldMatrix, const float3& scale)
+		{
+			if (_primitiveInfoLineArr.size() >= MAX_ELEMENT_COUNT)
+			{
+				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
+				return;
+			}
 
-private:
-	DKVector<SpherePrimitiveInfo> _spherePrimitiveInfoArr;
-	Ptr<IBuffer> _sphereDebugDrawElementBuffer;
-};
+			static const float3 up(0, 1, 0);
+			static const float3 right(1, 0, 0);
+			static const float3 forward(0, 0, 1);
+
+			float3 startPosition = worldMatrix.getTranslation();
+			float4 upPosition = float4(up * scale.y) * worldMatrix;
+			float4 rightPosition = float4(right * scale.x) * worldMatrix;
+			float4 forwardPosition = float4(forward * scale.z) * worldMatrix;
+
+			_primitiveInfoLineArr.push_back(LinePrimitiveInfo(startPosition, upPosition.xyz(), float3(0, 1, 0)));
+			_primitiveInfoLineArr.push_back(LinePrimitiveInfo(startPosition, rightPosition.xyz(), float3(1, 0, 0)));
+			_primitiveInfoLineArr.push_back(LinePrimitiveInfo(startPosition, forwardPosition.xyz(), float3(0, 0, 1)));
+		}
+
+	private:
+		bool initialize_Sphere();
+		bool initialize_Line();
+
+#define DEFINE_ELEMENT_TYPE(primitiveName) \
+	DK_REFLECTION_DECLARE(DKVector<##primitiveName##PrimitiveInfo>, _primitiveInfo##primitiveName##Arr); \
+	DK_REFLECTION_PTR_DECLARE(IBuffer, _primitiveInfo##primitiveName##Buffer);
+
+		DEFINE_ELEMENT_TYPE(Sphere);
+		DEFINE_ELEMENT_TYPE(Line);
+	};
 #endif
+}

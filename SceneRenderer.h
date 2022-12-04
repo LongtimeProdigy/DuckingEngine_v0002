@@ -1,35 +1,42 @@
 #pragma once
 
-struct IBuffer;
+#include "Material.h"
 
-class SkinnedMeshComponent;
-struct MaterialDefinition;
-
-class SceneRenderer
+namespace DK
 {
-public:
-	// Initialize
-	bool initialize();
+	struct IBuffer;
+	class SkinnedMeshComponent;
+	struct MaterialDefinition;
+}
 
-	// Helper
-	const MaterialDefinition* getMaterialDefinition(const DKString& materialName) const;
+namespace DK
+{
+	class SceneRenderer
+	{
+	public:
+		// Initialize
+		bool initialize();
 
-	// Render
-	void prepareShaderData() noexcept;
-	void preRender() const noexcept;
-	void updateRender() noexcept;
+		// Helper
+		const MaterialDefinition* getMaterialDefinition(const DKString& materialName) const;
+
+		// Render
+		void prepareShaderData() noexcept;
+		void preRender() const noexcept;
+		void updateRender() noexcept;
 #ifdef _DK_DEBUG_
-	void updateRender_Editor() noexcept;
+		void updateRender_Editor() noexcept;
 #endif
-	void EndRender() const noexcept;
+		void endRender() const noexcept;
 
-private:
-	bool initialize_createRenderPass();
-	bool initialize_createMaterialDefinition();
-	bool initialize_createSceneConstantBuffer();
+	private:
+		bool initialize_createRenderPass();
+		bool initialize_createMaterialDefinition();
+		bool initialize_createSceneConstantBuffer();
 
-private:
-	DKHashMap<DKString, MaterialDefinition> _materialDefinitionMap;
+	private:
+		DKHashMap<DKString, MaterialDefinition> _materialDefinitionMap;
 
-	Ptr<IBuffer> _sceneConstantBuffer = nullptr;
-};
+		Ptr<IBuffer> _sceneConstantBuffer = nullptr;
+	};
+}

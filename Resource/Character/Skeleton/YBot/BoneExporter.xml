@@ -1,337 +1,337 @@
 <Skeleton Count=67>
 	<Bone Name=mixamorig:Hips>
-		<Position>-0.000000 0.994699 -0.004328</Position>
-		<Rotation>-0.562487 -0.000000 0.000000 0.826806</Rotation>
-		<Scale>1.000000 1.000000 0.999998</Scale>
+		<Position>-0.001574 0.994725 -0.003510</Position>
+		<Rotation>-0.400652 -0.202759 -0.893514 0.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000001</Scale>
 	</Bone>
 	<Bone Name=mixamorig:Spine Parent=mixamorig:Hips>
-		<Position>0.000000 0.047856 -0.087795</Position>
-		<Rotation>0.969215 -0.000003 0.000004 0.246217</Rotation>
-		<Scale>1.000000 1.000000 0.999999</Scale>
+		<Position>0.024910 -0.086628 0.043280</Position>
+		<Rotation>0.879551 0.024327 -0.399911 0.256651</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:Spine1 Parent=mixamorig:Spine>
-		<Position>-0.000000 -0.000000 0.117320</Position>
-		<Rotation>0.000196 -0.000009 0.000001 1.000000</Rotation>
+		<Position>0.000000 0.117320 -0.000000</Position>
+		<Rotation>0.000196 0.000001 -0.000009 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:Spine2 Parent=mixamorig:Spine1>
-		<Position>0.000000 -0.000000 0.134589</Position>
-		<Rotation>0.093526 0.000001 0.000000 0.995617</Rotation>
+		<Position>-0.000000 0.134588 -0.000000</Position>
+		<Rotation>0.093526 0.000000 0.000001 0.995617</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:Neck Parent=mixamorig:Spine2>
-		<Position>-0.000000 -0.002030 0.150520</Position>
-		<Rotation>0.114423 0.000002 -0.000000 0.993432</Rotation>
+		<Position>-0.000000 0.150520 -0.002030</Position>
+		<Rotation>0.114422 0.000000 0.000002 0.993432</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:Head Parent=mixamorig:Neck>
-		<Position>0.000000 0.000000 0.107896</Position>
-		<Rotation>0.168408 -0.000044 0.000009 0.985717</Rotation>
+		<Position>0.000000 0.107896 0.000000</Position>
+		<Rotation>0.168408 -0.000007 -0.000044 0.985717</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:HeadTop_End Parent=mixamorig:Head>
-		<Position>-0.000016 -0.055964 0.188158</Position>
-		<Rotation>-0.311699 0.000036 0.000027 0.950181</Rotation>
+		<Position>-0.000016 0.188158 -0.055964</Position>
+		<Rotation>-0.311698 -0.000000 0.000045 0.950181</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftEye Parent=mixamorig:Head>
-		<Position>0.029470 0.027982 0.115919</Position>
-		<Rotation>-0.311699 0.000036 0.000027 0.950181</Rotation>
+		<Position>0.029470 0.115919 0.027982</Position>
+		<Rotation>-0.311698 -0.000000 0.000045 0.950181</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightEye Parent=mixamorig:Head>
-		<Position>-0.029454 0.027982 0.115913</Position>
-		<Rotation>-0.311699 0.000036 0.000027 0.950181</Rotation>
+		<Position>-0.029454 0.115913 0.027982</Position>
+		<Rotation>-0.311698 -0.000000 0.000045 0.950181</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftShoulder Parent=mixamorig:Spine2>
-		<Position>0.061058 0.001015 0.091372</Position>
-		<Rotation>-0.166884 -0.679413 -0.167344 0.694654</Rotation>
+		<Position>0.061058 0.091372 0.001015</Position>
+		<Rotation>-0.166884 -0.023151 -0.699335 0.694654</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftArm Parent=mixamorig:LeftShoulder>
-		<Position>-0.000000 0.000000 0.129223</Position>
-		<Rotation>0.101689 0.020843 0.099530 0.989605</Rotation>
+		<Position>-0.000000 0.129223 -0.000000</Position>
+		<Rotation>0.101689 0.101689 -0.000051 0.989605</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftForeArm Parent=mixamorig:LeftArm>
-		<Position>-0.000000 -0.000000 0.274047</Position>
-		<Rotation>0.000000 -0.000000 -0.000000 1.000000</Rotation>
+		<Position>-0.000000 0.274047 0.000000</Position>
+		<Rotation>0.000000 0.000000 -0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHand Parent=mixamorig:LeftForeArm>
-		<Position>-0.000000 -0.000000 0.276145</Position>
-		<Rotation>-0.011006 -0.024809 -0.011568 0.999565</Rotation>
+		<Position>0.000000 0.276145 -0.000000</Position>
+		<Rotation>-0.011006 -0.011033 -0.025052 0.999565</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandMiddle1 Parent=mixamorig:LeftHand>
-		<Position>-0.006368 0.002888 0.127564</Position>
-		<Rotation>0.011032 0.025294 0.010463 0.999564</Rotation>
+		<Position>-0.006367 0.127564 0.002888</Position>
+		<Rotation>0.011032 0.011032 0.025051 0.999564</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandMiddle2 Parent=mixamorig:LeftHandMiddle1>
-		<Position>0.000000 -0.000000 0.036140</Position>
-		<Rotation>-0.000004 0.000000 -0.000004 1.000000</Rotation>
+		<Position>-0.000000 0.036140 0.000000</Position>
+		<Rotation>-0.000004 -0.000004 0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandMiddle3 Parent=mixamorig:LeftHandMiddle2>
-		<Position>0.000000 -0.000000 0.034598</Position>
-		<Rotation>0.000008 0.000000 0.000008 1.000000</Rotation>
+		<Position>-0.000000 0.034598 0.000000</Position>
+		<Rotation>0.000008 0.000008 0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandMiddle4 Parent=mixamorig:LeftHandMiddle3>
-		<Position>-0.000000 -0.000000 0.036802</Position>
-		<Rotation>-0.000007 0.707107 0.000007 0.707107</Rotation>
+		<Position>0.000000 0.036802 0.000000</Position>
+		<Rotation>-0.000006 -0.000000 0.707107 0.707107</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandThumb1 Parent=mixamorig:LeftHand>
-		<Position>0.020428 0.030407 0.038276</Position>
-		<Rotation>0.301280 0.088416 0.332281 0.889383</Rotation>
+		<Position>0.020428 0.038276 0.030407</Position>
+		<Rotation>0.301279 0.319637 -0.126730 0.889383</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandThumb2 Parent=mixamorig:LeftHandThumb1>
-		<Position>0.000000 0.000000 0.047450</Position>
-		<Rotation>0.000011 -0.000003 0.000013 1.000000</Rotation>
+		<Position>-0.000000 0.047450 0.000000</Position>
+		<Rotation>0.000011 0.000014 -0.000003 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandThumb3 Parent=mixamorig:LeftHandThumb2>
-		<Position>0.000000 -0.000000 0.043821</Position>
-		<Rotation>-0.000014 -0.000007 -0.000026 1.000000</Rotation>
+		<Position>-0.000000 0.043821 0.000000</Position>
+		<Rotation>-0.000014 -0.000026 -0.000007 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandThumb4 Parent=mixamorig:LeftHandThumb3>
-		<Position>0.000000 0.000000 0.034591</Position>
-		<Rotation>-0.425318 0.603316 0.422755 0.525730</Rotation>
+		<Position>0.000000 0.034591 -0.000000</Position>
+		<Rotation>-0.425318 -0.000000 0.736690 0.525731</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandIndex1 Parent=mixamorig:LeftHand>
-		<Position>-0.003163 0.030930 0.121992</Position>
-		<Rotation>0.011037 0.025295 0.010467 0.999564</Rotation>
+		<Position>-0.003162 0.121992 0.030930</Position>
+		<Rotation>0.011037 0.011037 0.025051 0.999564</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandIndex2 Parent=mixamorig:LeftHandIndex1>
-		<Position>-0.000000 0.000000 0.038920</Position>
-		<Rotation>-0.000006 0.000000 -0.000006 1.000000</Rotation>
+		<Position>0.000000 0.038920 -0.000000</Position>
+		<Rotation>-0.000006 -0.000006 0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftHandIndex3 Parent=mixamorig:LeftHandIndex2>
-		<Position>-0.000000 0.000000 0.034152</Position>
-		<Rotation>-0.000000 0.000000 -0.000000 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandIndex4 Parent=mixamorig:LeftHandIndex3>
-		<Position>-0.000000 0.000000 0.030780</Position>
-		<Rotation>0.000002 0.707107 -0.000002 0.707107</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandRing1 Parent=mixamorig:LeftHand>
-		<Position>-0.006654 -0.019407 0.121760</Position>
-		<Rotation>0.011037 0.025295 0.010467 0.999564</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandRing2 Parent=mixamorig:LeftHandRing1>
-		<Position>-0.000000 -0.000000 0.036012</Position>
-		<Rotation>-0.000008 0.000000 -0.000008 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandRing3 Parent=mixamorig:LeftHandRing2>
-		<Position>0.000000 -0.000000 0.033073</Position>
-		<Rotation>0.000003 0.000000 0.000003 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandRing4 Parent=mixamorig:LeftHandRing3>
-		<Position>-0.000000 0.000000 0.036601</Position>
-		<Rotation>-0.000000 0.707107 0.000000 0.707107</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandPinky1 Parent=mixamorig:LeftHand>
-		<Position>-0.004245 -0.044818 0.110048</Position>
-		<Rotation>0.011035 0.025295 0.010466 0.999564</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandPinky2 Parent=mixamorig:LeftHandPinky1>
-		<Position>-0.000000 -0.000000 0.041367</Position>
-		<Rotation>-0.000010 -0.000000 -0.000010 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandPinky3 Parent=mixamorig:LeftHandPinky2>
-		<Position>-0.000000 -0.000000 0.025948</Position>
-		<Rotation>0.000010 0.000000 0.000010 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:LeftHandPinky4 Parent=mixamorig:LeftHandPinky3>
-		<Position>-0.000000 0.000000 0.029239</Position>
-		<Rotation>-0.000005 0.707107 0.000005 0.707107</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightShoulder Parent=mixamorig:Spine2>
-		<Position>-0.061057 0.001015 0.091372</Position>
-		<Rotation>-0.166883 0.679420 0.167343 0.694648</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightArm Parent=mixamorig:RightShoulder>
-		<Position>0.000000 0.000000 0.129223</Position>
-		<Rotation>0.101689 -0.020846 -0.099529 0.989605</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightForeArm Parent=mixamorig:RightArm>
-		<Position>-0.000000 -0.000000 0.274047</Position>
-		<Rotation>0.000000 0.000000 0.000000 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHand Parent=mixamorig:RightForeArm>
-		<Position>-0.000000 -0.000000 0.276145</Position>
-		<Rotation>-0.011006 0.024809 0.011568 0.999565</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandMiddle1 Parent=mixamorig:RightHand>
-		<Position>0.006367 0.002888 0.127564</Position>
-		<Rotation>0.011032 -0.025294 -0.010463 0.999564</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandMiddle2 Parent=mixamorig:RightHandMiddle1>
-		<Position>-0.000000 0.000000 0.036140</Position>
-		<Rotation>-0.000004 -0.000000 0.000004 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandMiddle3 Parent=mixamorig:RightHandMiddle2>
-		<Position>0.000000 0.000000 0.034598</Position>
-		<Rotation>0.000008 -0.000000 -0.000008 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandMiddle4 Parent=mixamorig:RightHandMiddle3>
-		<Position>-0.000000 0.000000 0.036802</Position>
-		<Rotation>-0.000007 -0.707107 -0.000007 0.707107</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandThumb1 Parent=mixamorig:RightHand>
-		<Position>-0.020428 0.030407 0.038276</Position>
-		<Rotation>0.301280 -0.088416 -0.332281 0.889383</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandThumb2 Parent=mixamorig:RightHandThumb1>
-		<Position>0.000000 -0.000000 0.047450</Position>
-		<Rotation>0.000011 0.000003 -0.000013 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandThumb3 Parent=mixamorig:RightHandThumb2>
-		<Position>-0.000000 0.000000 0.043821</Position>
-		<Rotation>-0.000014 0.000006 0.000026 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandThumb4 Parent=mixamorig:RightHandThumb3>
-		<Position>-0.000000 -0.000000 0.034591</Position>
-		<Rotation>-0.425318 -0.603316 -0.422755 0.525730</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandIndex1 Parent=mixamorig:RightHand>
-		<Position>0.003162 0.030930 0.121992</Position>
-		<Rotation>0.011036 -0.025295 -0.010467 0.999564</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandIndex2 Parent=mixamorig:RightHandIndex1>
-		<Position>0.000000 -0.000000 0.038920</Position>
-		<Rotation>-0.000006 -0.000000 0.000006 1.000000</Rotation>
-		<Scale>1.000000 1.000000 1.000000</Scale>
-	</Bone>
-	<Bone Name=mixamorig:RightHandIndex3 Parent=mixamorig:RightHandIndex2>
-		<Position>-0.000000 -0.000000 0.034152</Position>
+		<Position>-0.000000 0.034152 -0.000000</Position>
 		<Rotation>-0.000000 -0.000000 0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
+	<Bone Name=mixamorig:LeftHandIndex4 Parent=mixamorig:LeftHandIndex3>
+		<Position>-0.000000 0.030780 -0.000000</Position>
+		<Rotation>0.000002 -0.000000 0.707107 0.707107</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandRing1 Parent=mixamorig:LeftHand>
+		<Position>-0.006654 0.121760 -0.019407</Position>
+		<Rotation>0.011037 0.011037 0.025051 0.999564</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandRing2 Parent=mixamorig:LeftHandRing1>
+		<Position>-0.000000 0.036012 0.000000</Position>
+		<Rotation>-0.000008 -0.000008 0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandRing3 Parent=mixamorig:LeftHandRing2>
+		<Position>0.000000 0.033073 0.000000</Position>
+		<Rotation>0.000003 0.000003 0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandRing4 Parent=mixamorig:LeftHandRing3>
+		<Position>0.000000 0.036601 -0.000000</Position>
+		<Rotation>0.000000 -0.000000 0.707107 0.707107</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandPinky1 Parent=mixamorig:LeftHand>
+		<Position>-0.004244 0.110048 -0.044818</Position>
+		<Rotation>0.011035 0.011035 0.025051 0.999564</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandPinky2 Parent=mixamorig:LeftHandPinky1>
+		<Position>-0.000000 0.041367 0.000000</Position>
+		<Rotation>-0.000010 -0.000010 -0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandPinky3 Parent=mixamorig:LeftHandPinky2>
+		<Position>-0.000000 0.025948 0.000000</Position>
+		<Rotation>0.000010 0.000010 0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:LeftHandPinky4 Parent=mixamorig:LeftHandPinky3>
+		<Position>-0.000000 0.029239 -0.000000</Position>
+		<Rotation>-0.000004 -0.000000 0.707107 0.707107</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightShoulder Parent=mixamorig:Spine2>
+		<Position>-0.061057 0.091372 0.001015</Position>
+		<Rotation>-0.166883 0.023150 0.699342 0.694648</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightArm Parent=mixamorig:RightShoulder>
+		<Position>-0.000000 0.129223 -0.000000</Position>
+		<Rotation>0.101688 -0.101688 0.000047 0.989605</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightForeArm Parent=mixamorig:RightArm>
+		<Position>0.000000 0.274047 -0.000000</Position>
+		<Rotation>0.000000 -0.000000 0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHand Parent=mixamorig:RightForeArm>
+		<Position>0.000000 0.276145 -0.000000</Position>
+		<Rotation>-0.011006 0.011033 0.025051 0.999565</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandMiddle1 Parent=mixamorig:RightHand>
+		<Position>0.006367 0.127564 0.002888</Position>
+		<Rotation>0.011032 -0.011032 -0.025051 0.999564</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandMiddle2 Parent=mixamorig:RightHandMiddle1>
+		<Position>0.000000 0.036140 0.000000</Position>
+		<Rotation>-0.000004 0.000004 -0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandMiddle3 Parent=mixamorig:RightHandMiddle2>
+		<Position>0.000000 0.034598 0.000000</Position>
+		<Rotation>0.000008 -0.000008 -0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandMiddle4 Parent=mixamorig:RightHandMiddle3>
+		<Position>0.000000 0.036802 -0.000000</Position>
+		<Rotation>-0.000006 -0.000000 -0.707107 0.707107</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandThumb1 Parent=mixamorig:RightHand>
+		<Position>-0.020428 0.038276 0.030407</Position>
+		<Rotation>0.301279 -0.319637 0.126730 0.889383</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandThumb2 Parent=mixamorig:RightHandThumb1>
+		<Position>-0.000000 0.047450 0.000000</Position>
+		<Rotation>0.000011 -0.000014 0.000003 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandThumb3 Parent=mixamorig:RightHandThumb2>
+		<Position>0.000000 0.043821 -0.000000</Position>
+		<Rotation>-0.000014 0.000026 0.000007 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandThumb4 Parent=mixamorig:RightHandThumb3>
+		<Position>-0.000000 0.034591 0.000000</Position>
+		<Rotation>-0.425318 0.000000 -0.736690 0.525731</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandIndex1 Parent=mixamorig:RightHand>
+		<Position>0.003162 0.121992 0.030930</Position>
+		<Rotation>0.011036 -0.011037 -0.025051 0.999564</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandIndex2 Parent=mixamorig:RightHandIndex1>
+		<Position>-0.000000 0.038920 -0.000000</Position>
+		<Rotation>-0.000006 0.000006 -0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
+	<Bone Name=mixamorig:RightHandIndex3 Parent=mixamorig:RightHandIndex2>
+		<Position>0.000000 0.034152 -0.000000</Position>
+		<Rotation>-0.000000 0.000000 -0.000000 1.000000</Rotation>
+		<Scale>1.000000 1.000000 1.000000</Scale>
+	</Bone>
 	<Bone Name=mixamorig:RightHandIndex4 Parent=mixamorig:RightHandIndex3>
-		<Position>0.000000 -0.000000 0.030780</Position>
-		<Rotation>0.000002 -0.707107 0.000002 0.707107</Rotation>
+		<Position>0.000000 0.030780 -0.000000</Position>
+		<Rotation>0.000002 -0.000000 -0.707107 0.707107</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandRing1 Parent=mixamorig:RightHand>
-		<Position>0.006654 -0.019407 0.121759</Position>
-		<Rotation>0.011036 -0.025295 -0.010467 0.999564</Rotation>
+		<Position>0.006654 0.121759 -0.019407</Position>
+		<Rotation>0.011036 -0.011037 -0.025051 0.999564</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandRing2 Parent=mixamorig:RightHandRing1>
-		<Position>0.000000 0.000000 0.036012</Position>
-		<Rotation>-0.000008 -0.000000 0.000008 1.000000</Rotation>
+		<Position>0.000000 0.036012 0.000000</Position>
+		<Rotation>-0.000008 0.000008 -0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandRing3 Parent=mixamorig:RightHandRing2>
-		<Position>0.000000 -0.000000 0.033073</Position>
-		<Rotation>0.000003 -0.000000 -0.000003 1.000000</Rotation>
+		<Position>0.000000 0.033073 0.000000</Position>
+		<Rotation>0.000003 -0.000003 0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandRing4 Parent=mixamorig:RightHandRing3>
-		<Position>-0.000000 -0.000000 0.036601</Position>
-		<Rotation>-0.000001 -0.707107 -0.000001 0.707107</Rotation>
+		<Position>0.000000 0.036601 -0.000000</Position>
+		<Rotation>-0.000000 -0.000000 -0.707107 0.707107</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandPinky1 Parent=mixamorig:RightHand>
-		<Position>0.004245 -0.044818 0.110048</Position>
-		<Rotation>0.011035 -0.025295 -0.010466 0.999564</Rotation>
+		<Position>0.004244 0.110048 -0.044818</Position>
+		<Rotation>0.011035 -0.011035 -0.025051 0.999564</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandPinky2 Parent=mixamorig:RightHandPinky1>
-		<Position>0.000000 -0.000000 0.041367</Position>
-		<Rotation>-0.000010 0.000000 0.000010 1.000000</Rotation>
+		<Position>0.000000 0.041366 0.000000</Position>
+		<Rotation>-0.000010 0.000010 0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandPinky3 Parent=mixamorig:RightHandPinky2>
-		<Position>-0.000000 -0.000000 0.025948</Position>
-		<Rotation>0.000010 -0.000000 -0.000010 1.000000</Rotation>
+		<Position>0.000000 0.025948 -0.000000</Position>
+		<Rotation>0.000010 -0.000010 -0.000000 1.000000</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightHandPinky4 Parent=mixamorig:RightHandPinky3>
-		<Position>0.000000 -0.000000 0.029239</Position>
-		<Rotation>-0.000005 -0.707107 -0.000005 0.707107</Rotation>
+		<Position>0.000000 0.029239 -0.000000</Position>
+		<Rotation>-0.000005 -0.000000 -0.707107 0.707107</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightUpLeg Parent=mixamorig:Hips>
-		<Position>-0.091245 -0.023928 0.062117</Position>
-		<Rotation>-0.161894 0.286049 -0.320313 0.888463</Rotation>
+		<Position>-0.072369 0.076116 0.041541</Position>
+		<Rotation>-0.176838 -0.021902 0.084262 0.980382</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightLeg Parent=mixamorig:RightUpLeg>
-		<Position>0.000000 0.000000 0.405994</Position>
-		<Rotation>0.015299 0.005513 0.532880 0.846034</Rotation>
+		<Position>0.000000 0.405994 -0.000000</Position>
+		<Rotation>0.015299 0.532786 -0.011416 0.846035</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightFoot Parent=mixamorig:RightLeg>
-		<Position>0.000000 -0.000000 0.420990</Position>
-		<Rotation>-0.444344 0.033305 -0.088831 0.890819</Rotation>
+		<Position>0.000000 0.420990 -0.000000</Position>
+		<Rotation>-0.444343 -0.080134 -0.050780 0.890819</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightToeBase Parent=mixamorig:RightFoot>
-		<Position>0.000000 -0.000000 0.164321</Position>
-		<Rotation>-0.339128 -0.002501 -0.026605 0.940361</Rotation>
+		<Position>0.000000 0.164320 -0.000000</Position>
+		<Rotation>-0.339129 -0.018896 -0.018896 0.940360</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:RightToe_End Parent=mixamorig:RightToeBase>
-		<Position>-0.000000 0.000000 0.099925</Position>
-		<Rotation>-0.707107 -0.000000 0.000000 0.707107</Rotation>
+		<Position>-0.000000 0.099925 -0.000000</Position>
+		<Rotation>-0.707107 -0.000000 -0.000000 0.707107</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftUpLeg Parent=mixamorig:Hips>
-		<Position>0.091245 -0.023928 0.062117</Position>
-		<Rotation>-0.162031 -0.284246 0.319636 0.889260</Rotation>
+		<Position>0.051533 0.046467 -0.089117</Position>
+		<Rotation>-0.176986 0.744333 -0.089538 0.637673</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftLeg Parent=mixamorig:LeftUpLeg>
-		<Position>0.000000 0.000000 0.405994</Position>
-		<Rotation>0.015288 -0.005479 -0.531408 0.846960</Rotation>
+		<Position>-0.000000 0.405994 -0.000000</Position>
+		<Rotation>0.015288 -0.531314 0.011380 0.846961</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftFoot Parent=mixamorig:LeftLeg>
-		<Position>0.000000 0.000000 0.420990</Position>
-		<Rotation>-0.444322 -0.033369 0.088962 0.890814</Rotation>
+		<Position>-0.000000 0.420990 -0.000000</Position>
+		<Rotation>-0.444322 0.080267 0.050842 0.890815</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftToeBase Parent=mixamorig:LeftFoot>
-		<Position>-0.000000 0.000000 0.164321</Position>
-		<Rotation>-0.339128 0.002501 0.026605 0.940361</Rotation>
+		<Position>-0.000000 0.164320 -0.000000</Position>
+		<Rotation>-0.339129 0.018896 0.018896 0.940360</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 	<Bone Name=mixamorig:LeftToe_End Parent=mixamorig:LeftToeBase>
-		<Position>0.000000 0.000000 0.099925</Position>
-		<Rotation>-0.707107 -0.000000 0.000000 0.707107</Rotation>
+		<Position>-0.000000 0.099925 -0.000000</Position>
+		<Rotation>-0.707107 0.000000 -0.000000 0.707107</Rotation>
 		<Scale>1.000000 1.000000 1.000000</Scale>
 	</Bone>
 </Skeleton>

@@ -34,21 +34,6 @@
     <ClCompile Include="lib\imgui\backends\imgui_impl_win32.cpp">
       <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
     </ClCompile>
-    <ClCompile Include="float2.cpp">
-      <Filter>0. Common\Math</Filter>
-    </ClCompile>
-    <ClCompile Include="Matrix3x3.cpp">
-      <Filter>0. Common\Math</Filter>
-    </ClCompile>
-    <ClCompile Include="Matrix4x4.cpp">
-      <Filter>0. Common\Math</Filter>
-    </ClCompile>
-    <ClCompile Include="float4.cpp">
-      <Filter>0. Common\Math</Filter>
-    </ClCompile>
-    <ClCompile Include="Transform.cpp">
-      <Filter>0. Common\Math</Filter>
-    </ClCompile>
     <ClCompile Include="XBOXController.cpp">
       <Filter>1. EngineCore\Input\XBOX</Filter>
     </ClCompile>
@@ -157,21 +142,6 @@
     </ClInclude>
     <ClInclude Include="lib\imgui\backends\imgui_impl_win32.h">
       <Filter>1. EngineCore\UI\IMGUI\BackEnds</Filter>
-    </ClInclude>
-    <ClInclude Include="float2.h">
-      <Filter>0. Common\Math</Filter>
-    </ClInclude>
-    <ClInclude Include="Matrix3x3.h">
-      <Filter>0. Common\Math</Filter>
-    </ClInclude>
-    <ClInclude Include="Matrix4x4.h">
-      <Filter>0. Common\Math</Filter>
-    </ClInclude>
-    <ClInclude Include="float4.h">
-      <Filter>0. Common\Math</Filter>
-    </ClInclude>
-    <ClInclude Include="Transform.h">
-      <Filter>0. Common\Math</Filter>
     </ClInclude>
     <ClInclude Include="XBOXController.h">
       <Filter>1. EngineCore\Input\XBOX</Filter>
@@ -292,5 +262,8 @@
     <Filter Include="Lib">
       <UniqueIdentifier>{656105a8-597a-48bb-97dd-2bdf9d43d9e4}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="Common.natvis" />
   </ItemGroup>
 </Project>

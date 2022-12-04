@@ -68,15 +68,15 @@ VS_OUTPUT VSMain(VS_INPUT input)
     float4x4 skinMatrix = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     for(uint i = 0; i < MAX_SKINNING_COUNT; ++i)
     {
-        skinMatrix += ((input.boneIndexes[i] == 0xffffffff || input.boneWeights[i] == 0.0) ? 0.0 : _skeletonMatrixBuffer[input.boneIndexes[i]]) * input.boneWeights[i];
+        skinMatrix += _skeletonMatrixBuffer[input.boneIndexes[i]] * input.boneWeights[i];
     }
 
-    //output.position = mul(skinMatrix, output.position);
-    output.position = mul(_worldMatrix, output.position);
-    output.position = mul(_cameraWorldMatrix, output.position);
-    output.position = mul(_cameraProjectionMatrix, output.position);
+    output.position = mul(output.position, skinMatrix);
+    output.position = mul(output.position, _worldMatrix);
+    output.position = mul(output.position, _cameraWorldMatrix);
+    output.position = mul(output.position, _cameraProjectionMatrix);
 
-    output.normal = mul(_cameraWorldMatrix, output.normal);
+    output.normal = mul(output.normal, _cameraWorldMatrix);
 #endif
     return output;
 }

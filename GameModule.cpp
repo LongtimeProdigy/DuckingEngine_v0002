@@ -1,24 +1,23 @@
 #include "stdafx.h"
 #include "GameModule.h"
 
-#include "Transform.h"
-
 #include "SceneObjectManager.h"
 #include "SceneObject.h"
 
-// TestPlane
-static SceneObject plane;
-
-bool GameModule::Initialize()
+namespace DK
 {
-#pragma region Load MapData
-	// Test Character
-	SceneObject* characterObject = SceneObjectManager::createCharacter(
-		"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Appearance/ganfaul_m_aure.xml"
-	);
-	if (characterObject == nullptr) return false;
-	characterObject->SetWorldTransform(Transform(float3::Zero, float3::Zero, float3::Identity));
-#pragma endregion
+	// TestPlane
+	static SceneObject plane;
 
-	return true;
+	bool GameModule::initialize()
+	{
+		// Test Character
+		SceneObject* characterObject = SceneObjectManager::createCharacter(
+			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Appearance/ganfaul_m_aure.xml"
+		);
+		if (characterObject == nullptr) return false;
+		characterObject->set_worldTransform(Transform(float3::Zero, Quaternion::Identity, float3::Identity));
+
+		return true;
+	}
 }
