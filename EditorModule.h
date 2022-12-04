@@ -1,8 +1,12 @@
 #pragma once
-class EditorModule
-{
-public:
-	bool Initialize();
 
-	void Update();
-};
+namespace DK
+{
+	class EditorModule
+	{
+	public:
+		bool initialize() { return true; }
+
+		void update() {};
+	};
+}

@@ -1,13 +1,19 @@
 #pragma once
 #include "Object.h"
 
-struct IBuffer;
-
-class SceneObject : public Object
+namespace DK
 {
-public:
-	virtual void Update() override final {}
+	struct IBuffer;
+}
 
-public:
-	Ptr<IBuffer> _sceneObjectConstantBuffer = nullptr;
-};
+namespace DK
+{
+	class SceneObject : public Object
+	{
+	public:
+		virtual void update(float deltaTime) override final {}
+
+	public:
+		Ptr<IBuffer> _sceneObjectConstantBuffer = nullptr;
+	};
+}

@@ -1,23 +1,28 @@
 #pragma once
 
-#include "Transform.h"
-
 #include "Component.h"
 
-class Component;
-
-class Object
+namespace DK
 {
-public:
-	virtual ~Object() {}
+	class Component;
+}
 
-	virtual void Update() = 0;
+namespace DK
+{
+	class Object
+	{
+	public:
+		virtual ~Object() {}
 
-	void SetWorldTransform(const Transform& worldTransform) noexcept;
+		virtual void update(float deltaTime) = 0;
 
-	void AddComponent(Component* component) noexcept;
+		void addComponent(Component* component) noexcept
+		{
+			_components.push_back(component);
+		}
 
-public:
-	DKVector<Ptr<Component>> _components;
-	Transform _worldTransform;
-};
+	public:
+		DKVector<Ptr<Component>> _components;
+		DK_REFLECTION_DECLARE(Transform, _worldTransform);
+	};
+}

@@ -1,9 +1,12 @@
 #pragma once
 
-class Component
+namespace DK
 {
-public:
-	virtual ~Component() {}
+	class Component
+	{
+	public:
+		virtual ~Component() {}
 
-	virtual void update(float deltaTime) = 0;
-};
+		virtual void update(float deltaTime) = 0;
+	};
+}

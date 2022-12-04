@@ -1,9 +1,15 @@
 #pragma once
 
-class SceneObject;
-
-class GameModule
+namespace DK
 {
-public:
-	bool Initialize();
-};
+	class SceneObject;
+}
+
+namespace DK
+{
+	class GameModule
+	{
+	public:
+		bool initialize();
+	};
+}

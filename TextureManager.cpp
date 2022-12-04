@@ -102,175 +102,169 @@ uint GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 //	// 나중에 직접 TextureFormat을 지정하면 그때는 삭제해야합니다.
 //	return static_cast<TextureFormat>(dxgiFormat);
 //}
-
-// #todo- 지울 수 있으면 지울 것
-#pragma comment(lib, "d3d12.lib")
-#include <d3d12.h>
-#pragma comment(lib, "dxgi.lib")
-#include <dxgi1_6.h>
-#pragma comment(lib, "d3dcompiler.lib")
-#include <d3dcompiler.h>
-#include "d3dx12.h"
 #endif
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
 
-wchar_t* CharToWChar(const char* pstrSrc)
+namespace DK
 {
-	int nLen = static_cast<int>(strlen(pstrSrc)) + 1;
-
-	wchar_t* pwstr = (LPWSTR)malloc(sizeof(wchar_t) * nLen);
-
-	size_t cn;
-	mbstowcs_s(&cn, pwstr, nLen, pstrSrc, nLen);
-
-	return pwstr;
-}
-bool loadImageDataFromFile(const char* fileName, _OUT_ TextureRaw& textureRaw)
-{
-	HRESULT hr;
-
-	static IWICImagingFactory* wicFactory;
-
-	IWICBitmapDecoder* wicDecoder = NULL;
-	IWICBitmapFrameDecode* wicFrame = NULL;
-	IWICFormatConverter* wicConverter = NULL;
-
-	bool imageConverted = false;
-
-	if (wicFactory == NULL)
+	wchar_t* CharToWChar(const char* pstrSrc)
 	{
-		CoInitialize(NULL);
+		int nLen = static_cast<int>(strlen(pstrSrc)) + 1;
 
-		hr = CoCreateInstance(
-			CLSID_WICImagingFactory,
-			NULL,
-			CLSCTX_INPROC_SERVER,
-			IID_PPV_ARGS(&wicFactory)
+		wchar_t* pwstr = (LPWSTR)malloc(sizeof(wchar_t) * nLen);
+
+		size_t cn;
+		mbstowcs_s(&cn, pwstr, nLen, pstrSrc, nLen);
+
+		return pwstr;
+	}
+	bool loadImageDataFromFile(const char* fileName, _OUT_ TextureRaw& textureRaw)
+	{
+		HRESULT hr;
+
+		static IWICImagingFactory* wicFactory;
+
+		IWICBitmapDecoder* wicDecoder = NULL;
+		IWICBitmapFrameDecode* wicFrame = NULL;
+		IWICFormatConverter* wicConverter = NULL;
+
+		bool imageConverted = false;
+
+		if (wicFactory == NULL)
+		{
+			CoInitialize(NULL);
+
+			hr = CoCreateInstance(
+				CLSID_WICImagingFactory,
+				NULL,
+				CLSCTX_INPROC_SERVER,
+				IID_PPV_ARGS(&wicFactory)
+			);
+			if (FAILED(hr)) return false;
+		}
+
+		const wchar_t* wTexturePath = CharToWChar(fileName);
+		hr = wicFactory->CreateDecoderFromFilename(
+			wTexturePath,                    // Image we want to load in
+			NULL,                            // This is a vendor ID, we do not prefer a specific one so set to null
+			GENERIC_READ,                    // We want to read from this file
+			WICDecodeMetadataCacheOnLoad,    // We will cache the metadata right away, rather than when needed, which might be unknown
+			&wicDecoder                      // the wic decoder to be created
 		);
-		if (FAILED(hr)) return false;
-	}
-
-	const wchar_t* wTexturePath = CharToWChar(fileName);
-	hr = wicFactory->CreateDecoderFromFilename(
-		wTexturePath,                    // Image we want to load in
-		NULL,                            // This is a vendor ID, we do not prefer a specific one so set to null
-		GENERIC_READ,                    // We want to read from this file
-		WICDecodeMetadataCacheOnLoad,    // We will cache the metadata right away, rather than when needed, which might be unknown
-		&wicDecoder                      // the wic decoder to be created
-	);
-	dk_delete_array(wTexturePath);
-	if (FAILED(hr)) return false;
-
-	hr = wicDecoder->GetFrame(0, &wicFrame);
-	if (FAILED(hr)) return false;
-
-	WICPixelFormatGUID pixelFormat;
-	hr = wicFrame->GetPixelFormat(&pixelFormat);
-	if (FAILED(hr)) return false;
-
-	// get size of image
-	hr = wicFrame->GetSize(&textureRaw._width, &textureRaw._height);
-	if (FAILED(hr)) return false;
-
-	DXGI_FORMAT dxgiFormat = GetDXGIFormatFromWICFormat(pixelFormat);
-
-	if (dxgiFormat == DXGI_FORMAT_UNKNOWN)
-	{
-		WICPixelFormatGUID convertToPixelFormat = GetConvertToWICFormat(pixelFormat);
-
-		if (convertToPixelFormat == GUID_WICPixelFormatDontCare) return false;
-
-		dxgiFormat = GetDXGIFormatFromWICFormat(convertToPixelFormat);
-
-		hr = wicFactory->CreateFormatConverter(&wicConverter);
+		dk_delete_array(wTexturePath);
 		if (FAILED(hr)) return false;
 
-		BOOL canConvert = FALSE;
-		hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
-		if (FAILED(hr) || !canConvert) return false;
-
-		hr = wicConverter->Initialize(wicFrame, convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
+		hr = wicDecoder->GetFrame(0, &wicFrame);
 		if (FAILED(hr)) return false;
 
-		imageConverted = true;
-	}
+		WICPixelFormatGUID pixelFormat;
+		hr = wicFrame->GetPixelFormat(&pixelFormat);
+		if (FAILED(hr)) return false;
 
-	textureRaw._bitsPerPixel = GetDXGIFormatBitsPerPixel(dxgiFormat); // number of bits per pixel
-	uint bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
-	uint imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
+		// get size of image
+		hr = wicFrame->GetSize(&textureRaw._width, &textureRaw._height);
+		if (FAILED(hr)) return false;
 
-	textureRaw._data = (BYTE*)malloc(imageSize);
-	textureRaw._format = dxgiFormat;
+		DXGI_FORMAT dxgiFormat = GetDXGIFormatFromWICFormat(pixelFormat);
 
-	if (imageConverted)
-	{
-		hr = wicConverter->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
-		if (FAILED(hr))
+		if (dxgiFormat == DXGI_FORMAT_UNKNOWN)
 		{
-			dk_delete_array(textureRaw._data);
-			return false;
+			WICPixelFormatGUID convertToPixelFormat = GetConvertToWICFormat(pixelFormat);
+
+			if (convertToPixelFormat == GUID_WICPixelFormatDontCare) return false;
+
+			dxgiFormat = GetDXGIFormatFromWICFormat(convertToPixelFormat);
+
+			hr = wicFactory->CreateFormatConverter(&wicConverter);
+			if (FAILED(hr)) return false;
+
+			BOOL canConvert = FALSE;
+			hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
+			if (FAILED(hr) || !canConvert) return false;
+
+			hr = wicConverter->Initialize(wicFrame, convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
+			if (FAILED(hr)) return false;
+
+			imageConverted = true;
 		}
-	}
-	else
-	{
-		hr = wicFrame->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
-		if (FAILED(hr))
+
+		textureRaw._bitsPerPixel = GetDXGIFormatBitsPerPixel(dxgiFormat); // number of bits per pixel
+		uint bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
+		uint imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
+
+		textureRaw._data = (BYTE*)malloc(imageSize);
+		textureRaw._format = dxgiFormat;
+
+		if (imageConverted)
 		{
-			dk_delete_array(textureRaw._data);
-			return false;
+			hr = wicConverter->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
+			if (FAILED(hr))
+			{
+				dk_delete_array(textureRaw._data);
+				return false;
+			}
 		}
+		else
+		{
+			hr = wicFrame->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
+			if (FAILED(hr))
+			{
+				dk_delete_array(textureRaw._data);
+				return false;
+			}
+		}
+
+		return true;
 	}
 
-	return true;
-}
-
-bool TextureManager::initialize()
-{
-	if (DuckingEngine::getInstance().GetRenderModuleWritable().createTextureBindlessDescriptorHeap(_textureDescriptorHeap) == false)
-		return false;
-
-	return true;
-}
-
-const ITextureRef& TextureManager::createTexture(const DKString& texturePath)
-{
-	DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(texturePath);
-	if (findResult != _textureContainer.end())
+	bool TextureManager::initialize()
 	{
-		return findResult->second;
+		if (DuckingEngine::getInstance().GetRenderModuleWritable().createTextureBindlessDescriptorHeap(_textureDescriptorHeap) == false)
+			return false;
+
+		return true;
 	}
 
-	TextureRaw textureRaw;
-	const bool loadingTextureSuccess = loadImageDataFromFile(texturePath.c_str(), textureRaw);
-	if (loadingTextureSuccess == false)
+	const ITextureRef& TextureManager::createTexture(const DKString& texturePath)
 	{
-		DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
-		// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
-	}
+		DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(texturePath);
+		if (findResult != _textureContainer.end())
+		{
+			return findResult->second;
+		}
 
-	ITexture::TextureSRVType index = static_cast<ITexture::TextureSRVType>(_textureContainer.size());
-	if (_deletedTextureSRV.empty() == false)
-	{
-		index = _deletedTextureSRV.back();
-		_deletedTextureSRV.pop_back();
-	}
+		TextureRaw textureRaw;
+		const bool loadingTextureSuccess = loadImageDataFromFile(texturePath.c_str(), textureRaw);
+		if (loadingTextureSuccess == false)
+		{
+			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
+		}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE handle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	if (DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(textureRaw, handle, index) == false)
-	{
-		DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
-		// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
-	}
+		ITexture::TextureSRVType index = static_cast<ITexture::TextureSRVType>(_textureContainer.size());
+		if (_deletedTextureSRV.empty() == false)
+		{
+			index = _deletedTextureSRV.back();
+			_deletedTextureSRV.pop_back();
+		}
 
-	using InsertResult = DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool>;
-	InsertResult insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(texturePath, dk_new ITexture(texturePath, index)));
-	if (insertResult.second == false)
-	{
-		DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
-		// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
-	}
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		if (DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(textureRaw, handle, index) == false)
+		{
+			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
+		}
 
-	return insertResult.first->second;
+		using InsertResult = DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool>;
+		InsertResult insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(texturePath, dk_new ITexture(texturePath, index)));
+		if (insertResult.second == false)
+		{
+			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
+			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
+		}
+
+		return insertResult.first->second;
+	}
 }

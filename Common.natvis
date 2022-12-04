@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="DK::float3">
+    <DisplayString>{x}, {y}, {z}</DisplayString>
+  </Type>
+  <Type Name="DK::float4">
+    <DisplayString>{x}, {y}, {z}, {w}</DisplayString>
+  </Type>
+  <Type Name="DK::Quaternion">
+    <DisplayString>{x}, {y}, {z}, {w}</DisplayString>
+  </Type>
+  <Type Name="DK::Vertex">
+    <DisplayString>{_boneIndexes} {_weights}</DisplayString>
+  </Type>
+</AutoVisualizer>

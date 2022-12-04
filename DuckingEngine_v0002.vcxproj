@@ -53,8 +53,6 @@
     </ClCompile>
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="SceneObject.cpp" />
-    <ClCompile Include="float2.cpp" />
-    <ClCompile Include="float4.cpp" />
     <ClCompile Include="lib\imgui\backends\imgui_impl_dx12.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
@@ -102,8 +100,6 @@
     <ClCompile Include="FBXLoader.cpp" />
     <ClCompile Include="GameModule.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="Matrix3x3.cpp" />
-    <ClCompile Include="Matrix4x4.cpp" />
     <ClCompile Include="SceneObjectManager.cpp" />
     <ClCompile Include="SceneRenderer.cpp" />
     <ClCompile Include="Skeleton.cpp" />
@@ -113,7 +109,6 @@
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="TextureManager.cpp" />
-    <ClCompile Include="Transform.cpp" />
     <ClCompile Include="XBOXController.cpp" />
     <ClCompile Include="XboxState.cpp" />
   </ItemGroup>
@@ -130,8 +125,6 @@
     <ClInclude Include="lib\tinyXML\tinyxml.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="SceneObject.h" />
-    <ClInclude Include="float2.h" />
-    <ClInclude Include="float4.h" />
     <ClInclude Include="lib\imgui\backends\imgui_impl_dx12.h" />
     <ClInclude Include="lib\imgui\backends\imgui_impl_win32.h" />
     <ClInclude Include="lib\imgui\imconfig.h" />
@@ -145,8 +138,6 @@
     <ClInclude Include="EditorModule.h" />
     <ClInclude Include="FBXLoader.h" />
     <ClInclude Include="GameModule.h" />
-    <ClInclude Include="Matrix3x3.h" />
-    <ClInclude Include="Matrix4x4.h" />
     <ClInclude Include="SceneObjectManager.h" />
     <ClInclude Include="SceneRenderer.h" />
     <ClInclude Include="Skeleton.h" />
@@ -156,9 +147,11 @@
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="TextureManager.h" />
-    <ClInclude Include="Transform.h" />
     <ClInclude Include="XBOXController.h" />
     <ClInclude Include="XboxState.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="Common.natvis" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

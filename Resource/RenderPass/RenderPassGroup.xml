@@ -1,19 +1,28 @@
 <RenderPassGroup>
 	<RenderPass Name="SkinnedMeshStandardRenderPass">
-		<VertexShader Entry="VSMain">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.hlsl</VertexShader>
-		<PixelShader Entry="PSMain">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.hlsl</PixelShader>
-		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
-		<Parameter Name="SceneObjectConstantBuffer" Type="Buffer" Register="1"/>
-		<Parameter Name="SkeletonConstantBuffer" Type="Buffer" Register="2"/>
-		<Parameter Name="SkinnedMeshStandard" Type="Buffer" Register="3"/>
+		<Pipeline Name="SkinnedMeshStandardPipeline" PrimitiveTopologyType="Triangle">
+			<VertexShader Entry="VSMain">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\SkinnedMeshStandard.hlsl</PixelShader>
+			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<Parameter Name="SceneObjectConstantBuffer" Type="Buffer" Register="1"/>
+			<Parameter Name="SkeletonConstantBuffer" Type="Buffer" Register="2"/>
+			<Parameter Name="SkinnedMeshStandard" Type="Buffer" Register="3"/>
+		</Pipeline>
 	</RenderPass>
 
 	<RenderPass Name="DebugDrawElementRenderPass">
-		<VertexShader Entry="VSMainSphere">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\DebugDrawElement.hlsl</VertexShader>
-		<PixelShader Entry="PSMainSphere">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\DebugDrawElement.hlsl</PixelShader>
-		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
-		<!-- <Parameter Name="SpherePrimitiveInfoBuffer" Type="Buffer" Register="0"/> -->
-		<Parameter Name="SpherePrimitiveInfoBuffer" Type="StructuredBuffer" Register="0"/>
+		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle">
+			<VertexShader Entry="VSMainSphere">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\DebugDrawElement.hlsl</VertexShader>
+			<PixelShader Entry="PSMainSphere">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\DebugDrawElement.hlsl</PixelShader>
+			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<Parameter Name="SpherePrimitiveInfoBuffer" Type="StructuredBuffer" Register="0"/>
+		</Pipeline>
+		<Pipeline Name="LinePipeline" PrimitiveTopologyType="Line">
+			<VertexShader Entry="VSMainLine">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\DebugDrawElement.hlsl</VertexShader>
+			<PixelShader Entry="PSMainLine">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Material\DebugDrawElement.hlsl</PixelShader>
+			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<Parameter Name="LinePrimitiveInfoBuffer" Type="StructuredBuffer" Register="0"/>
+		</Pipeline>
 	</RenderPass>
 </RenderPass>
 </RenderPassGroup>

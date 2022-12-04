@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "Application.h"
 
-#ifdef DK_WINDOW
+#ifdef _DK_WINDOW_
 #include <filesystem>
 #include <shlobj.h>
 
@@ -83,14 +83,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
         LocalFree(argv);
 #endif
 
-		Application* application = dk_new Application;
-		ApplicationInitializeData data(hInstance, true, 1920, 1080, false);
-		if (application->Initialize(data) == false)
+		DK::Application* application = dk_new DK::Application;
+		DK::ApplicationInitializeData data(hInstance, true, 1920, 1080, false);
+		if (application->initialize(data) == false)
 		{
 			DK_ASSERT_LOG(false, "Application Initialization - Failed");
 		}
 
-		application->Run();
+		application->run();
 	}
 	catch (const std::exception& exo)
 	{
