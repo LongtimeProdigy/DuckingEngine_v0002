@@ -58,7 +58,7 @@ namespace DK
 		void prepareShaderData();
 		void endUpdateRender();
 
-#define MAX_ELEMENT_COUNT 1024
+#define MAX_ELEMENT_COUNT 32768
 		dk_inline void addSphere(const float3& worldPosition, const float3& color, const float radius)
 		{
 			if (_primitiveInfoSphereArr.size() >= MAX_ELEMENT_COUNT)

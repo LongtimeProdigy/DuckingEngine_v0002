@@ -12,6 +12,8 @@ struct VS_OUTPUT
     float4 position : SV_POSITION;
     float4 normal : NORMAL;
     float2 uv0 : TEXCOORD0;
+
+    float4 customValue0 : CUSTOMVALUE0;
 };
 
 #define BINDLESSTEXTUREARRAY_SPACE space10
@@ -66,15 +68,33 @@ VS_OUTPUT VSMain(VS_INPUT input)
 #else
     // Skinning
     float4x4 skinMatrix = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    float sumWeight = 0;
+    float sumWeight2 = 0;
     for(uint i = 0; i < MAX_SKINNING_COUNT; ++i)
     {
+        if(input.boneIndexes[i] == 0xffffffff)
+            continue;
+
+        if(input.boneWeights[i] == 0)
+            continue;
+
         skinMatrix += _skeletonMatrixBuffer[input.boneIndexes[i]] * input.boneWeights[i];
+
+        sumWeight += input.boneWeights[i];
+        sumWeight2 += skinMatrix._44;
     }
 
     output.position = mul(output.position, skinMatrix);
     output.position = mul(output.position, _worldMatrix);
     output.position = mul(output.position, _cameraWorldMatrix);
     output.position = mul(output.position, _cameraProjectionMatrix);
+
+    static const float epsilon = 0.000001;
+    output.customValue0 = float4(
+        (1.0 - sumWeight) < epsilon ? 1.0f : 0.0f, 
+        (1.0 - sumWeight2) < epsilon ? 1.0f : 0.0f, 
+        0, 1.0f
+    );
 
     output.normal = mul(output.normal, _cameraWorldMatrix);
 #endif
@@ -85,4 +105,5 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
     Texture2D diffuseTexture = gBindlessTextureArray[_diffuseTexture];
     return diffuseTexture.Sample(normalSampler, input.uv0);
+    //return input.customValue0;
 }

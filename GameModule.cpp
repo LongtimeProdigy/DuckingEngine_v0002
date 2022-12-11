@@ -13,7 +13,7 @@ namespace DK
 	{
 		// Test Character
 		SceneObject* characterObject = SceneObjectManager::createCharacter(
-			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Appearance/ganfaul_m_aure.xml"
+			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Appearance/YBot.xml"
 		);
 		if (characterObject == nullptr) return false;
 		characterObject->set_worldTransform(Transform(float3::Zero, Quaternion::Identity, float3::Identity));

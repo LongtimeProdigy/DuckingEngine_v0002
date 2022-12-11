@@ -154,9 +154,9 @@ namespace DK
 					sumWeight += vertex.weights[i];
 
 					if (vertex.boneIndexes[i] == 0xffffffff)
-						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndex가 Invalid(0xffffffff)한데 Weight(%f)가 존재합니다.");
+						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndex가 Invalid(0xffffffff)한데 Weight(%f)가 존재합니다.", sumWeight);
 				}
-#define EPSILON 0.000001f
+#define EPSILON 0.00001f
 				DK_ASSERT_LOG(1.0f - sumWeight < EPSILON, "weight의 합이 1.0이 되지 않습니다.");
 			}
 #endif

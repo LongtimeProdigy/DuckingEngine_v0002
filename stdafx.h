@@ -388,6 +388,20 @@ namespace DK
 		{
 			return std::sqrtf(value);
 		}
+
+		static float min(float lhs, float rhs)
+		{
+			return std::min(lhs, rhs);
+		}
+		static float max(float lhs, float rhs)
+		{
+			return std::max(lhs, rhs);
+		}
+
+		static float clamp(float value, float min, float max)
+		{
+			return Math::max(min, Math::min(value, max));
+		}
 	};
 
 	struct float2
@@ -619,6 +633,7 @@ namespace DK
 		};
 	};
 
+	struct Transform;
 	struct float4x4
 	{
 		static const float4x4 Identity;
@@ -647,7 +662,26 @@ namespace DK
 			, _41(0), _42(0), _43(0), _44(1)
 		{}
 
-		dk_inline const float4x4 operator*(const float4x4& rhs) const noexcept
+		dk_inline const float4x4& operator+=(const float4x4& rhs) noexcept
+		{
+			_11 += rhs._11; _12 += rhs._12; _13 += rhs._13; _14 += rhs._14;
+			_21 += rhs._21; _22 += rhs._22; _23 += rhs._23; _24 += rhs._24;
+			_31 += rhs._31; _32 += rhs._32; _33 += rhs._33; _34 += rhs._34;
+			_41 += rhs._41; _42 += rhs._42; _43 += rhs._43; _44 += rhs._44;
+
+			return *this;
+		}
+
+		dk_inline const float4x4& operator*(const float& rhs) noexcept
+		{
+			_11 *= rhs; _12 *= rhs; _13 *= rhs; _14 *= rhs;
+			_21 *= rhs; _22 *= rhs; _23 *= rhs; _24 *= rhs;
+			_31 *= rhs; _32 *= rhs; _33 *= rhs; _34 *= rhs;
+			_41 *= rhs; _42 *= rhs; _43 *= rhs; _44 *= rhs;
+
+			return *this;
+		}
+		dk_inline float4x4 operator*(const float4x4& rhs) const noexcept
 		{
 			return float4x4(
 				_11 * rhs._11 + _12 * rhs._21 + _13 * rhs._31 + _14 * rhs._41,
@@ -708,6 +742,8 @@ namespace DK
 			static_assert(false, "Matrix Inverse 구현 필요합니다");
 #endif
 		}
+
+		void toTransform(Transform& outTransform) const;
 
 		union
 		{
@@ -788,6 +824,15 @@ namespace DK
 #endif
 		}
 
+		dk_inline void normalize() noexcept
+		{
+#ifdef USE_DIRECTX_MATH
+			r = DirectX::XMQuaternionNormalize(r);
+#else
+			static_assert(false, "Quaternion 구현 필요");
+#endif
+		}
+
 		dk_inline const void invert()
 		{
 #ifdef USE_DIRECTX_MATH
@@ -807,6 +852,32 @@ namespace DK
 				matrix.r[2].m128_f32[0], matrix.r[2].m128_f32[1], matrix.r[2].m128_f32[2], matrix.r[2].m128_f32[3], 
 				matrix.r[3].m128_f32[0], matrix.r[3].m128_f32[1], matrix.r[3].m128_f32[2], matrix.r[3].m128_f32[3]
 			);
+#else
+			static_assert(false, "Quaternion 구현 필요");
+#endif
+		}
+
+		dk_inline void toEuler(float3& outEuler) const
+		{
+#ifdef USE_DIRECTX_MATH
+			DirectX::XMMATRIX M = DirectX::XMMatrixRotationQuaternion(r);
+
+			float cy = sqrtf(M.r[2].m128_f32[2] * M.r[2].m128_f32[2] + M.r[2].m128_f32[0] * M.r[2].m128_f32[0]);
+
+			DirectX::XMVECTORF32 vResult;
+			vResult.f[0] = atan2f(-M.r[2].m128_f32[1], cy);
+			if (cy > 16.f * FLT_EPSILON)
+			{
+				vResult.f[1] = atan2f(M.r[2].m128_f32[0], M.r[2].m128_f32[2]);
+				vResult.f[2] = atan2f(M.r[0].m128_f32[1], M.r[1].m128_f32[1]);
+			}
+			else
+			{
+				vResult.f[1] = 0.f;
+				vResult.f[2] = atan2f(-M.r[1].m128_f32[0], M.r[0].m128_f32[0]);
+			}
+			vResult.f[3] = 0.f;
+			outEuler = float3(vResult.f[0], vResult.f[1], vResult.f[2]);
 #else
 			static_assert(false, "Quaternion 구현 필요");
 #endif

@@ -633,7 +633,7 @@ namespace DK
 		D3D12_RASTERIZER_DESC rasterizerDesc = {};
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 		//rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
-		rasterizerDesc.CullMode = D3D12_CULL_MODE_FRONT;
+		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
 		//rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 		rasterizerDesc.FrontCounterClockwise = FALSE;
 		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;

@@ -17,21 +17,39 @@ namespace DK
 		const float2& lJoystick = InputModule::GetJoystickL();
 		const float2& rJoystick = InputModule::GetJoystickR();
 		float moveForward = lJoystick.y + 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_UP)) - 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_DOWN));
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_W)) - 
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_S));
 		float moveRight = lJoystick.x - 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_LEFT)) + 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_RIGHT));
-		float moveUp = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_PAGEUP)) - 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_PAGEDOWN));
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_A)) + 
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_D));
+		float moveUp = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_E)) - 
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_Q));
 
 		float yaw = rJoystick.x + mouseDelta.x;
 		float pitch = rJoystick.y + mouseDelta.y;
 
+		yaw *= 0.2f;
+		pitch *= 0.2f;
+
+		// Translation
 		float3 moveOffset(moveRight, moveUp, moveForward);
+		moveOffset.normalize();
 		moveOffset *= deltaTime;
-		Quaternion rotateOffset(0, 0, yaw);
-		Transform offsetTransform(moveOffset, rotateOffset, float3::Identity);
-		set_worldTransform(offsetTransform * get_worldTransform());
+
+		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
+		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();
+		
+		// Rotate
+		const Quaternion& originRotation = get_worldTransform().get_rotation();
+		float3 originEuler;
+		originRotation.toEuler(originEuler);
+		float3 rotateOffset(pitch, yaw, 0);
+		float3 finalRotate = rotateOffset + originEuler;
+		finalRotate.x = Math::clamp(finalRotate.x, -Math::Half_PI/2, Math::Half_PI/2);
+		Quaternion finalQuaternion(finalRotate.z, finalRotate.x, finalRotate.y);
+
+		Transform setTransform(finalMoveOffset, finalQuaternion, float3::Identity);
+
+		set_worldTransform(setTransform);
 	}
 }

@@ -142,87 +142,12 @@ namespace DK
 				currentCharacterSpaceBoneAnimation[boneIndex] = currentCharacterSpaceBoneAnimation[boneIndex] * currentCharacterSpaceBoneAnimation[bones[boneIndex]._parentBoneIndex];
 		}
 
-#ifdef _DK_DEBUG_
-		// T-POSE
-		{
-			static const float scale = 0.05f;
-			EditorDebugDrawManager::getSingleton().addAxis(float4x4::Identity, float3(scale, scale, scale));
-
-			uint32 boneIndex = 0;
-			for (const float4x4& characterSpacePosition : characterSpaceBoneMatrix)
-			{
-				float colorR = static_cast<float>(boneIndex) / characterSpaceBoneMatrix.size();
-				EditorDebugDrawManager::getSingleton().addSphere(characterSpacePosition.getTranslation(), float3(colorR, 0, 0), 0.01f);
-				EditorDebugDrawManager::getSingleton().addAxis(characterSpacePosition, float3(scale, scale, scale));
-
-				if (bones[boneIndex]._parentBoneIndex != 0xffffffff)
-					EditorDebugDrawManager::getSingleton().addLine(
-						characterSpacePosition.getTranslation(), 
-						characterSpaceBoneMatrix[bones[boneIndex]._parentBoneIndex].getTranslation(), 
-						float3(colorR, 0, 0)
-					);
-
-				++boneIndex;
-			}
-		}
-
-		// Inverse Matrix
-		{
-			//static const float scale = 0.05f;
-			//EditorDebugDrawManager::getSingleton().addAxis(float4x4::Identity, float3(scale, scale, scale));
-
-			uint32 boneIndex = 0;
-			for (const float4x4& inverseCharacterSpacePosition : characterSpaceInvertBoneMatrix)
-			{
-				float4x4 characterSpacePosition;
-				inverseCharacterSpacePosition.inverse_copy(characterSpacePosition);
-
-				float colorG = static_cast<float>(boneIndex) / characterSpaceInvertBoneMatrix.size();
-				EditorDebugDrawManager::getSingleton().addSphere(characterSpacePosition.getTranslation(), float3(0, colorG, 0), 0.01f);
-				//EditorDebugDrawManager::getSingleton().addAxis(characterSpacePosition, float3(scale, scale, scale));
-
-				if (bones[boneIndex]._parentBoneIndex != 0xffffffff)
-				{
-					float4x4 parentCharacterSpacePosition;
-					characterSpaceInvertBoneMatrix[bones[boneIndex]._parentBoneIndex].inverse_copy(parentCharacterSpacePosition);
-
-					EditorDebugDrawManager::getSingleton().addLine(
-						characterSpacePosition.getTranslation(), 
-						parentCharacterSpacePosition.getTranslation(), 
-						float3(0, colorG, 0)
-					);
-				}
-
-				++boneIndex;
-			}
-		}
-
-		// ANIMATION
-		{
-			uint32 boneIndex = 0;
-			for (const float4x4& characterSpacePosition : currentCharacterSpaceBoneAnimation)
-			{
-				float colorB = static_cast<float>(boneIndex) / characterSpaceBoneMatrix.size();
-				EditorDebugDrawManager::getSingleton().addSphere(characterSpacePosition.getTranslation(), float3(0, 0, colorB), 0.01f);
-				if (bones[boneIndex]._parentBoneIndex != 0xffffffff)
-					EditorDebugDrawManager::getSingleton().addLine(characterSpacePosition.getTranslation(), currentCharacterSpaceBoneAnimation[bones[boneIndex]._parentBoneIndex].getTranslation(), float3(0, 0, colorB));
-
-				++boneIndex;
-			}
-		}
-#endif
-
-		/*
-		* Skinning Matrix 자체는 Vertex단위로 있어야합니다. 이 곳에서는 bone단위의 Invert * Animation을 구하고
-		* 셰이더에서 Vertex단위로 weight를 곱해주도록 합니다.
-		*/
 		// Build Skinning Matrix(Bone)
 		_currentCharacterSpaceBoneAnimation.clear();
 		_currentCharacterSpaceBoneAnimation.resize(boneCount);
 		for (uint boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 		{
-			float4x4 boneSpaceAnimationMatrix = characterSpaceInvertBoneMatrix[boneIndex] * currentCharacterSpaceBoneAnimation[boneIndex];
-			_currentCharacterSpaceBoneAnimation[boneIndex] = boneSpaceAnimationMatrix;
+			_currentCharacterSpaceBoneAnimation[boneIndex] = characterSpaceInvertBoneMatrix[boneIndex] * currentCharacterSpaceBoneAnimation[boneIndex];
 		}
 	}
 }

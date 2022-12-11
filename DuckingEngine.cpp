@@ -38,7 +38,7 @@ namespace DK
 		_renderModule = dk_new RenderModule;
 		if (_renderModule->initialize(hwnd, width, height) == false) return false;
 
-		Camera::gMainCamera = dk_new Camera(90.0f, width, height);
+		Camera::gMainCamera = dk_new Camera(60, width, height);
 		Transform cameraTransform(float3(0, 1, -1), Quaternion::Identity, float3::Identity);
 		Camera::gMainCamera->set_worldTransform(cameraTransform);
 

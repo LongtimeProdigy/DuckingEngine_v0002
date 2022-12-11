@@ -296,6 +296,12 @@ namespace DK
 			sprintf_s(cameraRotationBuffer, MAX_BUFFER_LENGTH, "Rotation: x: %f, y: %f, z: %f, w: %f", cameraRotation.x, cameraRotation.y, cameraRotation.z, cameraRotation.w);
 			ImGui::Text(cameraRotationBuffer);
 
+			char cameraRotationEulerBuffer[MAX_BUFFER_LENGTH];
+			float3 eulerRotation;
+			cameraRotation.toEuler(eulerRotation);
+			sprintf_s(cameraRotationEulerBuffer, MAX_BUFFER_LENGTH, "Rotation: roll: %f, yaw: %f, pitch: %f", eulerRotation.x, eulerRotation.y, eulerRotation.z);
+			ImGui::Text(cameraRotationEulerBuffer);
+
 			char cameraRotationMatrixBuffer[MAX_BUFFER_LENGTH];
 			float4x4 transformMatrix;
 			Camera::gMainCamera->get_worldTransform().tofloat4x4(transformMatrix);

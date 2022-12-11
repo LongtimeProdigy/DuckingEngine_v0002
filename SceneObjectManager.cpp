@@ -20,10 +20,12 @@ namespace DK
 		}
 
 #if defined(USE_TINYXML)
-		TiXmlDocument ReadDoc;
-		ReadDoc.LoadFile(appearancePath);
+		TiXmlDocument doc;
+		if (doc.LoadFile(appearancePath) == false)
+			DK_ASSERT_LOG(false, "Appearance File LoadError: %s", doc.ErrorDesc());
+		// return false ÇØÁà¾ßÇÒµí..
 
-		TiXmlElement* ReadRoot = ReadDoc.FirstChildElement("Appearance");
+		TiXmlElement* ReadRoot = doc.FirstChildElement("Appearance");
 		TiXmlElement* modelNode = ReadRoot->FirstChildElement("Model");
 		const char* modelPath = modelNode->GetText();
 		TiXmlElement* skeletonNode = ReadRoot->FirstChildElement("Skeleton");

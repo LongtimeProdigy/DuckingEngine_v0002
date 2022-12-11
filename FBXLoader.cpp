@@ -12,6 +12,8 @@
 #include "Animation.h"
 #include "Material.h"
 
+#include "RenderModule.h"
+
 namespace DK
 {
 #ifdef USE_ASSIMP
