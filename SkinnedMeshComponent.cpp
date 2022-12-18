@@ -19,11 +19,11 @@ namespace DK
 		ResourceManager& resourceManager = DuckingEngine::getInstance().GetResourceManagerWritable();
 
 		// Load Mesh
-		if (resourceManager.LoadMesh(modelPath, _model) == false) return false;
+		if (resourceManager.loadSkinnedMesh(modelPath, _model) == false) return false;
 		// Load Skeleton
-		if (resourceManager.LoadSkeleton(skeletonPath, _model, _skeleton) == false) return false;
+		if (resourceManager.loadSkeleton(skeletonPath, _model, _skeleton) == false) return false;
 		// Load Animation
-		if (resourceManager.LoadAnimation(animationSetPath, _skeleton, _animation) == false) return false;
+		if (resourceManager.loadAnimation(animationSetPath, _skeleton, _animation) == false) return false;
 
 #if defined(USE_TINYXML)
 		TiXmlDocument doc;
@@ -32,10 +32,10 @@ namespace DK
 		const TiXmlElement* rootNode = doc.FirstChildElement("ModelProperty");
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		DKVector<SubMesh>& subMeshes = _model->GetSubMeshesWritable();
+		DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = _model->get_subMeshesWritable();
 		const TiXmlElement* subMeshesNode = rootNode->FirstChildElement("SubMeshes");
 		const uint subMeshCount = atoi(subMeshesNode->Attribute("Count"));
-		DK_ASSERT_LOG(subMeshCount == _model->GetSubMeshes().size(), "Load된 SubMesh개수와 Total SubMesh개수가 다릅니다.");
+		DK_ASSERT_LOG(subMeshCount == _model->get_subMeshes().size(), "Load된 SubMesh개수와 Total SubMesh개수가 다릅니다.");
 		DKVector<MaterialDefinition> modelProperties;
 		const TiXmlElement* subMeshNode = subMeshesNode->ToElement()->FirstChildElement();
 		for (uint32 i = 0; i < subMeshCount; ++i)
@@ -65,17 +65,17 @@ namespace DK
 
 		for (uint subMeshIndex = 0; subMeshIndex < subMeshCount; ++subMeshIndex)
 		{
-			SubMesh& submesh = subMeshes[subMeshIndex];
+			SkinnedMeshModel::SubMeshType& submesh = subMeshes[subMeshIndex];
 			if (Material::createMaterial(modelProperties[subMeshIndex], submesh._material) == false) return false;
 		}
 
 		for (uint subMeshIndex = 0; subMeshIndex < subMeshCount; ++subMeshIndex)
 		{
-			SubMesh& submesh = subMeshes[subMeshIndex];
+			SkinnedMeshModel::SubMeshType& submesh = subMeshes[subMeshIndex];
 			if (submesh._vertexBufferView.get() == nullptr)
 			{
 				const bool vertexBufferSuccess = renderModule.createVertexBuffer(
-					&submesh._vertices[0], sizeof(Vertex), static_cast<uint32>(submesh._vertices.size()), submesh._vertexBufferView
+					&submesh._vertices[0], sizeof(SkinnedMeshVertex), static_cast<uint32>(submesh._vertices.size()), submesh._vertexBufferView
 				);
 				if (vertexBufferSuccess == false) return false;
 			}

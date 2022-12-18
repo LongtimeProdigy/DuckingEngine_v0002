@@ -593,8 +593,6 @@ namespace DK
 	}
 	bool RenderModule::createPipelineObjectState(const char* vsPath, const char* vsEntry, const char* psPath, const char* psEntry, Pipeline& inoutPipeline)
 	{
-		ID3D12PipelineState* createdPipelineStateObject = nullptr;
-
 		D3D12_SHADER_BYTECODE vertexShaderView = {};
 		RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
 		bool success = compileShader(vsPath, vsEntry, true, vertexShader.get(), vertexShaderView);
@@ -778,7 +776,6 @@ namespace DK
 	{
 		kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
 
-		uint32 test = static_cast<uint>(_fences[kCurrentFrameIndex]->GetCompletedValue());
 		if (static_cast<uint>(_fences[kCurrentFrameIndex]->GetCompletedValue()) < _fenceValues[kCurrentFrameIndex])
 		{
 			_fences[kCurrentFrameIndex]->SetEventOnCompletion(_fenceValues[kCurrentFrameIndex], _fenceEvent);
@@ -1006,8 +1003,6 @@ namespace DK
 		_commandList->_commandList->ResourceBarrier(1, &barrier);
 
 		execute();
-
-		UINT descriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE::D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;

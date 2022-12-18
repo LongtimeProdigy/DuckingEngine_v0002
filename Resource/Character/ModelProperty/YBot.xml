@@ -1,17 +1,52 @@
 <ModelProperty>
-	<SubMeshes Count="2">
+	<SubMeshes Count="8">
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Texture\BODY_diffuse.png</Parameter>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
 				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Texture\BODY_diffuse.png</Parameter>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\BODY_diffuse.png</Parameter>
 				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\BODY_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\BODY_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+		<SubMesh Name="SkinnedMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
 		</SubMesh>
 	</SubMesh>
 </ModelProperty>

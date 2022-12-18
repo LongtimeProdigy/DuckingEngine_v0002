@@ -9,7 +9,7 @@
   <Type Name="DK::Quaternion">
     <DisplayString>{x}, {y}, {z}, {w}</DisplayString>
   </Type>
-  <Type Name="DK::Vertex">
+  <Type Name="DK::SkinnedMeshVertex">
     <DisplayString>{_boneIndexes} {_weights}</DisplayString>
   </Type>
 </AutoVisualizer>

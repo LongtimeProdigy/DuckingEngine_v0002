@@ -23,6 +23,7 @@ namespace DK
 		"float",
 		"Texture",
 	};
+
 	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_COUNT_OF(gMaterialParameterTypeName) - 1), "Type과 TypeName 개수가 일치되어야합니다.");
 	dk_inline MaterialParameterType convertStringToEnum(const char* str)
 	{
@@ -128,30 +129,17 @@ namespace DK
 			_parameterBufferForCPU.swap(rhs._parameterBufferForCPU);
 			_parameterBufferForGPU.swap(rhs._parameterBufferForGPU);
 		}
-		~Material();
+		~Material() {}
 
 	public:
-		dk_inline const DKString& getMaterialName() const noexcept
-		{
-			return _materialName;
-		};
-		dk_inline const Ptr<IBuffer>& getParameterBuffer() const noexcept
-		{
-			return _parameterBufferForGPU;
-		};
-		dk_inline Ptr<IBuffer>& getParameterBufferWritable() noexcept
-		{
-			return _parameterBufferForGPU;
-		};
-
 		bool setModelProperty(const MaterialDefinition& modelProperty);
 
 	private:
-		DKString _materialName;
+		DK_REFLECTION_DECLARE(DKString, _materialName);
 		DKVector<Ptr<MaterialParameter>> _parameters;
 
 		DKVector<char> _parameterBufferForCPU;
-		Ptr<IBuffer> _parameterBufferForGPU;
+		DK_REFLECTION_PTR_DECLARE_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);
 	};
 #pragma endregion
 }

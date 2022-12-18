@@ -14,6 +14,6 @@ namespace DK
 		virtual void update(float deltaTime) override final {}
 
 	public:
-		Ptr<IBuffer> _sceneObjectConstantBuffer = nullptr;
+		Ptr<IBuffer> _sceneObjectConstantBuffer;
 	};
 }

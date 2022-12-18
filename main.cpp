@@ -2,9 +2,7 @@
 #include "Application.h"
 
 #ifdef _DK_WINDOW_
-#include <filesystem>
 #include <shlobj.h>
-
 #include <strsafe.h>
 
 #if defined(USE_PIX)

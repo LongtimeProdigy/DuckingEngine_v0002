@@ -1,10 +1,6 @@
 #include "stdafx.h"
 #include "ResourceManager.h"
 
-#pragma region Lib
-#include "FBXLoader.h"
-#pragma endregion
-
 #include "Model.h"
 #include "Skeleton.h"
 #include "Animation.h"
@@ -52,7 +48,7 @@ namespace DK
 			StringUtil::atof(tokens[3].c_str())
 		);
 	}
-	const bool LoadMeshInternal(const DKString& modelPath, ModelRef& outModel)
+	const bool LoadMeshInternal(const DKString& modelPath, SkinnedMeshModelRef& outModel)
 	{
 		static const char* errorString[] =
 		{
@@ -121,7 +117,7 @@ namespace DK
 		std::memcpy(&subMeshCount, &buffer[bufferOffset], 4);
 		bufferOffset += 4;
 
-		DKVector<SubMesh> submeshes;
+		DKVector<SkinnedMeshModel::SubMeshType> submeshes;
 		submeshes.reserve(subMeshCount);
 		for (uint i = 0; i < subMeshCount; ++i)
 		{
@@ -140,10 +136,10 @@ namespace DK
 			std::memcpy(&vertexCount, &buffer[bufferOffset], 4);
 			bufferOffset += 4;
 			// vertexBuffer
-			DKVector<Vertex> vertexBuffer;
+			DKVector<SkinnedMeshVertex> vertexBuffer;
 			vertexBuffer.resize(vertexCount);
-			std::memcpy(vertexBuffer.data(), &buffer[bufferOffset], vertexCount * sizeof(Vertex));
-			bufferOffset += vertexCount * sizeof(Vertex);
+			std::memcpy(vertexBuffer.data(), &buffer[bufferOffset], vertexCount * sizeof(SkinnedMeshVertex));
+			bufferOffset += vertexCount * sizeof(SkinnedMeshVertex);
 
 #ifdef _DK_DEBUG_
 			for (auto vertex : vertexBuffer)
@@ -161,7 +157,7 @@ namespace DK
 			}
 #endif
 
-			submeshes.push_back(SubMesh(vertexBuffer, indexBuffer));
+			submeshes.push_back(SkinnedMeshModel::SubMeshType(vertexBuffer, indexBuffer));
 		}
 
 		DK_ASSERT_LOG(feof(fp) == 0, "파일이 끝에 도달하지 못했습니다. %d/%d", ftell(fp), blockSize);
@@ -169,7 +165,7 @@ namespace DK
 		fclose(fp);
 		dk_delete_array(buffer);
 
-		outModel->MoveSubMeshesFrom(submeshes);
+		outModel->move_subMeshes(std::move(submeshes));
 
 		return true;
 	}
@@ -364,23 +360,18 @@ namespace DK
 	}
 #endif
 
-	const bool ResourceManager::LoadMesh(const DKString& modelPath, ModelRef& outModel)
+	const bool ResourceManager::loadSkinnedMesh(const DKString& modelPath, SkinnedMeshModelRef& outModel)
 	{
-		typedef DKPair<DKHashMap<DKString, ModelRef>::iterator, bool> InsertResult;
-		InsertResult success = _modelContainer.insert(DKPair<DKString, ModelRef>(modelPath, dk_new Model));
+		typedef DKPair<DKHashMap<DKString, SkinnedMeshModelRef>::iterator, bool> InsertResult;
+		InsertResult success = _modelContainer.insert(DKPair<DKString, SkinnedMeshModelRef>(modelPath, dk_new SkinnedMeshModel));
 		if (success.second == false)
 		{
 			outModel = success.first->second;
 			return true;
 		}
 
-		ModelRef& model = success.first->second;
-#if 0 // load From FBX
-		FBXLoader* loader = new FBXLoader;
-		if (loader->LoadFBXMeshFromFile(modelPath, model) == false)
-#else
+		SkinnedMeshModelRef& model = success.first->second;
 		if (LoadMeshInternal(modelPath, model) == false)
-#endif
 		{
 			DK_ASSERT_LOG(true, "Model Loading Failed. path: %s", modelPath.c_str());
 			_modelContainer.erase(modelPath);
@@ -390,7 +381,7 @@ namespace DK
 		outModel = success.first->second;
 		return true;
 	}
-	const bool ResourceManager::LoadSkeleton(const DKString& skeletonPath, const ModelRef& model, SkeletonRef& outSkeleton)
+	const bool ResourceManager::loadSkeleton(const DKString& skeletonPath, const SkinnedMeshModelRef& model, SkeletonRef& outSkeleton)
 	{
 		typedef DKPair<DKHashMap<DKString, SkeletonRef>::iterator, bool> InsertResult;
 		InsertResult success = _skeletonContainer.insert(DKPair<DKString, SkeletonRef>(skeletonPath, dk_new Skeleton));
@@ -400,13 +391,8 @@ namespace DK
 			return true;
 		}
 
-		FBXLoader* loader = new FBXLoader;
 		SkeletonRef& skeleton = success.first->second;
-#if 0
-		if (loader->LoadFBXSkeletonFromFile(skeletonPath, model, *skeleton.get()) == false)
-#else
 		if (LoadSkeletonInternal(skeletonPath, skeleton) == false)
-#endif
 		{
 			DK_ASSERT_LOG(true, "Skeleton Loading Failed. path: %s", skeletonPath.c_str());
 			_modelContainer.erase(skeletonPath);
@@ -416,7 +402,7 @@ namespace DK
 		outSkeleton = success.first->second;
 		return true;
 	}
-	const bool ResourceManager::LoadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation)
+	const bool ResourceManager::loadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation)
 	{
 		typedef DKPair<DKHashMap<DKString, AnimationRef>::iterator, bool> InsertResult;
 		InsertResult success = _animationContainer.insert(DKPair<DKString, AnimationRef>(animationPath, dk_new Animation));
@@ -428,12 +414,7 @@ namespace DK
 
 		AnimationRef& animation = success.first->second;
 
-#if 0
-		FBXLoader* loader = new FBXLoader;
-		if (loader->LoadFBXAnimationFromFile(animationPath, skeleton, *animation.get()) == false)
-#else
 		if (LoadAnimationInternal(animationPath, skeleton, animation) == false)
-#endif
 		{
 			DK_ASSERT_LOG(true, "Animation Loading Failed. path: %s", animationPath.c_str());
 			_modelContainer.erase(animationPath);

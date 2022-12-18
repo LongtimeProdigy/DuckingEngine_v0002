@@ -52,8 +52,8 @@ namespace DK
 			ZeroMemory(&Vibration, sizeof(XINPUT_VIBRATION));
 
 			// Set the Vibration Values
-			Vibration.wLeftMotorSpeed = leftVal;
-			Vibration.wRightMotorSpeed = rightVal;
+			Vibration.wLeftMotorSpeed = static_cast<WORD>(leftVal);
+			Vibration.wRightMotorSpeed = static_cast<WORD>(rightVal);
 
 			// Vibrate the controller
 			XInputSetState(_playerNumber, &Vibration);

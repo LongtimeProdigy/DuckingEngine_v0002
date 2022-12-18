@@ -157,22 +157,48 @@ namespace DK
 	{
 		std::swap(lhs, rhs);
 	}
+}
+
+/*
+* Refleciton ฐüทร
+*/
+namespace DK
+{
+	enum class ReflectionFlag : uint8
+	{
+		NoSave, 
+	};
 
 #define DK_REFLECTION_DECLARE(type, name) \
 public: \
-	const type& get##name() const noexcept { return name; } \
-	type& get##name##Writable() noexcept { return name; } \
-	void set##name(const type& value) noexcept { name = value; } \
+	dk_inline const type& get##name() const noexcept { return name; } \
+	dk_inline type& get##name##Writable() noexcept { return name; } \
+	dk_inline void set##name(const type& value) noexcept { name = value; } \
 private: \
 	type name
 
 #define DK_REFLECTION_PTR_DECLARE(type, name) \
 public: \
-	const Ptr<type>& get##name() const noexcept { return name; } \
-	Ptr<type>& get##name##Writable() noexcept { return name; } \
-	void set##name(type* value) noexcept { name.assign(value); } \
+	dk_inline const Ptr<type>& get##name() const noexcept { return name; } \
+	dk_inline Ptr<type>& get##name##Writable() noexcept { return name; } \
+	dk_inline void set##name(type* value) noexcept { name.assign(value); } \
 private: \
 	Ptr<type> name
+#define DK_REFLECTION_PTR_DECLARE_FLAG(type, name, flag) \
+public: \
+	dk_inline const Ptr<type>& get##name() const noexcept { return name; } \
+	dk_inline Ptr<type>& get##name##Writable() noexcept { return name; } \
+	dk_inline void set##name(type* value) noexcept { name.assign(value); } \
+private: \
+	Ptr<type> name
+
+#define DK_REFLECTION_VECTOR_DECLARE(type, name) \
+public: \
+	dk_inline const DKVector<type>& get##name() const noexcept { return name; } \
+	dk_inline DKVector<type>& get##name##Writable() noexcept { return name; } \
+	dk_inline void move##name(DKVector<type>&& rhs) noexcept{ name = std::move(rhs); } \
+private: \
+	DKVector<type> name
 }
 
 /*
@@ -183,7 +209,8 @@ namespace DK
 #define DEFINE_REFCOUNTED_STRCUT(name) struct name; using name##Ref = std::shared_ptr<name>;
 #define DEFINE_REFCOUNTED(name) class name; using name##Ref = std::shared_ptr<name>;
 	DEFINE_REFCOUNTED_STRCUT(AppearanceRaw);
-	DEFINE_REFCOUNTED(Model);
+	DEFINE_REFCOUNTED(StaticMeshModel);
+	DEFINE_REFCOUNTED(SkinnedMeshModel);
 	DEFINE_REFCOUNTED(Skeleton);
 	DEFINE_REFCOUNTED(Animation);
 	DEFINE_REFCOUNTED(ITexture);

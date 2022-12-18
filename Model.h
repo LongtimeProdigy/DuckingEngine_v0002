@@ -4,35 +4,35 @@
 
 namespace DK
 {
-#define MAX_SKINNING_COUNT 4
-
-	struct Vertex
+	struct StaticMeshVertex
 	{
 	public:
-		Vertex()
-		{}
-		Vertex(const float3& position)
-			: _position(position)
-		{}
-		Vertex(const float3& position, const float2& uv)
-			: _position(position)
-			, _uv(uv)
-		{}
-		Vertex(const float3& position, const float3& normal, const float2& uv)
-			: _position(position)
-			, _normal(normal)
-			, _uv(uv)
+		StaticMeshVertex() {}
+		StaticMeshVertex(const float3& position, const float3& normal, const float2& uv)
+			: _position(position), _normal(normal), _uv(uv)
 		{}
 
-	public:
+	protected:
 		const float3 _position = float3::Zero;
 		const float3 _normal = float3::Zero;
 		const float2 _uv = float2::Zero;
+	};
 
+#define MAX_SKINNING_COUNT 4
+	struct SkinnedMeshVertex : public StaticMeshVertex
+	{
+	public:
+		SkinnedMeshVertex() {}
+		SkinnedMeshVertex(const float3& position, const float3& normal, const float2& uv)
+			: StaticMeshVertex(position, normal, uv)
+		{}
+
+	public:
 		uint32 boneIndexes[MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), };
 		float weights[MAX_SKINNING_COUNT] = { 0.0f, };
 	};
 
+	template<typename T>
 	class SubMesh
 	{
 	public:
@@ -43,7 +43,7 @@ namespace DK
 			, _indexBufferView(std::move(rhs._indexBufferView))
 			, _material(std::move(rhs._material))
 		{}
-		SubMesh(DKVector<Vertex>& vertices, DKVector<uint32>& indices)
+		SubMesh(DKVector<SkinnedMeshVertex>& vertices, DKVector<uint32>& indices)
 			: _vertices(vertices)
 			, _indices(indices)
 		{}
@@ -54,7 +54,7 @@ namespace DK
 		}
 
 	public:
-		DKVector<Vertex> _vertices;
+		DKVector<T> _vertices;
 		DKVector<uint32> _indices;
 		VertexBufferViewRef _vertexBufferView;
 		IndexBufferViewRef _indexBufferView;
@@ -62,28 +62,19 @@ namespace DK
 		Material _material;
 	};
 
-	class Model
+	class StaticMeshModel
 	{
 	public:
-		~Model()
-		{
-			_subMeshes.clear();
-		}
-
-		dk_inline void MoveSubMeshesFrom(DKVector<SubMesh>& subMeshes)
-		{
-			_subMeshes = std::move(subMeshes);
-		}
-		dk_inline const DKVector<SubMesh>& GetSubMeshes() const noexcept
-		{
-			return _subMeshes;
-		}
-		dk_inline DKVector<SubMesh>& GetSubMeshesWritable() noexcept
-		{
-			return _subMeshes;
-		}
-
+		using SubMeshType = SubMesh<StaticMeshVertex>;
 	private:
-		DKVector<SubMesh> _subMeshes;
+		DK_REFLECTION_VECTOR_DECLARE(SubMeshType, _subMeshes);
+	};
+
+	class SkinnedMeshModel
+	{
+	public:
+		using SubMeshType = SubMesh<SkinnedMeshVertex>;
+	private:
+		DK_REFLECTION_VECTOR_DECLARE(SubMeshType, _subMeshes);
 	};
 }

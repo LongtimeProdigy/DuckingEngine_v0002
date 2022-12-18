@@ -61,7 +61,6 @@ namespace DK
 		const ShaderVariableType variableType = convertStringToEnum2(variableTypeRaw);
 		DK_ASSERT_LOG(variableType != ShaderVariableType::Count, "RenderPass의 ParameterType이 정확하지 않습니다.\nType: %s", variableTypeRaw);
 		const uint32 variableRegister = atoi(variableRegisterRaw);
-		const char* variableValue = variableNode->ToElement()->Value();
 
 		if (variableType == ShaderVariableType::Count)
 		{
@@ -163,7 +162,6 @@ namespace DK
 			return false;
 		}
 
-		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		for (TiXmlNode* parameterNode = rootNode->FirstChild(); parameterNode != nullptr; parameterNode = parameterNode->NextSibling())
 		{
 			const char* name = parameterNode->ToElement()->Attribute("Name");
@@ -259,10 +257,10 @@ namespace DK
 				SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[i].get());
 
 				// SkinnedMesh ConstantBuffer
-				const DKVector<float4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->GetCurrentCharacterSpaceBoneAnimation();
+				const DKVector<float4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->get_currentCharacterSpaceBoneAnimation();
 				if (currentCharacterSpaceBoneAnimation.empty() == false)
 				{
-					Ptr<IBuffer>& skeletonBuffer = skinnedMeshComponent->getSkeletonConstantBufferWritable();
+					Ptr<IBuffer>& skeletonBuffer = skinnedMeshComponent->get_skeletonConstantBufferWritable();
 					skeletonBuffer->upload(currentCharacterSpaceBoneAnimation.data());
 				}
 			}
@@ -346,24 +344,24 @@ namespace DK
 				setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
 
 				uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-				for (uint i = 0; i < componentCount; ++i)
+				for (uint componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 				{
 					// #todo- component 완전 개편 필요해보임.
 					// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
 					// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-					SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[i].get());
+					SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
 
-					setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->getSkeletonConstantBufferWritable()->getGPUVirtualAddress());
+					setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());
 
 					// Material Parameters
-					DKVector<SubMesh>& subMeshes = skinnedMeshComponent->GetModelWritable()->GetSubMeshesWritable();
-					for (uint i = 0; i < subMeshes.size(); ++i)
+					DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshesWritable();
+					for (uint subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
 					{
-						SubMesh& subMesh = subMeshes[i];
+						SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
 						Material& material = subMesh._material;
 						// 랜더패스 메터리얼 이름에 대응하는 버퍼를 알아야할듯..
-						setConstantBuffer(material.getMaterialName().c_str(), material.getParameterBufferWritable()->getGPUVirtualAddress());
+						setConstantBuffer(material.get_materialName().c_str(), material.get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
 
 						renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
 						renderModule.setIndexBuffer(subMesh._indexBufferView.get());

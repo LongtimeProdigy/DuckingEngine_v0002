@@ -92,10 +92,6 @@ namespace DK
 		return true;
 	}
 
-	Material::~Material()
-	{
-	}
-
 	bool Material::setModelProperty(const MaterialDefinition& modelProperty)
 	{
 		DK_ASSERT_LOG(_materialName == modelProperty._materialName, "MaterialName이 ModelProperty의 MaterialName과 일치하지 않습니다!");

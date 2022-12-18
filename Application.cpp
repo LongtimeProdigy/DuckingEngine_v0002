@@ -170,8 +170,6 @@ namespace DK
 
 		// 이전시간을 지금시간으로 초기화해준다.
 		g_tTime = tTime;
-		// 플레이어 초당 이동속도 : 300
-		float fSpeed = 300 * g_fDeltaTime;
 	}
 
 	void Application::renderFrame()

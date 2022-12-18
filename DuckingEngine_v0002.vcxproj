@@ -51,6 +51,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="MeshComponent.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="SceneObject.cpp" />
     <ClCompile Include="lib\imgui\backends\imgui_impl_dx12.cpp">
@@ -97,7 +98,6 @@
     </ClCompile>
     <ClCompile Include="Component.cpp" />
     <ClCompile Include="EditorModule.cpp" />
-    <ClCompile Include="FBXLoader.cpp" />
     <ClCompile Include="GameModule.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="SceneObjectManager.cpp" />
@@ -123,6 +123,7 @@
     <ClInclude Include="ComputerController.h" />
     <ClInclude Include="lib\tinyXML\tinystr.h" />
     <ClInclude Include="lib\tinyXML\tinyxml.h" />
+    <ClInclude Include="MeshComponent.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="SceneObject.h" />
     <ClInclude Include="lib\imgui\backends\imgui_impl_dx12.h" />
@@ -136,7 +137,6 @@
     <ClInclude Include="Component.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="EditorModule.h" />
-    <ClInclude Include="FBXLoader.h" />
     <ClInclude Include="GameModule.h" />
     <ClInclude Include="SceneObjectManager.h" />
     <ClInclude Include="SceneRenderer.h" />

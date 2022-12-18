@@ -93,7 +93,7 @@ uint GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 	else
 	{
 		DK_ASSERT_LOG(false, "올바르지 않은 Texture Type입니다. 확인 요망!");
-		return -1;
+		return 0xffffffff;
 	}
 }
 //TextureFormat ConvertTextureFormatFromDXGIFormat(DXGI_FORMAT& dxgiFormat)
