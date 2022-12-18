@@ -5,13 +5,6 @@ namespace DK
 	class ResourceManager
 	{
 	public:
-		~ResourceManager()
-		{
-			_modelContainer.clear();
-			_skeletonContainer.clear();
-			_animationContainer.clear();
-		}
-
 		const bool loadSkinnedMesh(const DKString& modelPath, SkinnedMeshModelRef& outModel);
 		const bool loadSkeleton(const DKString& skeletonPath, const SkinnedMeshModelRef& model, SkeletonRef& outSkeleton);
 		const bool loadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation);

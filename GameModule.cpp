@@ -6,9 +6,6 @@
 
 namespace DK
 {
-	// TestPlane
-	static SceneObject plane;
-
 	bool GameModule::initialize()
 	{
 		// Test Character

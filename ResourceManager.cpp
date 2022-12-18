@@ -4,6 +4,7 @@
 #include "Model.h"
 #include "Skeleton.h"
 #include "Animation.h"
+#include "RenderModule.h"
 
 namespace DK
 {

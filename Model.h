@@ -47,11 +47,6 @@ namespace DK
 			: _vertices(vertices)
 			, _indices(indices)
 		{}
-		~SubMesh()
-		{
-			_vertices.clear();
-			_indices.clear();
-		}
 
 	public:
 		DKVector<T> _vertices;

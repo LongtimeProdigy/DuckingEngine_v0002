@@ -2,11 +2,6 @@
 
 namespace DK
 {
-	class SceneObject;
-}
-
-namespace DK
-{
 	class GameModule
 	{
 	public:

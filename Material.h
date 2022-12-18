@@ -129,7 +129,6 @@ namespace DK
 			_parameterBufferForCPU.swap(rhs._parameterBufferForCPU);
 			_parameterBufferForGPU.swap(rhs._parameterBufferForGPU);
 		}
-		~Material() {}
 
 	public:
 		bool setModelProperty(const MaterialDefinition& modelProperty);
