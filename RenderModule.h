@@ -54,15 +54,33 @@ namespace DK
 
 	struct Pipeline
 	{
+	public:
 		struct CreateInfo
 		{
+		public:
+			struct LayoutInfo
+			{
+			public:
+				enum class Type
+				{
+					UINT4, 
+					FLOAT2, 
+					FLOAT3, 
+					FLOAT4, 
+				};
+
+				Type _type;
+				DKString _name;
+			};
+
 			const char* _primitiveTopologyType;
 			const char* _vertexShaderPath;
 			const char* _vertexShaderEntry;
 			const char* _pixelShaderPath;
 			const char* _pixelShaderEntry;
 
-			DKVector<ShaderVariable> _variables;
+			DKVector<LayoutInfo> _layout;
+			DKVector<ShaderVariable> _variableArr;
 		};
 
 		RenderResourcePtr<ID3D12RootSignature> _rootSignature;
@@ -190,7 +208,7 @@ do{ \
 		bool initialize_createFence();
 		bool initialize_createFenceEvent();
 		bool createRootSignature(Pipeline& inoutPipeline);
-		bool createPipelineObjectState(const char* vsPath, const char* vsEntry, const char* psPath, const char* psEntry, Pipeline& inoutPipeline);
+		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state);
 		ID3D12Resource* createDefaultBuffer(const uint size, const D3D12_RESOURCE_STATES state);
@@ -246,9 +264,7 @@ do{ \
 			: _bufferSize(bufferSize)
 		{
 			for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
-			{
 				_buffers[i] = buffers[i];
-			}
 		}
 
 		void upload(const void* data);

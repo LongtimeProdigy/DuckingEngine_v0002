@@ -103,8 +103,14 @@
     <ClCompile Include="ResourceManager.cpp">
       <Filter>1. EngineCore</Filter>
     </ClCompile>
-    <ClCompile Include="MeshComponent.cpp">
+    <ClCompile Include="StaticMeshComponent.cpp">
       <Filter>1. EngineCore\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderableComponent.cpp">
+      <Filter>1. EngineCore\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="ModelProperty.cpp">
+      <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -209,16 +215,19 @@
     <ClInclude Include="ResourceManager.h">
       <Filter>1. EngineCore</Filter>
     </ClInclude>
-    <ClInclude Include="MeshComponent.h">
+    <ClInclude Include="StaticMeshComponent.h">
       <Filter>1. EngineCore\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderableComponent.h">
+      <Filter>1. EngineCore\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="ModelProperty.h">
+      <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="0. Common">
       <UniqueIdentifier>{b14bf9ba-700f-4773-8525-c9af8904f960}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="0. Common\Math">
-      <UniqueIdentifier>{b0f2166a-dbd3-4d52-8ea4-d73731daa64a}</UniqueIdentifier>
     </Filter>
     <Filter Include="2. Editor">
       <UniqueIdentifier>{6e543bce-24f6-49ec-8dc0-3d238331caa0}</UniqueIdentifier>

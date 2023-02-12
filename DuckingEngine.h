@@ -21,9 +21,7 @@ namespace DK
 		static DuckingEngine& getInstance()
 		{
 			if (_duckingEngine == nullptr)
-			{
 				_duckingEngine = dk_new DuckingEngine;
-			}
 
 			return *_duckingEngine;
 		}

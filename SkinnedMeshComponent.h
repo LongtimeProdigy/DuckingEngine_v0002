@@ -1,5 +1,5 @@
 #pragma once
-#include "Component.h"
+#include "RenderableComponent.h"
 
 namespace DK
 {
@@ -8,19 +8,22 @@ namespace DK
 
 namespace DK
 {
-	class SkinnedMeshComponent : public Component
+	class SkinnedMeshComponent : public RenderableComponent
 	{
 	public:
-		bool LoadResource(const DKString& modelPath, const DKString& skeletonPath, const DKString& animationSetPath, const DKString& modelPropertyPath);
+		virtual bool loadResource() override final;
 
 		virtual void update(float deltaTime) override final;
 
 	private:
-		DK_REFLECTION_DECLARE(SkinnedMeshModelRef, _model);
+		DK_REFLECTION_PROPERTY(DKString, _skeletonPath);
+		DK_REFLECTION_PROPERTY(DKString, _animationPath);
+
+		DK_REFLECTION_PROPERTY(SkinnedMeshModelRef, _model);
 		SkeletonRef _skeleton;
 		AnimationRef _animation;
 
-		DK_REFLECTION_VECTOR_DECLARE(float4x4, _currentCharacterSpaceBoneAnimation);
-		DK_REFLECTION_PTR_DECLARE(IBuffer, _skeletonConstantBuffer);
+		DK_REFLECTION_VECTOR_PROPERTY(float4x4, _currentCharacterSpaceBoneAnimation);
+		DK_REFLECTION_PTR_PROPERTY(IBuffer, _skeletonConstantBuffer);
 	};
 }

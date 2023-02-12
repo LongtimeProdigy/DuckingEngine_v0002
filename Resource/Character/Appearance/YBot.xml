@@ -1,6 +1,10 @@
 <Appearance>
-	<Model>C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\YBot.bm</Model>
 	<Skeleton>C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Skeleton\Mixamo_Default.xml</Skeleton>
 	<AnimationSet>C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Animation\Idle.xml</AnimationSet>
-	<ModelProperty>C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\ModelProperty\YBot.xml</ModelProperty>
+	<ModelDataArr Count="1">
+		<ModelData>
+			<Model>C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\YBot.dc</Model>
+			<ModelProperty>C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\ModelProperty\YBot.xml</ModelProperty>
+		</ModelData>
+	</ModelDataArr>
 </Appearance>

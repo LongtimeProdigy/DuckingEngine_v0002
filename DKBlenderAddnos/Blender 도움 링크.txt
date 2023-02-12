@@ -1,0 +1,1 @@
+1. 믹사모 애니메이션 임포트 방법 : https://docs.cryengine.com/display/CEMANUAL/Reorienting+Animations+in+Blender

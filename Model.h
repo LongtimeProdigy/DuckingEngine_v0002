@@ -1,75 +1,84 @@
 #pragma once
 
-#include "Material.h"
-
 namespace DK
 {
+	class Material;
+
 	struct StaticMeshVertex
 	{
-	public:
-		StaticMeshVertex() {}
-		StaticMeshVertex(const float3& position, const float3& normal, const float2& uv)
-			: _position(position), _normal(normal), _uv(uv)
-		{}
-
-	protected:
 		const float3 _position = float3::Zero;
 		const float3 _normal = float3::Zero;
 		const float2 _uv = float2::Zero;
 	};
 
-#define MAX_SKINNING_COUNT 4
-	struct SkinnedMeshVertex : public StaticMeshVertex
+	struct SkinnedMeshVertex
 	{
-	public:
-		SkinnedMeshVertex() {}
-		SkinnedMeshVertex(const float3& position, const float3& normal, const float2& uv)
-			: StaticMeshVertex(position, normal, uv)
-		{}
-
-	public:
-		uint32 boneIndexes[MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), };
-		float weights[MAX_SKINNING_COUNT] = { 0.0f, };
+		const float3 _position = float3::Zero;
+		const float3 _normal = float3::Zero;
+		const float2 _uv = float2::Zero;
+#define MAX_SKINNING_COUNT 4
+		const uint32 boneIndexes[MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), static_cast<uint32>(-1),static_cast<uint32>(-1),static_cast<uint32>(-1) };
+		const float weights[MAX_SKINNING_COUNT] = { 0.0f,0.0f,0.0f,0.0f };
 	};
 
 	template<typename T>
 	class SubMesh
 	{
 	public:
-		SubMesh(SubMesh&& rhs)
-			: _vertices(std::move(rhs._vertices))
-			, _indices(std::move(rhs._indices))
-			, _vertexBufferView(std::move(rhs._vertexBufferView))
-			, _indexBufferView(std::move(rhs._indexBufferView))
-			, _material(std::move(rhs._material))
+		using VertexType = T;
+
+	public:
+		SubMesh(
+			const DKVector<VertexType>&& vertices, const DKVector<uint32>&& indices, 
+			const VertexBufferViewRef&& vertexBufferView, const IndexBufferViewRef&& indexBufferView, 
+			Material* material)
+			: _vertices(DK::move(vertices))
+			, _indices(DK::move(indices))
+			, _vertexBufferView(DK::move(vertexBufferView))
+			, _indexBufferView(DK::move(indexBufferView))
+			, _material(material)
 		{}
-		SubMesh(DKVector<SkinnedMeshVertex>& vertices, DKVector<uint32>& indices)
-			: _vertices(vertices)
-			, _indices(indices)
+		SubMesh(SubMesh&& rhs)
+			: _vertices(DK::move(rhs._vertices))
+			, _indices(DK::move(rhs._indices))
+			, _vertexBufferView(DK::move(rhs._vertexBufferView))
+			, _indexBufferView(DK::move(rhs._indexBufferView))
+			, _material(rhs._material.relocate())
 		{}
 
 	public:
-		DKVector<T> _vertices;
-		DKVector<uint32> _indices;
-		VertexBufferViewRef _vertexBufferView;
-		IndexBufferViewRef _indexBufferView;
-
-		Material _material;
+		const DKVector<VertexType> _vertices;
+		const DKVector<uint32> _indices;
+		const VertexBufferViewRef _vertexBufferView;
+		const IndexBufferViewRef _indexBufferView;
+		Ptr<Material> _material;
 	};
 
 	class StaticMeshModel
 	{
 	public:
 		using SubMeshType = SubMesh<StaticMeshVertex>;
+
+	public:
+		StaticMeshModel(DKVector<SubMeshType>&& subMeshArr)
+			: _subMeshArr(DK::move(subMeshArr))
+		{}
+
 	private:
-		DK_REFLECTION_VECTOR_DECLARE(SubMeshType, _subMeshes);
+		DK_REFLECTION_VECTOR_PROPERTY(SubMeshType, _subMeshArr);
 	};
 
 	class SkinnedMeshModel
 	{
 	public:
 		using SubMeshType = SubMesh<SkinnedMeshVertex>;
+
+	public:
+		SkinnedMeshModel(DKVector<SubMeshType>&& subMeshArr)
+			: _subMeshArr(DK::move(subMeshArr))
+		{}
+
 	private:
-		DK_REFLECTION_VECTOR_DECLARE(SubMeshType, _subMeshes);
+		DK_REFLECTION_VECTOR_PROPERTY(SubMeshType, _subMeshArr);
 	};
 }

@@ -23,6 +23,6 @@ namespace DK
 
 	public:
 		DKVector<Ptr<Component>> _components;
-		DK_REFLECTION_DECLARE(Transform, _worldTransform);
+		DK_REFLECTION_PROPERTY(Transform, _worldTransform);
 	};
 }

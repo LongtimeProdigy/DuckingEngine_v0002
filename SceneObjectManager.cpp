@@ -5,75 +5,119 @@
 #include "RenderModule.h"
 
 #include "SceneObject.h"
+#include "StaticMeshComponent.h"
 #include "SkinnedMeshComponent.h"
 #include "Skeleton.h"
 
 namespace DK
 {
-	const AppearanceRawRef SceneObjectManager::loadCharacter_LoadAppearanceFile(const char* appearancePath)
+	bool createSceneObjectConstantBuffer(SceneObject& sceneObject)
 	{
-		using FindResult = DKHashMap<DKString, AppearanceRawRef>::iterator;
-		FindResult findResult = _appearanceRawContainers.find(appearancePath);
-		if (findResult != _appearanceRawContainers.end())
+		// for GPU resource
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+		sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
+		sceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData));
+		if (sceneObject._sceneObjectConstantBuffer.get() == nullptr)
 		{
-			return findResult->second;
+			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
+			return false;
 		}
 
-#if defined(USE_TINYXML)
-		TiXmlDocument doc;
-		if (doc.LoadFile(appearancePath) == false)
-			DK_ASSERT_LOG(false, "Appearance File LoadError: %s", doc.ErrorDesc());
-		// return false 해줘야할듯..
+		return true;
+	}
+	const AppearanceDataRef SceneObjectManager::loadCharacter_LoadAppearanceFile(const char* appearancePath)
+	{
+		using FindResult = DKHashMap<DKString, AppearanceDataRef>::iterator;
+		FindResult findResult = _appearanceRawContainers.find(appearancePath);
+		if (findResult != _appearanceRawContainers.end())
+			return findResult->second;
 
-		TiXmlElement* ReadRoot = doc.FirstChildElement("Appearance");
-		TiXmlElement* modelNode = ReadRoot->FirstChildElement("Model");
-		const char* modelPath = modelNode->GetText();
-		TiXmlElement* skeletonNode = ReadRoot->FirstChildElement("Skeleton");
-		const char* skeletonPath = skeletonNode->GetText();
-		TiXmlElement* animationSetNode = ReadRoot->FirstChildElement("AnimationSet");
-		const char* animationPath = animationSetNode->GetText();
-		TiXmlElement* modelPropertyNode = ReadRoot->FirstChildElement("ModelProperty");
-		const char* modelPropertyPath = modelPropertyNode->GetText();
-#else
-		static_assert("아직 지원되는 XML Loader가 없습니다.");
-#endif
+		TiXmlDocument appearanceDocument;
+		if (appearanceDocument.LoadFile(appearancePath) == false)
+		{
+			DK_ASSERT_LOG(false, "Appearance File LoadError: %s", appearanceDocument.ErrorDesc());
+			return nullptr;
+		}
 
+		TiXmlNode* rootNode = appearanceDocument.RootElement();
+		TiXmlNode* skeletonNode = rootNode->FirstChild("Skeleton");
+		const DKString skeletonPath = skeletonNode->ToElement()->GetText();
+		TiXmlNode* animationSetNode = rootNode->FirstChild("AnimationSet");
+		const DKString animationSetPath = animationSetNode->ToElement()->GetText();
+
+		DKVector<AppearanceData::ModelData> modelDataArr;
+		TiXmlNode* modelDataArrNode = rootNode->FirstChild("ModelDataArr");
+		const int modelDataCount = DK::atoi(modelDataArrNode->ToElement()->Attribute("Count"));
+		modelDataArr.reserve(modelDataCount);
+		for (TiXmlNode* modelDataNode = modelDataArrNode->FirstChild(); modelDataNode != nullptr; modelDataNode = modelDataNode->NextSiblingElement())
+		{
+			const TiXmlElement* modelNode = modelDataNode->FirstChildElement("Model");
+			const char* modelPath = modelNode->GetText();
+			const TiXmlElement* modelPropertyNode = modelDataNode->FirstChildElement("ModelProperty");
+			const char* modelPropertyPath = modelPropertyNode->GetText();
+
+			modelDataArr.push_back(AppearanceData::ModelData(modelPath, modelPropertyPath));
+		}
+		
 		auto insertResult = _appearanceRawContainers.insert(
-			DKPair<const char*, AppearanceRawRef>(appearancePath, dk_new AppearanceRaw(modelPath, skeletonPath, animationPath, modelPropertyPath))
+			DKPair<const char*, AppearanceDataRef>(appearancePath, dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr)))
 		);
 
 		return insertResult.first->second;
 	}
+	SceneObject* SceneObjectManager::createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath)
+	{
+		SceneObjectManager& thisXXX = DuckingEngine::getInstance().GetSceneObjectManagerWritable();
+
+		SceneObject newSceneObject;
+		StaticMeshComponent* staticMeshComponent = dk_new StaticMeshComponent;
+		newSceneObject.addComponent(staticMeshComponent);
+		staticMeshComponent->set_modelPath(modelPath);
+		staticMeshComponent->set_modelPropertyPath(modelPropertyPath);
+		if (staticMeshComponent->loadResource() == false)
+			return nullptr;	
+
+		if (createSceneObjectConstantBuffer(newSceneObject) == false)
+			return nullptr;
+
+		const uint32 key = static_cast<uint32>(thisXXX._sceneObjectContainer.size());
+		auto success = thisXXX._sceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, DK::move(newSceneObject)));
+		if (success.second == false)
+			return nullptr;
+
+		return &success.first->second;
+	}
 	SceneObject* SceneObjectManager::createCharacter(const char* appearancePath)
 	{
-		SceneObject newSceneObject;
-
 		SceneObjectManager& thisXXX = DuckingEngine::getInstance().GetSceneObjectManagerWritable();
-		const AppearanceRawRef appearanceRaw = thisXXX.loadCharacter_LoadAppearanceFile(appearancePath);
-		SkinnedMeshComponent* mainSkinnedMeshComponent = dk_new SkinnedMeshComponent;
-		if (mainSkinnedMeshComponent->LoadResource(
-			appearanceRaw->_modelPath.c_str(), appearanceRaw->_skeletonPath.c_str(),
-			appearanceRaw->_animationSetPath.c_str(), appearanceRaw->_modelPropertyPath.c_str()
-		) == false)
-		{
-			DK_ASSERT_LOG(false, "SkinnedMeshComponent::LoadResource에 실패");
-			return nullptr;
-		}
-		newSceneObject.addComponent(mainSkinnedMeshComponent);
 
-		// for GPU resource
-		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
-		newSceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
-		newSceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData));
-		if (newSceneObject._sceneObjectConstantBuffer.get() == nullptr)
-		{
-			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
+		const AppearanceDataRef& appearanceData = thisXXX.loadCharacter_LoadAppearanceFile(appearancePath);
+		if (appearanceData == nullptr)
 			return nullptr;
+
+		SceneObject newSceneObject;
+		const uint32 skinnedMeshCount = static_cast<const uint32>(appearanceData->_modelDataArr.size());
+		for (uint32 i = 0; i < skinnedMeshCount; ++i)
+		{
+			SkinnedMeshComponent* skinnedMeshComponent = dk_new SkinnedMeshComponent;
+			newSceneObject.addComponent(skinnedMeshComponent);
+			skinnedMeshComponent->set_modelPath(appearanceData->_modelDataArr[i]._modelPath);
+			skinnedMeshComponent->set_modelPropertyPath(appearanceData->_modelDataArr[i]._modelPropertyPath);
+			if (i == 0)	// MainSkinnedMesh
+			{
+				skinnedMeshComponent->set_skeletonPath(appearanceData->_skeletonPath);
+				skinnedMeshComponent->set_animationPath(appearanceData->_animationSetPath);	// #todo- 나중에 AnimationSet으로 변경(AnimationController 만든 후에)
+			}
+			if (skinnedMeshComponent->loadResource() == false)
+				return nullptr;
 		}
+
+		if (createSceneObjectConstantBuffer(newSceneObject) == false)
+			return nullptr;
 
 		const uint32 key = static_cast<uint32>(thisXXX._characterSceneObjectContainer.size());
-		auto success = thisXXX._characterSceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, std::move(newSceneObject)));
+		auto success = thisXXX._characterSceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, DK::move(newSceneObject)));
 		if (success.second == false)
 			return nullptr;
 
@@ -87,9 +131,7 @@ namespace DK
 			SceneObject& sceneObject = iter->second;
 			uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 			for (uint32 i = 0; i < componentCount; ++i)
-			{
 				sceneObject._components[i]->update(deltaTime);
-			}
 		}
 	}
 }

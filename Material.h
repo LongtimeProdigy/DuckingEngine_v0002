@@ -65,17 +65,17 @@ namespace DK
 		{}
 		virtual ~MaterialParameter() {}
 
-		dk_inline const DKString& getName() const noexcept
+		dk_inline const DKString& getParameterName() const noexcept
 		{
 			return _name;
 		}
 
-		dk_inline virtual void setValuePtr(void* valuePtr) noexcept
+		dk_inline virtual void setParameterValuePtr(void* valuePtr) noexcept
 		{
 			_valuePtr = valuePtr;
 		}
 
-		dk_inline virtual uint32 getSize() const noexcept = 0;
+		dk_inline virtual uint32 getParameterSize() const noexcept = 0;
 
 	protected:
 		DKString _name;
@@ -90,13 +90,15 @@ namespace DK
 			: MaterialParameter(name)
 			, _defaultValue(defaultValue)
 		{}
+		virtual ~MaterialParameterTemplate() override final
+		{}
 
-		virtual void setValue(const T& value) noexcept;
-
-		dk_inline virtual uint32 getSize() const noexcept
+		virtual uint32 getParameterSize() const noexcept override
 		{
 			return sizeof(T);
 		}
+
+		virtual void setParameterValue(const T& value) noexcept;
 
 	private:
 		const T _defaultValue;
@@ -106,22 +108,18 @@ namespace DK
 	using MaterialParameterFloat = MaterialParameterTemplate<float>;
 	using MaterialParameterTexture = MaterialParameterTemplate<ITextureRef>;
 
-	void MaterialParameterTexture::setValue(const ITextureRef& value) noexcept;
-	template <>
-	uint32 MaterialParameterTexture::getSize() const noexcept;
+	uint32 MaterialParameterTexture::getParameterSize() const noexcept;
+	void MaterialParameterTexture::setParameterValue(const ITextureRef& value) noexcept;
 #pragma endregion
 
 #pragma region Material
 	class Material
 	{
 	public:
-		static bool createMaterial(const MaterialDefinition& modelProperty, Material& outMaterial);
+		static Material* createMaterial(const MaterialDefinition& modelProperty);
 
 	public:
 		Material() {};
-		Material(const DKString& materialname)
-			: _materialName(materialname)
-		{};
 		Material(Material&& rhs)
 		{
 			_materialName = rhs._materialName;
@@ -134,11 +132,11 @@ namespace DK
 		bool setModelProperty(const MaterialDefinition& modelProperty);
 
 	private:
-		DK_REFLECTION_DECLARE(DKString, _materialName);
+		DK_REFLECTION_PROPERTY(DKString, _materialName);
 		DKVector<Ptr<MaterialParameter>> _parameters;
 
 		DKVector<char> _parameterBufferForCPU;
-		DK_REFLECTION_PTR_DECLARE_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);
+		DK_REFLECTION_PTR_PROPERTY_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);
 	};
 #pragma endregion
 }

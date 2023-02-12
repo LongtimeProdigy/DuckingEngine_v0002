@@ -1,0 +1,10 @@
+<ModelProperty>
+	<SubMeshArr Count="1">
+		<SubMesh Name="StaticMeshStandard">
+			<Parameters>
+				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+			</Parameters>
+		</SubMesh>
+	</SubMeshArr>
+</ModelProperty>

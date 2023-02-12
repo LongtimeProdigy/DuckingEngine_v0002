@@ -2,16 +2,24 @@
 
 namespace DK
 {
-	struct AppearanceRaw
+	struct AppearanceData
 	{
-		const std::string _modelPath;
-		const std::string _skeletonPath;
-		const std::string _animationSetPath;
-		const std::string _modelPropertyPath;
+		struct ModelData
+		{
+			const DKString _modelPath;
+			const DKString _modelPropertyPath;
 
-		AppearanceRaw(
-			const char* modelPath, const char* skeletonPath, const char* animationPath, const char* modelPropertyPath
-		) : _modelPath(modelPath), _skeletonPath(skeletonPath), _animationSetPath(animationPath), _modelPropertyPath(modelPropertyPath)
+			ModelData(const DKString& modelPath, const DKString& modelPropertyPath)
+				: _modelPath(modelPath), _modelPropertyPath(modelPropertyPath)
+			{}
+		};
+
+		const DKString _skeletonPath;
+		const DKString _animationSetPath;
+		DKVector<ModelData> _modelDataArr;
+
+		AppearanceData(const DKString& skeletonPath, const DKString& animationSetPath, const DKVector<ModelData>&& modelDataArr)
+			: _skeletonPath(skeletonPath), _animationSetPath(animationSetPath), _modelDataArr(DK::move(modelDataArr))
 		{}
 	};
 
@@ -32,9 +40,19 @@ namespace DK
 	class SceneObjectManager
 	{
 	public:
+		static SceneObject* createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
 		static SceneObject* createCharacter(const char* appearancePath);
 
 		void update(float deltaTime);
+
+		dk_inline const DKHashMap<uint32, SceneObject>& getSceneObjects() const
+		{
+			return _sceneObjectContainer;
+		}
+		dk_inline DKHashMap<uint32, SceneObject>& getSceneObjectsWritable()
+		{
+			return _sceneObjectContainer;
+		}
 
 		dk_inline const DKHashMap<uint32, SceneObject>& getCharacterSceneObjects() const
 		{
@@ -46,10 +64,11 @@ namespace DK
 		}
 
 	private:
-		const AppearanceRawRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
+		const AppearanceDataRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
 
 	private:
-		DKHashMap<DKString, AppearanceRawRef> _appearanceRawContainers;
+		DKHashMap<DKString, AppearanceDataRef> _appearanceRawContainers;
+		DKHashMap<uint32, SceneObject> _sceneObjectContainer;
 		DKHashMap<uint32, SceneObject> _characterSceneObjectContainer;
 	};
 }

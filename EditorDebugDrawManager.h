@@ -104,8 +104,8 @@ namespace DK
 		bool initialize_Line();
 
 #define DEFINE_ELEMENT_TYPE(primitiveName) \
-	DK_REFLECTION_DECLARE(DKVector<##primitiveName##PrimitiveInfo>, _primitiveInfo##primitiveName##Arr); \
-	DK_REFLECTION_PTR_DECLARE(IBuffer, _primitiveInfo##primitiveName##Buffer);
+	DK_REFLECTION_PROPERTY(DKVector<##primitiveName##PrimitiveInfo>, _primitiveInfo##primitiveName##Arr); \
+	DK_REFLECTION_PTR_PROPERTY(IBuffer, _primitiveInfo##primitiveName##Buffer);
 
 		DEFINE_ELEMENT_TYPE(Sphere);
 		DEFINE_ELEMENT_TYPE(Line);

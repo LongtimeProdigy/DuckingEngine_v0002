@@ -4,7 +4,7 @@
   "Items": [
     {
       "Id": "e097fe89-1ae7-484d-8550-dffad2d84a4a",
-      "Command": "-resourcePath=\"C:\\\""
+      "Command": "--resourcePath=\"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource\""
     }
   ]
 }

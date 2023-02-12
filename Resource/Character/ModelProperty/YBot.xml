@@ -1,5 +1,5 @@
 <ModelProperty>
-	<SubMeshes Count="8">
+	<SubMeshArr Count="8">
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
 				<Parameter Name="DiffuseTexture" Type="Texture">C:\Users\Lee\Desktop\Projects\DuckingEngine_v0002\Resource\Character\Model\textures\EXO_diffuse.png</Parameter>
@@ -48,5 +48,5 @@
 				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
-	</SubMesh>
+	</SubMeshArr>
 </ModelProperty>

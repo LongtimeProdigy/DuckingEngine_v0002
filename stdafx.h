@@ -53,7 +53,6 @@ typedef unsigned long long uint64;
 #include <Windows.h>	// for OutputDebugStringA
 /////////////////////// #todo- 나중에 꼭 삭제할 것 /////////////////////// 
 #endif
-
 namespace DK
 {
 #define MAX_LOG_BUFFER_LENGTH 32768
@@ -116,6 +115,8 @@ namespace DK
 #define USE_TINYXML
 #ifdef USE_TINYXML
 #include "tinyxml.h"
+#else
+static_assert(false, "XML 파싱 Class 정의가 필요합니다.");
 #endif
 
 #ifdef _DK_DEBUG_
@@ -153,9 +154,30 @@ namespace DK
 namespace DK
 {
 	template <typename T>
-	void Swap(T&& lhs, T&& rhs) noexcept
+	dk_inline void swap(T&& lhs, T&& rhs) noexcept
 	{
 		std::swap(lhs, rhs);
+	}
+
+	dk_inline void* memcpy(void* dest, void const* src, uint32 size)
+	{
+		return std::memcpy(dest, src, size);
+	}
+
+	template<typename T>
+	dk_inline T&& move(T& value)
+	{
+		return std::move(value);
+	}
+
+	dk_inline float atof(const char* string)
+	{
+		return static_cast<float>(::atof(string));
+	}
+
+	dk_inline int atoi(const char* string)
+	{
+		return ::atoi(string);
 	}
 }
 
@@ -169,36 +191,33 @@ namespace DK
 		NoSave, 
 	};
 
-#define DK_REFLECTION_DECLARE(type, name) \
+#define DK_REFLECTION_PROPERTY(type, name) \
+	type name; \
 public: \
 	dk_inline const type& get##name() const noexcept { return name; } \
 	dk_inline type& get##name##Writable() noexcept { return name; } \
-	dk_inline void set##name(const type& value) noexcept { name = value; } \
-private: \
-	type name
+	dk_inline void set##name(const type& value) noexcept { name = value; }
 
-#define DK_REFLECTION_PTR_DECLARE(type, name) \
+#define DK_REFLECTION_PTR_PROPERTY(type, name) \
+	Ptr<type> name; \
 public: \
 	dk_inline const Ptr<type>& get##name() const noexcept { return name; } \
 	dk_inline Ptr<type>& get##name##Writable() noexcept { return name; } \
-	dk_inline void set##name(type* value) noexcept { name.assign(value); } \
-private: \
-	Ptr<type> name
-#define DK_REFLECTION_PTR_DECLARE_FLAG(type, name, flag) \
+	dk_inline void set##name(type* value) noexcept { name.assign(value); }
+
+#define DK_REFLECTION_PTR_PROPERTY_FLAG(type, name, flag) \
+	Ptr<type> name; \
 public: \
 	dk_inline const Ptr<type>& get##name() const noexcept { return name; } \
 	dk_inline Ptr<type>& get##name##Writable() noexcept { return name; } \
-	dk_inline void set##name(type* value) noexcept { name.assign(value); } \
-private: \
-	Ptr<type> name
+	dk_inline void set##name(type* value) noexcept { name.assign(value); }
 
-#define DK_REFLECTION_VECTOR_DECLARE(type, name) \
+#define DK_REFLECTION_VECTOR_PROPERTY(type, name) \
+	DKVector<type> name; \
 public: \
 	dk_inline const DKVector<type>& get##name() const noexcept { return name; } \
 	dk_inline DKVector<type>& get##name##Writable() noexcept { return name; } \
-	dk_inline void move##name(DKVector<type>&& rhs) noexcept{ name = std::move(rhs); } \
-private: \
-	DKVector<type> name
+	dk_inline void move##name(DKVector<type>&& rhs) noexcept{ name = DK::move(rhs); }
 }
 
 /*
@@ -208,7 +227,8 @@ namespace DK
 {
 #define DEFINE_REFCOUNTED_STRCUT(name) struct name; using name##Ref = std::shared_ptr<name>;
 #define DEFINE_REFCOUNTED(name) class name; using name##Ref = std::shared_ptr<name>;
-	DEFINE_REFCOUNTED_STRCUT(AppearanceRaw);
+	DEFINE_REFCOUNTED_STRCUT(AppearanceData);
+	DEFINE_REFCOUNTED(ModelProperty);
 	DEFINE_REFCOUNTED(StaticMeshModel);
 	DEFINE_REFCOUNTED(SkinnedMeshModel);
 	DEFINE_REFCOUNTED(Skeleton);
@@ -273,6 +293,12 @@ namespace DK
 		{
 			release();
 			_ptr = ptr;
+		}
+		dk_inline T* relocate() noexcept
+		{
+			T* ptr = _ptr;
+			_ptr = nullptr;
+			return ptr;
 		}
 		dk_inline void release() noexcept
 		{
@@ -576,9 +602,9 @@ namespace DK
 
 		dk_inline void transpose() noexcept
 		{
-			Swap(_12, _21);
-			Swap(_13, _31);
-			Swap(_23, _32);
+			DK::swap(_12, _21);
+			DK::swap(_13, _31);
+			DK::swap(_23, _32);
 		}
 
 		dk_inline const float3x3 operator*(const float3x3& rhs) noexcept
@@ -735,12 +761,12 @@ namespace DK
 
 		dk_inline void transpose() noexcept
 		{
-			Swap(_12, _21);
-			Swap(_13, _31);
-			Swap(_14, _41);
-			Swap(_23, _32);
-			Swap(_24, _42);
-			Swap(_34, _43);
+			DK::swap(_12, _21);
+			DK::swap(_13, _31);
+			DK::swap(_14, _41);
+			DK::swap(_23, _32);
+			DK::swap(_24, _42);
+			DK::swap(_34, _43);
 		}
 
 		dk_inline const float3 getTranslation() const noexcept
@@ -1101,9 +1127,9 @@ namespace DK
 		}
 
 	private:
-		DK_REFLECTION_DECLARE(float3, _translation);
-		DK_REFLECTION_DECLARE(Quaternion, _rotation);
-		DK_REFLECTION_DECLARE(float3, _scale);
+		DK_REFLECTION_PROPERTY(float3, _translation);
+		DK_REFLECTION_PROPERTY(Quaternion, _rotation);
+		DK_REFLECTION_PROPERTY(float3, _scale);
 	};
 }
 #endif // !__DEFINE_STDAFX__

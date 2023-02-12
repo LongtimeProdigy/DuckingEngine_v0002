@@ -6,6 +6,7 @@
 #include "TextureManager.h"
 #include "SceneObjectManager.h"
 #include "Camera.h"
+#include "StaticMeshComponent.h"
 #include "SkinnedMeshComponent.h"
 #include "Model.h"
 #include "SceneObject.h"
@@ -46,11 +47,7 @@ namespace DK
 
 		return ShaderVariableType::Count;
 	};
-#if defined(USE_TINYXML)
 	bool parseShaderVariable(TiXmlElement* variableNode, ShaderVariable& outVariable)
-#else
-	static_assert("현재 지원되는 XML 로더가 없습니다.");
-#endif
 	{
 		const char* variableName = variableNode->ToElement()->Attribute("Name");
 		const char* variableTypeRaw = variableNode->ToElement()->Attribute("Type");
@@ -77,7 +74,6 @@ namespace DK
 	bool SceneRenderer::initialize_createRenderPass()
 	{
 		static const char* renderPassGroupPath = "C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/RenderPass/RenderPassGroup.xml";
-#if defined(USE_TINYXML)
 		TiXmlDocument doc;
 		doc.LoadFile(renderPassGroupPath);
 		TiXmlElement* rootNode = doc.FirstChildElement("RenderPassGroup");
@@ -101,7 +97,24 @@ namespace DK
 						continue;
 
 					DKString nodeName = childNode->Value();
-					if (nodeName == "VertexShader")
+					if (nodeName == "LayoutInfo")
+					{
+						for (TiXmlElement* layoutElement = childNode->FirstChildElement(); layoutElement != nullptr; layoutElement = layoutElement->NextSiblingElement())
+						{
+							DKString layoutElementType = layoutElement->Attribute("Type");
+							DKString layoutElementName = layoutElement->GetText();
+							DK_ASSERT_LOG(layoutElementType.empty() == false, "Type이 비어있으면 안됨");
+							if (layoutElementType == "uint4")
+								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::UINT4, layoutElementName });
+							else if (layoutElementType == "float2")
+								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT2, layoutElementName });
+							else if (layoutElementType == "float3")
+								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT3, layoutElementName });
+							else if (layoutElementType == "float4")
+								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT4, layoutElementName });
+						}
+					}
+					else if (nodeName == "VertexShader")
 					{
 						pipelineCreateInfo._vertexShaderEntry = childNode->Attribute("Entry");
 						pipelineCreateInfo._vertexShaderPath = childNode->GetText();
@@ -118,7 +131,7 @@ namespace DK
 						{
 							return false;
 						}
-						pipelineCreateInfo._variables.push_back(std::move(variable));
+						pipelineCreateInfo._variableArr.push_back(DK::move(variable));
 					}
 					else
 					{
@@ -127,79 +140,77 @@ namespace DK
 					}
 				}
 
-				renderPassCreateInfo._pipelines.push_back(std::make_pair(pipelineName, std::move(pipelineCreateInfo)));
+				renderPassCreateInfo._pipelines.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
 			}
 
-			if (renderModule.createRenderPass(renderPassName, std::move(renderPassCreateInfo)) == false)
+			if (renderModule.createRenderPass(renderPassName, DK::move(renderPassCreateInfo)) == false)
 				return false;
 		}
 
 		return true;
-#else
-		static_assert("현재 지원하지 XML 로더가 없습니다.");
-		return false;
-#endif
 	}
 
 	bool SceneRenderer::initialize_createMaterialDefinition()
 	{
 		// #todo- 나중에 MaterialGroup을 추가하고 Technique로 RenderPass와 연결시켜줘야할듯?
-		static const char* materialDefinitionGroupPass = "C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Material/SkinnedMeshStandard.xml";
-#if defined(USE_TINYXML)
-		TiXmlDocument doc;
-		doc.LoadFile(materialDefinitionGroupPass);
-		TiXmlElement* rootNode = doc.FirstChildElement("Material");
-		if (rootNode == nullptr) return false;
-
-		MaterialDefinition materialDefinition;
-		const DKString materialName = rootNode->Attribute("Name");
-
-		using FindResult = DKHashMap<DKString, MaterialDefinition>::iterator;
-		FindResult findResult = _materialDefinitionMap.find(materialName);
-		if (findResult != _materialDefinitionMap.end())
+		static const char* materialDefinitionGroupPass[2] =
 		{
-			DK_ASSERT_LOG(false, "중복된 이름의 MaterialDefinition이 있습니다.");
-			return false;
-		}
-
-		for (TiXmlNode* parameterNode = rootNode->FirstChild(); parameterNode != nullptr; parameterNode = parameterNode->NextSibling())
+			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Material/SkinnedMeshStandard.xml",
+			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Material/StaticMeshStandard.xml"
+		};
+		for (uint32 i = 0; i < DK_COUNT_OF(materialDefinitionGroupPass); ++i)
 		{
-			const char* name = parameterNode->ToElement()->Attribute("Name");
-			const char* typeRaw = parameterNode->ToElement()->Attribute("Type");
-			const MaterialParameterType type = convertStringToEnum(typeRaw);
-			const char* value = parameterNode->ToElement()->GetText();
+			TiXmlDocument doc;
+			doc.LoadFile(materialDefinitionGroupPass[i]);
+			TiXmlElement* rootNode = doc.FirstChildElement("Material");
+			if (rootNode == nullptr) return false;
 
-			MaterialParameterDefinition parameterDefinition;
-			parameterDefinition._name = name;
-			parameterDefinition._type = type;
-			switch (type)
+			MaterialDefinition materialDefinition;
+			const DKString materialName = rootNode->Attribute("Name");
+
+			using FindResult = DKHashMap<DKString, MaterialDefinition>::iterator;
+			FindResult findResult = _materialDefinitionMap.find(materialName);
+			if (findResult != _materialDefinitionMap.end())
 			{
-			case MaterialParameterType::FLOAT:
-			{
-				parameterDefinition._value = value;
-			}
-			break;
-			case MaterialParameterType::TEXTURE:
-				parameterDefinition._value = value;
-				break;
-			default:
-				DK_ASSERT_LOG(false, "지원하지 않는 MaterialParameterDefinition Type입니다.");
-				break;
+				DK_ASSERT_LOG(false, "중복된 이름의 MaterialDefinition이 있습니다.");
+				return false;
 			}
 
-			materialDefinition._parameters.push_back(std::move(parameterDefinition));
-		}
-#else
-		static_assert("현재 지원하지 XML 로더가 없습니다.");
-		return false;
-#endif
+			for (TiXmlNode* parameterNode = rootNode->FirstChild(); parameterNode != nullptr; parameterNode = parameterNode->NextSibling())
+			{
+				const char* name = parameterNode->ToElement()->Attribute("Name");
+				const char* typeRaw = parameterNode->ToElement()->Attribute("Type");
+				const MaterialParameterType type = convertStringToEnum(typeRaw);
+				const char* value = parameterNode->ToElement()->GetText();
 
-		using InsertResult = DKPair<DKHashMap<DKString, MaterialDefinition>::iterator, bool>;
-		InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, std::move(materialDefinition)));
-		if (insertResult.second == false)
-		{
-			DK_ASSERT_LOG(false, "HashMap Insert 실패!");
-			return false;
+				MaterialParameterDefinition parameterDefinition;
+				parameterDefinition._name = name;
+				parameterDefinition._type = type;
+				switch (type)
+				{
+				case MaterialParameterType::FLOAT:
+				{
+					parameterDefinition._value = value;
+				}
+				break;
+				case MaterialParameterType::TEXTURE:
+					parameterDefinition._value = value;
+					break;
+				default:
+					DK_ASSERT_LOG(false, "지원하지 않는 MaterialParameterDefinition Type입니다.");
+					break;
+				}
+
+				materialDefinition._parameters.push_back(std::move(parameterDefinition));
+			}
+
+			using InsertResult = DKPair<DKHashMap<DKString, MaterialDefinition>::iterator, bool>;
+			InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, std::move(materialDefinition)));
+			if (insertResult.second == false)
+			{
+				DK_ASSERT_LOG(false, "HashMap Insert 실패!");
+				return false;
+			}
 		}
 
 		return true;
@@ -239,8 +250,19 @@ namespace DK
 		_sceneConstantBuffer->upload(&cameraConstantBufferData);
 
 		// Render Character SceneObject
-		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
+		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
 		for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+		{
+			SceneObject& sceneObject = iter->second;
+
+			SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+			sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
+			sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
+		}
+
+		// Render Character SceneObject
+		DKHashMap<uint32, SceneObject>& characterSceneObjectArr = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
+		for (DKHashMap<const uint, SceneObject>::iterator iter = characterSceneObjectArr.begin(); iter != characterSceneObjectArr.end(); ++iter)
 		{
 			SceneObject& sceneObject = iter->second;
 
@@ -326,13 +348,45 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
 		// Render StaticMesh SceneObject
+		startRenderPass(renderModule, "StaticMeshStandardRenderPass");
+		startPipeline("StaticMeshStandardPipeline");
 		{
-			__noop;
+			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
+			DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
+			for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+			{
+				SceneObject& sceneObject = iter->second;
+				setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
+
+				uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+				for (uint componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+				{
+					// #todo- component 완전 개편 필요해보임.
+					// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+					// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+					StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
+
+					DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+					for (uint subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+					{
+						StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+
+						Material* material = subMesh._material.get();
+						setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+
+						renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+						renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+					}
+				}
+			}
 		}
+		endPipeline();
+		endRenderPass();
 
 		// Render Character SceneObject
-		static const char* skinnedMeshRenderPassName = "SkinnedMeshStandardRenderPass";
-		startRenderPass(renderModule, skinnedMeshRenderPassName);
+		startRenderPass(renderModule, "SkinnedMeshStandardRenderPass");
 		startPipeline("SkinnedMeshStandardPipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
@@ -353,15 +407,13 @@ namespace DK
 
 					setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());
 
-					// Material Parameters
-					DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshesWritable();
+					DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
 					for (uint subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
 					{
 						SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
-						Material& material = subMesh._material;
-						// 랜더패스 메터리얼 이름에 대응하는 버퍼를 알아야할듯..
-						setConstantBuffer(material.get_materialName().c_str(), material.get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+						Material* material = subMesh._material.get();
+						setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
 
 						renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
 						renderModule.setIndexBuffer(subMesh._indexBufferView.get());
