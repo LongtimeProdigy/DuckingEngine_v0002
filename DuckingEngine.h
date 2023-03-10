@@ -9,10 +9,8 @@ namespace DK
 	class ResourceManager;
 	class SceneObjectManager;
 	class GameModule;
-}
+	class SceneManager;
 
-namespace DK
-{
 	class DuckingEngine
 	{
 	private:
@@ -48,6 +46,8 @@ namespace DK
 		dk_inline TextureManager& getTextureManagerWritable() noexcept { return *_textureManager; }
 		dk_inline const ResourceManager& GetResourceManager() const noexcept { return *_resourceManager; }
 		dk_inline ResourceManager& GetResourceManagerWritable() noexcept { return *_resourceManager; }
+		dk_inline const SceneManager& getSceneManager() const noexcept { return *_sceneManager; }
+		dk_inline SceneManager& getSceneManagerWritable() noexcept { return *_sceneManager; }
 		dk_inline const SceneObjectManager& GetSceneObjectManager() const noexcept { return *_sceneObjectManager; }
 		dk_inline SceneObjectManager& GetSceneObjectManagerWritable() noexcept { return *_sceneObjectManager; }
 
@@ -60,6 +60,7 @@ namespace DK
 #pragma region Editor&Game Modules
 		static TextureManager* _textureManager;
 		static ResourceManager* _resourceManager;
+		static SceneManager* _sceneManager;
 		static SceneObjectManager* _sceneObjectManager;
 		static GameModule* _gameModule;
 #pragma endregion

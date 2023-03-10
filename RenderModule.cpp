@@ -97,12 +97,16 @@ namespace DK
 	//}
 	bool RenderModule::initialize(const HWND hwnd, const uint32 width, const uint height)
 	{
-		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) return false;
+		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) 
+			return false;
+
 		_commandList.assign(createCommandList());
-		if (_commandList.get() == nullptr) return false;
+		if (_commandList.get() == nullptr) 
+			return false;
 		_commandList->_commandList->Close();
-		if (initialize_createFence() == false) return false;
-		if (initialize_createFenceEvent() == false) return false;
+
+		if (initialize_createFence() == false) 
+			return false;
 
 		return true;
 	}
@@ -126,13 +130,6 @@ namespace DK
 	{
 		HRESULT hr;
 
-#ifdef _DK_DEBUG_
-		// Enable the D3D12 debug layer.
-		ID3D12Debug* debugController;
-		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-			debugController->EnableDebugLayer();
-#endif
-
 		// Create DirectX Factory
 		IDXGIFactory4* factory;
 		UINT factoryFlags = 0;
@@ -149,15 +146,27 @@ namespace DK
 		if (SUCCEEDED(hr) == false)
 			return false;
 
-		static const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
+#pragma region 실험적 기능 목록을 사용하도록 설정합니다.
+#if 0
+		const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
 			0x76f5573e,
 			0xf13a,
 			0x40f5,
 			{ 0xb2, 0x97, 0x81, 0xce, 0x9e, 0x18, 0x93, 0x3f }
 		};
 		hr = D3D12EnableExperimentalFeatures(1, &D3D12ExperimentalShaderModelsID, nullptr, nullptr);
-		if (FAILED(hr) == true)
+		if (FAILED(hr))
 			return false;
+#endif
+#pragma endregion
+
+#ifdef _DK_DEBUG_
+		// CreateDevice이전에 실행해야합니다. Device생성 이후에 호출하면 Device Remove가 발생함.
+		// Enable the D3D12 debug layer.
+		ID3D12Debug* debugController;
+		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+			debugController->EnableDebugLayer();
+#endif
 
 		// Create RenderDevice
 		if (_useWarpDevice == true)
@@ -360,11 +369,9 @@ namespace DK
 			_fences[i]->Signal(_fenceValues[i]);
 		}
 
-		return true;
-	}
-	bool RenderModule::initialize_createFenceEvent()
-	{
 		_fenceEvent = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+		return true;
+
 		return true;
 	}
 
@@ -485,23 +492,23 @@ namespace DK
 			return false;
 		}
 
-		const wchar_t* shaderPathW = charTowChar(shaderPath);
-		const wchar_t* shaderEntryW = charTowChar(entry);
+		ScopeString<DK_MAX_PATH> shaderFullPath = GlobalPath::makeResourceFullPath(shaderPath);
+
+		Ptr<const wchar_t> shaderPathW(charTowChar(shaderFullPath.c_str()));
+		Ptr<const wchar_t> shaderEntryW(charTowChar(entry));
 
 		RenderResourcePtr<IDxcBlobEncoding> sourceBlob(nullptr);
-		hr = utils->LoadFile(shaderPathW, nullptr, sourceBlob.getAddress());
+		hr = utils->LoadFile(shaderPathW.get(), nullptr, sourceBlob.getAddress());
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "");
-			dk_delete_array shaderPathW;
-			dk_delete_array shaderEntryW;
 			return false;
 		}
 
 		DKVector<LPCWSTR> arguments;
 		//-E for the entry point (eg. PSMain)
 		arguments.push_back(L"-E");
-		arguments.push_back(shaderEntryW);
+		arguments.push_back(shaderEntryW.get());
 
 		//-T for the target profile (eg. ps_6_2)
 		arguments.push_back(L"-T");
@@ -528,8 +535,6 @@ namespace DK
 
 		RenderResourcePtr<IDxcResult> result(nullptr);
 		hr = compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), NULL, IID_PPV_ARGS(result.getAddress()));
-		dk_delete_array shaderPathW;
-		dk_delete_array shaderEntryW;
 		if (FAILED(hr))
 		{
 			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
@@ -609,10 +614,15 @@ namespace DK
 		inputLayoutDesc.pInputElementDescs = inputLayout.data();
 
 		D3D12_RASTERIZER_DESC rasterizerDesc = {};
+#if 1
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
-		//rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+#else
+		//rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+		rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
 		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
 		//rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+#endif
 		rasterizerDesc.FrontCounterClockwise = FALSE;
 		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
 		rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
@@ -640,9 +650,9 @@ namespace DK
 			blendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
 
 		D3D12_DEPTH_STENCIL_DESC depthStencilDesc;
-		depthStencilDesc.DepthEnable = inoutPipeline._shaderVariables.size() == 4 ? TRUE : FALSE;
-		depthStencilDesc.DepthWriteMask = inoutPipeline._shaderVariables.size() == 4 ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
-		depthStencilDesc.DepthFunc = inoutPipeline._shaderVariables.size() == 4 ? D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
+		depthStencilDesc.DepthEnable = StringUtil::strcmp(pipelineCreateInfo._depthEnable, "True");
+		depthStencilDesc.DepthWriteMask = depthStencilDesc.DepthEnable ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+		depthStencilDesc.DepthFunc = depthStencilDesc.DepthEnable ? D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
 		depthStencilDesc.StencilEnable = FALSE;
 		depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
 		depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;

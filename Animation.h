@@ -5,6 +5,10 @@ namespace DK
 	class Animation
 	{
 	public:
+		static constexpr uint32 kAnimationFrameCountPerSecond = 30;
+		static constexpr float kAnimationTimePerFrame = 1.0f / kAnimationFrameCountPerSecond;
+
+	public:
 		struct BoneAnimation
 		{
 			DKString _boneName;
@@ -16,19 +20,19 @@ namespace DK
 			_boneAnimations = boneAnimations;
 		}
 
-		dk_inline const DKVector<BoneAnimation>& GetBoneAnimation() const noexcept
+		dk_inline const DKVector<BoneAnimation>& getBoneAnimation() const noexcept
 		{
 			return _boneAnimations;
 		}
 
-		dk_inline float GetAnimationTime() const noexcept
+		dk_inline float getCurrentAnimationTime() const noexcept
 		{
-			return _animationTime;
+			return _currentAnimationTime;
 		}
 
-		dk_inline void SetAnimationTime(float animationTime) noexcept
+		dk_inline void setCurrentAnimationTime(float animationTime) noexcept
 		{
-			_animationTime = animationTime;
+			_currentAnimationTime = animationTime;
 		}
 
 		dk_inline void SetFrameCount(uint frameCount) noexcept
@@ -36,14 +40,14 @@ namespace DK
 			_frameCount = frameCount;
 		}
 
-		dk_inline uint GetFrameCount() const noexcept
+		dk_inline uint getFrameCount() const noexcept
 		{
 			return _frameCount;
 		}
 
 	private:
 		DKVector<BoneAnimation> _boneAnimations;
-		float _animationTime = 0.0f;
+		float _currentAnimationTime = 0.0f;
 		uint _frameCount = 0;
 	};
 }

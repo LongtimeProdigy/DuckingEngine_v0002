@@ -235,8 +235,10 @@ namespace DK
 			return findResult->second;
 		}
 
+		ScopeString<DK_MAX_PATH> textureFullPath = GlobalPath::makeResourceFullPath(texturePath);
+
 		TextureRaw textureRaw;
-		const bool loadingTextureSuccess = loadImageDataFromFile(texturePath.c_str(), textureRaw);
+		const bool loadingTextureSuccess = loadImageDataFromFile(textureFullPath.c_str(), textureRaw);
 		if (loadingTextureSuccess == false)
 		{
 			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");

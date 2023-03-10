@@ -12,6 +12,7 @@
 #include "SceneObject.h"
 #include "Material.h"
 #include "EditorDebugDrawManager.h"
+#include "SceneManager.h"
 
 namespace DK
 {
@@ -23,9 +24,12 @@ namespace DK
 
 	bool SceneRenderer::initialize()
 	{
-		if (initialize_createRenderPass() == false) return false;
-		if (initialize_createMaterialDefinition() == false) return false;
-		if (initialize_createSceneConstantBuffer() == false) return false;
+		if (initialize_createRenderPass() == false) 
+			return false;
+		if (initialize_createMaterialDefinition() == false) 
+			return false;
+		if (initialize_createSceneConstantBuffer() == false) 
+			return false;
 
 		return true;
 	}
@@ -73,9 +77,10 @@ namespace DK
 	}
 	bool SceneRenderer::initialize_createRenderPass()
 	{
-		static const char* renderPassGroupPath = "C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/RenderPass/RenderPassGroup.xml";
+		ScopeString<DK_MAX_PATH> renderPassGroupPath = GlobalPath::makeResourceFullPath("RenderPass/RenderPassGroup.xml");
+
 		TiXmlDocument doc;
-		doc.LoadFile(renderPassGroupPath);
+		doc.LoadFile(renderPassGroupPath.c_str());
 		TiXmlElement* rootNode = doc.FirstChildElement("RenderPassGroup");
 		if (rootNode == nullptr) return false;
 
@@ -90,6 +95,7 @@ namespace DK
 				Pipeline::CreateInfo pipelineCreateInfo;
 				DKString pipelineName = pipelineNode->Attribute("Name");
 				pipelineCreateInfo._primitiveTopologyType = pipelineNode->Attribute("PrimitiveTopologyType");
+				pipelineCreateInfo._depthEnable = pipelineNode->Attribute("DepthEnable");
 
 				for (TiXmlElement* childNode = pipelineNode->FirstChildElement(); childNode != nullptr; childNode = childNode->NextSiblingElement())
 				{
@@ -153,15 +159,17 @@ namespace DK
 	bool SceneRenderer::initialize_createMaterialDefinition()
 	{
 		// #todo- 나중에 MaterialGroup을 추가하고 Technique로 RenderPass와 연결시켜줘야할듯?
-		static const char* materialDefinitionGroupPass[2] =
+		static const char* materialDefinitionGroupPassStr[2] =
 		{
-			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Material/SkinnedMeshStandard.xml",
-			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Material/StaticMeshStandard.xml"
+			"Material/SkinnedMeshStandard.xml",
+			"Material/StaticMeshStandard.xml"
 		};
-		for (uint32 i = 0; i < DK_COUNT_OF(materialDefinitionGroupPass); ++i)
+		for (uint32 i = 0; i < DK_ARRAYSIZE_OF(materialDefinitionGroupPassStr); ++i)
 		{
+			ScopeString<DK_MAX_PATH> materialDefinitionGroupPass = GlobalPath::makeResourceFullPath(materialDefinitionGroupPassStr[i]);
+
 			TiXmlDocument doc;
-			doc.LoadFile(materialDefinitionGroupPass[i]);
+			doc.LoadFile(materialDefinitionGroupPass.c_str());
 			TiXmlElement* rootNode = doc.FirstChildElement("Material");
 			if (rootNode == nullptr) return false;
 
@@ -346,6 +354,24 @@ namespace DK
 	void SceneRenderer::updateRender() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+
+		// Render Tarrain
+		startRenderPass(renderModule, "TerrainStandardRenderPass");
+		startPipeline("TerrainStandardPipeline");
+		{
+			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+			const SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			const DKVector<SceneManager::Terrain>& terrainContainer = sceneManager.getTerrainContainer();
+
+			for (const SceneManager::Terrain& terrain : terrainContainer)
+			{
+				renderModule.setVertexBuffers(0, 1, terrain._vertexBufferView.get());
+				renderModule.setIndexBuffer(terrain._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._indexCount), 1, 0, 0, 0);
+			}
+		}
+		endPipeline();
+		endRenderPass();
 
 		// Render StaticMesh SceneObject
 		startRenderPass(renderModule, "StaticMeshStandardRenderPass");

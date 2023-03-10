@@ -74,6 +74,7 @@ namespace DK
 			};
 
 			const char* _primitiveTopologyType;
+			const char* _depthEnable;
 			const char* _vertexShaderPath;
 			const char* _vertexShaderEntry;
 			const char* _pixelShaderPath;
@@ -206,7 +207,6 @@ do{ \
 		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint width, const uint height);
 		DKCommandList* createCommandList();
 		bool initialize_createFence();
-		bool initialize_createFenceEvent();
 		bool createRootSignature(Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 

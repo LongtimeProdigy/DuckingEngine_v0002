@@ -53,6 +53,7 @@
     </ClCompile>
     <ClCompile Include="ModelProperty.cpp" />
     <ClCompile Include="RenderableComponent.cpp" />
+    <ClCompile Include="SceneManager.cpp" />
     <ClCompile Include="StaticMeshComponent.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="SceneObject.cpp" />
@@ -127,6 +128,7 @@
     <ClInclude Include="lib\tinyXML\tinyxml.h" />
     <ClInclude Include="ModelProperty.h" />
     <ClInclude Include="RenderableComponent.h" />
+    <ClInclude Include="SceneManager.h" />
     <ClInclude Include="StaticMeshComponent.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="SceneObject.h" />

@@ -131,8 +131,10 @@ namespace DK
 	}
 	const bool LoadSkeletonInternal(const DKString& skeletonPath, SkeletonRef& outSkeleton)
 	{
+		ScopeString<DK_MAX_PATH> skeletonFullPath = GlobalPath::makeResourceFullPath(skeletonPath);
+
 		TiXmlDocument doc;
-		if (doc.LoadFile(skeletonPath.c_str()) == false)
+		if (doc.LoadFile(skeletonFullPath.c_str()) == false)
 		{
 			DK_ASSERT_LOG(false, "Skeleton XML 로딩에 실패!, %s", doc.ErrorDesc());
 			return false;
@@ -208,8 +210,10 @@ namespace DK
 	}
 	const bool LoadAnimationInternal(const DKString& animationPath, const SkeletonRef& skeleton, AnimationRef& outAnimation)
 	{
+		ScopeString<DK_MAX_PATH> animationFullPath = GlobalPath::makeResourceFullPath(animationPath);
+
 		TiXmlDocument doc;
-		doc.LoadFile(animationPath.c_str());
+		doc.LoadFile(animationFullPath.c_str());
 		TiXmlElement* rootNode = doc.FirstChildElement("Animation");
 		if (rootNode == nullptr)
 		{
@@ -227,7 +231,7 @@ namespace DK
 		uint frameCount = atoi(frameCountAttr->Value());
 		outAnimation->SetFrameCount(frameCount);
 
-		const DKVector<Bone>& bones = skeleton->GetBones();
+		const DKVector<Bone>& bones = skeleton->getBoneArr();
 		DKVector<Animation::BoneAnimation> boneAnimations;
 		boneAnimations.resize(bones.size());
 
@@ -237,10 +241,10 @@ namespace DK
 
 		for (TiXmlNode* boneNode = rootNode->FirstChild(); boneNode != nullptr; boneNode = boneNode->NextSibling())
 		{
-			std::string boneName = boneNode->ToElement()->FirstAttribute()->Value();
+			DKString boneName = boneNode->ToElement()->FirstAttribute()->Value();
 
 			int boneIndex = -1;
-			for (uint i = 0; i < boneCount; ++i)
+			for (uint32 i = 0; i < boneCount; ++i)
 			{
 				if (boneName == bones[i]._boneName)
 				{
@@ -273,9 +277,9 @@ namespace DK
 						return false;
 					}
 
-					std::string positionStr = positionNode->FirstChild()->Value();
-					std::string rotationStr = rotationNode->FirstChild()->Value();
-					std::string scaleStr = scaleNode->FirstChild()->Value();
+					DKString positionStr = positionNode->FirstChild()->Value();
+					DKString rotationStr = rotationNode->FirstChild()->Value();
+					DKString scaleStr = scaleNode->FirstChild()->Value();
 
 					float3 position = parseFloat3FromString(positionStr);
 					Quaternion rotation = parseQuaternionFromString(rotationStr);
@@ -295,21 +299,14 @@ namespace DK
 			}
 		}
 
-		uint boneFoundCount = static_cast<uint>(boneAnimationFound.size());
-		for (uint boneIndex = 0; boneIndex < boneFoundCount; ++boneIndex)
+		uint32 boneFoundCount = static_cast<uint32>(boneAnimationFound.size());
+		for (uint32 boneIndex = 0; boneIndex < boneFoundCount; ++boneIndex)
 		{
 			if (boneAnimationFound[boneIndex] == false)
 			{
-#if defined(_DK_DEBUG_)
 				DK_ASSERT_LOG(false, "Skeleton에 Animation에는 없는 Bone이 있습니다. BoneName: %s", bones[boneIndex]._boneName.c_str());
-#endif
 				return false;
 			}
-
-			//for (uint frameIndex = 0; frameIndex < frameCount; ++frameIndex)
-			//{
-			//	bones[boneIndex]._transform.tofloat4x4(boneAnimation._animation[frameIndex]);
-			//}
 		}
 
 		outAnimation->SetBoneAnimations(boneAnimations);
@@ -328,8 +325,10 @@ namespace DK
 			return (*findResult).second;
 
 		// Load Modelproperty
+		ScopeString<DK_MAX_PATH> modelPropertyFullPath = GlobalPath::makeResourceFullPath(modelPropertyPath);
+
 		TiXmlDocument modelPropertyDocument;
-		modelPropertyDocument.LoadFile(modelPropertyPath.c_str());
+		modelPropertyDocument.LoadFile(modelPropertyFullPath.c_str());
 
 		const TiXmlElement* modelPropertyNode = modelPropertyDocument.RootElement();
 
@@ -374,7 +373,9 @@ namespace DK
 		if (findResult != _staticMeshModelContainer.end())
 			return findResult->second;
 
-		ScopeFileHandle fileHandle(modelPath);
+		ScopeString<DK_MAX_PATH> modelFullPath = GlobalPath::makeResourceFullPath(modelPath);
+
+		ScopeFileHandle fileHandle(modelFullPath.c_str());
 		if (fileHandle._fp == nullptr)
 			return nullptr;
 
@@ -470,7 +471,9 @@ namespace DK
 		if (findResult != _skinnedMeshModelContainer.end())
 			return findResult->second;
 
-		ScopeFileHandle handle(modelPath);
+		ScopeString<DK_MAX_PATH> modelFullPath = GlobalPath::makeResourceFullPath(modelPath);
+
+		ScopeFileHandle handle(modelFullPath.c_str());
 		if (handle._fp == nullptr)
 			return nullptr;
 
@@ -526,8 +529,8 @@ namespace DK
 				{
 					sumWeight += vertex.weights[i];
 
-					if (vertex.boneIndexes[i] == 0xffffffff)
-						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndex가 Invalid(0xffffffff)한데 Weight(%f)가 존재합니다.", sumWeight);
+					if (vertex.boneIndexArr[i] == Bone::kInvalidBoneIndex)
+						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndex가 Invalid(Bone::kInvalidBoneIndex)한데 Weight(%f)가 존재합니다.", sumWeight);
 				}
 #define EPSILON 0.00001f
 				DK_ASSERT_LOG(1.0f - sumWeight < EPSILON, "weight의 합이 1.0이 되지 않습니다.");

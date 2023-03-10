@@ -24,7 +24,7 @@ namespace DK
 		"Texture",
 	};
 
-	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_COUNT_OF(gMaterialParameterTypeName) - 1), "Type과 TypeName 개수가 일치되어야합니다.");
+	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_ARRAYSIZE_OF(gMaterialParameterTypeName) - 1), "Type과 TypeName 개수가 일치되어야합니다.");
 	dk_inline MaterialParameterType convertStringToEnum(const char* str)
 	{
 		const uint32 count = static_cast<uint32>(MaterialParameterType::COUNT);

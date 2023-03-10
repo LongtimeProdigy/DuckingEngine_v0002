@@ -112,13 +112,6 @@ namespace DK
 #endif
 #pragma endregion
 
-#define USE_TINYXML
-#ifdef USE_TINYXML
-#include "tinyxml.h"
-#else
-static_assert(false, "XML 파싱 Class 정의가 필요합니다.");
-#endif
-
 #ifdef _DK_DEBUG_
 #define USE_PIX
 #endif
@@ -142,17 +135,24 @@ namespace DK
 {
 #define DKVector std::vector
 #define DKHashMap std::unordered_map
+#define DKHashSet std::unordered_set
 #define DKPair std::pair
-	using DKString = std::string;
 }
 
-#define DK_COUNT_OF ARRAYSIZE
+#define USE_TINYXML
+#ifdef USE_TINYXML
+#include "tinyxml.h"
+#else
+static_assert(false, "XML 파싱 Class 정의가 필요합니다.");
+#endif
 
 /*
 * ETC Helper 함수
 */
 namespace DK
 {
+#define DK_ARRAYSIZE_OF ARRAYSIZE
+
 	template <typename T>
 	dk_inline void swap(T&& lhs, T&& rhs) noexcept
 	{
@@ -161,7 +161,7 @@ namespace DK
 
 	dk_inline void* memcpy(void* dest, void const* src, uint32 size)
 	{
-		return std::memcpy(dest, src, size);
+		return ::memcpy(dest, src, size);
 	}
 
 	template<typename T>
@@ -180,6 +180,153 @@ namespace DK
 		return ::atoi(string);
 	}
 }
+
+/*
+* String 함수
+*/
+namespace DK
+{
+	using DKString = std::string;
+#define DK_MAX_PATH MAX_PATH
+
+	class StringUtil
+	{
+	public:
+		static float atof(const char* str) noexcept
+		{
+			return static_cast<float>(std::atof(str));
+		}
+		static bool strcmp(const char* str1, const char* str2) noexcept
+		{
+			return std::strcmp(str1, str2) == 0;
+		}
+		static uint32 strlen(const char* str)
+		{
+			return static_cast<uint32>(std::strlen(str));
+		}
+		static char* strcpy(char* dest, const char* src)
+		{
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#define _CRT_SECURE_NO_WARNINGS
+			return ::strcpy(dest, src);
+#undef _CRT_SECURE_NO_WARNINGS
+#pragma warning(pop)
+		}
+		static char* strcat(char* dest, const char* src)
+		{
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#define _CRT_SECURE_NO_WARNINGS
+			return ::strcat(dest, src);
+#undef _CRT_SECURE_NO_WARNINGS
+#pragma warning(pop)
+		}
+
+		//wchar_t 에서 char 로의 형변환 함수
+		static DKString convertWCtoC(wchar_t* str)
+		{
+			DKVector<char> pStr;
+			int strSize = WideCharToMultiByte(CP_ACP, 0, str, -1, NULL, 0, NULL, NULL);
+			pStr.resize(strSize);
+			WideCharToMultiByte(CP_ACP, 0, str, -1, pStr.data(), strSize, 0, 0);
+			return pStr.data();
+		}
+
+		///////////////////////////////////////////////////////////////////////
+		//char 에서 wchar_t 로의 형변환 함수
+		//static DKStringW ConverCtoWC(char* str)
+		//{
+		//	//wchar_t형 변수 선언
+		//	wchar_t* pStr;
+		//	//멀티 바이트 크기 계산 길이 반환
+		//	int strSize = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, NULL);
+		//	//wchar_t 메모리 할당
+		//	pStr = new WCHAR[strSize];
+		//	//형 변환
+		//	MultiByteToWideChar(CP_ACP, 0, str, strlen(str) + 1, pStr, strSize);
+		//	return pStr;
+		//}
+	};
+
+	class StringSplitter
+	{
+	public:
+		StringSplitter() = delete;
+		StringSplitter(const DKString& str, const DKString& delimiter)
+		{
+			size_t start = 0U;
+			size_t end = str.find(delimiter);
+			while (end != DKString::npos) {
+				_container.push_back(str.substr(start, end - start));
+				start = end + delimiter.length();
+				end = str.find(delimiter, start);
+			}
+			_container.push_back(str.substr(start, end));
+		}
+
+		const DKString& operator[](const uint32 index) const
+		{
+			return _container[index];
+		}
+
+	private:
+		DKVector<DKString> _container;
+	};
+
+	template <uint SIZE>
+	class ScopeString
+	{
+	public:
+		ScopeString(const char* str)
+		{
+			StringUtil::strcpy(_string, str);
+		}
+
+		const char* c_str() const
+		{
+			return _string;
+		}
+
+		void append(const char* str)
+		{
+#ifdef _DK_DEBUG_
+			const uint32 length = StringUtil::strlen(_string) + StringUtil::strlen(str);
+			DK_ASSERT_LOG(length < SIZE, "Size를 넘어갑니다. %d/%d", length, SIZE);
+#endif
+			StringUtil::strcat(_string, str);
+		}
+
+	private:
+		char _string[SIZE];
+	};
+}
+
+/*
+* Global Path
+*/
+namespace DK
+{
+	class GlobalPath
+	{
+	public:
+		static DKString kResourcePath;
+
+	public:
+		static ScopeString<DK_MAX_PATH> makeResourceFullPath(const DKString& resourcePath)
+		{
+			ScopeString<DK_MAX_PATH> resourceFullPath(GlobalPath::kResourcePath.c_str());
+			resourceFullPath.append("/");
+			resourceFullPath.append(resourcePath.c_str());
+
+			return resourceFullPath;
+		}
+	};
+}
+
+/*
+* Global Variable
+*/
 
 /*
 * Refleciton 관련
@@ -380,21 +527,6 @@ namespace DK
 }
 
 /*
-* String 함수
-*/
-namespace DK
-{
-	class StringUtil
-	{
-	public:
-		static float atof(const char* str) noexcept
-		{
-			return static_cast<float>(std::atof(str));
-		}
-	};
-}
-
-/*
 * Math Utility
 */
 #define USE_DIRECTX_MATH
@@ -454,6 +586,11 @@ namespace DK
 		static float clamp(float value, float min, float max)
 		{
 			return Math::max(min, Math::min(value, max));
+		}
+
+		static float floor(float value)
+		{
+			return std::floor(value);
 		}
 	};
 
@@ -690,6 +827,35 @@ namespace DK
 	struct float4x4
 	{
 		static const float4x4 Identity;
+		static float4x4 slerp(const float4x4& lhs, const float4x4& rhs, const float ratio)
+		{
+#ifdef USE_DIRECTX_MATH
+			DirectX::XMMATRIX lMatrix = rhs.convertXMMATRIX();
+			DirectX::XMVECTOR lTranslation, lQuaternion, lScale;
+			DirectX::XMMatrixDecompose(&lScale, &lQuaternion, &lTranslation, lMatrix);
+
+			DirectX::XMMATRIX rMatrix = rhs.convertXMMATRIX();
+			DirectX::XMVECTOR rTranslation, rQuaternion, rScale;
+			DirectX::XMMatrixDecompose(&rScale, &rQuaternion, &rTranslation, rMatrix);
+
+			DirectX::XMVECTOR lerpTranslation = DirectX::XMVectorLerp(lTranslation, rTranslation, ratio);
+			DirectX::XMVECTOR lerpQuaternion = DirectX::XMQuaternionSlerp(lQuaternion, rQuaternion, ratio);
+			DirectX::XMVECTOR lerpScale = DirectX::XMVectorLerp(lScale, rScale, ratio);
+
+			DirectX::XMMATRIX lerpTranslationMatrix = DirectX::XMMatrixTranslationFromVector(lerpTranslation);
+			DirectX::XMMATRIX lerpQuaternionMatrix = DirectX::XMMatrixRotationQuaternion(lerpQuaternion);
+			DirectX::XMMATRIX lerpScaleMatrix = DirectX::XMMatrixScalingFromVector(lerpScale);
+
+			DirectX::XMMATRIX lerpMatrix = lerpTranslationMatrix * lerpQuaternionMatrix * lerpScaleMatrix;
+			
+			float4x4 outMatrix;
+			outMatrix.convertfloat4x4(lerpMatrix);
+
+			return outMatrix;
+#else
+			static_assert(false, "Matrix slerp 구현 필요합니다");
+#endif
+		}
 
 		float4x4()
 			: _11(1), _12(0), _13(0), _14(0)
@@ -724,7 +890,6 @@ namespace DK
 
 			return *this;
 		}
-
 		dk_inline const float4x4& operator*(const float& rhs) noexcept
 		{
 			_11 *= rhs; _12 *= rhs; _13 *= rhs; _14 *= rhs;
@@ -769,19 +934,10 @@ namespace DK
 			DK::swap(_34, _43);
 		}
 
-		dk_inline const float3 getTranslation() const noexcept
-		{
-			return float3(_rows[3].x, _rows[3].y, _rows[3].z);
-		}
-
 		dk_inline void inverse_copy(float4x4& outMatrix) const noexcept
 		{
 #ifdef USE_DIRECTX_MATH
-			DirectX::XMMATRIX matrix;
-			matrix.r[0].m128_f32[0] = _rows[0].x; matrix.r[0].m128_f32[1] = _rows[0].y; matrix.r[0].m128_f32[2] = _rows[0].z; matrix.r[0].m128_f32[3] = _rows[0].w;
-			matrix.r[1].m128_f32[0] = _rows[1].x; matrix.r[1].m128_f32[1] = _rows[1].y; matrix.r[1].m128_f32[2] = _rows[1].z; matrix.r[1].m128_f32[3] = _rows[1].w;
-			matrix.r[2].m128_f32[0] = _rows[2].x; matrix.r[2].m128_f32[1] = _rows[2].y; matrix.r[2].m128_f32[2] = _rows[2].z; matrix.r[2].m128_f32[3] = _rows[2].w;
-			matrix.r[3].m128_f32[0] = _rows[3].x; matrix.r[3].m128_f32[1] = _rows[3].y; matrix.r[3].m128_f32[2] = _rows[3].z; matrix.r[3].m128_f32[3] = _rows[3].w;
+			DirectX::XMMATRIX matrix = convertXMMATRIX();
 			DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(matrix);
 			DirectX::XMMATRIX E = DirectX::XMMatrixInverse(&det, matrix);
 
@@ -798,6 +954,34 @@ namespace DK
 
 		void toTransform(Transform& outTransform) const;
 
+		dk_inline const float3 getTranslation() const noexcept
+		{
+			return float3(_rows[3].x, _rows[3].y, _rows[3].z);
+		}
+
+	private:
+#ifdef USE_DIRECTX_MATH
+		DirectX::XMMATRIX convertXMMATRIX() const
+		{
+			DirectX::XMMATRIX matrix;
+			matrix.r[0].m128_f32[0] = _rows[0].x; matrix.r[0].m128_f32[1] = _rows[0].y; matrix.r[0].m128_f32[2] = _rows[0].z; matrix.r[0].m128_f32[3] = _rows[0].w;
+			matrix.r[1].m128_f32[0] = _rows[1].x; matrix.r[1].m128_f32[1] = _rows[1].y; matrix.r[1].m128_f32[2] = _rows[1].z; matrix.r[1].m128_f32[3] = _rows[1].w;
+			matrix.r[2].m128_f32[0] = _rows[2].x; matrix.r[2].m128_f32[1] = _rows[2].y; matrix.r[2].m128_f32[2] = _rows[2].z; matrix.r[2].m128_f32[3] = _rows[2].w;
+			matrix.r[3].m128_f32[0] = _rows[3].x; matrix.r[3].m128_f32[1] = _rows[3].y; matrix.r[3].m128_f32[2] = _rows[3].z; matrix.r[3].m128_f32[3] = _rows[3].w;
+
+			return matrix;
+		}
+
+		void convertfloat4x4(const DirectX::XMMATRIX& matrix)
+		{
+			_11 = matrix.r[0].m128_f32[0]; _12 = matrix.r[0].m128_f32[1]; _13 = matrix.r[0].m128_f32[2]; _14 = matrix.r[0].m128_f32[3];
+			_21 = matrix.r[1].m128_f32[0]; _22 = matrix.r[1].m128_f32[1]; _23 = matrix.r[1].m128_f32[2]; _24 = matrix.r[1].m128_f32[3];
+			_31 = matrix.r[2].m128_f32[0]; _32 = matrix.r[2].m128_f32[1]; _33 = matrix.r[2].m128_f32[2]; _34 = matrix.r[2].m128_f32[3];
+			_41 = matrix.r[3].m128_f32[0]; _42 = matrix.r[3].m128_f32[1]; _43 = matrix.r[3].m128_f32[2]; _44 = matrix.r[3].m128_f32[3];
+		}
+#endif
+
+	public:
 		union
 		{
 			float4 _rows[4];

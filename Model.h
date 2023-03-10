@@ -17,7 +17,7 @@ namespace DK
 		const float3 _normal = float3::Zero;
 		const float2 _uv = float2::Zero;
 #define MAX_SKINNING_COUNT 4
-		const uint32 boneIndexes[MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), static_cast<uint32>(-1),static_cast<uint32>(-1),static_cast<uint32>(-1) };
+		const uint32 boneIndexArr[MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), static_cast<uint32>(-1),static_cast<uint32>(-1),static_cast<uint32>(-1) };
 		const float weights[MAX_SKINNING_COUNT] = { 0.0f,0.0f,0.0f,0.0f };
 	};
 

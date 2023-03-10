@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "GameModule.h"
 
+#include "DuckingEngine.h"
+#include "SceneManager.h"
 #include "SceneObjectManager.h"
 #include "SceneObject.h"
 
@@ -8,18 +10,21 @@ namespace DK
 {
 	bool GameModule::initialize()
 	{
+		// Test Terrain
+		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
+
 		// Test Object
-		//SceneObject* testObjectSceneObject = SceneObjectManager::createSceneObject(
-		//	"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Object/Model/StaticMeshStandard.dm", 
-		//	"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Object/ModelProperty/StaticMeshStandard.xml"
-		//);
-		//if (testObjectSceneObject == nullptr)
-		//	return false;
-		//testObjectSceneObject->set_worldTransform(Transform(float3::Zero, Quaternion::Identity, float3::Identity));
+		SceneObject* testObjectSceneObject = SceneObjectManager::createSceneObject(
+			"Object/Model/StaticMeshStandard.dm", 
+			"Object/ModelProperty/StaticMeshStandard.xml"
+		);
+		if (testObjectSceneObject == nullptr)
+			return false;
+		testObjectSceneObject->set_worldTransform(Transform(float3::Zero, Quaternion::Identity, float3::Identity));
 
 		// Test Character
 		SceneObject* testCharacterSceneObject = SceneObjectManager::createCharacter(
-			"C:/Users/Lee/Desktop/Projects/DuckingEngine_v0002/Resource/Character/Appearance/YBot.xml"
+			"Character/Appearance/YBot.xml"
 		);
 		if (testCharacterSceneObject == nullptr) 
 			return false;

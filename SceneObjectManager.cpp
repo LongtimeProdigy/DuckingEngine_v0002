@@ -33,8 +33,10 @@ namespace DK
 		if (findResult != _appearanceRawContainers.end())
 			return findResult->second;
 
+		ScopeString<DK_MAX_PATH> appearanceFullPath = GlobalPath::makeResourceFullPath(appearancePath);
+
 		TiXmlDocument appearanceDocument;
-		if (appearanceDocument.LoadFile(appearancePath) == false)
+		if (appearanceDocument.LoadFile(appearanceFullPath.c_str()) == false)
 		{
 			DK_ASSERT_LOG(false, "Appearance File LoadError: %s", appearanceDocument.ErrorDesc());
 			return nullptr;

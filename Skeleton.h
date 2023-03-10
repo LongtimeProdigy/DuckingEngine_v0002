@@ -5,6 +5,9 @@ namespace DK
 	struct Bone
 	{
 	public:
+		static constexpr uint32 kInvalidBoneIndex = 0xffffffff;
+
+	public:
 		Bone(const DKString& boneName, const DKString& parentBoneName, const uint32 parentBoneIndex, const Transform& transform)
 #if defined(_DK_DEBUG_)
 			: _boneName(boneName)
@@ -25,7 +28,7 @@ namespace DK
 	class Skeleton
 	{
 	public:
-		dk_inline const DKVector<Bone>& GetBones() const noexcept
+		dk_inline const DKVector<Bone>& getBoneArr() const noexcept
 		{
 			return _bones;
 		}

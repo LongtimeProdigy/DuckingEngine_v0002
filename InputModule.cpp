@@ -16,9 +16,7 @@ namespace DK
 	{
 		gComputerController = dk_new ComputerController;
 		if (gComputerController == nullptr)
-		{
 			return false;
-		}
 
 		return true;
 	}
@@ -27,9 +25,7 @@ namespace DK
 	{
 		gXBOXController = dk_new XBOXController(0);
 		if (gXBOXController == nullptr)
-		{
 			return false;
-		}
 
 		return true;
 	}

@@ -60,23 +60,35 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
         // Check to see if a copy of WinPixGpuCapturer.dll has already been injected into the application.
         // This may happen if the application is launched through the PIX UI. 
         if (GetModuleHandle(L"WinPixGpuCapturer.dll") == 0)
-        {
             LoadLibrary(GetLatestWinPixGpuCapturerPath().c_str());
-        }
 #endif
 
 #if defined(_DK_DEBUG_)
         int num = 0;
         LPWSTR lp = GetCommandLine();
-        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &num);
+        LPWSTR* argv = CommandLineToArgvW(lp, &num);
         if (argv == NULL)
         {
             DK_ASSERT_LOG(false, "Commandline Parsing Failed");
             return -1;
         }
-        for (int i = 0; i < num; ++i)
+        for (int i = 1; i < num; ++i)   // 0번째는 exe 경로
         {
-            DK_WLOG(L"%s", argv[i]);
+            DK::StringSplitter splitter(DK::StringUtil::convertWCtoC(argv[i]), "=");
+            if (splitter[0].find("--") == 0)    // 단축어X
+            {
+                if (DK::StringUtil::strcmp(splitter[0].c_str(), "--resourcePath") == true)
+                    DK::GlobalPath::kResourcePath = splitter[1];
+            }
+            else if (splitter[0].find('-') == 0)    // 단축어
+            {
+                if (DK::StringUtil::strcmp(splitter[0].c_str(), "-r") == true)
+                    DK::GlobalPath::kResourcePath = splitter[1];
+            }
+            else
+            {
+                DK_ASSERT_LOG(false, "Command는 -또는 --로 시작해야합니다.");
+            }
         }
         LocalFree(argv);
 #endif
