@@ -1,0 +1,4 @@
+<Material Name="TerrainStandard">
+	<Parameter Name="_diffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_heightTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+</Material>

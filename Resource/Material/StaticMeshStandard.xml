@@ -1,4 +1,4 @@
 <Material Name="StaticMeshStandard">
-	<Parameter Name="DiffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
-	<Parameter Name="Opacity" Type="float">1.0</Parameter>
+	<Parameter Name="_diffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_opacity" Type="float">1.0</Parameter>
 </Material>

@@ -38,6 +38,7 @@ namespace DK
 				if (MessageBox(0, L"Are you sure you want to exit?", L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
 				{
 					DestroyWindow(hwnd);
+					exit(0);
 				}
 				return 0;
 			}

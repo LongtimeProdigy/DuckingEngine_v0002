@@ -36,6 +36,9 @@ namespace DK
 		moveOffset.normalize();
 		moveOffset *= deltaTime;
 
+		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SPACE) == true)
+			moveOffset *= 10;
+
 		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
 		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();
 		

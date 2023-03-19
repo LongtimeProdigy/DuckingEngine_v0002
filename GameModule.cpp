@@ -6,6 +6,9 @@
 #include "SceneObjectManager.h"
 #include "SceneObject.h"
 
+#include "Material.h"
+#include "RenderModule.h"
+
 namespace DK
 {
 	bool GameModule::initialize()

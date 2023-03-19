@@ -427,11 +427,11 @@ namespace DK
 
 			return *this;
 		}
-		dk_inline const T* operator->() const noexcept
+		dk_inline T* operator->() noexcept
 		{
 			return _ptr;
 		}
-		dk_inline T* operator->() noexcept
+		dk_inline const T* operator->() const noexcept
 		{
 			return _ptr;
 		}
@@ -451,7 +451,11 @@ namespace DK
 		{
 			dk_delete _ptr;
 		}
-		dk_inline T* get() const noexcept
+		dk_inline T* get() noexcept
+		{
+			return _ptr;
+		}
+		dk_inline const T* get() const noexcept
 		{
 			return _ptr;
 		}
@@ -535,65 +539,6 @@ namespace DK
 #endif
 namespace DK
 {
-	class Math
-	{
-	public:
-		constexpr static float PI = 3.141592f;
-		constexpr static float Half_PI = PI / 2.0f;
-		constexpr static float kToRadian = PI / 180.0f;
-		constexpr static float kToDegree = 1.0f / kToRadian;
-
-		static float cos(const float rad)
-		{
-			return ::cos(rad);
-		}
-		static float sin(const float rad)
-		{
-			return ::sin(rad);
-		}
-		static float asin(const float rad)
-		{
-			return ::asin(rad);
-		}
-		static float tan(const float rad)
-		{
-			return ::tan(rad);
-		}
-		static float atan2(const float x1, const float x2)
-		{
-			return ::atan2(x1, x2);
-		}
-
-		static float copysign(const float number, float sign)
-		{
-			return std::copysign(number, sign);
-		}
-
-		static float sqrt(float value)
-		{
-			return std::sqrtf(value);
-		}
-
-		static float min(float lhs, float rhs)
-		{
-			return std::min(lhs, rhs);
-		}
-		static float max(float lhs, float rhs)
-		{
-			return std::max(lhs, rhs);
-		}
-
-		static float clamp(float value, float min, float max)
-		{
-			return Math::max(min, Math::min(value, max));
-		}
-
-		static float floor(float value)
-		{
-			return std::floor(value);
-		}
-	};
-
 	struct float2
 	{
 		static const float2 Identity;
@@ -602,18 +547,32 @@ namespace DK
 		float2()
 			: m{ 0, 0 }
 		{}
-
-		float2(float _x, float _y)
+		float2(const float _x)
+			: m{ _x, _x }
+		{}
+		float2(const float _x, const float _y)
 			: m{ _x, _y }
 		{}
 
-		float2 operator-(const float2& rhs)
+		dk_inline float2 operator+(const float2& rhs) const
+		{
+			return float2(x + rhs.x, y + rhs.y);
+		}
+		dk_inline float2 operator-(const float2& rhs) const
 		{
 			return float2(x - rhs.x, y - rhs.y);
 		}
-		float2 operator*(const float& rhs) const
+		dk_inline float2 operator*(const float2& rhs) const
+		{
+			return float2(x * rhs.x, y * rhs.y);
+		}
+		dk_inline float2 operator*(const float& rhs) const
 		{
 			return float2(x * rhs, y * rhs);
+		}
+		dk_inline float2 operator/(const float& rhs) const
+		{
+			return float2(x / rhs, y / rhs);
 		}
 
 	public:
@@ -636,8 +595,11 @@ namespace DK
 			: m{ 0, 0, 0 }
 		{}
 
-		float3(float _x, float _y, float _z)
+		float3(const float& _x, const float& _y, const float& _z)
 			: m{ _x, _y, _z }
+		{}
+		float3(const float2& value0, const float value1)
+			: m{ value0.x, value0.y, value1 }
 		{}
 
 		dk_inline void operator+=(const float3& rhs) noexcept
@@ -669,7 +631,6 @@ namespace DK
 			y *= rhs;
 			z *= rhs;
 		}
-
 		dk_inline float3 operator*(const int rhs) const
 		{
 			return float3(x * rhs, y * rhs, z * rhs);
@@ -677,6 +638,10 @@ namespace DK
 		dk_inline float3 operator*(const float rhs) const
 		{
 			return float3(x * rhs, y * rhs, z * rhs);
+		}
+		dk_inline float3 operator/(const float rhs) const
+		{
+			return float3(x / rhs, y / rhs, z / rhs);
 		}
 
 		dk_inline float length() const
@@ -704,6 +669,73 @@ namespace DK
 				float x, y, z;
 			};
 		};
+	};
+
+	class Math
+	{
+	public:
+		constexpr static float PI = 3.141592f;
+		constexpr static float Half_PI = PI / 2.0f;
+		constexpr static float kToRadian = PI / 180.0f;
+		constexpr static float kToDegree = 1.0f / kToRadian;
+
+		static float cos(const float& rad)
+		{
+			return ::cos(rad);
+		}
+		static float sin(const float& rad)
+		{
+			return ::sin(rad);
+		}
+		static float asin(const float& rad)
+		{
+			return ::asin(rad);
+		}
+		static float tan(const float& rad)
+		{
+			return ::tan(rad);
+		}
+		static float atan2(const float& x1, const float& x2)
+		{
+			return ::atan2(x1, x2);
+		}
+
+		static float copysign(const float& number, float& sign)
+		{
+			return std::copysign(number, sign);
+		}
+
+		static float sqrt(const float& value)
+		{
+			return std::sqrtf(value);
+		}
+
+		static float min(const float& lhs, const float& rhs)
+		{
+			return std::min(lhs, rhs);
+		}
+		static float max(const float& lhs, const float& rhs)
+		{
+			return std::max(lhs, rhs);
+		}
+
+		static float clamp(const float& value, const float& min, const float& max)
+		{
+			return Math::max(min, Math::min(value, max));
+		}
+
+		static float floor(const float& value)
+		{
+			return std::floor(value);
+		}
+		static float3 floor(const float3& value)
+		{
+			return float3(std::floor(value.x), std::floor(value.y), std::floor(value.z));
+		}
+		static float2 floor(const float2& value)
+		{
+			return float2(std::floor(value.x), std::floor(value.y));
+		}
 	};
 
 	struct float3x3
@@ -788,6 +820,9 @@ namespace DK
 		{}
 		float4(float _x, float _y, float _z, float _w)
 			: x(_x), y(_y), z(_z), w(_w)
+		{}
+		float4(const float2& rhs, const float _z, const float _w)
+			: m{ rhs.x, rhs.y, _z, _w }
 		{}
 		float4(const float3& rhs)
 			: x(rhs.x), y(rhs.y), z(rhs.z), w(1.0f)

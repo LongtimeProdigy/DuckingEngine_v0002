@@ -159,8 +159,9 @@ namespace DK
 	bool SceneRenderer::initialize_createMaterialDefinition()
 	{
 		// #todo- 나중에 MaterialGroup을 추가하고 Technique로 RenderPass와 연결시켜줘야할듯?
-		static const char* materialDefinitionGroupPassStr[2] =
+		static const char* materialDefinitionGroupPassStr[] =
 		{
+			"Material/TerrainStandard.xml", 
 			"Material/SkinnedMeshStandard.xml",
 			"Material/StaticMeshStandard.xml"
 		};
@@ -209,11 +210,11 @@ namespace DK
 					break;
 				}
 
-				materialDefinition._parameters.push_back(std::move(parameterDefinition));
+				materialDefinition._parameters.push_back(DK::move(parameterDefinition));
 			}
 
 			using InsertResult = DKPair<DKHashMap<DKString, MaterialDefinition>::iterator, bool>;
-			InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, std::move(materialDefinition)));
+			InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, DK::move(materialDefinition)));
 			if (insertResult.second == false)
 			{
 				DK_ASSERT_LOG(false, "HashMap Insert 실패!");
@@ -355,19 +356,158 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
+		float4 crossColor = float4(0, 0, 1, 1);
+		float4 filterColor = float4(1, 0, 0, 1);
+		float4 tileColor = float4(1, 1, 1, 1);
+		float4 trimColor = float4(0, 1, 0, 1);
+		float4 seamColor = float4(1, 0, 1, 1);
+
 		// Render Tarrain
 		startRenderPass(renderModule, "TerrainStandardRenderPass");
 		startPipeline("TerrainStandardPipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-			const SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			const DKVector<SceneManager::Terrain>& terrainContainer = sceneManager.getTerrainContainer();
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			DKVector<SceneManager::ClipMapTerrain>& terrainContainer = sceneManager.getClipMapTerrainContainerWritable();
 
-			for (const SceneManager::Terrain& terrain : terrainContainer)
+			SceneManager::ClipMapTerrain& terrain = terrainContainer[0];
+			Material* material = terrain._material.get();
+			setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+
+			const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
+			float2 cameraPos = float2::Zero;
+			cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
+			cameraPos = float2(1, 1);
+
+			uint32 terrainConstantBufferTypeIndex = 0;
+			float vertexScale = 1.0f;
+			// Draw Cross
 			{
-				renderModule.setVertexBuffers(0, 1, terrain._vertexBufferView.get());
-				renderModule.setIndexBuffer(terrain._indexBufferView.get());
-				renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._indexCount), 1, 0, 0, 0);
+				float tileScale = vertexScale;
+				float gridScale = static_cast<float>(TILE_RESOLUTION * tileScale);
+				float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+
+				TerrainMeshConstantBuffer meshCBuffer;
+				meshCBuffer._base_scale = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
+				meshCBuffer._color = crossColor;
+				meshCBuffer._rotate = float4x4::Identity;
+				Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+				terrainConstantBuffer->upload(&meshCBuffer);
+				setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+				renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
+				renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
+			}
+
+			for (uint32 i = 0; i < NUM_CLIPMAP_LEVELS; ++i)
+			{
+				float tileScale = (1 << i) * vertexScale;
+				float gridScale = static_cast<float>(TILE_RESOLUTION * tileScale);
+				float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+
+				float2 base = snappedCameraPos - gridScale * 2;
+
+				// Draw Tile
+				for (uint32 x = 0; x < 4; ++x)
+				{
+					for (uint32 y = 0; y < 4; ++y)
+					{
+						if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
+							continue;
+
+						float2 fill = float2(x >= 2 ? tileScale : 0, y >= 2 ? tileScale : 0);
+						float2 tile_bl = base + float2(x, y) * gridScale + fill;
+
+						TerrainMeshConstantBuffer meshCBuffer;
+						meshCBuffer._base_scale = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
+						meshCBuffer._color = tileColor;
+						meshCBuffer._rotate = float4x4::Identity;
+						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						terrainConstantBuffer->upload(&meshCBuffer);
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+						renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
+					}
+				}
+
+				// Draw Filter
+				{
+					TerrainMeshConstantBuffer meshCBuffer;
+					meshCBuffer._base_scale = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
+					meshCBuffer._color = filterColor;
+					meshCBuffer._rotate = float4x4::Identity;
+					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					terrainConstantBuffer->upload(&meshCBuffer);
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+					renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
+					renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
+				}
+				
+				float nextTileScale = tileScale * 2.0f;
+				float nextGridScale = gridScale * 1;
+				float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
+				// Draw Seam
+				if (i != NUM_CLIPMAP_LEVELS)
+				{
+					float2 next_base = nextSnappedPos - nextGridScale * 2;
+
+					TerrainMeshConstantBuffer meshCBuffer;
+					meshCBuffer._base_scale = float4(next_base.x, next_base.y, tileScale, 0.0f);
+					meshCBuffer._color = seamColor;
+					meshCBuffer._rotate = float4x4::Identity;
+					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					terrainConstantBuffer->upload(&meshCBuffer);
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+					renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
+					renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
+				}
+
+				// Draw Trim
+				{
+					float2 tile_centre = snappedCameraPos - float2(tileScale * 0.5f);
+
+					float2 d = cameraPos - nextSnappedPos;
+					uint32 r = 0;
+					r |= d.x >= tileScale ? 2 : 0;
+					r |= d.y >= tileScale ? 1 : 0;
+					Quaternion _90(0, 0, 90 * DK::Math::kToRadian);
+					Quaternion _180(0, 0, 180 * DK::Math::kToRadian);
+					Quaternion _270(0, 0, 270 * DK::Math::kToRadian);
+					Transform _90t(float3::Zero, _90, float3::Identity);
+					Transform _180t(float3::Zero, _180, float3::Identity);
+					Transform _270t(float3::Zero, _270, float3::Identity);
+					float4x4 _90m;
+					_90t.tofloat4x4(_90m);
+					float4x4 _180m;
+					_180t.tofloat4x4(_180m);
+					float4x4 _270m;
+					_270t.tofloat4x4(_270m);
+					static float4x4 trimRotation[4] =
+					{
+						_180m, // 180
+						_270m, // 270
+						_90m, // 90
+						float4x4::Identity
+					};
+					TerrainMeshConstantBuffer meshCBuffer;
+					meshCBuffer._base_scale = float4(snappedCameraPos + tileScale * 0.5f, tileScale, 0.0f);
+					meshCBuffer._color = trimColor;
+					meshCBuffer._rotate = trimRotation[r];
+					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					terrainConstantBuffer->upload(&meshCBuffer);
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+					renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
+					renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
+				}
 			}
 		}
 		endPipeline();
@@ -401,9 +541,9 @@ namespace DK
 						Material* material = subMesh._material.get();
 						setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
 
-						renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
-						renderModule.setIndexBuffer(subMesh._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						//renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+						//renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+						//renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
 					}
 				}
 			}

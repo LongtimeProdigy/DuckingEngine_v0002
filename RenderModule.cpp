@@ -396,7 +396,7 @@ namespace DK
 
 			rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 			rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
-			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 			++rootParameterIndex;
 		}
 
@@ -551,8 +551,7 @@ namespace DK
 		{
 			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
 			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(errors.getAddress()), nullptr);
-			if (SUCCEEDED(hr))
-				DK_ASSERT_LOG(false, "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
+			DK_ASSERT_LOG(FAILED(hr), "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
 
 			return false;
 		}
@@ -614,14 +613,14 @@ namespace DK
 		inputLayoutDesc.pInputElementDescs = inputLayout.data();
 
 		D3D12_RASTERIZER_DESC rasterizerDesc = {};
-#if 1
+#if 0
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
 #else
 		//rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
-		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
-		//rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+		//rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+		rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 #endif
 		rasterizerDesc.FrontCounterClockwise = FALSE;
 		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
@@ -820,6 +819,7 @@ namespace DK
 
 		if (FAILED(hr) == true)
 		{
+			DK_ASSERT_LOG(false, "CreateBuffer Failed! 랜더링이 정상적이지 않을 수 있습니다.");
 			return nullptr;
 		}
 

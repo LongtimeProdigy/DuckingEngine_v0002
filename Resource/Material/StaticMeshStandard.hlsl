@@ -51,10 +51,6 @@ VS_OUTPUT VSMain(VS_INPUT input)
 
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
-#if 1
     Texture2D diffuseTexture = gBindlessTextureArray[_diffuseTexture];
     return diffuseTexture.Sample(normalSampler, input.uv0);
-#else
-    return float4(_opacity, 0, 0, 1);
-#endif
 }

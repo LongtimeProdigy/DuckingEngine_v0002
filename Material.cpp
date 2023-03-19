@@ -54,7 +54,7 @@ namespace DK
 		const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(modelProperty._materialName);
 		if (materialDefinition == nullptr)
 		{
-			DK_ASSERT_LOG(false, "RenderPass에 없는 Material을 만들려합니다! 절대 발생하면 안됩니다!");
+			DK_ASSERT_LOG(false, "RenderPass에 없는 Material(%s)을 만들려합니다! 절대 발생하면 안됩니다!", modelProperty._materialName.c_str());
 			return nullptr;
 		}
 
@@ -99,6 +99,7 @@ namespace DK
 		const uint32 parameterDefinitionCount = static_cast<uint32>(modelProperty._parameters.size());
 		for (uint32 i = 0; i < parameterDefinitionCount; ++i)
 		{
+			bool validation = true;
 			const MaterialParameterDefinition& parameterDefinition = modelProperty._parameters[i];
 			for (uint32 j = 0; j < parameterCount; ++j)
 			{
@@ -111,21 +112,27 @@ namespace DK
 					{
 						MaterialParameterFloat* floatParameter = static_cast<MaterialParameterFloat*>(parameter);
 						floatParameter->setParameterValue(StringUtil::atof(parameterDefinition._value.c_str()));
+						break;
 					}
-					break;
 					case MaterialParameterType::TEXTURE:
 					{
 						ITextureRef texture = DuckingEngine::getInstance().getTextureManagerWritable().createTexture(parameterDefinition._value);
 						MaterialParameterTexture* textureParameter = static_cast<MaterialParameterTexture*>(parameter);
 						textureParameter->setParameterValue(texture);
+						break;
 					}
-					break;
 					default:
+					{
 						DK_ASSERT_LOG(false, "아직 지원하지 않는 MaterialParameter Type입니다.");
 						break;
 					}
+					}
+
+					validation &= true;
 				}
 			}
+
+			DK_ASSERT_LOG(validation, "Material과 ModelProperty사이에 Name이 다른 Parameter가 있습니다.");
 		}
 
 		_parameterBufferForGPU->upload(_parameterBufferForCPU.data());

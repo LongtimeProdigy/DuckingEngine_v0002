@@ -2,12 +2,13 @@
 	<RenderPass Name="TerrainStandardRenderPass">
 		<Pipeline Name="TerrainStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True">
 			<LayoutInfo>
-				<Element Type="float2">POSITION</Element>
-				<Element Type="float2">TEXCOORD</Element>
+				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material\TerrainStandard.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material\TerrainStandard.hlsl</PixelShader>
 			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<Parameter Name="TerrainStandard" Type="Buffer" Register="1"/>
+			<Parameter Name="TerrainMeshConstantBuffer" Type="Buffer" Register="2"/>
 		</Pipeline>
 	</RenderPass>
 
