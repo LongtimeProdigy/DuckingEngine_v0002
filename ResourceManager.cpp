@@ -154,7 +154,7 @@ namespace DK
 			return false;
 		}
 
-		uint boneCount = atoi(boneCountAttr->Value());
+		uint32 boneCount = atoi(boneCountAttr->Value());
 		if (boneCount == 0)
 		{
 			DK_ASSERT_LOG(false, "BoneCount가 0입니다.");
@@ -228,14 +228,14 @@ namespace DK
 			return false;
 		}
 
-		uint frameCount = atoi(frameCountAttr->Value());
+		uint32 frameCount = atoi(frameCountAttr->Value());
 		outAnimation->SetFrameCount(frameCount);
 
 		const DKVector<Bone>& bones = skeleton->getBoneArr();
 		DKVector<Animation::BoneAnimation> boneAnimations;
 		boneAnimations.resize(bones.size());
 
-		uint boneCount = static_cast<uint>(bones.size());
+		uint32 boneCount = static_cast<uint32>(bones.size());
 		DKVector<bool> boneAnimationFound;
 		boneAnimationFound.resize(bones.size());
 
@@ -265,7 +265,7 @@ namespace DK
 				boneAnimation._boneName = boneName;
 				boneAnimation._animation.resize(frameCount);
 
-				uint boneFrameCount = 0;
+				uint32 boneFrameCount = 0;
 				for (TiXmlNode* transformNode = boneNode->FirstChild(); transformNode != nullptr; transformNode = transformNode->NextSibling())
 				{
 					TiXmlNode* positionNode = transformNode->FirstChild("Position");
@@ -333,7 +333,7 @@ namespace DK
 		const TiXmlElement* modelPropertyNode = modelPropertyDocument.RootElement();
 
 		const TiXmlElement* subMeshArrNode = modelPropertyNode->FirstChildElement("SubMeshArr");
-		const uint subMeshCount = atoi(subMeshArrNode->Attribute("Count"));
+		const uint32 subMeshCount = atoi(subMeshArrNode->Attribute("Count"));
 		DKVector<MaterialDefinition> materialDefinitionArr; 
 		materialDefinitionArr.reserve(subMeshCount);
 		for (const TiXmlElement* subMeshNode = subMeshArrNode->ToElement()->FirstChildElement(); subMeshNode != nullptr; subMeshNode = subMeshNode->NextSiblingElement())
@@ -478,15 +478,15 @@ namespace DK
 			return nullptr;
 
 		fseek(handle._fp, 0, SEEK_END);
-		uint blockSize = ftell(handle._fp);
+		uint32 blockSize = ftell(handle._fp);
 		fseek(handle._fp, 0, SEEK_SET);
 
 		DKVector<char> buffer(blockSize);
 		fread(buffer.data(), sizeof(char), blockSize, handle._fp);
 
-		uint bufferOffset = 0;
+		uint32 bufferOffset = 0;
 		// SubMeshCount
-		uint subMeshCount = 0;
+		uint32 subMeshCount = 0;
 		DK::memcpy(&subMeshCount, &buffer[bufferOffset], 4);
 		DK_ASSERT_LOG(subMeshCount != 0, "SubMesh 개수는 0개일 수 없습니다!");
 		bufferOffset += 4;

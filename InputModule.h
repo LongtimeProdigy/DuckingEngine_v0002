@@ -4,7 +4,7 @@ namespace DK
 {
 	class ComputerController;
 	enum class KeyboardState : uint8;
-	enum class XboxState : uint;
+	enum class XboxState : uint32;
 	class XBOXController;
 	struct float2;
 }

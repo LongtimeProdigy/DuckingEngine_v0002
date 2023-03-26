@@ -38,9 +38,11 @@
 typedef unsigned char byte;
 typedef unsigned char uint8;
 typedef unsigned short uint16;
-typedef unsigned int uint;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
+#pragma warning(push)
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
 
 /*
 * Logger 관련
@@ -184,10 +186,13 @@ namespace DK
 /*
 * String 함수
 */
+#include <wchar.h>
 namespace DK
 {
 	using DKString = std::string;
+	using DKStringW = std::wstring;
 #define DK_MAX_PATH MAX_PATH
+#define DK_MAX_BUFFER 1024
 
 	class StringUtil
 	{
@@ -200,9 +205,17 @@ namespace DK
 		{
 			return std::strcmp(str1, str2) == 0;
 		}
+		static bool strcmp(const wchar_t* str1, const wchar_t* str2) noexcept
+		{
+			return std::wcscmp(str1, str2) == 0;
+		}
 		static uint32 strlen(const char* str)
 		{
 			return static_cast<uint32>(std::strlen(str));
+		}
+		static uint32 strlen(const wchar_t* str)
+		{
+			return static_cast<uint32>(std::wcslen(str));
 		}
 		static char* strcpy(char* dest, const char* src)
 		{
@@ -210,6 +223,15 @@ namespace DK
 #pragma warning(disable : 4996)
 #define _CRT_SECURE_NO_WARNINGS
 			return ::strcpy(dest, src);
+#undef _CRT_SECURE_NO_WARNINGS
+#pragma warning(pop)
+		}
+		static wchar_t* strcpy(wchar_t* dest, const wchar_t* src)
+		{
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#define _CRT_SECURE_NO_WARNINGS
+			return ::wcscpy(dest, src);
 #undef _CRT_SECURE_NO_WARNINGS
 #pragma warning(pop)
 		}
@@ -222,9 +244,18 @@ namespace DK
 #undef _CRT_SECURE_NO_WARNINGS
 #pragma warning(pop)
 		}
+		static wchar_t* strcat(wchar_t* dest, const wchar_t* src)
+		{
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#define _CRT_SECURE_NO_WARNINGS
+			return ::wcscat(dest, src);
+#undef _CRT_SECURE_NO_WARNINGS
+#pragma warning(pop)
+		}
 
 		//wchar_t 에서 char 로의 형변환 함수
-		static DKString convertWCtoC(wchar_t* str)
+		static DKString convertWCtoC(const wchar_t* str)
 		{
 			DKVector<char> pStr;
 			int strSize = WideCharToMultiByte(CP_ACP, 0, str, -1, NULL, 0, NULL, NULL);
@@ -235,18 +266,14 @@ namespace DK
 
 		///////////////////////////////////////////////////////////////////////
 		//char 에서 wchar_t 로의 형변환 함수
-		//static DKStringW ConverCtoWC(char* str)
-		//{
-		//	//wchar_t형 변수 선언
-		//	wchar_t* pStr;
-		//	//멀티 바이트 크기 계산 길이 반환
-		//	int strSize = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, NULL);
-		//	//wchar_t 메모리 할당
-		//	pStr = new WCHAR[strSize];
-		//	//형 변환
-		//	MultiByteToWideChar(CP_ACP, 0, str, strlen(str) + 1, pStr, strSize);
-		//	return pStr;
-		//}
+		static DKStringW ConverCtoWC(const char* str)
+		{
+			DKVector<wchar_t> pStr;
+			int strSize = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, NULL);
+			pStr.resize(strSize);
+			MultiByteToWideChar(CP_ACP, 0, str, strlen(str) + 1, pStr.data(), strSize);
+			return pStr.data();
+		}
 	};
 
 	class StringSplitter
@@ -274,21 +301,26 @@ namespace DK
 		DKVector<DKString> _container;
 	};
 
-	template <uint SIZE>
-	class ScopeString
+	template <typename T, uint32 SIZE>
+	class ScopeStringBase
 	{
 	public:
-		ScopeString(const char* str)
+		ScopeStringBase(const T* str)
 		{
 			StringUtil::strcpy(_string, str);
 		}
 
-		const char* c_str() const
+		bool operator!=(const T* rhs) const
+		{
+			return StringUtil::strcmp(c_str(), rhs) == false;
+		}
+
+		const T* c_str() const
 		{
 			return _string;
 		}
 
-		void append(const char* str)
+		void append(const T* str)
 		{
 #ifdef _DK_DEBUG_
 			const uint32 length = StringUtil::strlen(_string) + StringUtil::strlen(str);
@@ -298,8 +330,10 @@ namespace DK
 		}
 
 	private:
-		char _string[SIZE];
+		T _string[SIZE];
 	};
+	template <uint32 SIZE> using ScopeString = ScopeStringBase<char, SIZE>;
+	template <uint32 SIZE> using ScopeStringW = ScopeStringBase<wchar_t, SIZE>;
 }
 
 /*
@@ -310,17 +344,32 @@ namespace DK
 	class GlobalPath
 	{
 	public:
-		static DKString kResourcePath;
-
-	public:
 		static ScopeString<DK_MAX_PATH> makeResourceFullPath(const DKString& resourcePath)
 		{
-			ScopeString<DK_MAX_PATH> resourceFullPath(GlobalPath::kResourcePath.c_str());
+			ScopeString<DK_MAX_PATH> resourceFullPath(GlobalPath::kResourcePathA.c_str());
 			resourceFullPath.append("/");
 			resourceFullPath.append(resourcePath.c_str());
 
 			return resourceFullPath;
 		}
+		static ScopeStringW<DK_MAX_PATH> makeResourceFullPathW(const DKStringW& resourcePath)
+		{
+			ScopeStringW<DK_MAX_PATH> resourceFullPath(GlobalPath::kResourcePathW.c_str());
+			resourceFullPath.append(L"/");
+			resourceFullPath.append(resourcePath.c_str());
+
+			return resourceFullPath;
+		}
+
+		static void setResourcePath(const DKString& resourcePath)
+		{
+			kResourcePathA = resourcePath;
+			kResourcePathW = StringUtil::ConverCtoWC(kResourcePathA.c_str());
+		}
+
+	private:
+		static DKString kResourcePathA;
+		static DKStringW kResourcePathW;
 	};
 }
 
@@ -674,10 +723,11 @@ namespace DK
 	class Math
 	{
 	public:
-		constexpr static float PI = 3.141592f;
-		constexpr static float Half_PI = PI / 2.0f;
-		constexpr static float kToRadian = PI / 180.0f;
-		constexpr static float kToDegree = 1.0f / kToRadian;
+		static constexpr float PI = 3.141592f;
+		static constexpr float Half_PI = PI / 2.0f;
+		static constexpr float kToRadian = PI / 180.0f;
+		static constexpr float kToDegree = 1.0f / kToRadian;
+		static constexpr float kFloatMax = std::numeric_limits<float>::max();
 
 		static float cos(const float& rad)
 		{

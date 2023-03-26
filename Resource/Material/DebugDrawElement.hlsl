@@ -1,3 +1,8 @@
+#ifndef __DEFINE_DEBUGDRAWELEMENT_HLSL__
+#define __DEFINE_DEBUGDRAWELEMENT_HLSL__
+
+#include "CommonRendering.hlsl"
+
 struct VS_INPUT
 {
 	float3 position : POSITION;
@@ -7,13 +12,6 @@ struct VS_OUTPUT
 {
 	float4 position: SV_POSITION;
 	float4 color : COLOR;
-};
-
-// per Scene
-cbuffer SceneConstantBuffer : register(b0)
-{
-	float4x4 _cameraWorldMatrix;
-	float4x4 _cameraProjectionMatrix;
 };
 
 // per DrawElement (Cube, Sphere, Capsule...etc)
@@ -68,10 +66,6 @@ VS_OUTPUT VSMainLine(VS_INPUT input, uint vertexID : SV_VertexID, uint instanceI
 
 	const LinePrimitiveInfo instanceData = LinePrimitiveInfoBuffer[instanceID];
 
-	//const float3 start = float3(-1, instanceID, 0);
-	//const float3 end = float3(1, instanceID, 0);
-	//const float3 worldPosition = input.position + vertexID == 0 ? start : end;
-
 	const float3 worldPosition = input.position + instanceData._worldPosition[vertexID];
 	output.position = convertToWorldSpace(worldPosition);
 
@@ -83,3 +77,5 @@ float4 PSMainLine(VS_OUTPUT input) : SV_TARGET
 {
 	return input.color;
 }
+
+#endif

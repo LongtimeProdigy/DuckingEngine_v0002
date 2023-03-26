@@ -1,3 +1,9 @@
+#ifndef __DEFINE_STATICMESHSTANDARD_HLSL__
+#define __DEFINE_STATICMESHSTANDARD_HLSL__
+
+#include "CommonTexture.hlsl"
+#include "CommonRendering.hlsl"
+
 struct VS_INPUT
 {
     float3 position : POSITION;
@@ -12,16 +18,6 @@ struct VS_OUTPUT
     float2 uv0 : TEXCOORD0;
 };
 
-#define TextureParameter uint
-#define BINDLESSTEXTUREARRAY_SPACE space10
-Texture2D gBindlessTextureArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE);
-SamplerState normalSampler : register(s0);
-
-cbuffer SceneConstantBuffer : register(b0)
-{
-    float4x4 _cameraWorldMatrix;
-	float4x4 _cameraProjectionMatrix;
-}
 cbuffer SceneObjectConstantBuffer : register(b1)
 {
     float4x4 _worldMatrix;
@@ -54,3 +50,5 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     Texture2D diffuseTexture = gBindlessTextureArray[_diffuseTexture];
     return diffuseTexture.Sample(normalSampler, input.uv0);
 }
+
+#endif

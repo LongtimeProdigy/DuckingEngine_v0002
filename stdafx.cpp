@@ -2,7 +2,8 @@
 
 namespace DK
 {
-	DKString GlobalPath::kResourcePath;
+	DKString GlobalPath::kResourcePathA;
+	DKStringW GlobalPath::kResourcePathW;
 
 	const float2 float2::Identity = float2(1, 1);
 	const float2 float2::Zero = float2(0, 0);

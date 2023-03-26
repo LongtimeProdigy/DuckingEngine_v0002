@@ -3,8 +3,8 @@
 
 namespace DK
 {
-	//DK_ASSERT_LOG(static_cast<uint>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardState개수가 올바르지 않습니다. %d / %d", static_cast<uint>(KeyboardState::COUNT), KEYBOARDSTATECOUNT);
-	static_assert(static_cast<uint>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardState개수가 올바르지 않습니다.");
+	//DK_ASSERT_LOG(static_cast<uint32>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardState개수가 올바르지 않습니다. %d / %d", static_cast<uint32>(KeyboardState::COUNT), KEYBOARDSTATECOUNT);
+	static_assert(static_cast<uint32>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardState개수가 올바르지 않습니다.");
 
 	void ComputerController::initialize()
 	{

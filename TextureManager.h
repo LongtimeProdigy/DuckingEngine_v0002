@@ -143,9 +143,9 @@ namespace DK
 	class TextureRaw
 	{
 	public:
-		uint _width;
-		uint _height;
-		uint _bitsPerPixel;
+		uint32 _width;
+		uint32 _height;
+		uint32 _bitsPerPixel;
 		byte* _data;
 		DXGI_FORMAT _format;
 	};

@@ -37,10 +37,22 @@ namespace DK
 		moveOffset *= deltaTime;
 
 		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SPACE) == true)
-			moveOffset *= 10;
+			moveOffset *= 100;
 
 		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
 		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();
+
+#if 0
+		static float test = 0.0f;
+		test += deltaTime;
+		float x = Math::sin(test*15) * 150;
+		float xr = (Math::sin(test * 10)) * 15;
+		finalMoveOffset = float3(0, 300, -300);// +float3(x, 0, 0);
+		pitch = 45;//(45 + xr) * DK::Math::kToRadian;
+		static float tttt = 0.0f;
+		tttt += deltaTime * 4;
+		yaw = tttt;
+#endif
 		
 		// Rotate
 		const Quaternion& originRotation = get_worldTransform().get_rotation();
@@ -48,8 +60,12 @@ namespace DK
 		originRotation.toEuler(originEuler);
 		float3 rotateOffset(pitch, yaw, 0);
 		float3 finalRotate = rotateOffset + originEuler;
-		finalRotate.x = Math::clamp(finalRotate.x, -Math::Half_PI/2, Math::Half_PI/2);
+		finalRotate.x = Math::clamp(finalRotate.x, -Math::Half_PI - 0.0001f, Math::Half_PI - 0.0001f);
+#if 1
 		Quaternion finalQuaternion(finalRotate.z, finalRotate.x, finalRotate.y);
+#else
+		Quaternion finalQuaternion(0, pitch, yaw);
+#endif
 
 		Transform setTransform(finalMoveOffset, finalQuaternion, float3::Identity);
 

@@ -156,16 +156,16 @@ namespace DK
 		dk_inline bool GetKeyDown(KeyboardState keyCode)
 		{
 			DK_ASSERT_LOG(
-				static_cast<uint>(keyCode) < static_cast<uint>(KeyboardState::COUNT), 
+				static_cast<uint32>(keyCode) < static_cast<uint32>(KeyboardState::COUNT), 
 				"keyCode의 범위가 이상합니다. KeyCode: %d / %d", 
-				static_cast<uint>(keyCode), static_cast<uint>(KeyboardState::COUNT)
+				static_cast<uint32>(keyCode), static_cast<uint32>(KeyboardState::COUNT)
 			);
 
 			// 0은 한번도 안눌린 상태 또는 1에서 한번 누른 상태
 			// 1은 한번 눌려진 상태 (다시 누르면 0이됨)
 			// 128은 0이었던 상태에서 눌리고 있는 상태(떼면 1이됨)
 			// 129는 1이었던 상태에서 눌리고 있는 상태(떼면 0이됨)
-			return _keyStates[static_cast<uint>(keyCode)] == 128 || _keyStates[static_cast<uint>(keyCode)] == 129;
+			return _keyStates[static_cast<uint32>(keyCode)] == 128 || _keyStates[static_cast<uint32>(keyCode)] == 129;
 		}
 
 		dk_inline const float2& getMouseDelta() const

@@ -72,7 +72,7 @@ WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID)
 
 	else return GUID_WICPixelFormatDontCare;
 }
-uint GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
+uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 {
 	if (dxgiFormat == DXGI_FORMAT_R32G32B32A32_FLOAT) return 128;
 	else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_FLOAT) return 64;
@@ -191,8 +191,8 @@ namespace DK
 		}
 
 		textureRaw._bitsPerPixel = GetDXGIFormatBitsPerPixel(dxgiFormat); // number of bits per pixel
-		uint bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
-		uint imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
+		uint32 bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
+		uint32 imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
 
 		textureRaw._data = (BYTE*)malloc(imageSize);
 		textureRaw._format = dxgiFormat;

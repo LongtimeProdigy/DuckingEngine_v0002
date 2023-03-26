@@ -35,12 +35,12 @@ namespace DK
 			_currentAnimationTime = animationTime;
 		}
 
-		dk_inline void SetFrameCount(uint frameCount) noexcept
+		dk_inline void SetFrameCount(uint32 frameCount) noexcept
 		{
 			_frameCount = frameCount;
 		}
 
-		dk_inline uint getFrameCount() const noexcept
+		dk_inline uint32 getFrameCount() const noexcept
 		{
 			return _frameCount;
 		}
@@ -48,6 +48,6 @@ namespace DK
 	private:
 		DKVector<BoneAnimation> _boneAnimations;
 		float _currentAnimationTime = 0.0f;
-		uint _frameCount = 0;
+		uint32 _frameCount = 0;
 	};
 }

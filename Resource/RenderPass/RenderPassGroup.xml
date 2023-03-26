@@ -1,18 +1,25 @@
 <RenderPassGroup>
-	<RenderPass Name="TerrainStandardRenderPass">
-		<Pipeline Name="TerrainStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True">
+	<RenderPass Name="MainRenserPass">
+		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+		
+		<Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
-			<VertexShader Entry="VSMain">Material\TerrainStandard.hlsl</VertexShader>
-			<PixelShader Entry="PSMain">Material\TerrainStandard.hlsl</PixelShader>
-			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<VertexShader Entry="VSMain">Material/SkyDome.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material/SkyDome.hlsl</PixelShader>
+		</Pipeline>
+
+		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material\TerrainClipMap.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\TerrainClipMap.hlsl</PixelShader>
 			<Parameter Name="TerrainStandard" Type="Buffer" Register="1"/>
 			<Parameter Name="TerrainMeshConstantBuffer" Type="Buffer" Register="2"/>
 		</Pipeline>
-	</RenderPass>
 
-	<RenderPass Name="StaticMeshStandardRenderPass">
 		<Pipeline Name="StaticMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
@@ -21,13 +28,10 @@
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material\StaticMeshStandard.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material\StaticMeshStandard.hlsl</PixelShader>
-			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 			<Parameter Name="SceneObjectConstantBuffer" Type="Buffer" Register="1"/>
 			<Parameter Name="StaticMeshStandard" Type="Buffer" Register="2"/>
 		</Pipeline>
-	</RenderPass>
 
-	<RenderPass Name="SkinnedMeshStandardRenderPass">
 		<Pipeline Name="SkinnedMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
@@ -38,21 +42,20 @@
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material\SkinnedMeshStandard.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material\SkinnedMeshStandard.hlsl</PixelShader>
-			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 			<Parameter Name="SceneObjectConstantBuffer" Type="Buffer" Register="1"/>
 			<Parameter Name="SkinnedMeshStandard" Type="Buffer" Register="2"/>
 			<Parameter Name="SkeletonConstantBuffer" Type="Buffer" Register="3"/>
 		</Pipeline>
 	</RenderPass>
 
-	<RenderPass Name="DebugDrawElementRenderPass">
+	<RenderPass Name="EditorMainRenserPass">
+		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="false">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMainSphere">Material\DebugDrawElement.hlsl</VertexShader>
 			<PixelShader Entry="PSMainSphere">Material\DebugDrawElement.hlsl</PixelShader>
-			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 			<Parameter Name="SpherePrimitiveInfoBuffer" Type="StructuredBuffer" Register="0"/>
 		</Pipeline>
 		<Pipeline Name="LinePipeline" PrimitiveTopologyType="Line" DepthEnable="False">
@@ -61,7 +64,6 @@
 			</LayoutInfo>
 			<VertexShader Entry="VSMainLine">Material\DebugDrawElement.hlsl</VertexShader>
 			<PixelShader Entry="PSMainLine">Material\DebugDrawElement.hlsl</PixelShader>
-			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 			<Parameter Name="LinePrimitiveInfoBuffer" Type="StructuredBuffer" Register="0"/>
 		</Pipeline>
 	</RenderPass>

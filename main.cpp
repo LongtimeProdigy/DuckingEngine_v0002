@@ -78,12 +78,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
             if (splitter[0].find("--") == 0)    // 단축어X
             {
                 if (DK::StringUtil::strcmp(splitter[0].c_str(), "--resourcePath") == true)
-                    DK::GlobalPath::kResourcePath = splitter[1];
+                    DK::GlobalPath::setResourcePath(splitter[1]);
             }
             else if (splitter[0].find('-') == 0)    // 단축어
             {
                 if (DK::StringUtil::strcmp(splitter[0].c_str(), "-r") == true)
-                    DK::GlobalPath::kResourcePath = splitter[1];
+                    DK::GlobalPath::setResourcePath(splitter[1]);
             }
             else
             {

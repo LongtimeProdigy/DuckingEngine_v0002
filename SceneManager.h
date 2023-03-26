@@ -5,36 +5,27 @@ namespace DK
 	class Material;
 	struct IBuffer;
 
-	const uint32 TILE_RESOLUTION = 4;
-	const uint32 PATCH_VERT_RESOLUTION = TILE_RESOLUTION + 1;
-	const uint32 CLIPMAP_RESOLUTION = TILE_RESOLUTION * 4 + 1;
-	const uint32 CLIPMAP_VERT_RESOLUTION = CLIPMAP_RESOLUTION + 1;
-	const uint32 NUM_CLIPMAP_LEVELS = 3;
-
 	struct TerrainMeshConstantBuffer
 	{
-		float4 _base_scale;
-		float4 _color;
-		float4x4 _rotate;
+		float4 _baseXY_scale_rotate;
+		uint32 _type;
 	};
 
 	class SceneManager
 	{
 	public:
-		struct Terrain
-		{
-			Terrain(const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount, Material* material)
-				: _vertexBufferView(vertexBufferView)
-				, _indexBufferView(indexBufferView)
-				, _indexCount(indexCount)
-				, _material(DK::move(material))
-			{}
+		static constexpr uint32 TILE_RESOLUTION = 32;
+		static constexpr uint32 PATCH_VERT_RESOLUTION = TILE_RESOLUTION + 1;
+		static constexpr uint32 CLIPMAP_RESOLUTION = TILE_RESOLUTION * 4 + 1;
+		static constexpr uint32 CLIPMAP_VERT_RESOLUTION = CLIPMAP_RESOLUTION + 1;
+		static constexpr uint32 NUM_CLIPMAP_LEVELS = 7;
 
+	public:
+		struct SkyDome
+		{
 			VertexBufferViewRef _vertexBufferView;
 			IndexBufferViewRef _indexBufferView;
 			uint32 _indexCount;
-
-			Ptr<Material> _material;
 		};
 
 		struct ClipMapTerrain
@@ -74,14 +65,14 @@ namespace DK
 		};
 
 	public:
+		void loadSkyDome();
 		void loadLevel();
 
-		const DKVector<Terrain>& getTerrainContainer() const { return _terrainContainer; }
-		const DKVector<ClipMapTerrain>& getClipMapTerrainContainer() const { return _clipmapTerrainContainer; }
+		SkyDome& getSkyDomeWritable() { return _skyDome; }
 		DKVector<ClipMapTerrain>& getClipMapTerrainContainerWritable() { return _clipmapTerrainContainer; }
 
 	private:
-		DKVector<Terrain> _terrainContainer;
+		SkyDome _skyDome;
 		DKVector<ClipMapTerrain> _clipmapTerrainContainer;
 	};
 }

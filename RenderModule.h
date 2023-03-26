@@ -31,25 +31,22 @@ namespace DK
 
 	struct DKCommandList;
 	struct IBuffer;
-
-	static constexpr bool gAssertRenderPassPipelineExist = false;
 }
 
 namespace DK
 {
-	enum class ShaderVariableType
+	enum class ShaderParameterType
 	{
 		Buffer,
 		StructuredBuffer,
 		Count
 	};
 
-	struct ShaderVariable
+	struct ShaderParameter
 	{
-		DKString _name;
-		ShaderVariableType _type;
-		uint32 _register;
-		uint32 _rootParameterIndex;		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
+		ShaderParameterType _type = ShaderParameterType::Count;
+		uint32 _register = -1;
+		uint32 _rootParameterIndex = -1;		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
 	};
 
 	struct Pipeline
@@ -81,27 +78,25 @@ namespace DK
 			const char* _pixelShaderEntry;
 
 			DKVector<LayoutInfo> _layout;
-			DKVector<ShaderVariable> _variableArr;
+			DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 		};
 
 		RenderResourcePtr<ID3D12RootSignature> _rootSignature;
 		RenderResourcePtr<ID3D12PipelineState> _pipelineStateObject;
 
 		D3D12_PRIMITIVE_TOPOLOGY_TYPE _primitiveTopologyType;
-		DKVector<ShaderVariable> _shaderVariables;
+		DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 
-		dk_inline const ShaderVariable* getShaderVariable(const DKString& name) const
+		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
 		{
-			for (uint i = 0; i < _shaderVariables.size(); ++i)
-			{
-				if (name == _shaderVariables[i]._name)
-				{
-					return &_shaderVariables[i];
-				}
-			}
+			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
+			DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "존재하지 않는 ShaderParameter을 찾습니다.\nShaderParameterName: %s", name.c_str());
+#ifdef _DK_DEBUG_
+			if (iter == _shaderParameterMap.end())
+				return nullptr;
+#endif
 
-			DK_ASSERT_LOG(false, "존재하지 않는 ShaderVariable입니다.");
-			return nullptr;
+			return &iter->second;
 		}
 	};
 
@@ -109,59 +104,99 @@ namespace DK
 	{
 		struct CreateInfo
 		{
-			DKVector<DKPair<DKString, Pipeline::CreateInfo>> _pipelines;
+			DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
+			DKVector<DKPair<DKString, Pipeline::CreateInfo>> _pipelineArr;
 		};
 
-		DKHashMap<DKString, Pipeline> _pipelines;
+		DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
+		DKHashMap<DKString, Pipeline> _pipelineMap;
 
+		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
+		{
+			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
+			// RenderPass에서 없다면 Pipeline에서 찾아야함
+			//DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "존재하지 않는 ShaderParameter을 찾습니다.\nShaderParameterName: %s", name.c_str());
+#ifdef _DK_DEBUG_
+			if (iter == _shaderParameterMap.end())
+				return nullptr;
+#endif
+
+			return &iter->second;
+		}
 		dk_inline Pipeline* getPipeline(const DKString& pipelineName)
 		{
-			DKHashMap<DKString, Pipeline>::iterator iter = _pipelines.find(pipelineName);
-			if (iter == _pipelines.end())
-			{
-				DK_ASSERT_LOG(!gAssertRenderPassPipelineExist, "존재하지 않는 Pipeline을 찾습니다.\nPipelineName: %s", pipelineName.c_str());
+			DKHashMap<DKString, Pipeline>::iterator iter = _pipelineMap.find(pipelineName);
+			DK_ASSERT_LOG(iter != _pipelineMap.end(), "존재하지 않는 Pipeline을 찾습니다.\nPipelineName: %s", pipelineName.c_str());
+#ifdef _DK_DEBUG_
+			if (iter == _pipelineMap.end())
 				return nullptr;
-			}
+#endif
 
 			return &iter->second;
 		}
 	};
 
+	static RenderPass* currentRenderPass = nullptr;
+	static Pipeline* currentPipeline = nullptr;
+
+#ifdef _DK_DEBUG_
+#define RENDERING_ALREADY_BIND(object, name) \
+if(object != nullptr) \
+{ \
+	DK_ASSERT_LOG(false, "이미 Bind되어 있습니다. Bind를 건너뜁니다. Name: %s", name); \
+	break; \
+}
+#define RENDERING_VERIFY(object, name) \
+if (object == nullptr) \
+{ \
+	DK_ASSERT_LOG(false, "Object를 찾지 못했습니다. Bind를 건너뜁니다. Name: %s", name); \
+	break; \
+}
+#else
+#define RENDERING_ALREADY_BIND(object)
+#define RENDERING_VERIFY(object)
+#endif
+
 #define startRenderPass(renderModule, renderPassName) \
 do{ \
 	RenderModule& currentRenderModule = renderModule; \
-	RenderPass* currentRenderPass = currentRenderModule.getRenderPass(renderPassName); \
-	if(currentRenderPass == nullptr) \
-		break
+	RENDERING_ALREADY_BIND(currentRenderPass, renderPassName); \
+	currentRenderPass = currentRenderModule.getRenderPass(renderPassName); \
+	RENDERING_VERIFY(currentRenderPass, renderPassName);
 
-#define endRenderPass() }while(false)
+#define endRenderPass() \
+	currentRenderPass = nullptr; \
+}while(false)
 
 #define startPipeline(pipelineName) \
 do{ \
-	Pipeline* currentPipeline = currentRenderPass->getPipeline(pipelineName); \
-	if(currentPipeline == nullptr) break; \
+	RENDERING_ALREADY_BIND(currentPipeline, pipelineName); \
+	currentPipeline = currentRenderPass->getPipeline(pipelineName); \
+	RENDERING_VERIFY(currentPipeline, pipelineName); \
 	currentRenderModule.bindPipeline(*currentPipeline);
 
-#define endPipeline() }while(false)
+#define endPipeline() \
+	currentPipeline = nullptr; \
+}while(false)
 
 #define setConstantBuffer(name, address) \
 { \
-	static const ShaderVariable* shaderVariable = currentPipeline->getShaderVariable(name); \
-	if(shaderVariable == nullptr) break; \
-	currentRenderModule.bindConstantBuffer(shaderVariable->_rootParameterIndex, address); \
+	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
+	RENDERING_VERIFY(shaderParameter, name); \
+	currentRenderModule.bindConstantBuffer(shaderParameter->_rootParameterIndex, address); \
 }
 #define setShaderResourceView(name, address) \
 { \
-	static const ShaderVariable* shaderVariable = currentPipeline->getShaderVariable(name); \
-	if(shaderVariable == nullptr) break; \
-	currentRenderModule.bindShaderResourceView(shaderVariable->_rootParameterIndex, address); \
+	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
+	RENDERING_VERIFY(shaderParameter, name); \
+	currentRenderModule.bindShaderResourceView(shaderParameter->_rootParameterIndex, address); \
 }
 
 	class RenderModule
 	{
 	public:
-		constexpr static uint kFrameCount = 3;
-		static uint kCurrentFrameIndex;
+		constexpr static uint32 kFrameCount = 2;
+		static uint32 kCurrentFrameIndex;
 
 	public:
 		~RenderModule();
@@ -193,26 +228,25 @@ do{ \
 		{
 			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
 			FindResult find = _renderPassMap.find(renderPassName);
-
+			DK_ASSERT_LOG(find != _renderPassMap.end(), "존재하지 않는 RenderPass를 Bind시도합니다.\nName: %s", renderPassName.c_str());
+#ifdef _DK_DEBUG_
 			if (find == _renderPassMap.end())
-			{
-				DK_ASSERT_LOG(!gAssertRenderPassPipelineExist, "존재하지 않는 RenderPass를 Bind시도합니다.\nName: %s", renderPassName.c_str());
 				return nullptr;
-			}
+#endif
 
 			return &find->second;
 		}
 
 	private:
-		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint width, const uint height);
+		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
 		DKCommandList* createCommandList();
 		bool initialize_createFence();
-		bool createRootSignature(Pipeline& inoutPipeline);
+		bool createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state);
-		ID3D12Resource* createDefaultBuffer(const uint size, const D3D12_RESOURCE_STATES state);
-		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint bufferSize);
+		ID3D12Resource* createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state);
+		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint32 bufferSize);
 
 		void waitFenceAndResetCommandList();
 		void execute();
@@ -233,7 +267,7 @@ do{ \
 #endif
 
 		Ptr<DKCommandList> _commandList = nullptr;
-		uint _fenceValues[kFrameCount] = { 0, };
+		uint32 _fenceValues[kFrameCount] = { 0, };
 		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
 		HANDLE _fenceEvent;
 

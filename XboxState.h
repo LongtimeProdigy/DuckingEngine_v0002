@@ -13,7 +13,7 @@
 //XINPUT_GAMEPAD_B				0x2000
 //XINPUT_GAMEPAD_X				0x4000
 //XINPUT_GAMEPAD_Y				0x8000
-enum class XboxState : uint
+enum class XboxState : uint32
 {
 	XBOX_DPAD_UP = 0x0001, 
 	XBOX_DPAD_DOWN = 0x0002, 

@@ -26,7 +26,7 @@ namespace DK
 	{
 		if (initialize_createRenderPass() == false) 
 			return false;
-		if (initialize_createMaterialDefinition() == false) 
+		if (initialize_createMaterialDefinition() == false)
 			return false;
 		if (initialize_createSceneConstantBuffer() == false) 
 			return false;
@@ -34,44 +34,44 @@ namespace DK
 		return true;
 	}
 
-	constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderVariableType::Count)] =
+	constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderParameterType::Count)] =
 	{
 		"Buffer",
 		"StructuredBuffer"
 	};
-	ShaderVariableType convertStringToEnum2(const char* str)
+	ShaderParameterType convertStringToEnum2(const char* str)
 	{
-		for (uint32 i = 0; i < static_cast<uint32>(ShaderVariableType::Count); ++i)
+		for (uint32 i = 0; i < static_cast<uint32>(ShaderParameterType::Count); ++i)
 		{
 			if (strcmp(str, ShaderVariableTypeString[i]) == 0)
 			{
-				return static_cast<ShaderVariableType>(i);
+				return static_cast<ShaderParameterType>(i);
 			}
 		}
 
-		return ShaderVariableType::Count;
+		return ShaderParameterType::Count;
 	};
-	bool parseShaderVariable(TiXmlElement* variableNode, ShaderVariable& outVariable)
+	bool parseShaderParameter(const TiXmlElement* variableNode, DKString& outName, ShaderParameter& outShaderParameter)
 	{
-		const char* variableName = variableNode->ToElement()->Attribute("Name");
-		const char* variableTypeRaw = variableNode->ToElement()->Attribute("Type");
-		const char* variableRegisterRaw = variableNode->ToElement()->Attribute("Register");
+		const char* parameterNameStr = variableNode->ToElement()->Attribute("Name");
+		const char* parameterTypeStr = variableNode->ToElement()->Attribute("Type");
+		const char* parameterRegisterStr = variableNode->ToElement()->Attribute("Register");
 
-		DK_ASSERT_LOG(variableName != nullptr && variableTypeRaw != nullptr && variableRegisterRaw != nullptr, "RenderPass의 Parameter가 비정상인 상황. 엔진이 비정상 작동할 수 있습니다.");
+		DK_ASSERT_LOG(parameterNameStr != nullptr && parameterTypeStr != nullptr && parameterRegisterStr != nullptr, "RenderPass의 Parameter가 비정상인 상황. 엔진이 비정상 작동할 수 있습니다.");
 
-		const ShaderVariableType variableType = convertStringToEnum2(variableTypeRaw);
-		DK_ASSERT_LOG(variableType != ShaderVariableType::Count, "RenderPass의 ParameterType이 정확하지 않습니다.\nType: %s", variableTypeRaw);
-		const uint32 variableRegister = atoi(variableRegisterRaw);
+		const ShaderParameterType variableType = convertStringToEnum2(parameterTypeStr);
+		DK_ASSERT_LOG(variableType != ShaderParameterType::Count, "RenderPass의 ParameterType이 정확하지 않습니다.\nType: %s", parameterTypeStr);
+		const uint32 variableRegister = atoi(parameterRegisterStr);
 
-		if (variableType == ShaderVariableType::Count)
+		if (variableType == ShaderParameterType::Count)
 		{
-			DK_ASSERT_LOG(false, "현재 지원하지 않는 MaterialType을 사용하였습니다. ParameterName: %s, ParameterType: %d", variableName, variableType);
+			DK_ASSERT_LOG(false, "현재 지원하지 않는 MaterialType을 사용하였습니다. ParameterName: %s, ParameterType: %d", parameterNameStr, variableType);
 			return false;
 		}
 
-		outVariable._name = variableName;
-		outVariable._type = variableType;
-		outVariable._register = variableRegister;
+		outName = parameterNameStr;
+		outShaderParameter._type = variableType;
+		outShaderParameter._register = variableRegister;
 
 		return true;
 	}
@@ -90,63 +90,82 @@ namespace DK
 			DKString renderPassName = renderPassNode->Attribute("Name");
 
 			RenderPass::CreateInfo renderPassCreateInfo;
-			for (TiXmlElement* pipelineNode = renderPassNode->FirstChildElement(); pipelineNode != nullptr; pipelineNode = pipelineNode->NextSiblingElement())
+			for (TiXmlElement* renderPassChildNode = renderPassNode->FirstChildElement(); renderPassChildNode != nullptr; renderPassChildNode = renderPassChildNode->NextSiblingElement())
 			{
-				Pipeline::CreateInfo pipelineCreateInfo;
-				DKString pipelineName = pipelineNode->Attribute("Name");
-				pipelineCreateInfo._primitiveTopologyType = pipelineNode->Attribute("PrimitiveTopologyType");
-				pipelineCreateInfo._depthEnable = pipelineNode->Attribute("DepthEnable");
-
-				for (TiXmlElement* childNode = pipelineNode->FirstChildElement(); childNode != nullptr; childNode = childNode->NextSiblingElement())
+				DKString renderPassChildNodeName = renderPassChildNode->Value();
+				if (renderPassChildNodeName == "Parameter")
 				{
-					if (childNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
-						continue;
+					DKString name;
+					ShaderParameter shaderParameter;
+					if (parseShaderParameter(renderPassChildNode, name, shaderParameter) == false)
+						return false;
 
-					DKString nodeName = childNode->Value();
-					if (nodeName == "LayoutInfo")
+					renderPassCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
+				}
+				else if (renderPassChildNodeName == "Pipeline")
+				{
+					Pipeline::CreateInfo pipelineCreateInfo;
+					DKString pipelineName = renderPassChildNode->Attribute("Name");
+					pipelineCreateInfo._primitiveTopologyType = renderPassChildNode->Attribute("PrimitiveTopologyType");
+					pipelineCreateInfo._depthEnable = renderPassChildNode->Attribute("DepthEnable");
+
+					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
 					{
-						for (TiXmlElement* layoutElement = childNode->FirstChildElement(); layoutElement != nullptr; layoutElement = layoutElement->NextSiblingElement())
+						if (pipelineChildNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
+							continue;
+
+						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "LayoutInfo")
 						{
-							DKString layoutElementType = layoutElement->Attribute("Type");
-							DKString layoutElementName = layoutElement->GetText();
-							DK_ASSERT_LOG(layoutElementType.empty() == false, "Type이 비어있으면 안됨");
-							if (layoutElementType == "uint4")
-								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::UINT4, layoutElementName });
-							else if (layoutElementType == "float2")
-								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT2, layoutElementName });
-							else if (layoutElementType == "float3")
-								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT3, layoutElementName });
-							else if (layoutElementType == "float4")
-								pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT4, layoutElementName });
+							for (TiXmlElement* layoutElement = pipelineChildNode->FirstChildElement(); layoutElement != nullptr; layoutElement = layoutElement->NextSiblingElement())
+							{
+								DKString layoutElementType = layoutElement->Attribute("Type");
+								DKString layoutElementName = layoutElement->GetText();
+								DK_ASSERT_LOG(layoutElementType.empty() == false, "Type이 비어있으면 안됨");
+								if (layoutElementType == "uint4")
+									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::UINT4, layoutElementName });
+								else if (layoutElementType == "float2")
+									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT2, layoutElementName });
+								else if (layoutElementType == "float3")
+									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT3, layoutElementName });
+								else if (layoutElementType == "float4")
+									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT4, layoutElementName });
+							}
 						}
-					}
-					else if (nodeName == "VertexShader")
-					{
-						pipelineCreateInfo._vertexShaderEntry = childNode->Attribute("Entry");
-						pipelineCreateInfo._vertexShaderPath = childNode->GetText();
-					}
-					else if (nodeName == "PixelShader")
-					{
-						pipelineCreateInfo._pixelShaderEntry = childNode->Attribute("Entry");
-						pipelineCreateInfo._pixelShaderPath = childNode->GetText();
-					}
-					else if (nodeName == "Parameter")
-					{
-						ShaderVariable variable;
-						if (parseShaderVariable(childNode, variable) == false)
+						else if (pipelineChildNodeName == "VertexShader")
 						{
+							pipelineCreateInfo._vertexShaderEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._vertexShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "PixelShader")
+						{
+							pipelineCreateInfo._pixelShaderEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._pixelShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "Parameter")
+						{
+							DKString name;
+							ShaderParameter shaderParameter;
+							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
+								return false;
+
+							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
+						}
+						else
+						{
+							DK_ASSERT_LOG(false, "지원하지 Pipeline ChildNode입니다. NodeName: %s", pipelineChildNodeName.c_str());
 							return false;
 						}
-						pipelineCreateInfo._variableArr.push_back(DK::move(variable));
-					}
-					else
-					{
-						DK_ASSERT_LOG(false, "지원하지 RenderPass ChildNode입니다. NodeName: %s", nodeName.c_str());
-						return false;
-					}
-				}
 
-				renderPassCreateInfo._pipelines.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+					}
+
+					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+				}
+				else
+				{
+					DK_ASSERT_LOG(false, "지원하지 RenderPass ChildNode입니다. NodeName: %s", renderPassChildNodeName.c_str());
+					return false;
+				}
 			}
 
 			if (renderModule.createRenderPass(renderPassName, DK::move(renderPassCreateInfo)) == false)
@@ -155,24 +174,33 @@ namespace DK
 
 		return true;
 	}
-
 	bool SceneRenderer::initialize_createMaterialDefinition()
 	{
-		// #todo- 나중에 MaterialGroup을 추가하고 Technique로 RenderPass와 연결시켜줘야할듯?
-		static const char* materialDefinitionGroupPassStr[] =
+		ScopeString<DK_MAX_PATH> materialDefinitionFilePath = GlobalPath::makeResourceFullPath("Material/MaterialDefinition.xml");
+
+		TiXmlDocument materialDefinitionDocument;
+		if (materialDefinitionDocument.LoadFile(materialDefinitionFilePath.c_str()) == false)
 		{
-			"Material/TerrainStandard.xml", 
-			"Material/SkinnedMeshStandard.xml",
-			"Material/StaticMeshStandard.xml"
-		};
-		for (uint32 i = 0; i < DK_ARRAYSIZE_OF(materialDefinitionGroupPassStr); ++i)
+			DK_ASSERT_LOG(false, "MaterialDefinition XML 파일의 경로가 올바르지 않습니다.");
+			return false;
+		}
+		TiXmlElement* materialDefinitionRootNode = materialDefinitionDocument.RootElement();
+		for (TiXmlElement* materialNode = materialDefinitionRootNode->FirstChildElement(); materialNode != nullptr; materialNode = materialNode->NextSiblingElement())
 		{
-			ScopeString<DK_MAX_PATH> materialDefinitionGroupPass = GlobalPath::makeResourceFullPath(materialDefinitionGroupPassStr[i]);
+			ScopeString<DK_MAX_BUFFER> materialNodeName = materialNode->Value();
+			if (materialNodeName != "Material")
+			{
+				DK_ASSERT_LOG(false, "MaterialDefinition의 Child중 올바르지 않은 Node가 있습니다. NodeName: %s", materialNodeName.c_str());
+				continue;
+			}
+
+			ScopeString<DK_MAX_PATH> materialDefinitionGroupPass = GlobalPath::makeResourceFullPath(materialNode->Attribute("Path"));
 
 			TiXmlDocument doc;
 			doc.LoadFile(materialDefinitionGroupPass.c_str());
 			TiXmlElement* rootNode = doc.FirstChildElement("Material");
-			if (rootNode == nullptr) return false;
+			if (rootNode == nullptr)
+				return false;
 
 			MaterialDefinition materialDefinition;
 			const DKString materialName = rootNode->Attribute("Name");
@@ -224,7 +252,6 @@ namespace DK
 
 		return true;
 	}
-
 	bool SceneRenderer::initialize_createSceneConstantBuffer()
 	{
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
@@ -260,7 +287,7 @@ namespace DK
 
 		// Render Character SceneObject
 		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-		for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+		for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 		{
 			SceneObject& sceneObject = iter->second;
 
@@ -271,7 +298,7 @@ namespace DK
 
 		// Render Character SceneObject
 		DKHashMap<uint32, SceneObject>& characterSceneObjectArr = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
-		for (DKHashMap<const uint, SceneObject>::iterator iter = characterSceneObjectArr.begin(); iter != characterSceneObjectArr.end(); ++iter)
+		for (DKHashMap<const uint32, SceneObject>::iterator iter = characterSceneObjectArr.begin(); iter != characterSceneObjectArr.end(); ++iter)
 		{
 			SceneObject& sceneObject = iter->second;
 
@@ -280,7 +307,7 @@ namespace DK
 			sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
 
 			uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-			for (uint i = 0; i < componentCount; ++i)
+			for (uint32 i = 0; i < componentCount; ++i)
 			{
 				// #todo- component 완전 개편 필요해보임.
 				// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
@@ -356,17 +383,26 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		float4 crossColor = float4(0, 0, 1, 1);
-		float4 filterColor = float4(1, 0, 0, 1);
-		float4 tileColor = float4(1, 1, 1, 1);
-		float4 trimColor = float4(0, 1, 0, 1);
-		float4 seamColor = float4(1, 0, 1, 1);
+		// Render Character SceneObject
+		startRenderPass(renderModule, "MainRenserPass");
 
-		// Render Tarrain
-		startRenderPass(renderModule, "TerrainStandardRenderPass");
-		startPipeline("TerrainStandardPipeline");
+		startPipeline("SkyDomePipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
+
+			renderModule.setVertexBuffers(0, 1, skyDome._vertexBufferView.get());
+			renderModule.setIndexBuffer(skyDome._indexBufferView.get());
+			renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._indexCount), 1, 0, 0, 0);
+		}
+		endPipeline();
+
+		startPipeline("TerrainClipmapPipeline");
+		{
+			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			DKVector<SceneManager::ClipMapTerrain>& terrainContainer = sceneManager.getClipMapTerrainContainerWritable();
 
@@ -377,20 +413,19 @@ namespace DK
 			const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
 			float2 cameraPos = float2::Zero;
 			cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
-			cameraPos = float2(1, 1);
+			//cameraPos = float2(0, 0);
 
 			uint32 terrainConstantBufferTypeIndex = 0;
-			float vertexScale = 1.0f;
+			float vertexScale = 0.125f;
 			// Draw Cross
 			{
 				float tileScale = vertexScale;
-				float gridScale = static_cast<float>(TILE_RESOLUTION * tileScale);
+				float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
 				float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
 
 				TerrainMeshConstantBuffer meshCBuffer;
-				meshCBuffer._base_scale = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
-				meshCBuffer._color = crossColor;
-				meshCBuffer._rotate = float4x4::Identity;
+				meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
+				meshCBuffer._type = 0;
 				Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 				terrainConstantBuffer->upload(&meshCBuffer);
 				setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
@@ -400,10 +435,10 @@ namespace DK
 				renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
 			}
 
-			for (uint32 i = 0; i < NUM_CLIPMAP_LEVELS; ++i)
+			for (uint32 i = 0; i < SceneManager::NUM_CLIPMAP_LEVELS; ++i)
 			{
 				float tileScale = (1 << i) * vertexScale;
-				float gridScale = static_cast<float>(TILE_RESOLUTION * tileScale);
+				float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
 				float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
 
 				float2 base = snappedCameraPos - gridScale * 2;
@@ -420,9 +455,8 @@ namespace DK
 						float2 tile_bl = base + float2(x, y) * gridScale + fill;
 
 						TerrainMeshConstantBuffer meshCBuffer;
-						meshCBuffer._base_scale = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
-						meshCBuffer._color = tileColor;
-						meshCBuffer._rotate = float4x4::Identity;
+						meshCBuffer._baseXY_scale_rotate = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
+						meshCBuffer._type = 1;
 						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 						terrainConstantBuffer->upload(&meshCBuffer);
 						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
@@ -436,9 +470,8 @@ namespace DK
 				// Draw Filter
 				{
 					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._base_scale = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
-					meshCBuffer._color = filterColor;
-					meshCBuffer._rotate = float4x4::Identity;
+					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
+					meshCBuffer._type = 2;
 					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 					terrainConstantBuffer->upload(&meshCBuffer);
 					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
@@ -447,19 +480,18 @@ namespace DK
 					renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
 					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
 				}
-				
+
 				float nextTileScale = tileScale * 2.0f;
 				float nextGridScale = gridScale * 1;
 				float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
 				// Draw Seam
-				if (i != NUM_CLIPMAP_LEVELS)
+				if (i != SceneManager::NUM_CLIPMAP_LEVELS)
 				{
 					float2 next_base = nextSnappedPos - nextGridScale * 2;
 
 					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._base_scale = float4(next_base.x, next_base.y, tileScale, 0.0f);
-					meshCBuffer._color = seamColor;
-					meshCBuffer._rotate = float4x4::Identity;
+					meshCBuffer._baseXY_scale_rotate = float4(next_base.x, next_base.y, tileScale, 0.0f);
+					meshCBuffer._type = 3;
 					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 					terrainConstantBuffer->upload(&meshCBuffer);
 					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
@@ -475,31 +507,11 @@ namespace DK
 
 					float2 d = cameraPos - nextSnappedPos;
 					uint32 r = 0;
-					r |= d.x >= tileScale ? 2 : 0;
-					r |= d.y >= tileScale ? 1 : 0;
-					Quaternion _90(0, 0, 90 * DK::Math::kToRadian);
-					Quaternion _180(0, 0, 180 * DK::Math::kToRadian);
-					Quaternion _270(0, 0, 270 * DK::Math::kToRadian);
-					Transform _90t(float3::Zero, _90, float3::Identity);
-					Transform _180t(float3::Zero, _180, float3::Identity);
-					Transform _270t(float3::Zero, _270, float3::Identity);
-					float4x4 _90m;
-					_90t.tofloat4x4(_90m);
-					float4x4 _180m;
-					_180t.tofloat4x4(_180m);
-					float4x4 _270m;
-					_270t.tofloat4x4(_270m);
-					static float4x4 trimRotation[4] =
-					{
-						_180m, // 180
-						_270m, // 270
-						_90m, // 90
-						float4x4::Identity
-					};
+					r |= d.x < tileScale ? 2 : 0;
+					r |= d.y < tileScale ? 1 : 0;
 					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._base_scale = float4(snappedCameraPos + tileScale * 0.5f, tileScale, 0.0f);
-					meshCBuffer._color = trimColor;
-					meshCBuffer._rotate = trimRotation[r];
+					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos + tileScale * 0.5f, tileScale, r);
+					meshCBuffer._type = 4;
 					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 					terrainConstantBuffer->upload(&meshCBuffer);
 					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
@@ -511,22 +523,19 @@ namespace DK
 			}
 		}
 		endPipeline();
-		endRenderPass();
 
-		// Render StaticMesh SceneObject
-		startRenderPass(renderModule, "StaticMeshStandardRenderPass");
 		startPipeline("StaticMeshStandardPipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
 			DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-			for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+			for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 			{
 				SceneObject& sceneObject = iter->second;
 				setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
 
 				uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-				for (uint componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+				for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 				{
 					// #todo- component 완전 개편 필요해보임.
 					// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
@@ -534,7 +543,7 @@ namespace DK
 					StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
 
 					DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-					for (uint subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+					for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
 					{
 						StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
@@ -549,22 +558,19 @@ namespace DK
 			}
 		}
 		endPipeline();
-		endRenderPass();
 
-		// Render Character SceneObject
-		startRenderPass(renderModule, "SkinnedMeshStandardRenderPass");
 		startPipeline("SkinnedMeshStandardPipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
 			DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
-			for (DKHashMap<const uint, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+			for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 			{
 				SceneObject& sceneObject = iter->second;
 				setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
 
 				uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-				for (uint componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+				for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 				{
 					// #todo- component 완전 개편 필요해보임.
 					// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
@@ -574,7 +580,7 @@ namespace DK
 					setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());
 
 					DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-					for (uint subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+					for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
 					{
 						SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
@@ -599,8 +605,7 @@ namespace DK
 		EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
 		debugDrawManager.prepareShaderData();
 
-		static const char* debugDrawElementPassName = "DebugDrawElementRenderPass";
-		startRenderPass(renderModule, debugDrawElementPassName);
+		startRenderPass(renderModule, "EditorMainRenserPass");
 		{
 			startPipeline("SpherePipeline");
 			{
