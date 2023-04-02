@@ -23,18 +23,36 @@ struct IDxcBlob;
 
 namespace DK
 {
-	enum class MaterialParameterType : uint8;
-	struct MaterialParameterDefinition;
-	class Material;
-	struct MaterialDefinition;
-	class TextureRaw;
-
-	struct DKCommandList;
 	struct IBuffer;
-}
+	struct DKCommandList;
 
-namespace DK
-{
+	// MaterialParameter로 쓰이는 Type은 POD를 유지해야합니다. (memcpy를 하기때문)
+	class ITexture
+	{
+	public:
+		using TextureSRVType = uint32;
+		static constexpr TextureSRVType kErrorTextureSRVIndex = 0xffffffff;
+	public:
+		ITexture(const DKString& path, const TextureSRVType& textureSRV)
+			: _path(path)
+			, _textureSRVIndex(textureSRV)
+		{}
+
+		dk_inline const DKString& getPath() const
+		{
+			return _path;
+		}
+
+		dk_inline const TextureSRVType& getSRV() const noexcept
+		{
+			return _textureSRVIndex;
+		}
+
+	private:
+		DKString _path;
+		TextureSRVType _textureSRVIndex = kErrorTextureSRVIndex;
+	};
+
 	enum class ShaderParameterType
 	{
 		Buffer,
@@ -157,12 +175,13 @@ if (object == nullptr) \
 #define RENDERING_VERIFY(object)
 #endif
 
-#define startRenderPass(renderModule, renderPassName) \
+#define startRenderPass(renderModule, renderPassName, renderTargetBuffer) \
 do{ \
 	RenderModule& currentRenderModule = renderModule; \
 	RENDERING_ALREADY_BIND(currentRenderPass, renderPassName); \
 	currentRenderPass = currentRenderModule.getRenderPass(renderPassName); \
-	RENDERING_VERIFY(currentRenderPass, renderPassName);
+	RENDERING_VERIFY(currentRenderPass, renderPassName); \
+	currentRenderModule.bindRenderPass(renderTargetBuffer);
 
 #define endRenderPass() \
 	currentRenderPass = nullptr; \
@@ -195,7 +214,7 @@ do{ \
 	class RenderModule
 	{
 	public:
-		constexpr static uint32 kFrameCount = 2;
+		static constexpr uint32 kFrameCount = 2;
 		static uint32 kCurrentFrameIndex;
 
 	public:
@@ -205,16 +224,13 @@ do{ \
 
 		bool createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
 		// #todo- Container 이용해도될듯?
-		IBuffer* createUploadBuffer(const uint32 size);
-		const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView);
-		const bool createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView);
-
-		// Texture Manager 전용함수! 사용시 주의할것!
-		const bool createTextureBindlessDescriptorHeap(RenderResourcePtr<ID3D12DescriptorHeap>& outDescriptorHeap);
-		bool createTexture(const TextureRaw& textureRaw, D3D12_CPU_DESCRIPTOR_HANDLE& handleStart, const uint32 index);
+		IBuffer* createUploadBuffer(const uint32 size, const DKStringW& debugName);
+		const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName);
+		const bool createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView, const DKStringW& debugName);
 
 		// SceneRenderer 전용 함수
 		void preRender();			// RenderTaget 등을 설정하는데.. 이건 RenderPass Set으로 옮겨야할듯. 지금은 RenderTarget이 하나니 하나로 빼둠
+		void bindRenderPass(bool renderTargetBuffer);
 		bool bindPipeline(Pipeline& pipeline);
 		void bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress);
 		void bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress);
@@ -224,6 +240,8 @@ do{ \
 		void endRender();
 
 		// helper 함수
+		ITextureRef createTexture(const DKString& path);
+		ITextureRef& getDepthStencilTextureWritable() { return _depthStencilTexture; }
 		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
 		{
 			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
@@ -244,9 +262,11 @@ do{ \
 		bool createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
-		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state);
-		ID3D12Resource* createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state);
-		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint32 bufferSize);
+		ITextureRef createTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format);
+
+		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
+		ID3D12Resource* createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
+		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const DKStringW& debugName);
 
 		void waitFenceAndResetCommandList();
 		void execute();
@@ -255,40 +275,35 @@ do{ \
 		bool _useWarpDevice = false;
 		RenderResourcePtr<ID3D12Device8> _device = nullptr;
 		RenderResourcePtr<ID3D12CommandQueue> _commandQueue;
-		RenderResourcePtr<IDXGISwapChain4> _swapChain = nullptr;
-		RenderResourcePtr<ID3D12Resource> _renderTargetResources[kFrameCount];
-		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetDescriptorHeap = nullptr;
-		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
+		Ptr<DKCommandList> _commandList = nullptr;
+		uint32 _fenceValues[kFrameCount] = { 0, };
+		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
+		HANDLE _fenceEvent;
 		Ptr<D3D12_VIEWPORT> _viewport;
 		Ptr<D3D12_RECT> _scissorRect;
+		RenderResourcePtr<IDXGISwapChain4> _swapChain = nullptr;
+
+		RenderResourcePtr<ID3D12Resource> _renderTargetResourceArr[kFrameCount];	// Deffered
+		RenderResourcePtr<ID3D12Resource> _backBufferResource[kFrameCount];			// BackBuffer
+		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetViewHeap = nullptr;	// FrameCount * 2개수 (앞은 Deffered Rendering RTV, 뒤는 SwapChain BackBuffer RTV)
+		ITextureRef _renderTargetTextureArr[kFrameCount];
+		RenderResourcePtr<ID3D12Resource2> _depthStencilBuffer;
+		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
+		ITextureRef _depthStencilTexture;
+
+
+		// SwapChain
 
 #if defined(USE_IMGUI)
 		RenderResourcePtr<ID3D12DescriptorHeap> _pd3dSrvDescHeap;
 #endif
 
-		Ptr<DKCommandList> _commandList = nullptr;
-		uint32 _fenceValues[kFrameCount] = { 0, };
-		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
-		HANDLE _fenceEvent;
+		// Texture
+		DKVector<ITexture::TextureSRVType> _deletedTextureSRVArr;
+		DKHashMap<DKString, ITextureRef> _textureContainer;
+		RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
 
 		DKHashMap<DKString, RenderPass> _renderPassMap;
-	};
-
-	struct DKCommandList
-	{
-		dk_inline DKCommandList(RenderResourcePtr<ID3D12CommandAllocator> commandAllocators[RenderModule::kFrameCount], RenderResourcePtr<ID3D12GraphicsCommandList>& commandList)
-			: _commandList(commandList)
-		{
-			for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
-			{
-				_commandAllocators[i] = commandAllocators[i];
-			}
-		}
-
-		bool reset();
-
-		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[RenderModule::kFrameCount];
-		RenderResourcePtr<ID3D12GraphicsCommandList> _commandList;
 	};
 
 	struct IBuffer
@@ -307,5 +322,22 @@ do{ \
 	private:
 		RenderResourcePtr<ID3D12Resource> _buffers[RenderModule::kFrameCount];
 		const uint32 _bufferSize;
+	};
+
+	struct DKCommandList
+	{
+		dk_inline DKCommandList(RenderResourcePtr<ID3D12CommandAllocator> commandAllocators[RenderModule::kFrameCount], RenderResourcePtr<ID3D12GraphicsCommandList>& commandList)
+			: _commandList(commandList)
+		{
+			for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
+			{
+				_commandAllocators[i] = commandAllocators[i];
+			}
+		}
+
+		bool reset();
+
+		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[RenderModule::kFrameCount];
+		RenderResourcePtr<ID3D12GraphicsCommandList> _commandList;
 	};
 }

@@ -187,6 +187,7 @@ namespace DK
 * String ÇÔ¼ö
 */
 #include <wchar.h>
+#include <stdlib.h>
 namespace DK
 {
 	using DKString = std::string;
@@ -197,6 +198,15 @@ namespace DK
 	class StringUtil
 	{
 	public:
+		static char* itoa(const uint32 value, char* buffer, int radix) noexcept
+		{
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#define _CRT_SECURE_NO_WARNINGS
+			return ::_itoa(value, buffer, radix);
+#undef _CRT_SECURE_NO_WARNINGS
+#pragma warning(pop)
+		}
 		static float atof(const char* str) noexcept
 		{
 			return static_cast<float>(std::atof(str));
@@ -305,6 +315,8 @@ namespace DK
 	class ScopeStringBase
 	{
 	public:
+		ScopeStringBase()
+		{}
 		ScopeStringBase(const T* str)
 		{
 			StringUtil::strcpy(_string, str);
@@ -315,12 +327,11 @@ namespace DK
 			return StringUtil::strcmp(c_str(), rhs) == false;
 		}
 
-		const T* c_str() const
-		{
-			return _string;
-		}
+		dk_inline const T* c_str() const { return _string; }
+		dk_inline T* data() { return _string; }
+		dk_inline const uint32 capacity() const { return SIZE; }
 
-		void append(const T* str)
+		dk_inline void append(const T* str)
 		{
 #ifdef _DK_DEBUG_
 			const uint32 length = StringUtil::strlen(_string) + StringUtil::strlen(str);
@@ -1400,5 +1411,16 @@ namespace DK
 		DK_REFLECTION_PROPERTY(Quaternion, _rotation);
 		DK_REFLECTION_PROPERTY(float3, _scale);
 	};
+}
+
+namespace DK
+{
+	namespace ConstPath
+	{
+		static constexpr const char* gMaterialDefinition = "Material/MaterialDefinition.xml";
+
+		static constexpr const char* gTerrainModelProperty = "Terrain/ModelProperty";
+		static constexpr const char* gPostProcessModelProperty = "System/ModelProperty";
+	}
 }
 #endif // !__DEFINE_STDAFX__

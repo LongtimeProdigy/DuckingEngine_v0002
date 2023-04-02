@@ -328,7 +328,11 @@ namespace DK
 		ScopeString<DK_MAX_PATH> modelPropertyFullPath = GlobalPath::makeResourceFullPath(modelPropertyPath);
 
 		TiXmlDocument modelPropertyDocument;
-		modelPropertyDocument.LoadFile(modelPropertyFullPath.c_str());
+		if (modelPropertyDocument.LoadFile(modelPropertyFullPath.c_str()) == false)
+		{
+			DK_ASSERT_LOG(false, "ModelProperty의 경로가 올바르지 않습니다. Path: %s, error: %s", modelPropertyPath.c_str(), modelPropertyDocument.ErrorDesc());
+			// #todo- nullptr 내보낼 수 있어야함
+		}
 
 		const TiXmlElement* modelPropertyNode = modelPropertyDocument.RootElement();
 
@@ -429,12 +433,12 @@ namespace DK
 			bufferOffset += vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType);
 
 			VertexBufferViewRef vertexBufferView;
-			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBuffer.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView);
+			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBuffer.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"StaticMesh_VertexBuffer");
 			if (vertexBufferSuccess == false)
 				return nullptr;
 
 			IndexBufferViewRef indexBufferView;
-			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBuffer.data(), indexCount, indexBufferView);
+			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBuffer.data(), indexCount, indexBufferView, L"StaticMesh_IndexBuffer");
 			if (indexBufferSuccess == false)
 				return nullptr;
 
@@ -538,12 +542,12 @@ namespace DK
 #endif
 
 			VertexBufferViewRef vertexBufferView;
-			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBuffer.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView);
+			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBuffer.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"SkinnedMesh_VertexBuffer");
 			if (vertexBufferSuccess == false)
 				return nullptr;
 
 			IndexBufferViewRef indexBufferView;
-			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBuffer.data(), indexCount, indexBufferView);
+			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBuffer.data(), indexCount, indexBufferView, L"SkinnedMesh_IndexBuffer");
 			if (indexBufferSuccess == false)
 				return nullptr;
 

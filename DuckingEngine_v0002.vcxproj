@@ -111,7 +111,6 @@
     <ClCompile Include="RenderModule.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="stdafx.cpp" />
-    <ClCompile Include="TextureManager.cpp" />
     <ClCompile Include="XBOXController.cpp" />
     <ClCompile Include="XboxState.cpp" />
   </ItemGroup>
@@ -152,7 +151,6 @@
     <ClInclude Include="RenderModule.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="TextureManager.h" />
     <ClInclude Include="XBOXController.h" />
     <ClInclude Include="XboxState.h" />
   </ItemGroup>
@@ -271,6 +269,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>$(SolutionDir)lib\fbx\libfbxsdk.lib;$(SolutionDir)lib\assimp\assimp-vc142-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>4194304</StackReserveSize>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

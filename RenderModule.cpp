@@ -2,6 +2,7 @@
 #include "RenderModule.h"
 
 #pragma region Lib
+
 #pragma comment(lib, "d3d12.lib")
 #include <d3d12.h>
 #pragma comment(lib, "dxgi.lib")
@@ -11,8 +12,105 @@
 #pragma region DXC
 #pragma comment(lib, "lib/dxc_2022_07_18/lib/x64/dxcompiler.lib")
 #include "lib/dxc_2022_07_18/inc/dxcapi.h"
-//#include "lib/dxc_2022_07_18/inc/d3d12shader.h"
-//#include <atlbase.h>
+#pragma endregion
+
+#define USE_WINCODEC
+#ifdef USE_WINCODEC
+#include <wincodec.h>	// Image Process
+DXGI_FORMAT GetDXGIFormatFromWICFormat(WICPixelFormatGUID& wicFormatGUID)
+{
+	if (wicFormatGUID == GUID_WICPixelFormat128bppRGBAFloat) return DXGI_FORMAT_R32G32B32A32_FLOAT;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBAHalf) return DXGI_FORMAT_R16G16B16A16_FLOAT;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBA) return DXGI_FORMAT_R16G16B16A16_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBA) return DXGI_FORMAT_R8G8B8A8_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppBGRA) return DXGI_FORMAT_B8G8R8A8_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppBGR) return DXGI_FORMAT_B8G8R8X8_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBA1010102XR) return DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM;
+
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBA1010102) return DXGI_FORMAT_R10G10B10A2_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat16bppBGRA5551) return DXGI_FORMAT_B5G5R5A1_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat16bppBGR565) return DXGI_FORMAT_B5G6R5_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppGrayFloat) return DXGI_FORMAT_R32_FLOAT;
+	else if (wicFormatGUID == GUID_WICPixelFormat16bppGrayHalf) return DXGI_FORMAT_R16_FLOAT;
+	else if (wicFormatGUID == GUID_WICPixelFormat16bppGray) return DXGI_FORMAT_R16_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat8bppGray) return DXGI_FORMAT_R8_UNORM;
+	else if (wicFormatGUID == GUID_WICPixelFormat8bppAlpha) return DXGI_FORMAT_A8_UNORM;
+
+	else return DXGI_FORMAT_UNKNOWN;
+}
+WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID)
+{
+	if (wicFormatGUID == GUID_WICPixelFormatBlackWhite) return GUID_WICPixelFormat8bppGray;
+	else if (wicFormatGUID == GUID_WICPixelFormat1bppIndexed) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat2bppIndexed) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat4bppIndexed) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat8bppIndexed) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat2bppGray) return GUID_WICPixelFormat8bppGray;
+	else if (wicFormatGUID == GUID_WICPixelFormat4bppGray) return GUID_WICPixelFormat8bppGray;
+	else if (wicFormatGUID == GUID_WICPixelFormat16bppGrayFixedPoint) return GUID_WICPixelFormat16bppGrayHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppGrayFixedPoint) return GUID_WICPixelFormat32bppGrayFloat;
+	else if (wicFormatGUID == GUID_WICPixelFormat16bppBGR555) return GUID_WICPixelFormat16bppBGRA5551;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppBGR101010) return GUID_WICPixelFormat32bppRGBA1010102;
+	else if (wicFormatGUID == GUID_WICPixelFormat24bppBGR) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat24bppRGB) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppPBGRA) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppPRGBA) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat48bppRGB) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat48bppBGR) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppBGRA) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppPRGBA) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppPBGRA) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat48bppRGBFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat48bppBGRFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBAFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppBGRAFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBHalf) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat48bppRGBHalf) return GUID_WICPixelFormat64bppRGBAHalf;
+	else if (wicFormatGUID == GUID_WICPixelFormat128bppPRGBAFloat) return GUID_WICPixelFormat128bppRGBAFloat;
+	else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBFloat) return GUID_WICPixelFormat128bppRGBAFloat;
+	else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBAFixedPoint) return GUID_WICPixelFormat128bppRGBAFloat;
+	else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBFixedPoint) return GUID_WICPixelFormat128bppRGBAFloat;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBE) return GUID_WICPixelFormat128bppRGBAFloat;
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppCMYK) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppCMYK) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat40bppCMYKAlpha) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat80bppCMYKAlpha) return GUID_WICPixelFormat64bppRGBA;
+
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
+	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGB) return GUID_WICPixelFormat32bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGB) return GUID_WICPixelFormat64bppRGBA;
+	else if (wicFormatGUID == GUID_WICPixelFormat64bppPRGBAHalf) return GUID_WICPixelFormat64bppRGBAHalf;
+#endif
+
+	else return GUID_WICPixelFormatDontCare;
+}
+uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
+{
+	if (dxgiFormat == DXGI_FORMAT_R32G32B32A32_FLOAT) return 128;
+	else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_FLOAT) return 64;
+	else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_UNORM) return 64;
+	else if (dxgiFormat == DXGI_FORMAT_R8G8B8A8_UNORM) return 32;
+	else if (dxgiFormat == DXGI_FORMAT_B8G8R8A8_UNORM) return 32;
+	else if (dxgiFormat == DXGI_FORMAT_B8G8R8X8_UNORM) return 32;
+	else if (dxgiFormat == DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM) return 32;
+
+	else if (dxgiFormat == DXGI_FORMAT_R10G10B10A2_UNORM) return 32;
+	else if (dxgiFormat == DXGI_FORMAT_B5G5R5A1_UNORM) return 16;
+	else if (dxgiFormat == DXGI_FORMAT_B5G6R5_UNORM) return 16;
+	else if (dxgiFormat == DXGI_FORMAT_R32_FLOAT) return 32;
+	else if (dxgiFormat == DXGI_FORMAT_R16_FLOAT) return 16;
+	else if (dxgiFormat == DXGI_FORMAT_R16_UNORM) return 16;
+	else if (dxgiFormat == DXGI_FORMAT_R8_UNORM) return 8;
+	else if (dxgiFormat == DXGI_FORMAT_A8_UNORM) return 8;
+	else
+	{
+		DK_ASSERT_LOG(false, "올바르지 않은 Texture Type입니다. 확인 요망!");
+		return 0xffffffff;
+	}
+}
+#endif
+
 #pragma endregion
 
 #include "DuckingEngine.h"
@@ -29,7 +127,48 @@
 namespace DK
 {
 	uint32 RenderModule::kCurrentFrameIndex = 0;
-	DXGI_FORMAT dsvFormat = DXGI_FORMAT_D32_FLOAT;
+	DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	DXGI_FORMAT GetDepthResourceFormat(DXGI_FORMAT depthformat)
+	{
+		DXGI_FORMAT resformat;
+		switch (depthformat)
+		{
+		case DXGI_FORMAT::DXGI_FORMAT_D16_UNORM:
+			resformat = DXGI_FORMAT::DXGI_FORMAT_R16_TYPELESS;
+			break;
+		case DXGI_FORMAT::DXGI_FORMAT_D24_UNORM_S8_UINT:
+			resformat = DXGI_FORMAT::DXGI_FORMAT_R24G8_TYPELESS;
+			break;
+		case DXGI_FORMAT::DXGI_FORMAT_D32_FLOAT:
+			resformat = DXGI_FORMAT::DXGI_FORMAT_R32_TYPELESS;
+			break;
+		case DXGI_FORMAT::DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+			resformat = DXGI_FORMAT::DXGI_FORMAT_R32G8X24_TYPELESS;
+			break;
+		}
+
+		return resformat;
+	}
+	DXGI_FORMAT GetDepthSRVFormat(DXGI_FORMAT depthformat)
+	{
+		DXGI_FORMAT srvformat;
+		switch (depthformat)
+		{
+		case DXGI_FORMAT::DXGI_FORMAT_D16_UNORM:
+			srvformat = DXGI_FORMAT::DXGI_FORMAT_R16_FLOAT;
+			break;
+		case DXGI_FORMAT::DXGI_FORMAT_D24_UNORM_S8_UINT:
+			srvformat = DXGI_FORMAT::DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+			break;
+		case DXGI_FORMAT::DXGI_FORMAT_D32_FLOAT:
+			srvformat = DXGI_FORMAT::DXGI_FORMAT_R32_FLOAT;
+			break;
+		case DXGI_FORMAT::DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+			srvformat = DXGI_FORMAT::DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS;
+			break;
+		}
+		return srvformat;
+	}
 
 #define TEXTUREBINDLESS_MAX_COUNT 4096
 #define TEXTUREBINDLESS_SPACE 10
@@ -40,7 +179,6 @@ namespace DK
 		if (_ptr != nullptr)
 			_ptr->Release();
 	}
-
 	RenderModule::~RenderModule()
 	{
 		CloseHandle(_fenceEvent);
@@ -132,182 +270,259 @@ namespace DK
 
 		// Create DirectX Factory
 		IDXGIFactory4* factory;
-		UINT factoryFlags = 0;
+		{
+			UINT factoryFlags = 0;
 #if defined(_DK_DEBUG_)
-		factoryFlags = DXGI_CREATE_FACTORY_DEBUG;
+			factoryFlags = DXGI_CREATE_FACTORY_DEBUG;
 #endif
-		hr = CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory));
-		if (SUCCEEDED(hr) == false)
-			return false;
+			hr = CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory));
+			if (SUCCEEDED(hr) == false)
+				return false;
 
-		// Disable the Alt+Enter fullscreen toggle feature. Switching to fullscreen
-		// will be handled manually.
-		hr = factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
-		if (SUCCEEDED(hr) == false)
-			return false;
+			// Disable the Alt+Enter fullscreen toggle feature. Switching to fullscreen
+			// will be handled manually.
+			hr = factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
+			if (SUCCEEDED(hr) == false)
+				return false;
+		}
 
-#pragma region 실험적 기능 목록을 사용하도록 설정합니다.
+		// Activate DebugLayer
+		{
 #if 0
-		const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
-			0x76f5573e,
-			0xf13a,
-			0x40f5,
-			{ 0xb2, 0x97, 0x81, 0xce, 0x9e, 0x18, 0x93, 0x3f }
-		};
-		hr = D3D12EnableExperimentalFeatures(1, &D3D12ExperimentalShaderModelsID, nullptr, nullptr);
-		if (FAILED(hr))
-			return false;
+			//실험적 기능 목록을 사용하도록 설정합니다.
+			const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
+				0x76f5573e,
+				0xf13a,
+				0x40f5,
+				{ 0xb2, 0x97, 0x81, 0xce, 0x9e, 0x18, 0x93, 0x3f }
+			};
+			hr = D3D12EnableExperimentalFeatures(1, &D3D12ExperimentalShaderModelsID, nullptr, nullptr);
+			if (FAILED(hr))
+				return false;
 #endif
-#pragma endregion
 
 #ifdef _DK_DEBUG_
-		// CreateDevice이전에 실행해야합니다. Device생성 이후에 호출하면 Device Remove가 발생함.
-		// Enable the D3D12 debug layer.
-		ID3D12Debug* debugController;
-		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-			debugController->EnableDebugLayer();
+			// CreateDevice이전에 실행해야합니다. Device생성 이후에 호출하면 Device Remove가 발생함.
+			// Enable the D3D12 debug layer.
+			ID3D12Debug* debugController;
+			if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+				debugController->EnableDebugLayer();
 #endif
+		}
 
 		// Create RenderDevice
-		if (_useWarpDevice == true)
 		{
-			IDXGIAdapter* warpAdapter;
-			if (SUCCEEDED(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter))) == false)
-				return false;
-			if (SUCCEEDED(D3D12CreateDevice(warpAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(_device.getAddress()))) == false)
-				return false;
-		}
-		else
-		{
-			IDXGIAdapter1* hardwareAdapter;
-			GetHardwareAdapter(factory, &hardwareAdapter);
-			if (SUCCEEDED(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(_device.getAddress()))) == false)
-				return false;
+			if (_useWarpDevice == true)
+			{
+				IDXGIAdapter* warpAdapter;
+				if (SUCCEEDED(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter))) == false)
+					return false;
+				if (SUCCEEDED(D3D12CreateDevice(warpAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(_device.getAddress()))) == false)
+					return false;
+			}
+			else
+			{
+				IDXGIAdapter1* hardwareAdapter;
+				GetHardwareAdapter(factory, &hardwareAdapter);
+				if (SUCCEEDED(D3D12CreateDevice(hardwareAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(_device.getAddress()))) == false)
+					return false;
+			}
 		}
 
-		D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = {};
+		// Find ShaderModel (현재 어디서도 쓰지 않음) (아마 컴파일 셰이더할때 쓸 수 있을듯)
+		{
+			D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = {};
 
 #if defined(NTDDI_WIN10_VB) && (NTDDI_VERSION >= NTDDI_WIN10_VB)
-		shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_6;
+			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_6;
 #elif defined(NTDDI_WIN10_19H1) && (NTDDI_VERSION >= NTDDI_WIN10_19H1)
-		shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_5;
+			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_5;
 #elif defined(NTDDI_WIN10_RS5) && (NTDDI_VERSION >= NTDDI_WIN10_RS5)
-		shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_4;
+			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_4;
 #elif defined(NTDDI_WIN10_RS4) && (NTDDI_VERSION >= NTDDI_WIN10_RS4)
-		shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_2;
+			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_2;
 #else
-		shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_0;
+			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_0;
 #endif
 
-		hr = _device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel));
-		while (hr == E_INVALIDARG && shaderModel.HighestShaderModel > D3D_SHADER_MODEL_6_0)
-		{
-			shaderModel.HighestShaderModel = static_cast<D3D_SHADER_MODEL>(static_cast<int>(shaderModel.HighestShaderModel) - 1);
 			hr = _device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel));
+			while (hr == E_INVALIDARG && shaderModel.HighestShaderModel > D3D_SHADER_MODEL_6_0)
+			{
+				shaderModel.HighestShaderModel = static_cast<D3D_SHADER_MODEL>(static_cast<int>(shaderModel.HighestShaderModel) - 1);
+				hr = _device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel));
+			}
+
+			if (FAILED(hr))
+				shaderModel.HighestShaderModel = D3D_SHADER_MODEL_5_1;
 		}
 
-		if (FAILED(hr))
-			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_5_1;
-
 		// Create CommandQueue
-		D3D12_COMMAND_QUEUE_DESC cqDesc = {};
-		cqDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		cqDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-		if (FAILED(_device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(_commandQueue.getAddress()))))
-			return false;
-
-		// Create SwapChain
-		DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
-		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-		swapChainDesc.Width = width;
-		swapChainDesc.Height = height;
-		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		swapChainDesc.Stereo = FALSE;
-		swapChainDesc.SampleDesc = sampleDesc;
-		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swapChainDesc.BufferCount = kFrameCount;
-		swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
-		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		// It is recommended to always allow tearing if tearing support is available.
-		swapChainDesc.Flags = CheckTearingSupport() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
-		swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-
-		hr = factory->CreateSwapChainForHwnd(_commandQueue.get(), hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(_swapChain.getAddress()));
-		if (FAILED(hr) == true)
-			return false;
-
-		kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
-
-		// Create RenderTargetView and DescriptorHeap
-		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-		rtvHeapDesc.NumDescriptors = kFrameCount;
-		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(_renderTargetDescriptorHeap.getAddress()));
-		if (FAILED(hr) == true)
-			return false;
-
-		UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		if (FAILED(hr) == true)
-			return false;
-
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		for (uint32 i = 0; i < kFrameCount; ++i)
 		{
-			hr = _swapChain->GetBuffer(i, IID_PPV_ARGS(_renderTargetResources[i].getAddress()));
+			D3D12_COMMAND_QUEUE_DESC cqDesc = {};
+			cqDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+			cqDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+			if (FAILED(_device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(_commandQueue.getAddress()))))
+				return false;
+		}
+
+		// Create Bindless Texture Descriptor
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+			heapDesc.NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
+			heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+			heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			hr = _device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_textureDescriptorHeap.getAddress()));
+			if (FAILED(hr))
+				return false;
+
+			_textureDescriptorHeap->SetName(L"BindlessTextureDescriptorHeap");
+		}
+
+		// Create RTV descriptorHeap
+		UINT rtvDescriptorSize = 0;
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+			rtvHeapDesc.NumDescriptors = kFrameCount * 2;
+			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+			hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(_renderTargetViewHeap.getAddress()));
 			if (FAILED(hr) == true)
 				return false;
 
-			_device->CreateRenderTargetView(_renderTargetResources[i].get(), nullptr, rtvHandle);
-			rtvHandle.ptr += rtvDescriptorSize;
+			rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			if (FAILED(hr) == true)
+				return false;
+
+			_renderTargetViewHeap->SetName(L"RTVDescriptorHeap");
 		}
 
 		// Create Depth/Stencil View
-		D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-		depthOptimizedClearValue.Format = dsvFormat;
-		depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
-		depthOptimizedClearValue.DepthStencil.Stencil = 0;
+		{
+			/*
+			* Depth/Stencil Reosurce/DSV/SRV 만들 때 타입 조심하자!
+			* https://stackoverflow.com/questions/38933565/which-format-to-use-for-a-shader-resource-view-into-depth-stencil-buffer-resourc
+			* https://stackoverflow.com/questions/20256815/how-to-check-the-content-of-the-depth-stencil-buffer
+			*/
+			D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+			depthOptimizedClearValue.Format = gDepthStencilFormat;
+			depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+			depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
-		CD3DX12_HEAP_PROPERTIES dsHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-		CD3DX12_RESOURCE_DESC dsDesc = CD3DX12_RESOURCE_DESC::Tex2D(dsvFormat, width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-		ID3D12Resource2* depthStencilBuffer;
-		hr = _device->CreateCommittedResource(
-			&dsHeapProperty, D3D12_HEAP_FLAG_NONE, &dsDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&depthStencilBuffer)
-		);
-		if (FAILED(hr) == true)
-			return false;
-		depthStencilBuffer->SetName(L"Depth/Stencil Resource Heap");
+			CD3DX12_HEAP_PROPERTIES dsHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+			CD3DX12_RESOURCE_DESC dsDesc = CD3DX12_RESOURCE_DESC::Tex2D(GetDepthResourceFormat(gDepthStencilFormat), width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+			hr = _device->CreateCommittedResource(
+				&dsHeapProperty, D3D12_HEAP_FLAG_NONE, &dsDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(_depthStencilBuffer.getAddress())
+			);
+			if (FAILED(hr) == true)
+				return false;
+			_depthStencilBuffer->SetName(L"Depth/Stencil Resource Heap");
 
-		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-		dsvHeapDesc.NumDescriptors = 1;
-		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-		dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-		hr = _device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(_depthStencilDescriptorHeap.getAddress()));
-		if (FAILED(hr) == true)
-			return false;
+			D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+			dsvHeapDesc.NumDescriptors = 1;
+			dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+			dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+			hr = _device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(_depthStencilDescriptorHeap.getAddress()));
+			if (FAILED(hr) == true)
+				return false;
 
-		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-		depthStencilViewDesc.Format = dsvFormat;
-		depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-		depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
-		_device->CreateDepthStencilView(
-			depthStencilBuffer, &depthStencilViewDesc, _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
-		);
+			D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+			depthStencilViewDesc.Format = gDepthStencilFormat;
+			depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+			depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
+			_device->CreateDepthStencilView(
+				_depthStencilBuffer.get(), &depthStencilViewDesc, _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
+			);
 
-		// etc
-		_viewport = dk_new D3D12_VIEWPORT;
-		_viewport->TopLeftX = 0;
-		_viewport->TopLeftY = 0;
-		_viewport->Width = static_cast<FLOAT>(width);
-		_viewport->Height = static_cast<FLOAT>(height);
-		_viewport->MinDepth = 0.0f;
-		_viewport->MaxDepth = 1.0f;
+			_depthStencilTexture = createTextureSRV("DepthStencilTexture", _depthStencilBuffer.get(), GetDepthSRVFormat(gDepthStencilFormat));
+			if (_depthStencilTexture == nullptr)
+			{
+				DK_ASSERT_LOG(false, "PostProcess에 사용하는 Depth/Stencil Texture 생성에 실패.");
+				return false;
+			}
+		}
 
-		_scissorRect = dk_new D3D12_RECT;
-		_scissorRect->left = 0;
-		_scissorRect->top = 0;
-		_scissorRect->right = static_cast<LONG>(width);
-		_scissorRect->bottom = static_cast<LONG>(height);
+		// Create RTV
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
+		DXGI_FORMAT renderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+		{
+			for (uint32 i = 0; i < kFrameCount; ++i)
+			{
+				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
+
+				_device->CreateRenderTargetView(_renderTargetResourceArr[i].get(), nullptr, rtvHandle);
+				rtvHandle.ptr += rtvDescriptorSize;
+
+				ScopeString<DK_MAX_BUFFER> indexString;
+				StringUtil::itoa(i, indexString.data(), indexString.capacity());
+				ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
+				rtvTextureName.append(indexString.c_str());
+				_renderTargetTextureArr[i] = createTextureSRV(rtvTextureName.c_str(), _renderTargetResourceArr[i].get(), renderTargetFormat);
+				if (_renderTargetTextureArr[i] == nullptr)
+				{
+					DK_ASSERT_LOG(false, "Fail - Create RenderTargetTexture");
+					return false;
+				}
+
+				_renderTargetResourceArr[i]->SetName(StringUtil::ConverCtoWC(rtvTextureName.c_str()).c_str());
+			}
+		}
+
+		// Create SwapChain and BackBuffer RTV
+		{
+			DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
+			DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+			swapChainDesc.Width = width;
+			swapChainDesc.Height = height;
+			swapChainDesc.Format = renderTargetFormat;
+			swapChainDesc.Stereo = FALSE;
+			swapChainDesc.SampleDesc = sampleDesc;
+			swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			swapChainDesc.BufferCount = kFrameCount;
+			swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+			swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+			swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+			// It is recommended to always allow tearing if tearing support is available.
+			swapChainDesc.Flags = CheckTearingSupport() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+			swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+			hr = factory->CreateSwapChainForHwnd(_commandQueue.get(), hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(_swapChain.getAddress()));
+			if (FAILED(hr) == true)
+				return false;
+			kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
+
+			for (uint32 i = 0; i < kFrameCount; ++i)
+			{
+				hr = _swapChain->GetBuffer(i, IID_PPV_ARGS(_backBufferResource[i].getAddress()));
+				if (FAILED(hr) == true)
+					return false;
+
+				_device->CreateRenderTargetView(_backBufferResource[i].get(), nullptr, rtvHandle);
+				rtvHandle.ptr += rtvDescriptorSize;
+
+				ScopeString<DK_MAX_BUFFER> indexString;
+				StringUtil::itoa(i, indexString.data(), indexString.capacity());
+				ScopeStringW<DK_MAX_BUFFER> resourceName(L"BackBufferResource_");
+				resourceName.append(StringUtil::ConverCtoWC(indexString.c_str()).c_str());
+				_backBufferResource[i]->SetName(resourceName.c_str());
+			}
+		}
+
+		// Viewport
+		{
+			_viewport = dk_new D3D12_VIEWPORT;
+			_viewport->TopLeftX = 0;
+			_viewport->TopLeftY = 0;
+			_viewport->Width = static_cast<FLOAT>(width);
+			_viewport->Height = static_cast<FLOAT>(height);
+			_viewport->MinDepth = 0.0f;
+			_viewport->MaxDepth = 1.0f;
+
+			_scissorRect = dk_new D3D12_RECT;
+			_scissorRect->left = 0;
+			_scissorRect->top = 0;
+			_scissorRect->right = static_cast<LONG>(width);
+			_scissorRect->bottom = static_cast<LONG>(height);
+		}
 
 #ifdef USE_IMGUI
 		IMGUI_CHECKVERSION();
@@ -708,8 +923,8 @@ namespace DK
 #else
 		//rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
-		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
-		//rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+		//rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+		rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 #endif
 		rasterizerDesc.FrontCounterClockwise = FALSE;
 		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
@@ -762,7 +977,7 @@ namespace DK
 		psoDesc.BlendState = blendDesc;
 		psoDesc.NumRenderTargets = 1;
 		psoDesc.DepthStencilState = depthStencilDesc;
-		psoDesc.DSVFormat = dsvFormat;
+		psoDesc.DSVFormat = gDepthStencilFormat;
 
 		HRESULT hr = _device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(inoutPipeline._pipelineStateObject.getAddress()));
 		if (SUCCEEDED(hr) == false)
@@ -880,7 +1095,7 @@ namespace DK
 		_commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
 	}
 
-	ID3D12Resource* RenderModule::createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state)
+	ID3D12Resource* RenderModule::createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const DKStringW& debugName)
 	{
 		ID3D12Resource* returnBuffer = nullptr;
 #if 0
@@ -908,6 +1123,8 @@ namespace DK
 			state, nullptr, IID_PPV_ARGS(&returnBuffer)
 		);
 
+		returnBuffer->SetName(debugName.c_str());
+
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "CreateBuffer Failed! 랜더링이 정상적이지 않을 수 있습니다.");
@@ -916,24 +1133,24 @@ namespace DK
 
 		return returnBuffer;
 	}
-	ID3D12Resource* RenderModule::createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state)
+	ID3D12Resource* RenderModule::createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state, const DKStringW& debugName)
 	{
-		return createBufferInternal(size, D3D12_HEAP_TYPE_DEFAULT, state);
+		return createBufferInternal(size, D3D12_HEAP_TYPE_DEFAULT, state, debugName);
 	}
-	IBuffer* RenderModule::createUploadBuffer(const uint32 size)
+	IBuffer* RenderModule::createUploadBuffer(const uint32 size, const DKStringW& debugName)
 	{
 		RenderResourcePtr<ID3D12Resource> buffers[RenderModule::kFrameCount];
 		uint32 alignedSize = (size + 255) & ~255;
 		for (uint32 i = 0; i < kFrameCount; ++i)
 		{
-			buffers[i] = createBufferInternal(alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+			buffers[i] = createBufferInternal(alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
 		}
 
 		return dk_new IBuffer(buffers, size);
 	}
-	ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, const uint32 bufferSize)
+	ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const DKStringW& debugName)
 	{
-		ID3D12Resource* uploadBuffer = createBufferInternal(bufferSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+		ID3D12Resource* uploadBuffer = createBufferInternal(bufferSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
 		if (uploadBuffer == nullptr)
 			return nullptr;
 
@@ -943,7 +1160,7 @@ namespace DK
 		memcpy(uploadBufferGPUAddress, data, bufferSize);
 
 		D3D12_RESOURCE_STATES defaultBufferState = D3D12_RESOURCE_STATE_COPY_DEST;
-		ID3D12Resource* defaultBuffer = createDefaultBuffer(bufferSize, defaultBufferState);
+		ID3D12Resource* defaultBuffer = createDefaultBuffer(bufferSize, defaultBufferState, debugName);
 		if (defaultBuffer == nullptr)
 			return nullptr;
 
@@ -960,10 +1177,10 @@ namespace DK
 
 		return defaultBuffer;
 	}
-	const bool RenderModule::createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView)
+	const bool RenderModule::createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName)
 	{
 		uint32 bufferSizeInBytes = strideSize * vertexCount;
-		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes);
+		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes, debugName);
 		if (defaultBuffer == nullptr)
 			return false;
 
@@ -976,10 +1193,10 @@ namespace DK
 
 		return true;
 	}
-	const bool RenderModule::createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView)
+	const bool RenderModule::createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView, const DKStringW& debugName)
 	{
 		uint32 bufferSizeInBytes = sizeof(uint32) * bufferSize;
-		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes);
+		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes, debugName);
 		if (defaultBuffer == nullptr)
 			return false;
 
@@ -993,22 +1210,153 @@ namespace DK
 		return true;
 	}
 
-	const bool RenderModule::createTextureBindlessDescriptorHeap(RenderResourcePtr<ID3D12DescriptorHeap>& outDescriptorHeap)
+	ITextureRef RenderModule::createTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format)
 	{
-		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
-		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		ITexture::TextureSRVType index = static_cast<ITexture::TextureSRVType>(_textureContainer.size());
+		if (_deletedTextureSRVArr.empty() == false)
+		{
+			index = _deletedTextureSRVArr.back();
+			_deletedTextureSRVArr.pop_back();
+		}
 
-		HRESULT hr = _device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(outDescriptorHeap.getAddress()));
-		if (FAILED(hr))
-			return false;
+		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		_device->CreateShaderResourceView(textureBuffer, &srvDesc, textureDescriptorHeapHandle);
+
+		using InsertResult = DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool>;
+		InsertResult insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(name, dk_new ITexture(name, index)));
+		if (insertResult.second == false)
+		{
+			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
+			return nullptr;
+		}
+
+		return insertResult.first->second;
+	}
+	class TextureRaw
+	{
+	public:
+		uint32 _width;
+		uint32 _height;
+		uint32 _bitsPerPixel;
+		byte* _data;
+		DXGI_FORMAT _format;
+	};
+	bool loadImageDataFromFile(const char* fileName, _OUT_ TextureRaw& textureRaw)
+	{
+		HRESULT hr;
+
+		static IWICImagingFactory* wicFactory;
+
+		IWICBitmapDecoder* wicDecoder = NULL;
+		IWICBitmapFrameDecode* wicFrame = NULL;
+		IWICFormatConverter* wicConverter = NULL;
+
+		bool imageConverted = false;
+
+		if (wicFactory == NULL)
+		{
+			CoInitialize(NULL);
+
+			hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wicFactory));
+			if (FAILED(hr))
+				return false;
+		}
+
+		const DKStringW wTexturePath = StringUtil::ConverCtoWC(fileName);
+		hr = wicFactory->CreateDecoderFromFilename(
+			wTexturePath.c_str(),            // Image we want to load in
+			NULL,                            // This is a vendor ID, we do not prefer a specific one so set to null
+			GENERIC_READ,                    // We want to read from this file
+			WICDecodeMetadataCacheOnLoad,    // We will cache the metadata right away, rather than when needed, which might be unknown
+			&wicDecoder                      // the wic decoder to be created
+		);
+		if (FAILED(hr)) return false;
+
+		hr = wicDecoder->GetFrame(0, &wicFrame);
+		if (FAILED(hr)) return false;
+
+		WICPixelFormatGUID pixelFormat;
+		hr = wicFrame->GetPixelFormat(&pixelFormat);
+		if (FAILED(hr)) return false;
+
+		// get size of image
+		hr = wicFrame->GetSize(&textureRaw._width, &textureRaw._height);
+		if (FAILED(hr)) return false;
+
+		DXGI_FORMAT dxgiFormat = GetDXGIFormatFromWICFormat(pixelFormat);
+
+		if (dxgiFormat == DXGI_FORMAT_UNKNOWN)
+		{
+			WICPixelFormatGUID convertToPixelFormat = GetConvertToWICFormat(pixelFormat);
+
+			if (convertToPixelFormat == GUID_WICPixelFormatDontCare) return false;
+
+			dxgiFormat = GetDXGIFormatFromWICFormat(convertToPixelFormat);
+
+			hr = wicFactory->CreateFormatConverter(&wicConverter);
+			if (FAILED(hr)) return false;
+
+			BOOL canConvert = FALSE;
+			hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
+			if (FAILED(hr) || !canConvert) return false;
+
+			hr = wicConverter->Initialize(wicFrame, convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
+			if (FAILED(hr)) return false;
+
+			imageConverted = true;
+		}
+
+		textureRaw._bitsPerPixel = GetDXGIFormatBitsPerPixel(dxgiFormat); // number of bits per pixel
+		uint32 bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
+		uint32 imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
+
+		textureRaw._data = (BYTE*)malloc(imageSize);
+		textureRaw._format = dxgiFormat;
+
+		if (imageConverted)
+		{
+			hr = wicConverter->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
+			if (FAILED(hr))
+			{
+				dk_delete_array(textureRaw._data);
+				return false;
+			}
+		}
+		else
+		{
+			hr = wicFrame->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
+			if (FAILED(hr))
+			{
+				dk_delete_array(textureRaw._data);
+				return false;
+			}
+		}
 
 		return true;
 	}
-
-	bool RenderModule::createTexture(const TextureRaw& textureRaw, D3D12_CPU_DESCRIPTOR_HANDLE& handleStart, const uint32 index)
+	ITextureRef RenderModule::createTexture(const DKString& path)
 	{
+		DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(path);
+		if (findResult != _textureContainer.end())
+			return findResult->second;
+
+		ScopeString<DK_MAX_PATH> textureFullPath = GlobalPath::makeResourceFullPath(path);
+
+		TextureRaw textureRaw;
+		const bool loadingTextureSuccess = loadImageDataFromFile(textureFullPath.c_str(), textureRaw);
+		if (loadingTextureSuccess == false)
+		{
+			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
+		}
+
 		D3D12_RESOURCE_DESC resourceDescription = {};
 		// now describe the texture with the information we have obtained from the image
 		resourceDescription = {};
@@ -1032,13 +1380,11 @@ namespace DK
 		heapProperty.VisibleNodeMask = 1;
 		ID3D12Resource* defaultBuffer;
 		// #todo- createcommittedresource가 실패할 수 있습니다. 예외 처리가 필요함!
-		HRESULT hr = _device->CreateCommittedResource(
-			&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription,
-			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&defaultBuffer)
-		);
+		HRESULT hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&defaultBuffer));
 		if (FAILED(hr) == true)
 		{
-			return false;
+			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 		}
 		defaultBuffer->SetName(L"DefaultBuffer - Texture");
 
@@ -1060,13 +1406,11 @@ namespace DK
 		heapProperty.VisibleNodeMask = 1;
 		ID3D12Resource* uploadBuffer;
 		CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize);
-		hr = _device->CreateCommittedResource(
-			&heapProperty, D3D12_HEAP_FLAG_NONE, &desc,
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer)
-		);
+		hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer));
 		if (FAILED(hr) == true)
 		{
-			return false;
+			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 		}
 		uploadBuffer->SetName(L"UploadBuffer - Texture");
 
@@ -1084,46 +1428,53 @@ namespace DK
 
 		execute();
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = textureRaw._format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = 1;
-		handleStart.ptr += index * _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		_device->CreateShaderResourceView(defaultBuffer, &srvDesc, handleStart);
-
-		return true;
+		return createTextureSRV(path, defaultBuffer, textureRaw._format);
 	}
 
 	void RenderModule::preRender()
 	{
 		waitFenceAndResetCommandList();
 
-		D3D12_RESOURCE_BARRIER barrier;
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = _renderTargetResources[kCurrentFrameIndex].get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		_commandList->_commandList->ResourceBarrier(1, &barrier);
+		{
+			//D3D12_RESOURCE_BARRIER barrier;
+			//barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			//barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			//barrier.Transition.pResource = _renderTargetResourceArr[kCurrentFrameIndex].get();
+			//barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			//barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			//barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			//_commandList->_commandList->ResourceBarrier(1, &barrier);
+		}
+		{
+			D3D12_RESOURCE_BARRIER barrier;
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			barrier.Transition.pResource = _backBufferResource[kCurrentFrameIndex].get();
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			_commandList->_commandList->ResourceBarrier(1, &barrier);
+		}
+	}
 
+	void RenderModule::bindRenderPass(bool renderTargetBuffer)
+	{
 		const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		rtvHandle.ptr += rtvDescriptorSize * kCurrentFrameIndex;
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
+		rtvHandle.ptr += rtvDescriptorSize * (kCurrentFrameIndex + (renderTargetBuffer ? 0 : kFrameCount));
+
+		//const float clearColor[] = { 0.5f, 0.5f, 0.9f, 1.0f };
+		//_commandList->_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
 		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-
 		_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-		const float clearColor[] = { 0.5f, 0.5f, 0.9f, 1.0f };
-		_commandList->_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-		_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+		if (renderTargetBuffer)
+			_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		_commandList->_commandList->RSSetViewports(1, _viewport.get());
 		_commandList->_commandList->RSSetScissorRects(1, _scissorRect.get());
 		_commandList->_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	}
-
 	D3D_PRIMITIVE_TOPOLOGY convertPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY_TYPE type)
 	{
 		/*
@@ -1152,10 +1503,8 @@ namespace DK
 		_commandList->_commandList->SetGraphicsRootSignature(pipeline._rootSignature.get());
 		_commandList->_commandList->SetPipelineState(pipeline._pipelineStateObject.get());
 		_commandList->_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
-
-		RenderResourcePtr<ID3D12DescriptorHeap>& textureDescriptorHeap = DuckingEngine::getInstance().getTextureManagerWritable().getTextureDescriptorHeapWritable();
-		_commandList->_commandList->SetDescriptorHeaps(1, textureDescriptorHeap.getAddress());
-		_commandList->_commandList->SetGraphicsRootDescriptorTable(0, textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());
+		_commandList->_commandList->SetGraphicsRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		return true;
 	}
 	void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress)
@@ -1189,7 +1538,7 @@ namespace DK
 		D3D12_RESOURCE_BARRIER barrier;
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = _renderTargetResources[kCurrentFrameIndex].get();
+		barrier.Transition.pResource = _backBufferResource[kCurrentFrameIndex].get();
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;

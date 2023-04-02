@@ -17,7 +17,7 @@ struct VS_OUTPUT
 };
 
 // 터레인에 하나만 있는 material 조합
-cbuffer TerrainStandard : register(b1)
+cbuffer TerrainClipMap : register(b1)
 {
     TextureParameter _diffuseTexture;
     TextureParameter _heightTexture;

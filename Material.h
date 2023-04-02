@@ -57,6 +57,14 @@ namespace DK
 	class MaterialParameter
 	{
 	public:
+		enum class Type : uint8
+		{
+			FLOAT, 
+			TEXTURE, 
+			COUNT
+		};
+
+	public:
 		static MaterialParameter* createMaterialParameter(const MaterialParameterDefinition& parameterDefinition);
 
 	public:
@@ -70,11 +78,12 @@ namespace DK
 			return _name;
 		}
 
-		dk_inline virtual void setParameterValuePtr(void* valuePtr) noexcept
+		dk_inline void setParameterValuePtr(void* valuePtr) noexcept
 		{
 			_valuePtr = valuePtr;
 		}
 
+		dk_inline virtual Type getType() const noexcept = 0;
 		dk_inline virtual uint32 getParameterSize() const noexcept = 0;
 
 	protected:
@@ -93,12 +102,13 @@ namespace DK
 		virtual ~MaterialParameterTemplate() override final
 		{}
 
-		virtual uint32 getParameterSize() const noexcept override
+		dk_inline virtual Type getType() const noexcept override;
+		dk_inline virtual uint32 getParameterSize() const noexcept override
 		{
 			return sizeof(T);
 		}
 
-		virtual void setParameterValue(const T& value) noexcept;
+		void setParameterValue(const T& value) noexcept;
 
 	private:
 		const T _defaultValue;
@@ -107,9 +117,6 @@ namespace DK
 
 	using MaterialParameterFloat = MaterialParameterTemplate<float>;
 	using MaterialParameterTexture = MaterialParameterTemplate<ITextureRef>;
-
-	uint32 MaterialParameterTexture::getParameterSize() const noexcept;
-	void MaterialParameterTexture::setParameterValue(const ITextureRef& value) noexcept;
 #pragma endregion
 
 #pragma region Material
@@ -123,7 +130,7 @@ namespace DK
 		Material(Material&& rhs)
 		{
 			_materialName = rhs._materialName;
-			_parameters.swap(rhs._parameters);
+			_parameterArr.swap(rhs._parameterArr);
 			_parameterBufferForCPU.swap(rhs._parameterBufferForCPU);
 			_parameterBufferForGPU.swap(rhs._parameterBufferForGPU);
 		}
@@ -131,9 +138,11 @@ namespace DK
 	public:
 		bool setModelProperty(const MaterialDefinition& modelProperty);
 
+		void setParameterValue(const DKString& name, void* value);
+
 	private:
 		DK_REFLECTION_PROPERTY(DKString, _materialName);
-		DKVector<Ptr<MaterialParameter>> _parameters;
+		DKVector<Ptr<MaterialParameter>> _parameterArr;
 
 		DKVector<char> _parameterBufferForCPU;
 		DK_REFLECTION_PTR_PROPERTY_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);

@@ -25,7 +25,6 @@ namespace DK
 	DuckingEngine* DuckingEngine::_duckingEngine;
 	RenderModule* DuckingEngine::_renderModule = nullptr;
 	SceneRenderer* DuckingEngine::_sceneRenderer = nullptr;
-	TextureManager* DuckingEngine::_textureManager = nullptr;
 	ResourceManager* DuckingEngine::_resourceManager = nullptr;
 	SceneManager* DuckingEngine::_sceneManager = nullptr;
 	SceneObjectManager* DuckingEngine::_sceneObjectManager = nullptr;
@@ -55,9 +54,6 @@ namespace DK
 		if (_sceneRenderer->initialize() == false) 
 			return false;
 
-		_textureManager = dk_new TextureManager;
-		if (_textureManager->initialize() == false) 
-			return false;
 		_resourceManager = dk_new ResourceManager;
 
 		_sceneManager = dk_new SceneManager;
@@ -87,9 +83,6 @@ namespace DK
 
 		_sceneRenderer->preRender();
 		_sceneRenderer->updateRender();
-#ifdef _DK_DEBUG_
-		_sceneRenderer->updateRender_Editor();
-#endif
 		_sceneRenderer->endRender();
 	}
 }

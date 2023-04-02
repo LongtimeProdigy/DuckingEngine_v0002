@@ -1,0 +1,10 @@
+<ModelProperty>
+	<SubMeshArr Count="1">
+		<SubMesh Name="TerrainClipMap">
+			<Parameters>
+				<Parameter Name="_diffuseTexture" Type="Texture">Terrain/textures/coast_sand_rocks_02_diff_4k.png</Parameter>
+				<Parameter Name="_heightTexture" Type="Texture">Terrain/textures/coast_sand_rocks_02_disp_4k.png</Parameter>
+			</Parameters>
+		</SubMesh>
+	</SubMeshArr>
+</ModelProperty>

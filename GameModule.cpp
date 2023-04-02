@@ -16,6 +16,7 @@ namespace DK
 		// Test Terrain
 		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
+		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
 
 
 		// Test Object

@@ -79,28 +79,28 @@ namespace DK
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView);
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView);
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"SkyeDome_VertexBuffer");
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"SkyDome_IndexBuffer");
 
-		_skyDome._vertexBufferView = vertexBufferView;
-		_skyDome._indexBufferView = indexBufferView;
-		_skyDome._indexCount = indexArr.size();
+		_skyDome._mesh._vertexBufferView = vertexBufferView;
+		_skyDome._mesh._indexBufferView = indexBufferView;
+		_skyDome._mesh._indexCount = indexArr.size();
 	}
 
 	static bool createTerrainMeshBuffer(const DKVector<float2>& vertexArr, DKVector<uint32>& indexArr, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView);
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"TerrainMesh_VertexBuffer");
 		if (vertexBufferSuccess == false)
 			return false;
 
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView);
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"TerrainMesh_IndexBuffer");
 		if (indexBufferSuccess == false)
 			return false;
 
 		return true;
 	}
-	static SceneManager::ClipMapTerrain::Mesh loadLevel_ClipMap_Cross()
+	static SceneManager::Mesh loadLevel_ClipMap_Cross()
 	{
 		DKVector<float2> vertexArr;
 		vertexArr.resize(SceneManager::SceneManager::PATCH_VERT_RESOLUTION * 8);
@@ -161,9 +161,9 @@ namespace DK
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::ClipMapTerrain::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
 	}
-	static SceneManager::ClipMapTerrain::Mesh loadLevel_ClipMap_Tile()
+	static SceneManager::Mesh loadLevel_ClipMap_Tile()
 	{
 		DKVector<float2> vertexArr;
 		vertexArr.resize(SceneManager::PATCH_VERT_RESOLUTION * SceneManager::PATCH_VERT_RESOLUTION);
@@ -196,9 +196,9 @@ namespace DK
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::ClipMapTerrain::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
+		return SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 	}
-	static SceneManager::ClipMapTerrain::Mesh loadLevel_ClipMap_Filter()
+	static SceneManager::Mesh loadLevel_ClipMap_Filter()
 	{
 		DKVector<float2> vertexArr;
 		vertexArr.resize(SceneManager::PATCH_VERT_RESOLUTION * 8);
@@ -264,9 +264,9 @@ namespace DK
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::ClipMapTerrain::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
 	}
-	static SceneManager::ClipMapTerrain::Mesh loadLevel_ClipMap_Trim()
+	static SceneManager::Mesh loadLevel_ClipMap_Trim()
 	{
 		DKVector<float2> vertexArr;
 		vertexArr.resize((SceneManager::CLIPMAP_VERT_RESOLUTION * 2 + 1) * 2);
@@ -328,9 +328,9 @@ namespace DK
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::ClipMapTerrain::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
 	}
-	static SceneManager::ClipMapTerrain::Mesh loadLevel_ClipMap_Seam()
+	static SceneManager::Mesh loadLevel_ClipMap_Seam()
 	{
 		DKVector<float2> vertexArr;
 		vertexArr.resize(SceneManager::CLIPMAP_VERT_RESOLUTION * 4);
@@ -358,34 +358,57 @@ namespace DK
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::ClipMapTerrain::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
 	}
 	void SceneManager::loadLevel()
 	{
 		// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
 		// TileMap
-		ClipMapTerrain::Mesh cross = loadLevel_ClipMap_Cross();
-		ClipMapTerrain::Mesh tile = loadLevel_ClipMap_Tile();
-		ClipMapTerrain::Mesh filter = loadLevel_ClipMap_Filter();
-		ClipMapTerrain::Mesh trim = loadLevel_ClipMap_Trim();
-		ClipMapTerrain::Mesh seam = loadLevel_ClipMap_Seam();
+		_clipmapTerrain._cross = loadLevel_ClipMap_Cross();
+		_clipmapTerrain._tile = loadLevel_ClipMap_Tile();
+		_clipmapTerrain._filter = loadLevel_ClipMap_Filter();
+		_clipmapTerrain._trim = loadLevel_ClipMap_Trim();
+		_clipmapTerrain._seam = loadLevel_ClipMap_Seam();
 
-		const ModelPropertyRef modelProperty = DuckingEngine::getInstance().GetResourceManagerWritable().loadModelProperty("Terrian/ModelProperty/TerrainStandard.xml");
+		ScopeString<DK_MAX_BUFFER> terrainModelPropertyPath(ConstPath::gTerrainModelProperty);
+		terrainModelPropertyPath.append("/TerrainClipMap.xml");
+		const ModelPropertyRef modelProperty = DuckingEngine::getInstance().GetResourceManagerWritable().loadModelProperty(terrainModelPropertyPath.c_str());
 		const DKVector<MaterialDefinition>& materialDefinitionArr = modelProperty->get_materialDefinitionArr();
 		DK_ASSERT_LOG(materialDefinitionArr.size() == 1, "Terrian Material은 현재 Material 1개만 지원합니다.");
 		Material* newMaterial = Material::createMaterial(materialDefinitionArr[0]);
-
-		ClipMapTerrain terrain(DK::move(tile), DK::move(filter), DK::move(trim), DK::move(cross), DK::move(seam), newMaterial);
+		_clipmapTerrain._material.assign(newMaterial);
 
 		// Cross(1) + (tile(4) + Filter(1) + Trim(1) + Seam(1)) * (level count)
 		const uint32 tileCountPerClipMap = 1 + (4 * 4 + 1 + 1 + 1) * NUM_CLIPMAP_LEVELS;
-		terrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
+		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
 		for (uint32 i = 0; i < tileCountPerClipMap; ++i)
 		{
-			IBuffer* buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(TerrainMeshConstantBuffer));
-			terrain._terrainConstantBuffer.push_back(buffer);
+			IBuffer* buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(TerrainMeshConstantBuffer), L"TerrainMesh_CBuffer");
+			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
 		}
+	}
+	void SceneManager::loadPostProcess()
+	{
+		DKVector<float2> vertexArr;
+		vertexArr.resize(4);
+		vertexArr[0] = float2(-1, -1);
+		vertexArr[1] = float2(1, -1);
+		vertexArr[2] = float2(1, 1);
+		vertexArr[3] = float2(-1, 1);
 
-		_clipmapTerrainContainer.push_back(DK::move(terrain));
+		DKVector<uint32> indexArr;
+		indexArr.resize(6);
+		indexArr[0] = 0; indexArr[1] = 2; indexArr[2] = 1;
+		indexArr[3] = 0; indexArr[4] = 3; indexArr[5] = 2;
+
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		VertexBufferViewRef vertexBufferView;
+		IndexBufferViewRef indexBufferView;
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"PostProcess_VertexBuffer");
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"PostProcess_IndexBuffer");
+
+		_postProcess._mesh._vertexBufferView = vertexBufferView;
+		_postProcess._mesh._indexBufferView = indexBufferView;
+		_postProcess._mesh._indexCount = indexArr.size();
 	}
 }

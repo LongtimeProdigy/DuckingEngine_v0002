@@ -21,39 +21,32 @@ namespace DK
 		static constexpr uint32 NUM_CLIPMAP_LEVELS = 7;
 
 	public:
-		struct SkyDome
+		struct Mesh
 		{
+			Mesh()
+			{}
+			Mesh(const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
+				: _vertexBufferView(vertexBufferView)
+				, _indexBufferView(indexBufferView)
+				, _indexCount(indexCount)
+			{}
+
+		public:
 			VertexBufferViewRef _vertexBufferView;
 			IndexBufferViewRef _indexBufferView;
 			uint32 _indexCount;
 		};
 
+		struct PostProcess
+		{
+			Mesh _mesh;
+		};
+		struct SkyDome
+		{
+			Mesh _mesh;
+		};
 		struct ClipMapTerrain
 		{
-			struct Mesh
-			{
-				Mesh(const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
-					: _vertexBufferView(vertexBufferView)
-					, _indexBufferView(indexBufferView)
-					, _indexCount(indexCount)
-				{}
-
-			public:
-				VertexBufferViewRef _vertexBufferView;
-				IndexBufferViewRef _indexBufferView;
-				uint32 _indexCount;
-			};
-
-			ClipMapTerrain(const Mesh&& tile, const Mesh&& filter, const Mesh&& trim, const Mesh&& cross, const Mesh&& seam, Material* material)
-				: _tile(DK::move(tile))
-				, _filter(DK::move(filter))
-				, _trim(DK::move(trim))
-				, _cross(DK::move(cross))
-				, _seam(DK::move(seam))
-				, _material(material)
-			{}
-
-		public:
 			Mesh _tile;
 			Mesh _filter;
 			Mesh _trim;
@@ -67,12 +60,15 @@ namespace DK
 	public:
 		void loadSkyDome();
 		void loadLevel();
+		void loadPostProcess();
 
 		SkyDome& getSkyDomeWritable() { return _skyDome; }
-		DKVector<ClipMapTerrain>& getClipMapTerrainContainerWritable() { return _clipmapTerrainContainer; }
+		ClipMapTerrain& getClipMapTerrainWritable() { return _clipmapTerrain; }
+		PostProcess& getPostProcessWritable() { return _postProcess; }
 
 	private:
 		SkyDome _skyDome;
-		DKVector<ClipMapTerrain> _clipmapTerrainContainer;
+		ClipMapTerrain _clipmapTerrain;
+		PostProcess _postProcess;
 	};
 }

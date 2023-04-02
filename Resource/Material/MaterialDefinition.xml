@@ -1,5 +1,5 @@
 <MaterialDefinition>
-    <Material Path="Material/TerrainStandard.xml"/>
+    <Material Path="Material/TerrainClipMap.xml"/>
     <Material Path="Material/SkinnedMeshStandard.xml"/>
     <Material Path="Material/StaticMeshStandard.xml"/>
 </MaterialDefinition>

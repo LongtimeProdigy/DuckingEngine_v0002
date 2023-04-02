@@ -24,15 +24,15 @@ namespace DK
 		return false;
 	}
 
-	bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView, Ptr<IBuffer>& primitiveInfoBuffer)
+	bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView, Ptr<IBuffer>& primitiveInfoBuffer, const DKStringW& vertexDebugName, const DKStringW& indexDebugName, const DKStringW& cbufferDebugName)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBufferView);
-		renderModule.createIndexBuffer(indices, indexCount, indexBufferView);
+		renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBufferView, vertexDebugName);
+		renderModule.createIndexBuffer(indices, indexCount, indexBufferView, indexDebugName);
 		outIndexCount = indexCount;
 
 		uint32 elementCount = MAX_ELEMENT_COUNT;
-		primitiveInfoBuffer = renderModule.createUploadBuffer(strideSize * elementCount);
+		primitiveInfoBuffer = renderModule.createUploadBuffer(strideSize * elementCount, cbufferDebugName);
 
 		return true;
 	}
@@ -72,7 +72,8 @@ namespace DK
 			vertices, sizeof(decltype(vertices[0])), ARRAYSIZE(vertices),
 			indices, ARRAYSIZE(indices),
 			SpherePrimitiveInfo::indexCount, SpherePrimitiveInfo::kVertexBufferView,
-			SpherePrimitiveInfo::kIndexBufferView, _primitiveInfoSphereBuffer
+			SpherePrimitiveInfo::kIndexBufferView, _primitiveInfoSphereBuffer, 
+			L"DebugDrawElement_Sphere_VertexBuffer", L"DebugDrawElement_Sphere_IndexBuffer", L"DebugDrawElement_Sphere_PrimitiveBuffer"
 		);
 
 		return true;
@@ -94,7 +95,8 @@ namespace DK
 			vertices, sizeof(decltype(vertices[0])), ARRAYSIZE(vertices),
 			indices, ARRAYSIZE(indices),
 			LinePrimitiveInfo::indexCount, LinePrimitiveInfo::kVertexBufferView,
-			LinePrimitiveInfo::kIndexBufferView, _primitiveInfoLineBuffer
+			LinePrimitiveInfo::kIndexBufferView, _primitiveInfoLineBuffer, 
+			L"DebugDrawElement_Line_VertexBuffer", L"DebugDrawElement_Line_IndexBuffer", L"DebugDrawElement_Line_PrimitiveBuffer"
 		);
 
 		return true;

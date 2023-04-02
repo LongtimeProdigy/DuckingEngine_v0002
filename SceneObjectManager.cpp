@@ -17,7 +17,7 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 		sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
-		sceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData));
+		sceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData), L"SceneObject_Cbuffer");
 		if (sceneObject._sceneObjectConstantBuffer.get() == nullptr)
 		{
 			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");

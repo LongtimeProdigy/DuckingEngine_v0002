@@ -5,7 +5,6 @@ namespace DK
 	class InputModule;
 	class RenderModule;
 	class SceneRenderer;
-	class TextureManager;
 	class ResourceManager;
 	class SceneObjectManager;
 	class GameModule;
@@ -42,8 +41,6 @@ namespace DK
 		dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule; }
 		dk_inline const SceneRenderer& getSceneRender() const noexcept { return *_sceneRenderer; }
 		dk_inline SceneRenderer& getSceneRenderWritable() noexcept { return *_sceneRenderer; }
-		dk_inline const TextureManager& getTextureManager() const noexcept { return *_textureManager; }
-		dk_inline TextureManager& getTextureManagerWritable() noexcept { return *_textureManager; }
 		dk_inline const ResourceManager& GetResourceManager() const noexcept { return *_resourceManager; }
 		dk_inline ResourceManager& GetResourceManagerWritable() noexcept { return *_resourceManager; }
 		dk_inline const SceneManager& getSceneManager() const noexcept { return *_sceneManager; }
@@ -58,7 +55,6 @@ namespace DK
 #pragma endregion
 
 #pragma region Editor&Game Modules
-		static TextureManager* _textureManager;
 		static ResourceManager* _resourceManager;
 		static SceneManager* _sceneManager;
 		static SceneObjectManager* _sceneObjectManager;

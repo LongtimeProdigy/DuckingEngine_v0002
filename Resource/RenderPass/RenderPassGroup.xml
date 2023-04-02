@@ -1,5 +1,5 @@
 <RenderPassGroup>
-	<RenderPass Name="MainRenserPass">
+	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 		
 		<Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False">
@@ -16,7 +16,7 @@
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material\TerrainClipMap.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material\TerrainClipMap.hlsl</PixelShader>
-			<Parameter Name="TerrainStandard" Type="Buffer" Register="1"/>
+			<Parameter Name="TerrainClipMap" Type="Buffer" Register="1"/>
 			<Parameter Name="TerrainMeshConstantBuffer" Type="Buffer" Register="2"/>
 		</Pipeline>
 
@@ -48,8 +48,21 @@
 		</Pipeline>
 	</RenderPass>
 
+	<RenderPass Name="PostProcessRenderPass">
+		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+		<Pipeline Name="PostProcessPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material\PostProcess.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\PostProcess.hlsl</PixelShader>
+			<Parameter Name="PostProcessConstantBuffer" Type="Buffer" Register="1"/>
+		</Pipeline>
+	</RenderPass>
+
 	<RenderPass Name="EditorMainRenserPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+
 		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="false">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
@@ -66,5 +79,13 @@
 			<PixelShader Entry="PSMainLine">Material\DebugDrawElement.hlsl</PixelShader>
 			<Parameter Name="LinePrimitiveInfoBuffer" Type="StructuredBuffer" Register="0"/>
 		</Pipeline>
+
+		<!-- <Pipeline Name="DebugRenderTarget" Type="Triangle" DepthEnable="False">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader></VertexShader>
+			<PixelShader></PixelShader>
+		</Pipeline> -->
 	</RenderPass>
 </RenderPassGroup>
