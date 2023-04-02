@@ -4,7 +4,6 @@
 #include "DuckingEngine.h"
 #include "RenderModule.h"
 #include "SceneRenderer.h"
-#include "TextureManager.h"
 
 namespace DK
 {

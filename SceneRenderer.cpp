@@ -3,7 +3,6 @@
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
-#include "TextureManager.h"
 #include "SceneObjectManager.h"
 #include "Camera.h"
 #include "StaticMeshComponent.h"

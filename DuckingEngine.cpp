@@ -6,7 +6,6 @@
 #include "SceneRenderer.h"
 
 #include "ResourceManager.h"
-#include "TextureManager.h"
 #include "SceneManager.h"
 #include "SceneObjectManager.h"
 

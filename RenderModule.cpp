@@ -115,7 +115,6 @@ uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 
 #include "DuckingEngine.h"
 #include "ResourceManager.h"
-#include "TextureManager.h"
 
 #include "Camera.h"
 #include "SceneObject.h"

@@ -97,9 +97,6 @@
     <ClCompile Include="SceneObjectManager.cpp">
       <Filter>1. EngineCore</Filter>
     </ClCompile>
-    <ClCompile Include="TextureManager.cpp">
-      <Filter>1. EngineCore</Filter>
-    </ClCompile>
     <ClCompile Include="ResourceManager.cpp">
       <Filter>1. EngineCore</Filter>
     </ClCompile>
@@ -209,9 +206,6 @@
     </ClInclude>
     <ClInclude Include="d3dx12.h">
       <Filter>1. EngineCore\Renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="TextureManager.h">
-      <Filter>1. EngineCore</Filter>
     </ClInclude>
     <ClInclude Include="ResourceManager.h">
       <Filter>1. EngineCore</Filter>
