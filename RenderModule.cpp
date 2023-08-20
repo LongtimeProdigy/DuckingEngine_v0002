@@ -125,7 +125,11 @@ uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 
 namespace DK
 {
+	//static const float clearColor[] = { 0.5f, 0.5f, 0.9f, 1.0f };
+
 	uint32 RenderModule::kCurrentFrameIndex = 0;
+	uint32 RenderModule::kWidth = 0;
+	uint32 RenderModule::kHeight = 0;
 	DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	DXGI_FORMAT GetDepthResourceFormat(DXGI_FORMAT depthformat)
 	{
@@ -234,6 +238,9 @@ namespace DK
 	//}
 	bool RenderModule::initialize(const HWND hwnd, const uint32 width, const uint32 height)
 	{
+		kWidth = width;
+		kHeight = height;
+
 		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) 
 			return false;
 
@@ -446,8 +453,14 @@ namespace DK
 			for (uint32 i = 0; i < kFrameCount; ++i)
 			{
 				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
-				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
-				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
+				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(renderTargetFormat, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+				D3D12_CLEAR_VALUE clearValue;
+				clearValue.Format = renderTargetFormat;
+				//clearValue.Color[0] = clearColor[0];
+				//clearValue.Color[1] = clearColor[1];
+				//clearValue.Color[2] = clearColor[2];
+				//clearValue.Color[3] = clearColor[3];
+				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
 
 				_device->CreateRenderTargetView(_renderTargetResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
@@ -917,8 +930,8 @@ namespace DK
 
 		D3D12_RASTERIZER_DESC rasterizerDesc = {};
 #if 1
-		rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
-		rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+		rasterizerDesc.FillMode = pipelineCreateInfo._fillMode == Pipeline::CreateInfo::FillMode::WIREFRAME ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
+		rasterizerDesc.CullMode = pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::FRONT ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
 #else
 		//rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 		rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
@@ -952,7 +965,7 @@ namespace DK
 			blendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
 
 		D3D12_DEPTH_STENCIL_DESC depthStencilDesc;
-		depthStencilDesc.DepthEnable = StringUtil::strcmp(pipelineCreateInfo._depthEnable, "True");
+		depthStencilDesc.DepthEnable = pipelineCreateInfo._depthEnable;
 		depthStencilDesc.DepthWriteMask = depthStencilDesc.DepthEnable ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
 		depthStencilDesc.DepthFunc = depthStencilDesc.DepthEnable ? D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
 		depthStencilDesc.StencilEnable = FALSE;
@@ -1462,11 +1475,11 @@ namespace DK
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 		rtvHandle.ptr += rtvDescriptorSize * (kCurrentFrameIndex + (renderTargetBuffer ? 0 : kFrameCount));
 
-		//const float clearColor[] = { 0.5f, 0.5f, 0.9f, 1.0f };
-		//_commandList->_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-
 		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 		_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+		//_commandList->_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
 		if (renderTargetBuffer)
 			_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 

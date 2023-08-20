@@ -61,10 +61,10 @@ VS_OUTPUT VSMain(VS_INPUT input)
 
     output.position = mul(output.position, skinMatrix);
     output.position = mul(output.position, _worldMatrix);
-    output.position = mul(output.position, _cameraWorldMatrix);
+    output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
-    output.normal = mul(output.normal, _cameraWorldMatrix);
+    output.normal = mul(output.normal, _cameraWorldMatrixInv);
     
     return output;
 }

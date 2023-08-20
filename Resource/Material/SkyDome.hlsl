@@ -17,7 +17,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 {
     VS_OUTPUT output = (VS_OUTPUT)0;
 
-    float4x4 tempPosition = _cameraWorldMatrix;
+    float4x4 tempPosition = _cameraWorldMatrixInv;
     tempPosition._41_42_43_44 = float4(0, 0, 0, 1); // SkyDome이 항상 카메라를 따라가도록
 
     output.position = float4(input.position, 1.0f);

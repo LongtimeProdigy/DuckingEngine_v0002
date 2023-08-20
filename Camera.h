@@ -57,6 +57,9 @@ namespace DK
 			outMaterix._44 = 0.0f;
 		}
 
+		dk_inline float getNearPlaneDistance() const { return _nearPlaneDistance; }
+		dk_inline float getFarPlaneDistance() const { return _farPlaneDistance; }
+
 	private:
 		float _halfFov = 45.0f * Math::kToRadian;
 		int _width = 1920;

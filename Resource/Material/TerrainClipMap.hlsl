@@ -59,7 +59,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 
     output.position = float4(localPosition.x, height.x, localPosition.y, 1.0f);
 
-    output.position = mul(output.position, _cameraWorldMatrix);
+    output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
     output.uv0 = uv;

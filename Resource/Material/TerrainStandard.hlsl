@@ -19,7 +19,7 @@ SamplerState normalSampler : register(s0);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
-    float4x4 _cameraWorldMatrix;
+    float4x4 _cameraWorldMatrixInv;
 	float4x4 _cameraProjectionMatrix;
 }
 
@@ -42,7 +42,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 #endif
 
     output.position = float4(input.position.x, height.x * 10, input.position.y, 1.0f);
-    output.position = mul(output.position, _cameraWorldMatrix);
+    output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
     output.uv0 = input.uv0;

@@ -88,8 +88,24 @@ namespace DK
 				DKString _name;
 			};
 
+			enum class FillMode
+			{
+				WIREFRAME,
+				SOLID,
+				COUNT
+			};
+			enum class CullMode
+			{
+				NONE, 
+				FRONT,
+				BACK,
+				COUNT
+			};
+
 			const char* _primitiveTopologyType;
-			const char* _depthEnable;
+			bool _depthEnable;
+			FillMode _fillMode;
+			CullMode _cullMode;
 			const char* _vertexShaderPath;
 			const char* _vertexShaderEntry;
 			const char* _pixelShaderPath;
@@ -216,6 +232,8 @@ do{ \
 	public:
 		static constexpr uint32 kFrameCount = 2;
 		static uint32 kCurrentFrameIndex;
+		static uint32 kWidth;
+		static uint32 kHeight;
 
 	public:
 		~RenderModule();

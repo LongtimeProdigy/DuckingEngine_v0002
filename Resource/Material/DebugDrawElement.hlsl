@@ -35,7 +35,7 @@ StructuredBuffer<LinePrimitiveInfo> LinePrimitiveInfoBuffer : register(t0);
 float4 convertToWorldSpace(in float3 localPosition)
 {
 	float4 position = float4(localPosition, 1);
-	position = mul(position, _cameraWorldMatrix);
+	position = mul(position, _cameraWorldMatrixInv);
 	position = mul(position, _cameraProjectionMatrix);
 
 	return position;

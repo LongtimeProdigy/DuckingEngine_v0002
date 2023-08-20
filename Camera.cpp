@@ -12,21 +12,23 @@ namespace DK
 	void Camera::update(float deltaTime)
 	{
 		static constexpr float mouseRotationFriction = 0.05f;
-		const float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_LEFT)) * mouseRotationFriction;
+		const float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_RIGHT)) * mouseRotationFriction;
 
 		const float2& lJoystick = InputModule::GetJoystickL();
 		const float2& rJoystick = InputModule::GetJoystickR();
-		float moveForward = lJoystick.y + 
+		float moveForward = 
+			//lJoystick.y + 
 			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_W)) - 
 			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_S));
-		float moveRight = lJoystick.x - 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_A)) + 
-			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_D));
+		float moveRight =
+			//lJoystick.x - 
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_D)) - 
+			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_A));
 		float moveUp = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_E)) - 
 			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_Q));
 
-		float yaw = rJoystick.x + mouseDelta.x;
-		float pitch = rJoystick.y + mouseDelta.y;
+		float yaw = mouseDelta.x; // + rJoystick.x
+		float pitch = mouseDelta.y; //+ rJoystick.y 
 
 		yaw *= 0.2f;
 		pitch *= 0.2f;
@@ -36,7 +38,7 @@ namespace DK
 		moveOffset.normalize();
 		moveOffset *= deltaTime;
 
-		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SPACE) == true)
+		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SHIFT) == true)
 			moveOffset *= 100;
 
 		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
@@ -54,6 +56,7 @@ namespace DK
 		yaw = tttt;
 #endif
 		
+#if 1
 		// Rotate
 		const Quaternion& originRotation = get_worldTransform().get_rotation();
 		float3 originEuler;
@@ -61,7 +64,6 @@ namespace DK
 		float3 rotateOffset(pitch, yaw, 0);
 		float3 finalRotate = rotateOffset + originEuler;
 		finalRotate.x = Math::clamp(finalRotate.x, -Math::Half_PI - 0.0001f, Math::Half_PI - 0.0001f);
-#if 1
 		Quaternion finalQuaternion(finalRotate.z, finalRotate.x, finalRotate.y);
 #else
 		Quaternion finalQuaternion(0, pitch, yaw);

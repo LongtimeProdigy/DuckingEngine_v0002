@@ -17,8 +17,14 @@ namespace DK
 {
 	struct SceneConstantBuffer
 	{
-		uint32 _frameIndex[4];
+		uint32 _frameIndex;
+		uint32 _resolution[2];
+		uint32 _padding0;
+		float _nearDistance;
+		float _farDistance;
+		float _padding1[2];
 		float4x4 _cameraWorldMatrix;
+		float4x4 _cameraWorldMatrixInv;
 		float4x4 _cameraProjectionMatrix;
 	};
 
@@ -107,7 +113,10 @@ namespace DK
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
 					pipelineCreateInfo._primitiveTopologyType = renderPassChildNode->Attribute("PrimitiveTopologyType");
-					pipelineCreateInfo._depthEnable = renderPassChildNode->Attribute("DepthEnable");
+					pipelineCreateInfo._depthEnable = StringUtil::strcmp(renderPassChildNode->Attribute("DepthEnable"), "True") == 0;
+					const char* asd = renderPassChildNode->Attribute("FillMode");
+					pipelineCreateInfo._fillMode = StringUtil::strcmp(asd, "WireFrame") ? Pipeline::CreateInfo::FillMode::WIREFRAME : Pipeline::CreateInfo::FillMode::SOLID;
+					pipelineCreateInfo._cullMode = StringUtil::strcmp(renderPassChildNode->Attribute("CullMode"), "Back") ? Pipeline::CreateInfo::CullMode::BACK : Pipeline::CreateInfo::CullMode::NONE;
 
 					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
 					{
@@ -156,7 +165,6 @@ namespace DK
 							DK_ASSERT_LOG(false, "지원하지 Pipeline ChildNode입니다. NodeName: %s", pipelineChildNodeName.c_str());
 							return false;
 						}
-
 					}
 
 					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
@@ -258,8 +266,6 @@ namespace DK
 
 		// 사실 UpdateRender함수에서 _sceneConstantBuffer를 Upload하기 때문에 여기서 Camera가 필요하진 않을 수 있음
 		SceneConstantBuffer cameraConstanceBufferData;
-		Camera::gMainCamera->getCameraWorldMatrix(cameraConstanceBufferData._cameraWorldMatrix);
-		Camera::gMainCamera->getCameraProjectionMatrix(cameraConstanceBufferData._cameraProjectionMatrix);
 		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(cameraConstanceBufferData), L"Scene_CBuffer");
 
 		return true;
@@ -281,8 +287,13 @@ namespace DK
 	{
 		// Upload Scene ConstantBuffer
 		SceneConstantBuffer cameraConstantBufferData;
-		cameraConstantBufferData._frameIndex[0] = RenderModule::kCurrentFrameIndex;
-		Camera::gMainCamera->getCameraWorldMatrix(cameraConstantBufferData._cameraWorldMatrix);
+		cameraConstantBufferData._frameIndex = RenderModule::kCurrentFrameIndex;
+		cameraConstantBufferData._resolution[0] = RenderModule::kWidth;
+		cameraConstantBufferData._resolution[1] = RenderModule::kHeight;
+		cameraConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
+		cameraConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
+		Camera::gMainCamera->get_worldTransform().tofloat4x4(cameraConstantBufferData._cameraWorldMatrix);
+		Camera::gMainCamera->getCameraWorldMatrix(cameraConstantBufferData._cameraWorldMatrixInv);
 		Camera::gMainCamera->getCameraProjectionMatrix(cameraConstantBufferData._cameraProjectionMatrix);
 		_sceneConstantBuffer->upload(&cameraConstantBufferData);
 
@@ -361,7 +372,7 @@ namespace DK
 
 			char cameraRotationMatrixBuffer[MAX_BUFFER_LENGTH];
 			float4x4 transformMatrix;
-			Camera::gMainCamera->get_worldTransform().tofloat4x4(transformMatrix);
+			Camera::gMainCamera->getCameraWorldMatrix(transformMatrix);
 			sprintf_s(cameraRotationMatrixBuffer, MAX_BUFFER_LENGTH, "%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f",
 				transformMatrix._11, transformMatrix._12, transformMatrix._13, transformMatrix._14,
 				transformMatrix._21, transformMatrix._22, transformMatrix._23, transformMatrix._24,
@@ -593,14 +604,10 @@ namespace DK
 			}
 		}
 		endPipeline();
-		endRenderPass();
 
-		// Editor MainRender
 #ifdef _DK_DEBUG_
 		EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
 		debugDrawManager.prepareShaderData();
-
-		startRenderPass(renderModule, "EditorMainRenserPass", true);
 		startPipeline("SpherePipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
@@ -625,10 +632,9 @@ namespace DK
 			renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), instanceCount, 0, 0, 0);
 		}
 		endPipeline();
-		endRenderPass();
-
 		debugDrawManager.endUpdateRender();
 #endif
+		endRenderPass();
 
 		// PostProcess (Atmosphere)
 		startRenderPass(renderModule, "PostProcessRenderPass", false);
