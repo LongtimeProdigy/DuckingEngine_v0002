@@ -2,7 +2,7 @@
 	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 		
-		<Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
@@ -18,7 +18,7 @@
 			<Parameter Name="TerrainClipMap" Type="Buffer" Register="1"/>
 			<Parameter Name="TerrainMeshConstantBuffer" Type="Buffer" Register="2"/>
 		</Pipeline>
-		<Pipeline Name="StaticMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="StaticMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Front">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 				<Element Type="float3">NORMAL</Element>
@@ -44,7 +44,7 @@
 			<Parameter Name="SkeletonConstantBuffer" Type="Buffer" Register="3"/>
 		</Pipeline>
 
-		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="false" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
@@ -62,15 +62,26 @@
 		</Pipeline>
 	</RenderPass>
 
-	<RenderPass Name="PostProcessRenderPass">
+	<RenderPass Name="AtmosphereRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
-		<Pipeline Name="PostProcessPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="AtmospherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
-			<VertexShader Entry="VSMain">Material\PostProcess.hlsl</VertexShader>
-			<PixelShader Entry="PSMain">Material\PostProcess.hlsl</PixelShader>
-			<Parameter Name="PostProcessConstantBuffer" Type="Buffer" Register="1"/>
+			<VertexShader Entry="VSMain">Material\Atmosphere.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\Atmosphere.hlsl</PixelShader>
+			<Parameter Name="AtmosphereConstantBuffer" Type="Buffer" Register="1"/>
+		</Pipeline>
+	</RenderPass>
+
+	<RenderPass Name="GBufferRenderPass">
+		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+		<Pipeline Name="GBufferPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material\GBuffer.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\GBuffer.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
 </RenderPassGroup>

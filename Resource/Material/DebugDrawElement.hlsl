@@ -49,7 +49,6 @@ VS_OUTPUT VSMainSphere(VS_INPUT input, uint instanceID : SV_InstanceID)
 
 	float3 scaledPosition = input.position * instanceData._radius + instanceData._worldPosition;
 	output.position = convertToWorldSpace(scaledPosition);
-
 	output.color = float4(instanceData._color, 1);
 
 	return output;
@@ -68,7 +67,6 @@ VS_OUTPUT VSMainLine(VS_INPUT input, uint vertexID : SV_VertexID, uint instanceI
 
 	const float3 worldPosition = input.position + instanceData._worldPosition[vertexID];
 	output.position = convertToWorldSpace(worldPosition);
-
 	output.color = float4(instanceData._color, 1);
 
 	return output;

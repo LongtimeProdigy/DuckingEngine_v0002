@@ -14,6 +14,7 @@ namespace DK
 	class InputModule
 	{
 	public:
+		dk_inline static void setBlock(const bool value) { kBlock = value; }
 		static void Update();
 
 		// PC는 기본 지원입니다.
@@ -28,6 +29,10 @@ namespace DK
 		static const float2& GetJoystickR() noexcept;
 
 	private:
+		InputModule() {};
+
+	private:
+		static bool kBlock;
 		static ComputerController* gComputerController;
 		static XBOXController* gXBOXController;
 	};

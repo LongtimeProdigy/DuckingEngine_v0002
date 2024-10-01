@@ -2,8 +2,8 @@
 	<SubMeshArr Count="1">
 		<SubMesh Name="StaticMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Texture/Texcoord.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 	</SubMeshArr>

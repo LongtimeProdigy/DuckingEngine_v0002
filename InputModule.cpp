@@ -6,6 +6,7 @@
 
 namespace DK
 {
+	bool InputModule::kBlock = false;
 	ComputerController* InputModule::gComputerController = nullptr;
 	XBOXController* InputModule::gXBOXController = nullptr;
 }
@@ -32,6 +33,9 @@ namespace DK
 
 	void InputModule::Update()
 	{
+		if (kBlock)
+			return;
+
 		gXBOXController->IsConnected();	// isConnect가 Update를 대신합니다.
 		gComputerController->Update();
 	}

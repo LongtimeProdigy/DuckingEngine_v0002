@@ -47,7 +47,11 @@ VS_OUTPUT VSMain(VS_INPUT input)
     };
     float2 localPosition = input.position * scale;
     localPosition = mul(localPosition, temp[type]);
-    localPosition = offset + localPosition;
+#if 1
+    localPosition = localPosition + offset;
+#else
+    //localPosition = localPosition;
+#endif
 
     Texture2D heightTexture = gBindlessTextureArray[_heightTexture];
     float meterPerTexel = 0.125f;

@@ -56,19 +56,26 @@ namespace DK
 			Ptr<Material> _material;
 			DKVector<Ptr<IBuffer>> _terrainConstantBuffer;
 		};
+		struct GBuffer
+		{
+			Mesh _mesh;
+		};
 
 	public:
 		void loadSkyDome();
 		void loadLevel();
 		void loadPostProcess();
+		void loadGbuffer();
 
 		SkyDome& getSkyDomeWritable() { return _skyDome; }
 		ClipMapTerrain& getClipMapTerrainWritable() { return _clipmapTerrain; }
 		PostProcess& getPostProcessWritable() { return _postProcess; }
+		GBuffer& getGBufferWritable() { return _gBuffer; }
 
 	private:
 		SkyDome _skyDome;
 		ClipMapTerrain _clipmapTerrain;
 		PostProcess _postProcess;
+		GBuffer _gBuffer;
 	};
 }

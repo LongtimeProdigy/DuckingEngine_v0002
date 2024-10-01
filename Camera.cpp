@@ -38,8 +38,10 @@ namespace DK
 		moveOffset.normalize();
 		moveOffset *= deltaTime;
 
+		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_CAPSLOCK) == true)
+			moveOffset *= 10;
 		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SHIFT) == true)
-			moveOffset *= 100;
+			moveOffset *= 10;
 
 		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
 		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();

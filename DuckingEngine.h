@@ -34,8 +34,8 @@ namespace DK
 
 		bool Initialize(HWND hwnd, int width, int height);
 
-		void Update(float deltaTime) const;
-		void Render() const;
+		void Update(const float deltaTime) const;
+		void Render(const float deltaTime) const;
 
 		dk_inline const RenderModule& GetRenderModule() const noexcept { return *_renderModule; }
 		dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule; }

@@ -15,19 +15,6 @@
 
 namespace DK
 {
-	struct SceneConstantBuffer
-	{
-		uint32 _frameIndex;
-		uint32 _resolution[2];
-		uint32 _padding0;
-		float _nearDistance;
-		float _farDistance;
-		float _padding1[2];
-		float4x4 _cameraWorldMatrix;
-		float4x4 _cameraWorldMatrixInv;
-		float4x4 _cameraProjectionMatrix;
-	};
-
 	bool SceneRenderer::initialize()
 	{
 		if (initialize_createRenderPass() == false) 
@@ -113,10 +100,27 @@ namespace DK
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
 					pipelineCreateInfo._primitiveTopologyType = renderPassChildNode->Attribute("PrimitiveTopologyType");
-					pipelineCreateInfo._depthEnable = StringUtil::strcmp(renderPassChildNode->Attribute("DepthEnable"), "True") == 0;
-					const char* asd = renderPassChildNode->Attribute("FillMode");
-					pipelineCreateInfo._fillMode = StringUtil::strcmp(asd, "WireFrame") ? Pipeline::CreateInfo::FillMode::WIREFRAME : Pipeline::CreateInfo::FillMode::SOLID;
-					pipelineCreateInfo._cullMode = StringUtil::strcmp(renderPassChildNode->Attribute("CullMode"), "Back") ? Pipeline::CreateInfo::CullMode::BACK : Pipeline::CreateInfo::CullMode::NONE;
+					const char* depthEnable = renderPassChildNode->Attribute("DepthEnable");
+					pipelineCreateInfo._depthEnable = depthEnable == nullptr || StringUtil::strcmp(depthEnable, "True") != 0 ? false : true;
+					const char* fillMode = renderPassChildNode->Attribute("FillMode");
+					pipelineCreateInfo._fillMode = fillMode == nullptr || StringUtil::strcmp(fillMode, "WireFrame") != 0 ? Pipeline::CreateInfo::FillMode::SOLID : Pipeline::CreateInfo::FillMode::WIREFRAME;
+					const char* cullMode = renderPassChildNode->Attribute("CullMode");
+					pipelineCreateInfo._cullMode = Pipeline::CreateInfo::CullMode::BACK;
+					if (cullMode != nullptr)
+					{
+						if (StringUtil::strcmp(cullMode, "Back") == 0)
+						{
+							pipelineCreateInfo._cullMode = Pipeline::CreateInfo::CullMode::BACK;
+						}
+						else if (StringUtil::strcmp(cullMode, "Front") == 0)
+						{
+							pipelineCreateInfo._cullMode = Pipeline::CreateInfo::CullMode::FRONT;
+						}
+						else if (StringUtil::strcmp(cullMode, "None") == 0)
+						{
+							pipelineCreateInfo._cullMode = Pipeline::CreateInfo::CullMode::NONE;
+						}
+					}
 
 					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
 					{
@@ -265,8 +269,8 @@ namespace DK
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
 		// 사실 UpdateRender함수에서 _sceneConstantBuffer를 Upload하기 때문에 여기서 Camera가 필요하진 않을 수 있음
-		SceneConstantBuffer cameraConstanceBufferData;
-		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(cameraConstanceBufferData), L"Scene_CBuffer");
+		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
+		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
 
 		return true;
 	}
@@ -282,22 +286,23 @@ namespace DK
 
 		return &findResult->second;
 	}
-
-	void SceneRenderer::prepareShaderData() noexcept
+	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
 		// Upload Scene ConstantBuffer
-		SceneConstantBuffer cameraConstantBufferData;
-		cameraConstantBufferData._frameIndex = RenderModule::kCurrentFrameIndex;
-		cameraConstantBufferData._resolution[0] = RenderModule::kWidth;
-		cameraConstantBufferData._resolution[1] = RenderModule::kHeight;
-		cameraConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
-		cameraConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
-		Camera::gMainCamera->get_worldTransform().tofloat4x4(cameraConstantBufferData._cameraWorldMatrix);
-		Camera::gMainCamera->getCameraWorldMatrix(cameraConstantBufferData._cameraWorldMatrixInv);
-		Camera::gMainCamera->getCameraProjectionMatrix(cameraConstantBufferData._cameraProjectionMatrix);
-		_sceneConstantBuffer->upload(&cameraConstantBufferData);
+		_sceneConstantBufferData._frameIndex = RenderModule::kCurrentFrameIndex;
+		_sceneConstantBufferData._resolution[0] = RenderModule::kWidth;
+		_sceneConstantBufferData._resolution[1] = RenderModule::kHeight;
+		_sceneConstantBufferData._time += deltaTime;
+		_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
+		_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
+		Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
+		Camera::gMainCamera->getCameraWorldMatrix(_sceneConstantBufferData._cameraWorldMatrixInv);
+		Camera::gMainCamera->getCameraProjectionMatrix(_sceneConstantBufferData._cameraProjectionMatrix);
+		_sceneConstantBuffer->upload(&_sceneConstantBufferData);
 
-		// Render Character SceneObject
+		_atmosphereConstantBuffer->upload(&_atmosphereConstantBufferData);
+
+		// Render StaticMesh SceneObject
 		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
 		for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 		{
@@ -308,7 +313,7 @@ namespace DK
 			sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
 		}
 
-		// Render Character SceneObject
+		// Render SkinnedMesh SceneObject
 		DKHashMap<uint32, SceneObject>& characterSceneObjectArr = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
 		for (DKHashMap<const uint32, SceneObject>::iterator iter = characterSceneObjectArr.begin(); iter != characterSceneObjectArr.end(); ++iter)
 		{
@@ -376,12 +381,23 @@ namespace DK
 			sprintf_s(cameraRotationMatrixBuffer, MAX_BUFFER_LENGTH, "%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f",
 				transformMatrix._11, transformMatrix._12, transformMatrix._13, transformMatrix._14,
 				transformMatrix._21, transformMatrix._22, transformMatrix._23, transformMatrix._24,
-				transformMatrix._31, transformMatrix._32, transformMatrix._33, transformMatrix._34, 
+				transformMatrix._31, transformMatrix._32, transformMatrix._33, transformMatrix._34,
 				transformMatrix._41, transformMatrix._42, transformMatrix._43, transformMatrix._44
 			);
 			ImGui::Text(cameraRotationMatrixBuffer);
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+			ImGui::DragInt("scatter point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 10);
+			ImGui::DragInt("optical point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 10);
+			ImGui::DragInt("densityFallOff: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._densityFallOff), 1.0f, 1, 10);
+			ImGui::DragInt("scatteringStrength: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._scatteringStrength), 1.0f, 1, 100);
+			ImGui::DragFloat("SunDegree: ", &_atmosphereConstantBufferData._sunDegree);
+			ImGui::InputInt("SunIntensity: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._sunIntensity));
+			ImGui::InputInt("SunRadius: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._sunRadius));
+			ImGui::InputInt3("Planet C: ", _atmosphereConstantBufferData._planetCentre);
+			ImGui::InputInt("Planet R: ", &_atmosphereConstantBufferData._planetRadius);
+			ImGui::InputInt("AtmosRadius: ", &_atmosphereConstantBufferData._atmosphereRadius);
 			ImGui::End();
 		}
 
@@ -396,251 +412,257 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", true);
-		startPipeline("SkyDomePipeline");
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true);
 		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+			//startPipeline("SkyDomePipeline");
+			//{
+			//	setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
+			//	SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			//	SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
 
-			renderModule.setVertexBuffers(0, 1, skyDome._mesh._vertexBufferView.get());
-			renderModule.setIndexBuffer(skyDome._mesh._indexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._mesh._indexCount), 1, 0, 0, 0);
-		}
-		endPipeline();
+			//	renderModule.setVertexBuffers(0, 1, skyDome._mesh._vertexBufferView.get());
+			//	renderModule.setIndexBuffer(skyDome._mesh._indexBufferView.get());
+			//	renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._mesh._indexCount), 1, 0, 0, 0);
+			//}
+			//endPipeline();
 
-		startPipeline("TerrainClipmapPipeline");
-		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
-			Material* material = terrain._material.get();
-			setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
-
-			const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
-			float2 cameraPos = float2::Zero;
-			cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
-			//cameraPos = float2(0, 0);
-
-			uint32 terrainConstantBufferTypeIndex = 0;
-			float vertexScale = 0.125f;
-			// Draw Cross
+			startPipeline("TerrainClipmapPipeline");
 			{
-				float tileScale = vertexScale;
-				float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
-				float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
-				TerrainMeshConstantBuffer meshCBuffer;
-				meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
-				meshCBuffer._type = 0;
-				Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-				terrainConstantBuffer->upload(&meshCBuffer);
-				setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
+				Material* material = terrain._material.get();
+				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
 
-				renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
-				renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
-				renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
-			}
+				const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
+				float2 cameraPos = float2::Zero;
+				cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
+				//cameraPos = float2(0, 0);
 
-			for (uint32 i = 0; i < SceneManager::NUM_CLIPMAP_LEVELS; ++i)
-			{
-				float tileScale = (1 << i) * vertexScale;
-				float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
-				float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
-
-				float2 base = snappedCameraPos - gridScale * 2;
-
-				// Draw Tile
-				for (uint32 x = 0; x < 4; ++x)
+				uint32 terrainConstantBufferTypeIndex = 0;
+				float vertexScale = 0.125f;
+				// Draw Cross
 				{
-					for (uint32 y = 0; y < 4; ++y)
+					float tileScale = vertexScale;
+					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
+					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+
+					TerrainMeshConstantBuffer meshCBuffer;
+					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
+					meshCBuffer._type = 0;
+					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					terrainConstantBuffer->upload(&meshCBuffer);
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
+					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
+				}
+
+				for (uint32 i = 0; i < SceneManager::NUM_CLIPMAP_LEVELS; ++i)
+				{
+					float tileScale = (1 << i) * vertexScale;
+					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
+					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+
+					float2 base = snappedCameraPos - gridScale * 2;
+
+					// Draw Tile
+					for (uint32 x = 0; x < 4; ++x)
 					{
-						if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
-							continue;
+						for (uint32 y = 0; y < 4; ++y)
+						{
+							if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
+								continue;
 
-						float2 fill = float2(x >= 2 ? tileScale : 0, y >= 2 ? tileScale : 0);
-						float2 tile_bl = base + float2(x, y) * gridScale + fill;
+							float2 fill = float2(x >= 2 ? tileScale : 0, y >= 2 ? tileScale : 0);
+							float2 tile_bl = base + float2(x, y) * gridScale + fill;
 
+							TerrainMeshConstantBuffer meshCBuffer;
+							meshCBuffer._baseXY_scale_rotate = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
+							meshCBuffer._type = 1;
+							Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+							terrainConstantBuffer->upload(&meshCBuffer);
+							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+
+							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
+							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
+						}
+					}
+
+					// Draw Filter
+					{
 						TerrainMeshConstantBuffer meshCBuffer;
-						meshCBuffer._baseXY_scale_rotate = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
-						meshCBuffer._type = 1;
+						meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
+						meshCBuffer._type = 2;
 						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 						terrainConstantBuffer->upload(&meshCBuffer);
 						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
 
-						renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
+						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
 					}
-				}
 
-				// Draw Filter
-				{
-					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
-					meshCBuffer._type = 2;
-					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-					terrainConstantBuffer->upload(&meshCBuffer);
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
-
-					renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
-					renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
-				}
-
-				float nextTileScale = tileScale * 2.0f;
-				float nextGridScale = gridScale * 1;
-				float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
-				// Draw Seam
-				if (i != SceneManager::NUM_CLIPMAP_LEVELS)
-				{
-					float2 next_base = nextSnappedPos - nextGridScale * 2;
-
-					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._baseXY_scale_rotate = float4(next_base.x, next_base.y, tileScale, 0.0f);
-					meshCBuffer._type = 3;
-					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-					terrainConstantBuffer->upload(&meshCBuffer);
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
-
-					renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
-					renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
-				}
-
-				// Draw Trim
-				{
-					float2 tile_centre = snappedCameraPos - float2(tileScale * 0.5f);
-
-					float2 d = cameraPos - nextSnappedPos;
-					uint32 r = 0;
-					r |= d.x < tileScale ? 2 : 0;
-					r |= d.y < tileScale ? 1 : 0;
-					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos + tileScale * 0.5f, tileScale, r);
-					meshCBuffer._type = 4;
-					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-					terrainConstantBuffer->upload(&meshCBuffer);
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
-
-					renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
-					renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
-				}
-			}
-		}
-		endPipeline();
-
-		startPipeline("StaticMeshStandardPipeline");
-		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-
-			DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-			for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
-			{
-				SceneObject& sceneObject = iter->second;
-				setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
-
-				uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-				for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
-				{
-					// #todo- component 완전 개편 필요해보임.
-					// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
-					// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-					StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
-
-					DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-					for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+					float nextTileScale = tileScale * 2.0f;
+					float nextGridScale = gridScale * 1;
+					float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
+					// Draw Seam
+					if (i != SceneManager::NUM_CLIPMAP_LEVELS)
 					{
-						StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+						float2 next_base = nextSnappedPos - nextGridScale * 2;
 
-						Material* material = subMesh._material.get();
-						setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+						TerrainMeshConstantBuffer meshCBuffer;
+						meshCBuffer._baseXY_scale_rotate = float4(next_base.x, next_base.y, tileScale, 0.0f);
+						meshCBuffer._type = 3;
+						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						terrainConstantBuffer->upload(&meshCBuffer);
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
 
-						//renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
-						//renderModule.setIndexBuffer(subMesh._indexBufferView.get());
-						//renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
 					}
-				}
-			}
-		}
-		endPipeline();
 
-		startPipeline("SkinnedMeshStandardPipeline");
-		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-
-			DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
-			for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
-			{
-				SceneObject& sceneObject = iter->second;
-				setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
-
-				uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-				for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
-				{
-					// #todo- component 완전 개편 필요해보임.
-					// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
-					// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-					SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
-
-					setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());
-
-					DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-					for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+					// Draw Trim
 					{
-						SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+						float2 tile_centre = snappedCameraPos - float2(tileScale * 0.5f);
 
-						Material* material = subMesh._material.get();
-						setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+						float2 d = cameraPos - nextSnappedPos;
+						uint32 r = 0;
+						r |= d.x < tileScale ? 2 : 0;
+						r |= d.y < tileScale ? 1 : 0;
+						TerrainMeshConstantBuffer meshCBuffer;
+						meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos + tileScale * 0.5f, tileScale, r);
+						meshCBuffer._type = 4;
+						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						terrainConstantBuffer->upload(&meshCBuffer);
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
 
-						renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
-						renderModule.setIndexBuffer(subMesh._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
 					}
 				}
 			}
-		}
-		endPipeline();
+			endPipeline();
+
+			startPipeline("StaticMeshStandardPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
+				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
+				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				{
+					SceneObject& sceneObject = iter->second;
+					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
+
+					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+					{
+						// #todo- component 완전 개편 필요해보임.
+						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+						StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
+
+						DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+						{
+							StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+
+							Material* material = subMesh._material.get();
+							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+
+							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						}
+					}
+				}
+			}
+			endPipeline();
+
+			startPipeline("SkinnedMeshStandardPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
+				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
+				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				{
+					SceneObject& sceneObject = iter->second;
+					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
+
+					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+					{
+						// #todo- component 완전 개편 필요해보임.
+						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+						SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
+
+						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());
+
+						DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+						{
+							SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+
+							Material* material = subMesh._material.get();
+							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+
+							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						}
+					}
+				}
+			}
+			endPipeline();
 
 #ifdef _DK_DEBUG_
-		EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
-		debugDrawManager.prepareShaderData();
-		startPipeline("SpherePipeline");
-		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-			setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBufferWritable()->getGPUVirtualAddress());
-
-			const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& primitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
-			const uint32 instanceCount = static_cast<uint32>(primitiveInfo.size());
-			renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
-			renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), instanceCount, 0, 0, 0);
-		}
-		endPipeline();
-		startPipeline("LinePipeline");
-		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-			setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBufferWritable()->getGPUVirtualAddress());
-
-			const DKVector<EditorDebugDrawManager::LinePrimitiveInfo>& primitiveInfo = debugDrawManager.get_primitiveInfoLineArr();
-			const uint32 instanceCount = static_cast<uint32>(primitiveInfo.size());
-			renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView.get());
-			renderModule.setIndexBuffer(EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), instanceCount, 0, 0, 0);
-		}
-		endPipeline();
-		debugDrawManager.endUpdateRender();
+			EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
+			debugDrawManager.prepareShaderData();
+			const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& spherePrimitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
+			const uint32 sphereInstanceCount = static_cast<uint32>(spherePrimitiveInfo.size());
+			if (sphereInstanceCount)
+			{
+				startPipeline("SpherePipeline");
+				{
+					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+					setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBufferWritable()->getGPUVirtualAddress());
+					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
+					renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), sphereInstanceCount, 0, 0, 0);
+				}
+				endPipeline();
+			}
+			const DKVector<EditorDebugDrawManager::LinePrimitiveInfo>& linePrimitiveInfo = debugDrawManager.get_primitiveInfoLineArr();
+			const uint32 lineInstanceCount = static_cast<uint32>(linePrimitiveInfo.size());
+			if (lineInstanceCount)
+			{
+				startPipeline("LinePipeline");
+				{
+					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+					setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBufferWritable()->getGPUVirtualAddress());
+					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView.get());
+					renderModule.setIndexBuffer(EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), lineInstanceCount, 0, 0, 0);
+				}
+				endPipeline();
+			}
+			debugDrawManager.endUpdateRender();
 #endif
+		}
 		endRenderPass();
 
-		// PostProcess (Atmosphere)
-		startRenderPass(renderModule, "PostProcessRenderPass", false);
-		startPipeline("PostProcessPipeline");
+		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false);
+		startPipeline("AtmospherePipeline");
 		{
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
 
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
@@ -648,6 +670,22 @@ namespace DK
 			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
 			renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
 			renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+		}
+		endPipeline();
+		endRenderPass();
+
+		// GBuffer
+		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false);
+		startPipeline("GBufferPipeline");
+		{
+			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
+
+			renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
+			renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
+			renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
 		}
 		endPipeline();
 		endRenderPass();

@@ -29,7 +29,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
-    return float4(1, 1, 1, 1);
+    return float4(0, 1, 1, 1);
 }
 
 #endif

@@ -17,6 +17,7 @@ namespace DK
 		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
+		DuckingEngine::getInstance().getSceneManagerWritable().loadGbuffer();
 
 
 		// Test Object
@@ -26,7 +27,7 @@ namespace DK
 		);
 		if (testObjectSceneObject == nullptr)
 			return false;
-		testObjectSceneObject->set_worldTransform(Transform(float3::Zero, Quaternion::Identity, float3::Identity));
+		testObjectSceneObject->set_worldTransform(Transform(float3(0, 0, 5), Quaternion::Identity, float3::Identity));
 
 		// Test Character
 		SceneObject* testCharacterSceneObject = SceneObjectManager::createCharacter(
@@ -34,7 +35,7 @@ namespace DK
 		);
 		if (testCharacterSceneObject == nullptr) 
 			return false;
-		testCharacterSceneObject->set_worldTransform(Transform(float3::Zero, Quaternion::Identity, float3::Identity));
+		testCharacterSceneObject->set_worldTransform(Transform(float3(0, 0, 5), Quaternion::Identity, float3::Identity));
 
 		return true;
 	}

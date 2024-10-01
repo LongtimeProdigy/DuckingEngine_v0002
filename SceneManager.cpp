@@ -387,7 +387,7 @@ namespace DK
 			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
 		}
 	}
-	void SceneManager::loadPostProcess()
+	static DKVector<float2> getScreenPlaneVertexBufferData()
 	{
 		DKVector<float2> vertexArr;
 		vertexArr.resize(4);
@@ -395,11 +395,20 @@ namespace DK
 		vertexArr[1] = float2(1, -1);
 		vertexArr[2] = float2(1, 1);
 		vertexArr[3] = float2(-1, 1);
-
+		return vertexArr;
+	}
+	static DKVector<uint32> getScreenPlaneIndexBufferData()
+	{
 		DKVector<uint32> indexArr;
 		indexArr.resize(6);
 		indexArr[0] = 0; indexArr[1] = 2; indexArr[2] = 1;
 		indexArr[3] = 0; indexArr[4] = 3; indexArr[5] = 2;
+		return indexArr;
+	}
+	void SceneManager::loadPostProcess()
+	{
+		const DKVector<float2> vertexArr = getScreenPlaneVertexBufferData();
+		const DKVector<uint32> indexArr = getScreenPlaneIndexBufferData();
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		VertexBufferViewRef vertexBufferView;
@@ -410,5 +419,20 @@ namespace DK
 		_postProcess._mesh._vertexBufferView = vertexBufferView;
 		_postProcess._mesh._indexBufferView = indexBufferView;
 		_postProcess._mesh._indexCount = indexArr.size();
+	}
+	void SceneManager::loadGbuffer()
+	{
+		const DKVector<float2> vertexArr = getScreenPlaneVertexBufferData();
+		const DKVector<uint32> indexArr = getScreenPlaneIndexBufferData();
+
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		VertexBufferViewRef vertexBufferView;
+		IndexBufferViewRef indexBufferView;
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"PostProcess_VertexBuffer");
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"PostProcess_IndexBuffer");
+
+		_gBuffer._mesh._vertexBufferView = vertexBufferView;
+		_gBuffer._mesh._indexBufferView = indexBufferView;
+		_gBuffer._mesh._indexCount = indexArr.size();
 	}
 }

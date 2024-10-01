@@ -55,6 +55,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 {
 	try
 	{
+        DK::gMainThreadID = GetCurrentThreadId();
+
 #if defined(USE_PIX)
         // PIX dll 로딩 (출처: https://devblogs.microsoft.com/pix/taking-a-capture/)
         // Check to see if a copy of WinPixGpuCapturer.dll has already been injected into the application.
@@ -77,12 +79,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
             DK::StringSplitter splitter(DK::StringUtil::convertWCtoC(argv[i]), "=");
             if (splitter[0].find("--") == 0)    // 단축어X
             {
-                if (DK::StringUtil::strcmp(splitter[0].c_str(), "--resourcePath") == true)
+                if (DK::StringUtil::strcmp(splitter[0].c_str(), "--resourcePath") == 0)
                     DK::GlobalPath::setResourcePath(splitter[1]);
             }
             else if (splitter[0].find('-') == 0)    // 단축어
             {
-                if (DK::StringUtil::strcmp(splitter[0].c_str(), "-r") == true)
+                if (DK::StringUtil::strcmp(splitter[0].c_str(), "-r") == 0)
                     DK::GlobalPath::setResourcePath(splitter[1]);
             }
             else

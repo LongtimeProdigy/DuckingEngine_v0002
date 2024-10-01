@@ -3,6 +3,7 @@
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
+#include "InputModule.h"
 
 #if defined(USE_IMGUI)
 #include "imgui_impl_win32.h"
@@ -27,27 +28,39 @@ namespace DK
 		switch (msg)
 		{
 			//case WM_SIZE:
+			//{
 			//	DK_ASSERT_LOG(false, "현재 resize 기능을 지원하지 않습니다.");
-			break;
-		case WM_SYSKEYDOWN:
-		case WM_KEYDOWN:
-		{
-			switch (wParam)
+			//}
+			//break;
+			case WM_KILLFOCUS:
 			{
-			case VK_ESCAPE:	// ESC 누를 시 프로그램 종료
-				if (MessageBox(0, L"Are you sure you want to exit?", L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
-				{
-					DestroyWindow(hwnd);
-					exit(0);
-				}
-				return 0;
+				InputModule::setBlock(true);
 			}
-		}
-		case WM_DESTROY:
-			PostQuitMessage(0);
-			return 0;
-		default:
-			return ::DefWindowProcW(hwnd, msg, wParam, lParam);
+			break;
+			case WM_SETFOCUS:
+			{
+				InputModule::setBlock(false);
+			}
+			break;
+			case WM_SYSKEYDOWN:
+			case WM_KEYDOWN:
+			{
+				switch (wParam)
+				{
+				case VK_ESCAPE:	// ESC 누를 시 프로그램 종료
+					if (MessageBox(0, L"Are you sure you want to exit?", L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
+					{
+						DestroyWindow(hwnd);
+						exit(0);
+					}
+					return 0;
+				}
+			}
+			case WM_DESTROY:
+				PostQuitMessage(0);
+				return 0;
+			default:
+				return ::DefWindowProcW(hwnd, msg, wParam, lParam);
 		}
 
 		return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -175,6 +188,6 @@ namespace DK
 
 	void Application::renderFrame()
 	{
-		DuckingEngine::getInstance().Render();
+		DuckingEngine::getInstance().Render(g_fDeltaTime);
 	}
 }

@@ -44,7 +44,7 @@ namespace DK
 			return false;
 
 		Camera::gMainCamera = dk_new Camera(60, width, height);
-		Transform cameraTransform(float3(0, 1, -1), Quaternion(0, 0, 0), float3::Identity);
+		Transform cameraTransform(float3(0, 50, -200), Quaternion::Identity, float3::Identity);
 		Camera::gMainCamera->set_worldTransform(cameraTransform);
 
 		// Camera 정보가 필요하기 때문에 이 곳에서 SceneConstantBuffer를 생성합니다.
@@ -69,18 +69,19 @@ namespace DK
 		return true;
 	}
 
-	void DuckingEngine::Update(float deltaTime) const
+	void DuckingEngine::Update(const float deltaTime) const
 	{
 		InputModule::Update();
 		Camera::gMainCamera->update(deltaTime);
 		_sceneObjectManager->update(deltaTime);
 	}
 
-	void DuckingEngine::Render() const
+	void DuckingEngine::Render(const float deltaTime) const
 	{
-		_sceneRenderer->prepareShaderData();
-
 		_sceneRenderer->preRender();
+
+		_sceneRenderer->prepareShaderData(deltaTime);
+
 		_sceneRenderer->updateRender();
 		_sceneRenderer->endRender();
 	}

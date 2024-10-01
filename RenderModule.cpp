@@ -125,7 +125,7 @@ uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 
 namespace DK
 {
-	//static const float clearColor[] = { 0.5f, 0.5f, 0.9f, 1.0f };
+	static const float4 gClearRenderTargetViewColor(0, 1, 0, 1);
 
 	uint32 RenderModule::kCurrentFrameIndex = 0;
 	uint32 RenderModule::kWidth = 0;
@@ -245,6 +245,7 @@ namespace DK
 			return false;
 
 		_commandList.assign(createCommandList());
+
 		if (_commandList.get() == nullptr) 
 			return false;
 		_commandList->_commandList->Close();
@@ -384,23 +385,6 @@ namespace DK
 			_textureDescriptorHeap->SetName(L"BindlessTextureDescriptorHeap");
 		}
 
-		// Create RTV descriptorHeap
-		UINT rtvDescriptorSize = 0;
-		{
-			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-			rtvHeapDesc.NumDescriptors = kFrameCount * 2;
-			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-			hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(_renderTargetViewHeap.getAddress()));
-			if (FAILED(hr) == true)
-				return false;
-
-			rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-			if (FAILED(hr) == true)
-				return false;
-
-			_renderTargetViewHeap->SetName(L"RTVDescriptorHeap");
-		}
-
 		// Create Depth/Stencil View
 		{
 			/*
@@ -413,54 +397,84 @@ namespace DK
 			depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
 			depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
-			CD3DX12_HEAP_PROPERTIES dsHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-			CD3DX12_RESOURCE_DESC dsDesc = CD3DX12_RESOURCE_DESC::Tex2D(GetDepthResourceFormat(gDepthStencilFormat), width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-			hr = _device->CreateCommittedResource(
-				&dsHeapProperty, D3D12_HEAP_FLAG_NONE, &dsDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(_depthStencilBuffer.getAddress())
-			);
-			if (FAILED(hr) == true)
-				return false;
-			_depthStencilBuffer->SetName(L"Depth/Stencil Resource Heap");
-
 			D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-			dsvHeapDesc.NumDescriptors = 1;
+			dsvHeapDesc.NumDescriptors = DK_ARRAYSIZE_OF(_depthStencilResourceArr);
 			dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 			dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 			hr = _device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(_depthStencilDescriptorHeap.getAddress()));
 			if (FAILED(hr) == true)
 				return false;
 
-			D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-			depthStencilViewDesc.Format = gDepthStencilFormat;
-			depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-			depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
-			_device->CreateDepthStencilView(
-				_depthStencilBuffer.get(), &depthStencilViewDesc, _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart()
-			);
+			const UINT dsvHandleSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
-			_depthStencilTexture = createTextureSRV("DepthStencilTexture", _depthStencilBuffer.get(), GetDepthSRVFormat(gDepthStencilFormat));
-			if (_depthStencilTexture == nullptr)
+			CD3DX12_HEAP_PROPERTIES dsvHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+			CD3DX12_RESOURCE_DESC dsvDesc = CD3DX12_RESOURCE_DESC::Tex2D(GetDepthResourceFormat(gDepthStencilFormat), width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+			// TODO: 현재 Depth/Stencil 버퍼는 2개만 필요하다.. 근데 4개나 만들고 있다. 다음에 FrameBuffer Instance를 만들어서 관리할 수 있도록 해야겠다
+			for (uint32 i = 0; i < DK_ARRAYSIZE_OF(_depthStencilResourceArr); ++i)
 			{
-				DK_ASSERT_LOG(false, "PostProcess에 사용하는 Depth/Stencil Texture 생성에 실패.");
-				return false;
+				hr = _device->CreateCommittedResource(
+					&dsvHeapProperty, D3D12_HEAP_FLAG_NONE, &dsvDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &depthOptimizedClearValue, IID_PPV_ARGS(_depthStencilResourceArr[i].getAddress())
+				);
+				if (FAILED(hr) == true)
+					return false;
+
+				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+				depthStencilViewDesc.Format = gDepthStencilFormat;
+				depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+				depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
+				_device->CreateDepthStencilView(_depthStencilResourceArr[i].get(), &depthStencilViewDesc, dsvHandle);
+
+				dsvHandle.ptr += dsvHandleSize;
+
+				ScopeString<DK_MAX_BUFFER> indexString;
+				StringUtil::itoa(i, indexString.data(), indexString.capacity());
+				ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture_");
+				dsvTextureName.append(indexString.c_str());
+				_depthStencilTextureArr[i] = allocateTextureSRV(dsvTextureName.c_str(), _depthStencilResourceArr[i].get(), GetDepthSRVFormat(gDepthStencilFormat));
+				if (_depthStencilTextureArr[i] == nullptr)
+				{
+					DK_ASSERT_LOG(false, "PostProcess에 사용하는 Depth/Stencil Texture 생성에 실패.");
+					return false;
+				}
+
+				_depthStencilResourceArr[i]->SetName(StringUtil::ConverCtoWC(dsvTextureName.c_str()).c_str());
 			}
+		}
+
+		// Create RTV descriptorHeap
+		UINT rtvDescriptorSize = 0;
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+			rtvHeapDesc.NumDescriptors = DK_ARRAYSIZE_OF(_renderTargetResourceArr) + DK_ARRAYSIZE_OF(_backBufferResourceArr);
+			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+			hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(_renderTargetViewHeap.getAddress()));
+			if (FAILED(hr) == true)
+				return false;
+
+			rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			if (FAILED(hr) == true)
+				return false;
+
+			_renderTargetViewHeap->SetName(L"RTVDescriptorHeap");
 		}
 
 		// Create RTV
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 		DXGI_FORMAT renderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 		{
-			for (uint32 i = 0; i < kFrameCount; ++i)
+			for (uint32 i = 0; i < DK_ARRAYSIZE_OF(_renderTargetResourceArr); ++i)
 			{
 				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(renderTargetFormat, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
 				D3D12_CLEAR_VALUE clearValue;
 				clearValue.Format = renderTargetFormat;
-				//clearValue.Color[0] = clearColor[0];
-				//clearValue.Color[1] = clearColor[1];
-				//clearValue.Color[2] = clearColor[2];
-				//clearValue.Color[3] = clearColor[3];
-				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
+				clearValue.Color[0] = gClearRenderTargetViewColor.x;
+				clearValue.Color[1] = gClearRenderTargetViewColor.y;
+				clearValue.Color[2] = gClearRenderTargetViewColor.z;
+				clearValue.Color[3] = gClearRenderTargetViewColor.w;
+				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
+				DK_ASSERT_LOG(SUCCEEDED(hr), "RenderTarget Resource 생성 실패");
 
 				_device->CreateRenderTargetView(_renderTargetResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
@@ -469,7 +483,7 @@ namespace DK
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
 				rtvTextureName.append(indexString.c_str());
-				_renderTargetTextureArr[i] = createTextureSRV(rtvTextureName.c_str(), _renderTargetResourceArr[i].get(), renderTargetFormat);
+				_renderTargetTextureArr[i] = allocateTextureSRV(rtvTextureName.c_str(), _renderTargetResourceArr[i].get(), renderTargetFormat);
 				if (_renderTargetTextureArr[i] == nullptr)
 				{
 					DK_ASSERT_LOG(false, "Fail - Create RenderTargetTexture");
@@ -504,18 +518,18 @@ namespace DK
 
 			for (uint32 i = 0; i < kFrameCount; ++i)
 			{
-				hr = _swapChain->GetBuffer(i, IID_PPV_ARGS(_backBufferResource[i].getAddress()));
+				hr = _swapChain->GetBuffer(i, IID_PPV_ARGS(_backBufferResourceArr[i].getAddress()));
 				if (FAILED(hr) == true)
 					return false;
 
-				_device->CreateRenderTargetView(_backBufferResource[i].get(), nullptr, rtvHandle);
+				_device->CreateRenderTargetView(_backBufferResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
 
 				ScopeString<DK_MAX_BUFFER> indexString;
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeStringW<DK_MAX_BUFFER> resourceName(L"BackBufferResource_");
 				resourceName.append(StringUtil::ConverCtoWC(indexString.c_str()).c_str());
-				_backBufferResource[i]->SetName(resourceName.c_str());
+				_backBufferResourceArr[i]->SetName(resourceName.c_str());
 			}
 		}
 
@@ -577,11 +591,15 @@ namespace DK
 			hr = _device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(outCommandAllocator[i].getAddress()));
 			if (FAILED(hr))
 				return nullptr;
+
+			outCommandAllocator[i]->SetName(L"CommandAllocator");
 		}
 
 		hr = _device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, outCommandAllocator[0].get(), NULL, IID_PPV_ARGS(outCommandList.getAddress()));
 		if (FAILED(hr))
 			return nullptr;
+
+		outCommandList->SetName(L"CommandList");
 
 		return dk_new DKCommandList(outCommandAllocator, outCommandList);
 	}
@@ -820,7 +838,8 @@ namespace DK
 		{
 			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
 			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(errors.getAddress()), nullptr);
-			DK_ASSERT_LOG(FAILED(hr), "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
+			const char* test = errors->GetStringPointer();
+			DK_ASSERT_LOG(FAILED(hr), "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, test);
 
 			return false;
 		}
@@ -929,15 +948,8 @@ namespace DK
 		inputLayoutDesc.pInputElementDescs = inputLayout.data();
 
 		D3D12_RASTERIZER_DESC rasterizerDesc = {};
-#if 1
 		rasterizerDesc.FillMode = pipelineCreateInfo._fillMode == Pipeline::CreateInfo::FillMode::WIREFRAME ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
-		rasterizerDesc.CullMode = pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::FRONT ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
-#else
-		//rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
-		rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
-		//rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
-		rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
-#endif
+		rasterizerDesc.CullMode = pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::FRONT ? D3D12_CULL_MODE_FRONT : (pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::BACK ? D3D12_CULL_MODE_BACK : D3D12_CULL_MODE_NONE);
 		rasterizerDesc.FrontCounterClockwise = FALSE;
 		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
 		rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
@@ -1096,14 +1108,9 @@ namespace DK
 	{
 		_commandList->_commandList->Close();
 
-		kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
-
 		DKVector<ID3D12CommandList*> commandLists;
 		commandLists.push_back(_commandList->_commandList.get());
 		_commandQueue->ExecuteCommandLists(static_cast<uint32>(commandLists.size()), commandLists.data());
-
-		kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
-
 		_commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
 	}
 
@@ -1222,8 +1229,10 @@ namespace DK
 		return true;
 	}
 
-	ITextureRef RenderModule::createTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format)
+	ITextureRef RenderModule::allocateTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format)
 	{
+		EnsureMainThread();
+
 		ITexture::TextureSRVType index = static_cast<ITexture::TextureSRVType>(_textureContainer.size());
 		if (_deletedTextureSRVArr.empty() == false)
 		{
@@ -1353,7 +1362,7 @@ namespace DK
 
 		return true;
 	}
-	ITextureRef RenderModule::createTexture(const DKString& path)
+	ITextureRef RenderModule::allocateTexture(const DKString& path)
 	{
 		DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(path);
 		if (findResult != _textureContainer.end())
@@ -1440,48 +1449,100 @@ namespace DK
 
 		execute();
 
-		return createTextureSRV(path, defaultBuffer, textureRaw._format);
+		return allocateTextureSRV(path, defaultBuffer, textureRaw._format);
+	}
+
+	void RenderModule::deallocateTextureSRV(const DKString& path, const ITexture::TextureSRVType srvIndex)
+	{
+		EnsureMainThread();
+
+		const size_t insertResult = _textureContainer.erase(path);
+		DK_ASSERT_LOG(insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", path.c_str());
+		_deletedTextureSRVArr.push_back(srvIndex);
 	}
 
 	void RenderModule::preRender()
 	{
-		waitFenceAndResetCommandList();
+		waitFenceAndResetCommandList();		
+	}
 
+	void RenderModule::bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget)
+	{
+		const uint32 rtvIndex = kCurrentFrameIndex * kFrameCount + rtvSlot;
+
+		if(rtvReadSlot != 0xFFFFFFFF)
 		{
-			//D3D12_RESOURCE_BARRIER barrier;
-			//barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			//barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			//barrier.Transition.pResource = _renderTargetResourceArr[kCurrentFrameIndex].get();
-			//barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-			//barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			//barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			//_commandList->_commandList->ResourceBarrier(1, &barrier);
+			const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
+
+			D3D12_RESOURCE_BARRIER barrier;
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			barrier.Transition.pResource = _renderTargetResourceArr[rtvPrevIndex].get();
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			_commandList->_commandList->ResourceBarrier(1, &barrier);
 		}
+
 		{
 			D3D12_RESOURCE_BARRIER barrier;
 			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			barrier.Transition.pResource = _backBufferResource[kCurrentFrameIndex].get();
-			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			barrier.Transition.pResource = 2 == rtvSlot ? _backBufferResourceArr[kCurrentFrameIndex].get() : _renderTargetResourceArr[rtvIndex].get();
+			barrier.Transition.StateBefore = 2 == rtvSlot ? D3D12_RESOURCE_STATE_PRESENT : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 			_commandList->_commandList->ResourceBarrier(1, &barrier);
 		}
-	}
 
-	void RenderModule::bindRenderPass(bool renderTargetBuffer)
-	{
+		if (rtvReadSlot != 0xFFFFFFFF && 2 != rtvSlot)
+		{
+			const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
+
+			D3D12_RESOURCE_BARRIER barrier;
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			barrier.Transition.pResource = _depthStencilResourceArr[rtvPrevIndex].get();
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			_commandList->_commandList->ResourceBarrier(1, &barrier);
+		}
+
 		const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
-		rtvHandle.ptr += rtvDescriptorSize * (kCurrentFrameIndex + (renderTargetBuffer ? 0 : kFrameCount));
+		rtvHandle.ptr += rtvSlot == 2 ? rtvDescriptorSize * (4 + kCurrentFrameIndex) : rtvDescriptorSize * rtvIndex;
 
-		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+		if (bindDSV)
+		{
+			{
+				D3D12_RESOURCE_BARRIER barrier;
+				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+				barrier.Transition.pResource = _depthStencilResourceArr[rtvIndex].get();
+				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+				barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+				_commandList->_commandList->ResourceBarrier(1, &barrier);
+			}
 
-		//_commandList->_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+			const UINT dsvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+			dsvHandle.ptr += dsvDescriptorSize * rtvIndex;
+			_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-		if (renderTargetBuffer)
-			_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+			if (clearTarget)
+			{
+				_commandList->_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
+				_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+			}
+		}
+		else
+		{
+			_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+			if (clearTarget)
+				_commandList->_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
+		}
 
 		_commandList->_commandList->RSSetViewports(1, _viewport.get());
 		_commandList->_commandList->RSSetScissorRects(1, _scissorRect.get());
@@ -1547,14 +1608,16 @@ namespace DK
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _commandList->_commandList.get());
 #endif // USE_IMGUI
 
-		D3D12_RESOURCE_BARRIER barrier;
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = _backBufferResource[kCurrentFrameIndex].get();
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		_commandList->_commandList->ResourceBarrier(1, &barrier);
+		{
+			D3D12_RESOURCE_BARRIER barrier;
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			barrier.Transition.pResource = _backBufferResourceArr[kCurrentFrameIndex].get();
+			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			_commandList->_commandList->ResourceBarrier(1, &barrier);
+		}
 
 		execute();
 
@@ -1566,8 +1629,10 @@ namespace DK
 
 	bool DKCommandList::reset()
 	{
-		_commandAllocators[RenderModule::kCurrentFrameIndex]->Reset();
-		_commandList->Reset(_commandAllocators[RenderModule::kCurrentFrameIndex].get(), nullptr);
+		_commandAllocators[_lastResetIndex]->Reset();
+		_commandList->Reset(_commandAllocators[_lastResetIndex].get(), nullptr);
+
+		_lastResetIndex = (_lastResetIndex + 1) % 2;
 
 		return false;
 	}
@@ -1575,16 +1640,24 @@ namespace DK
 	void IBuffer::upload(const void* data)
 	{
 		//DK_ASSERT_LOG(data != nullptr, "nullptr인 data를 upload요청하려고합니다.");
+
+		_lastUploadIndex = (_lastUploadIndex + 1) % 2;
+
 		void* address = nullptr;
-		HRESULT hr = _buffers[0]->Map(0, nullptr, &address);
+		HRESULT hr = _buffers[_lastUploadIndex]->Map(0, nullptr, &address);
 		DK_ASSERT_LOG(SUCCEEDED(hr), "Map에 실패하였습니다.");
 		memcpy(address, data, _bufferSize);
-		_buffers[0]->Unmap(0, nullptr);
+		_buffers[_lastUploadIndex]->Unmap(0, nullptr);
 	}
 
 	D3D12_GPU_VIRTUAL_ADDRESS IBuffer::getGPUVirtualAddress()
 	{
-		return _buffers[0]->GetGPUVirtualAddress();
+		return _buffers[_lastUploadIndex]->GetGPUVirtualAddress();
+	}
+
+	ITexture::~ITexture()
+	{
+		DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureSRV(getPath(), getSRV());
 	}
 
 }

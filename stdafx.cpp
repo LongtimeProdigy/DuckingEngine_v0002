@@ -40,4 +40,6 @@ namespace DK
 		static_assert(false, "Matrix Inverse 구현 필요합니다");
 #endif
 	}
+
+	ThreadID gMainThreadID = 0;
 }

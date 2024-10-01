@@ -139,6 +139,23 @@ namespace DK
 #define DKHashMap std::unordered_map
 #define DKHashSet std::unordered_set
 #define DKPair std::pair
+
+	template<typename T, uint32 SIZE>
+	class StaticArray
+	{
+	public:
+		const T& operator[](const uint32 index) const
+		{
+			return _data[index];
+		}
+		T& operator[](const uint32 index)
+		{
+			return _data[index];
+		}
+
+	private:
+		T _data[SIZE];
+	};
 }
 
 #define USE_TINYXML
@@ -154,6 +171,7 @@ static_assert(false, "XML 파싱 Class 정의가 필요합니다.");
 namespace DK
 {
 #define DK_ARRAYSIZE_OF ARRAYSIZE
+#define DK_COUNT_OF ARRAYSIZE
 
 	template <typename T>
 	dk_inline void swap(T&& lhs, T&& rhs) noexcept
@@ -211,13 +229,13 @@ namespace DK
 		{
 			return static_cast<float>(std::atof(str));
 		}
-		static bool strcmp(const char* str1, const char* str2) noexcept
+		static int strcmp(const char* str1, const char* str2) noexcept
 		{
-			return std::strcmp(str1, str2) == 0;
+			return std::strcmp(str1, str2);
 		}
-		static bool strcmp(const wchar_t* str1, const wchar_t* str2) noexcept
+		static int wcscmp(const wchar_t* str1, const wchar_t* str2) noexcept
 		{
-			return std::wcscmp(str1, str2) == 0;
+			return std::wcscmp(str1, str2);
 		}
 		static uint32 strlen(const char* str)
 		{
@@ -324,7 +342,8 @@ namespace DK
 
 		bool operator!=(const T* rhs) const
 		{
-			return StringUtil::strcmp(c_str(), rhs) == false;
+			DK_ASSERT_LOG(rhs != nullptr, "입력값이 nullptr이면 안됩니다.");
+			return StringUtil::strcmp(c_str(), rhs) != 0;
 		}
 
 		dk_inline const T* c_str() const { return _string; }
@@ -796,6 +815,11 @@ namespace DK
 		static float2 floor(const float2& value)
 		{
 			return float2(std::floor(value.x), std::floor(value.y));
+		}
+		template<typename T>
+		static T abs(T value)
+		{
+			return ::abs(value);
 		}
 	};
 
@@ -1411,6 +1435,23 @@ namespace DK
 		DK_REFLECTION_PROPERTY(Quaternion, _rotation);
 		DK_REFLECTION_PROPERTY(float3, _scale);
 	};
+}
+
+/*
+*	Thread 관련
+*/
+#include <processthreadsapi.h>
+namespace DK
+{
+	using ThreadID = DWORD;
+	extern ThreadID gMainThreadID;
+
+	static const bool isMainThread()
+	{
+		return gMainThreadID == GetCurrentThreadId();
+	}
+
+#define EnsureMainThread() DK_ASSERT_LOG(isMainThread(), "MainThread가 아닙니다. %d/%d", gMainThreadID, GetCurrentThreadId());
 }
 
 namespace DK
