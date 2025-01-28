@@ -398,7 +398,7 @@ namespace DK
 			depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
 			D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-			dsvHeapDesc.NumDescriptors = DK_ARRAYSIZE_OF(_depthStencilResourceArr);
+			dsvHeapDesc.NumDescriptors = DK_COUNT_OF(_depthStencilResourceArr);
 			dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 			dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 			hr = _device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(_depthStencilDescriptorHeap.getAddress()));
@@ -411,7 +411,7 @@ namespace DK
 			CD3DX12_HEAP_PROPERTIES dsvHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 			CD3DX12_RESOURCE_DESC dsvDesc = CD3DX12_RESOURCE_DESC::Tex2D(GetDepthResourceFormat(gDepthStencilFormat), width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 			// TODO: 현재 Depth/Stencil 버퍼는 2개만 필요하다.. 근데 4개나 만들고 있다. 다음에 FrameBuffer Instance를 만들어서 관리할 수 있도록 해야겠다
-			for (uint32 i = 0; i < DK_ARRAYSIZE_OF(_depthStencilResourceArr); ++i)
+			for (uint32 i = 0; i < DK_COUNT_OF(_depthStencilResourceArr); ++i)
 			{
 				hr = _device->CreateCommittedResource(
 					&dsvHeapProperty, D3D12_HEAP_FLAG_NONE, &dsvDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &depthOptimizedClearValue, IID_PPV_ARGS(_depthStencilResourceArr[i].getAddress())
@@ -446,7 +446,7 @@ namespace DK
 		UINT rtvDescriptorSize = 0;
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-			rtvHeapDesc.NumDescriptors = DK_ARRAYSIZE_OF(_renderTargetResourceArr) + DK_ARRAYSIZE_OF(_backBufferResourceArr);
+			rtvHeapDesc.NumDescriptors = DK_COUNT_OF(_renderTargetResourceArr) + DK_COUNT_OF(_backBufferResourceArr);
 			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 			hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(_renderTargetViewHeap.getAddress()));
 			if (FAILED(hr) == true)
@@ -463,7 +463,7 @@ namespace DK
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 		DXGI_FORMAT renderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 		{
-			for (uint32 i = 0; i < DK_ARRAYSIZE_OF(_renderTargetResourceArr); ++i)
+			for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetResourceArr); ++i)
 			{
 				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(renderTargetFormat, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
@@ -725,7 +725,7 @@ namespace DK
 	const wchar_t* charTowChar(const char* c)
 	{
 		const size_t cSize = strlen(c) + 1;
-		wchar_t* wc = new wchar_t[cSize];
+		wchar_t* wc = dk_new wchar_t[cSize];
 #pragma warning(push)
 #pragma warning(disable:4996)
 		mbstowcs(wc, c, cSize);
@@ -1023,7 +1023,7 @@ namespace DK
 			"Patch"
 		};
 
-		const uint32 strCount = ARRAYSIZE(primitiveTopologyTypeStr);
+		const uint32 strCount = DK_COUNT_OF(primitiveTopologyTypeStr);
 		for (uint32 i = 0; i < strCount; ++i)
 		{
 			if (strcmp(value, primitiveTopologyTypeStr[i]) == 0)

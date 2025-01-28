@@ -90,6 +90,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
             else
             {
                 DK_ASSERT_LOG(false, "Command는 -또는 --로 시작해야합니다.");
+                return -1;
             }
         }
         LocalFree(argv);
@@ -100,6 +101,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		if (application->initialize(data) == false)
 		{
 			DK_ASSERT_LOG(false, "Application Initialization - Failed");
+            return -1;
 		}
 
 		application->run();

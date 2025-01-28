@@ -315,15 +315,15 @@ do{ \
 
 		// RenderTarget
 		RenderResourcePtr<ID3D12Resource> _renderTargetResourceArr[kFrameCount * 2];	// Deffered
-		ITextureRef _renderTargetTextureArr[DK_ARRAYSIZE_OF(_renderTargetResourceArr)];
+		ITextureRef _renderTargetTextureArr[DK_COUNT_OF(_renderTargetResourceArr)];
 
 		// BackBuffer
 		RenderResourcePtr<ID3D12Resource> _backBufferResourceArr[kFrameCount];			// BackBuffer
 
 		// DepthStencil
 		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
-		RenderResourcePtr<ID3D12Resource2> _depthStencilResourceArr[DK_ARRAYSIZE_OF(_renderTargetResourceArr)];
-		ITextureRef _depthStencilTextureArr[DK_ARRAYSIZE_OF(_renderTargetResourceArr)];
+		RenderResourcePtr<ID3D12Resource2> _depthStencilResourceArr[DK_COUNT_OF(_renderTargetResourceArr)];
+		ITextureRef _depthStencilTextureArr[DK_COUNT_OF(_renderTargetResourceArr)];
 
 		// SwapChain
 #if defined(USE_IMGUI)

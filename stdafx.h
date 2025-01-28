@@ -170,7 +170,6 @@ static_assert(false, "XML 파싱 Class 정의가 필요합니다.");
 */
 namespace DK
 {
-#define DK_ARRAYSIZE_OF ARRAYSIZE
 #define DK_COUNT_OF ARRAYSIZE
 
 	template <typename T>
@@ -1446,10 +1445,12 @@ namespace DK
 	using ThreadID = DWORD;
 	extern ThreadID gMainThreadID;
 
+#if defined(_DK_DEBUG_)
 	static const bool isMainThread()
 	{
 		return gMainThreadID == GetCurrentThreadId();
 	}
+#endif
 
 #define EnsureMainThread() DK_ASSERT_LOG(isMainThread(), "MainThread가 아닙니다. %d/%d", gMainThreadID, GetCurrentThreadId());
 }
