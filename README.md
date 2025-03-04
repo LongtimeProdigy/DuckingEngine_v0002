@@ -15,6 +15,7 @@
 - SkinnedMesh
 - StaticMesh
 - Animation
+- Keyboard/Mouse, Pad 입력 지원
 
 ## 플러그인
 - Blender StaticMesh Exporter
