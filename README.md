@@ -1,6 +1,6 @@
 ## 랜더러 (DX12, Windows) (RenderModule)
 - RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정 (추후 Shader Reflection을 이용해서 Resource Binding 자동화 예정)
-- Material 연동
+- Material 지원 (Technique를 통한 Pipeline별 Material 지원 예정)
 - Bindless 지원
 - PushConstant 지원
 - Deferred Rendering
