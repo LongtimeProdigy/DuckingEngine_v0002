@@ -6,10 +6,10 @@
 - Deferred Rendering
 
 ## 그래픽스
-- 레일리 산란 구현
+- Rayleigh scattering
 
 ## 터레인
-- ClipMap Terrain 구현
+- ClipMap Terrain
 
 ## 그 외
 - SkinnedMesh
