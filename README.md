@@ -1,14 +1,14 @@
-## 랜더러 (DX12, Windows) (RenderModule)
-- RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정 (추후 Shader Reflection을 이용해서 Resource Binding 자동화 예정)
-- Material 지원 (Technique를 통한 Pipeline별 Material 지원 예정)
-- Bindless 지원
-- PushConstant 지원
+## Renderer (DX12, Windows)
+- RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정
+- Material
+- Bindless Resource
+- PushConstant
 - Deferred Rendering
 
-## 그래픽스
+## Graphics
 - Rayleigh scattering
 
-## 터레인
+## Terrain
 - ClipMap Terrain
 
 ## 그 외
@@ -23,7 +23,26 @@
 - Blender Skeleton Exporter
 - Blender Animation Exporter
 
+## 결과
+**RenderPass/Pipeline XML 정의**
 ![image](https://github.com/user-attachments/assets/0fc44f75-78bf-463b-afd3-6f5831429358)
+-----
+**Atmosphere Scattering(Rayleigh scattering)**
 ![image](https://github.com/user-attachments/assets/d8922061-f769-4985-b10c-71cf0c0ac000)
+-----
+**Clipmap Terrain**
 ![image](https://github.com/user-attachments/assets/641e291f-7f51-4f78-bfcf-775b234f5cc3)
 ![image](https://github.com/user-attachments/assets/e1957ce8-df5a-4c62-9587-c3666e999a1a)
+-----
+
+## TODO
+- RenderModule
+  - Shader Reflection
+  - Material/Pipeline Technique
+- Graphics
+  - Realtime Raytracing
+  - Mie Scattering
+  - PBR
+  - Realtime Pathtracing
+- Object
+  - Foliage
