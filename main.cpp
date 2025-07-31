@@ -1,4 +1,4 @@
-#include "stdafx.h"
+癤�#include "stdafx.h"
 #include "Application.h"
 
 #ifdef _DK_WINDOW_
@@ -58,13 +58,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
         DK::gMainThreadID = GetCurrentThreadId();
 
 #if defined(USE_PIX)
-        // PIX dll 로딩 (출처: https://devblogs.microsoft.com/pix/taking-a-capture/)
+        // PIX dll (https://devblogs.microsoft.com/pix/taking-a-capture/)
         // Check to see if a copy of WinPixGpuCapturer.dll has already been injected into the application.
         // This may happen if the application is launched through the PIX UI. 
         if (GetModuleHandle(L"WinPixGpuCapturer.dll") == 0)
             LoadLibrary(GetLatestWinPixGpuCapturerPath().c_str());
 #endif
 
+        int WIDTH = 1920;
+        int HEIGHT = 1080;
 #if defined(_DK_DEBUG_)
         int num = 0;
         LPWSTR lp = GetCommandLine();
@@ -74,22 +76,30 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
             DK_ASSERT_LOG(false, "Commandline Parsing Failed");
             return -1;
         }
-        for (int i = 1; i < num; ++i)   // 0번째는 exe 경로
+        for (int i = 1; i < num; ++i)
         {
             DK::StringSplitter splitter(DK::StringUtil::convertWCtoC(argv[i]), "=");
-            if (splitter[0].find("--") == 0)    // 단축어X
+            if (splitter[0].find("--") == 0)
             {
                 if (DK::StringUtil::strcmp(splitter[0].c_str(), "--resourcePath") == 0)
                     DK::GlobalPath::setResourcePath(splitter[1]);
+                else if (DK::StringUtil::strcmp(splitter[0].c_str(), "--width") == 0)
+                    WIDTH = DK::StringUtil::atoi(splitter[1].c_str());
+                else if (DK::StringUtil::strcmp(splitter[0].c_str(), "--height") == 0)
+                    HEIGHT = DK::StringUtil::atoi(splitter[1].c_str());
             }
-            else if (splitter[0].find('-') == 0)    // 단축어
+            else if (splitter[0].find('-') == 0)
             {
                 if (DK::StringUtil::strcmp(splitter[0].c_str(), "-r") == 0)
                     DK::GlobalPath::setResourcePath(splitter[1]);
+                else if (DK::StringUtil::strcmp(splitter[0].c_str(), "-w") == 0)
+                    WIDTH = DK::StringUtil::atoi(splitter[1].c_str());
+                else if (DK::StringUtil::strcmp(splitter[0].c_str(), "-h") == 0)
+                    HEIGHT = DK::StringUtil::atoi(splitter[1].c_str());
             }
             else
             {
-                DK_ASSERT_LOG(false, "Command는 -또는 --로 시작해야합니다.");
+                DK_ASSERT_LOG(false, "CommandLine Argument Parsing Error.");
                 return -1;
             }
         }
@@ -97,7 +107,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 #endif
 
 		DK::Application* application = dk_new DK::Application;
-		DK::ApplicationInitializeData data(hInstance, true, 1920, 1080, false);
+		DK::ApplicationInitializeData data(hInstance, true, WIDTH, HEIGHT, false);
 		if (application->initialize(data) == false)
 		{
 			DK_ASSERT_LOG(false, "Application Initialization - Failed");

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "SceneObjectManager.h"
 
 #include "DuckingEngine.h"
@@ -20,7 +20,7 @@ namespace DK
 		sceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData), L"SceneObject_Cbuffer");
 		if (sceneObject._sceneObjectConstantBuffer.get() == nullptr)
 		{
-			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer »ý¼º¿¡ ½ÇÆÐ");
+			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer ìƒì„±ì— ì‹¤íŒ¨");
 			return false;
 		}
 
@@ -109,7 +109,7 @@ namespace DK
 			if (i == 0)	// MainSkinnedMesh
 			{
 				skinnedMeshComponent->set_skeletonPath(appearanceData->_skeletonPath);
-				skinnedMeshComponent->set_animationPath(appearanceData->_animationSetPath);	// #todo- ³ªÁß¿¡ AnimationSetÀ¸·Î º¯°æ(AnimationController ¸¸µç ÈÄ¿¡)
+				skinnedMeshComponent->set_animationPath(appearanceData->_animationSetPath);	// #todo- ë‚˜ì¤‘ì— AnimationSetìœ¼ë¡œ ë³€ê²½(AnimationController ë§Œë“  í›„ì—)
 			}
 			if (skinnedMeshComponent->loadResource() == false)
 				return nullptr;

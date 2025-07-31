@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "RenderModule.h"
 
 #pragma region Lib
@@ -10,8 +10,8 @@
 #include "d3dx12.h"
 #include <wrl.h>
 #pragma region DXC
-#pragma comment(lib, "lib/dxc_2022_07_18/lib/x64/dxcompiler.lib")
-#include "lib/dxc_2022_07_18/inc/dxcapi.h"
+#pragma comment(lib, "lib/dxc_2025_07_14/lib/x64/dxcompiler.lib")
+#include "lib/dxc_2025_07_14/inc/dxcapi.h"
 #pragma endregion
 
 #define USE_WINCODEC
@@ -105,7 +105,7 @@ uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 	else if (dxgiFormat == DXGI_FORMAT_A8_UNORM) return 8;
 	else
 	{
-		DK_ASSERT_LOG(false, "¿Ã¹Ù¸£Áö ¾ÊÀº Texture TypeÀÔ´Ï´Ù. È®ÀÎ ¿ä¸Á!");
+		DK_ASSERT_LOG(false, "ì˜¬ë°”ë¥´ì§€ ì•Šì€ Texture Typeì…ë‹ˆë‹¤. í™•ì¸ ìš”ë§!");
 		return 0xffffffff;
 	}
 }
@@ -296,7 +296,7 @@ namespace DK
 		// Activate DebugLayer
 		{
 #if 0
-			//½ÇÇèÀû ±â´É ¸ñ·ÏÀ» »ç¿ëÇÏµµ·Ï ¼³Á¤ÇÕ´Ï´Ù.
+			//ì‹¤í—˜ì  ê¸°ëŠ¥ ëª©ë¡ì„ ì‚¬ìš©í•˜ë„ë¡ ì„¤ì •í•©ë‹ˆë‹¤.
 			const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
 				0x76f5573e,
 				0xf13a,
@@ -309,7 +309,7 @@ namespace DK
 #endif
 
 #ifdef _DK_DEBUG_
-			// CreateDeviceÀÌÀü¿¡ ½ÇÇàÇØ¾ßÇÕ´Ï´Ù. Device»ı¼º ÀÌÈÄ¿¡ È£ÃâÇÏ¸é Device Remove°¡ ¹ß»ıÇÔ.
+			// CreateDeviceì´ì „ì— ì‹¤í–‰í•´ì•¼í•©ë‹ˆë‹¤. Deviceìƒì„± ì´í›„ì— í˜¸ì¶œí•˜ë©´ Device Removeê°€ ë°œìƒí•¨.
 			// Enable the D3D12 debug layer.
 			ID3D12Debug* debugController;
 			if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
@@ -336,7 +336,7 @@ namespace DK
 			}
 		}
 
-		// Find ShaderModel (ÇöÀç ¾îµğ¼­µµ ¾²Áö ¾ÊÀ½) (¾Æ¸¶ ÄÄÆÄÀÏ ¼ÎÀÌ´õÇÒ¶§ ¾µ ¼ö ÀÖÀ»µí)
+		// Find ShaderModel (í˜„ì¬ ì–´ë””ì„œë„ ì“°ì§€ ì•ŠìŒ) (ì•„ë§ˆ ì»´íŒŒì¼ ì…°ì´ë”í• ë•Œ ì“¸ ìˆ˜ ìˆì„ë“¯)
 		{
 			D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = {};
 
@@ -388,7 +388,7 @@ namespace DK
 		// Create Depth/Stencil View
 		{
 			/*
-			* Depth/Stencil Reosurce/DSV/SRV ¸¸µé ¶§ Å¸ÀÔ Á¶½ÉÇÏÀÚ!
+			* Depth/Stencil Reosurce/DSV/SRV ë§Œë“¤ ë•Œ íƒ€ì… ì¡°ì‹¬í•˜ì!
 			* https://stackoverflow.com/questions/38933565/which-format-to-use-for-a-shader-resource-view-into-depth-stencil-buffer-resourc
 			* https://stackoverflow.com/questions/20256815/how-to-check-the-content-of-the-depth-stencil-buffer
 			*/
@@ -410,7 +410,7 @@ namespace DK
 
 			CD3DX12_HEAP_PROPERTIES dsvHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 			CD3DX12_RESOURCE_DESC dsvDesc = CD3DX12_RESOURCE_DESC::Tex2D(GetDepthResourceFormat(gDepthStencilFormat), width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-			// TODO: ÇöÀç Depth/Stencil ¹öÆÛ´Â 2°³¸¸ ÇÊ¿äÇÏ´Ù.. ±Ùµ¥ 4°³³ª ¸¸µé°í ÀÖ´Ù. ´ÙÀ½¿¡ FrameBuffer Instance¸¦ ¸¸µé¾î¼­ °ü¸®ÇÒ ¼ö ÀÖµµ·Ï ÇØ¾ß°Ú´Ù
+			// TODO: í˜„ì¬ Depth/Stencil ë²„í¼ëŠ” 2ê°œë§Œ í•„ìš”í•˜ë‹¤.. ê·¼ë° 4ê°œë‚˜ ë§Œë“¤ê³  ìˆë‹¤. ë‹¤ìŒì— FrameBuffer Instanceë¥¼ ë§Œë“¤ì–´ì„œ ê´€ë¦¬í•  ìˆ˜ ìˆë„ë¡ í•´ì•¼ê² ë‹¤
 			for (uint32 i = 0; i < DK_COUNT_OF(_depthStencilResourceArr); ++i)
 			{
 				hr = _device->CreateCommittedResource(
@@ -434,7 +434,7 @@ namespace DK
 				_depthStencilTextureArr[i] = allocateTextureSRV(dsvTextureName.c_str(), _depthStencilResourceArr[i].get(), GetDepthSRVFormat(gDepthStencilFormat));
 				if (_depthStencilTextureArr[i] == nullptr)
 				{
-					DK_ASSERT_LOG(false, "PostProcess¿¡ »ç¿ëÇÏ´Â Depth/Stencil Texture »ı¼º¿¡ ½ÇÆĞ.");
+					DK_ASSERT_LOG(false, "PostProcessì— ì‚¬ìš©í•˜ëŠ” Depth/Stencil Texture ìƒì„±ì— ì‹¤íŒ¨.");
 					return false;
 				}
 
@@ -474,7 +474,7 @@ namespace DK
 				clearValue.Color[2] = gClearRenderTargetViewColor.z;
 				clearValue.Color[3] = gClearRenderTargetViewColor.w;
 				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
-				DK_ASSERT_LOG(SUCCEEDED(hr), "RenderTarget Resource »ı¼º ½ÇÆĞ");
+				DK_ASSERT_LOG(SUCCEEDED(hr), "RenderTarget Resource ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
 
 				_device->CreateRenderTargetView(_renderTargetResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
@@ -622,7 +622,7 @@ namespace DK
 
 	bool RenderModule::createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline)
 	{
-		const uint32 parameterCount = static_cast<uint32>(renderPass._shaderParameterMap.size() + inoutPipeline._shaderParameterMap.size()) + 1;	// Texture Bindless Àü¿ë +1
+		const uint32 parameterCount = static_cast<uint32>(renderPass._shaderParameterMap.size() + inoutPipeline._shaderParameterMap.size()) + 1;	// Texture Bindless ì „ìš© +1
 		DKVector<D3D12_ROOT_PARAMETER> rootParameters;
 		rootParameters.resize(parameterCount);
 		uint32 rootParameterIndex = 0;
@@ -648,7 +648,7 @@ namespace DK
 		for(DKPair<const DKString, ShaderParameter>& renderPassShaderParameter : renderPass._shaderParameterMap)
 		{
 			D3D12_ROOT_DESCRIPTOR constantBufferDescriptor = {};
-			constantBufferDescriptor.RegisterSpace = 0;		// ÇöÀç DuckingEngineÀº 0¹ø Space¸¸ »ç¿ëÇÕ´Ï´Ù.
+			constantBufferDescriptor.RegisterSpace = 0;		// í˜„ì¬ DuckingEngineì€ 0ë²ˆ Spaceë§Œ ì‚¬ìš©í•©ë‹ˆë‹¤.
 			constantBufferDescriptor.ShaderRegister = renderPassShaderParameter.second._register;
 
 			rootParameters[rootParameterIndex].ParameterType = renderPassShaderParameter.second._type == ShaderParameterType::StructuredBuffer ? D3D12_ROOT_PARAMETER_TYPE_SRV : D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -663,7 +663,7 @@ namespace DK
 		for (DKPair<const DKString, ShaderParameter>& shaderParameter : inoutPipeline._shaderParameterMap)
 		{
 			D3D12_ROOT_DESCRIPTOR constantBufferDescriptor = {};
-			constantBufferDescriptor.RegisterSpace = 0;		// ÇöÀç DuckingEngineÀº 0¹ø Space¸¸ »ç¿ëÇÕ´Ï´Ù.
+			constantBufferDescriptor.RegisterSpace = 0;		// í˜„ì¬ DuckingEngineì€ 0ë²ˆ Spaceë§Œ ì‚¬ìš©í•©ë‹ˆë‹¤.
 			constantBufferDescriptor.ShaderRegister = shaderParameter.second._register;
 
 			rootParameters[rootParameterIndex].ParameterType = shaderParameter.second._type == ShaderParameterType::StructuredBuffer ? D3D12_ROOT_PARAMETER_TYPE_SRV : D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -764,7 +764,7 @@ namespace DK
 			return false;
 		}
 
-		// Âü°í: https://simoncoenen.com/blog/programming/graphics/DxcCompiling
+		// ì°¸ê³ : https://simoncoenen.com/blog/programming/graphics/DxcCompiling
 		DKVector<LPCWSTR> arguments;
 		//-E for the entry point (eg. PSMain)
 		arguments.push_back(L"-E");
@@ -775,8 +775,8 @@ namespace DK
 		arguments.push_back(isVertexShader ? L"vs_6_2" : L"ps_6_2");
 
 #ifndef _DK_DEBUG_
-		// HLSL ObjectÆÄÀÏ¿¡ Reflect, PBDÆÄÀÏÀ» Á¦°ÅÇÏ´Â ¿É¼Ç
-		// ÇÏÁö¸¸ IDxcResult¿¡´Â ¿©ÀüÈ÷ Æ÷ÇÔÇÏ±â ¶§¹®¿¡ getOutputÀ¸·Î °á°ú¸¦ °¡Á®¿Ã ¼ö ÀÖ½À´Ï´Ù. (DXC_OUT_REFLECTION, DXC_OUT_PDB)
+		// HLSL ObjectíŒŒì¼ì— Reflect, PBDíŒŒì¼ì„ ì œê±°í•˜ëŠ” ì˜µì…˜
+		// í•˜ì§€ë§Œ IDxcResultì—ëŠ” ì—¬ì „íˆ í¬í•¨í•˜ê¸° ë•Œë¬¸ì— getOutputìœ¼ë¡œ ê²°ê³¼ë¥¼ ê°€ì ¸ì˜¬ ìˆ˜ ìˆìŠµë‹ˆë‹¤. (DXC_OUT_REFLECTION, DXC_OUT_PDB)
 		//Strip reflection data and pdbs (see later)
 		arguments.push_back(L"-Qstrip_debug");
 		arguments.push_back(L"-Qstrip_reflect");
@@ -807,7 +807,7 @@ namespace DK
 		hr = utils->CreateDefaultIncludeHandler(defaultIncludeHandler.getAddress());
 		if (FAILED(hr))
 		{
-			DK_ASSERT_LOG(false, "IncludeHandler »ı¼º¿¡ ½ÇÆĞÇß½À´Ï´Ù. Shader CompilerÀ» ÇÏÁö ¾Ê½À´Ï´Ù.");
+			DK_ASSERT_LOG(false, "IncludeHandler ìƒì„±ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤. Shader Compilerì„ í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.");
 			return false;
 		}
 
@@ -851,7 +851,7 @@ namespace DK
 		//	hr = result->GetOutput(DXC_OUT_PDB, IID_PPV_ARGS(debugData.getAddress()), debugDataPath.getAddress());
 		//	if (FAILED(hr))
 		//	{
-		//		DK_ASSERT_LOG(false, "DebugData °¡Á®¿À±â ½ÇÆĞ!");
+		//		DK_ASSERT_LOG(false, "DebugData ê°€ì ¸ì˜¤ê¸° ì‹¤íŒ¨!");
 		//		return false;
 		//	}
 		//	{
@@ -936,7 +936,7 @@ namespace DK
 				layoutFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
 				break;
 			default:
-				DK_ASSERT_LOG(false, "Á¸ÀçÇÏÁö ¾Ê´Â Layout¼¼ÆÃÇÒ·ÁÇÕ´Ï´Ù.");
+				DK_ASSERT_LOG(false, "ì¡´ì¬í•˜ì§€ ì•ŠëŠ” Layoutì„¸íŒ…í• ë ¤í•©ë‹ˆë‹¤.");
 				break;
 			}
 
@@ -1006,7 +1006,7 @@ namespace DK
 		HRESULT hr = _device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(inoutPipeline._pipelineStateObject.getAddress()));
 		if (SUCCEEDED(hr) == false)
 		{
-			DK_ASSERT_LOG(false, "Pipeline State Object »ı¼º¿¡ ½ÇÆĞ");
+			DK_ASSERT_LOG(false, "Pipeline State Object ìƒì„±ì— ì‹¤íŒ¨");
 			return false;
 		}
 
@@ -1030,7 +1030,7 @@ namespace DK
 				return static_cast<D3D12_PRIMITIVE_TOPOLOGY_TYPE>(i);
 		}
 
-		DK_ASSERT_LOG(false, "PtimitiveÁ¤º¸°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù. pipelineÀÌ ÀÛµ¿µÇÁö ¾ÊÀ»Å×´Ï ¹İµå½Ã È®ÀÎÀÌ ÇÊ¿äÇÕ´Ï´Ù.");
+		DK_ASSERT_LOG(false, "Ptimitiveì •ë³´ê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤. pipelineì´ ì‘ë™ë˜ì§€ ì•Šì„í…Œë‹ˆ ë°˜ë“œì‹œ í™•ì¸ì´ í•„ìš”í•©ë‹ˆë‹¤.");
 		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
 	}
 	bool RenderModule::createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
@@ -1040,14 +1040,14 @@ namespace DK
 
 		if (find != _renderPassMap.end())
 		{
-			DK_ASSERT_LOG(false, "Áßº¹µÈ ÀÌ¸§ÀÇ RenderPass°¡ ÀÖ½À´Ï´Ù.\nName: %s", find->first.c_str());
+			DK_ASSERT_LOG(false, "ì¤‘ë³µëœ ì´ë¦„ì˜ RenderPassê°€ ìˆìŠµë‹ˆë‹¤.\nName: %s", find->first.c_str());
 			return false;
 		}
 		using InsertResult = DKPair<DKHashMap<DKString, RenderPass>::iterator, bool>;
 		InsertResult insertResult = _renderPassMap.insert(DKPair<DKString, RenderPass>(renderPassName, RenderPass()));
 		if (insertResult.second == false)
 		{
-			DK_ASSERT_LOG(false, "HashMap Insert¿¡ ½ÇÆĞ!");
+			DK_ASSERT_LOG(false, "HashMap Insertì— ì‹¤íŒ¨!");
 			return false;
 		}
 
@@ -1064,7 +1064,7 @@ namespace DK
 			PipelineFindResult foundPipeline = renderPass._pipelineMap.find(pipelineName);
 			if (foundPipeline != renderPass._pipelineMap.end())
 			{
-				DK_ASSERT_LOG(false, "Áßº¹µÈ ÀÌ¸§ÀÇ Pipeline(%s)ÀÌ °°Àº RenderPass(%s) ³»¿¡ ÀÖ½À´Ï´Ù.", pipelineName.c_str(), renderPassName.c_str());
+				DK_ASSERT_LOG(false, "ì¤‘ë³µëœ ì´ë¦„ì˜ Pipeline(%s)ì´ ê°™ì€ RenderPass(%s) ë‚´ì— ìˆìŠµë‹ˆë‹¤.", pipelineName.c_str(), renderPassName.c_str());
 				continue;
 			}
 
@@ -1146,7 +1146,7 @@ namespace DK
 
 		if (FAILED(hr) == true)
 		{
-			DK_ASSERT_LOG(false, "CreateBuffer Failed! ·£´õ¸µÀÌ Á¤»óÀûÀÌÁö ¾ÊÀ» ¼ö ÀÖ½À´Ï´Ù.");
+			DK_ASSERT_LOG(false, "CreateBuffer Failed! ëœë”ë§ì´ ì •ìƒì ì´ì§€ ì•Šì„ ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
 			return nullptr;
 		}
 
@@ -1175,7 +1175,7 @@ namespace DK
 
 		void* uploadBufferGPUAddress = nullptr;
 		HRESULT hr = uploadBuffer->Map(0, nullptr, &uploadBufferGPUAddress);
-		DK_ASSERT_LOG(SUCCEEDED(hr), "Map ½ÇÆĞ");
+		DK_ASSERT_LOG(SUCCEEDED(hr), "Map ì‹¤íŒ¨");
 		memcpy(uploadBufferGPUAddress, data, bufferSize);
 
 		D3D12_RESOURCE_STATES defaultBufferState = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -1254,7 +1254,7 @@ namespace DK
 		InsertResult insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(name, dk_new ITexture(name, index)));
 		if (insertResult.second == false)
 		{
-			DK_ASSERT_LOG(false, "HashMap Insert½ÇÆĞ. ÇØ½Ã ÀÚÃ¼ÀÇ ¿À·ùÀÏ ¼ö ÀÖÀ½");
+			DK_ASSERT_LOG(false, "HashMap Insertì‹¤íŒ¨. í•´ì‹œ ìì²´ì˜ ì˜¤ë¥˜ì¼ ìˆ˜ ìˆìŒ");
 			return nullptr;
 		}
 
@@ -1374,8 +1374,8 @@ namespace DK
 		const bool loadingTextureSuccess = loadImageDataFromFile(textureFullPath.c_str(), textureRaw);
 		if (loadingTextureSuccess == false)
 		{
-			DK_ASSERT_LOG(false, "TextureData ·Îµù¿¡ ½ÇÆĞÇß½À´Ï´Ù.");
-			// #todo- Null RefPtrÀ» staticÇÏ°Ô ¸¸µé°í ±×°Å ¹İÈ¯ÇØ¾ßÇÔ
+			DK_ASSERT_LOG(false, "TextureData ë¡œë”©ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.");
+			// #todo- Null RefPtrì„ staticí•˜ê²Œ ë§Œë“¤ê³  ê·¸ê±° ë°˜í™˜í•´ì•¼í•¨
 		}
 
 		D3D12_RESOURCE_DESC resourceDescription = {};
@@ -1400,12 +1400,12 @@ namespace DK
 		heapProperty.CreationNodeMask = 1;
 		heapProperty.VisibleNodeMask = 1;
 		ID3D12Resource* defaultBuffer;
-		// #todo- createcommittedresource°¡ ½ÇÆĞÇÒ ¼ö ÀÖ½À´Ï´Ù. ¿¹¿Ü Ã³¸®°¡ ÇÊ¿äÇÔ!
+		// #todo- createcommittedresourceê°€ ì‹¤íŒ¨í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤. ì˜ˆì™¸ ì²˜ë¦¬ê°€ í•„ìš”í•¨!
 		HRESULT hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&defaultBuffer));
 		if (FAILED(hr) == true)
 		{
-			DK_ASSERT_LOG(false, "TextureData ·Îµù¿¡ ½ÇÆĞÇß½À´Ï´Ù.");
-			// #todo- Null RefPtrÀ» staticÇÏ°Ô ¸¸µé°í ±×°Å ¹İÈ¯ÇØ¾ßÇÔ
+			DK_ASSERT_LOG(false, "TextureData ë¡œë”©ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.");
+			// #todo- Null RefPtrì„ staticí•˜ê²Œ ë§Œë“¤ê³  ê·¸ê±° ë°˜í™˜í•´ì•¼í•¨
 		}
 		defaultBuffer->SetName(L"DefaultBuffer - Texture");
 
@@ -1430,8 +1430,8 @@ namespace DK
 		hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer));
 		if (FAILED(hr) == true)
 		{
-			DK_ASSERT_LOG(false, "TextureData ·Îµù¿¡ ½ÇÆĞÇß½À´Ï´Ù.");
-			// #todo- Null RefPtrÀ» staticÇÏ°Ô ¸¸µé°í ±×°Å ¹İÈ¯ÇØ¾ßÇÔ
+			DK_ASSERT_LOG(false, "TextureData ë¡œë”©ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.");
+			// #todo- Null RefPtrì„ staticí•˜ê²Œ ë§Œë“¤ê³  ê·¸ê±° ë°˜í™˜í•´ì•¼í•¨
 		}
 		uploadBuffer->SetName(L"UploadBuffer - Texture");
 
@@ -1457,7 +1457,7 @@ namespace DK
 		EnsureMainThread();
 
 		const size_t insertResult = _textureContainer.erase(path);
-		DK_ASSERT_LOG(insertResult == 1, "TextureContainer¿¡ ¾ø´Â TextureSRV¸¦ ÇØÁ¦ ½ÃµµÇÕ´Ï´Ù.\nPath: %s", path.c_str());
+		DK_ASSERT_LOG(insertResult == 1, "TextureContainerì— ì—†ëŠ” TextureSRVë¥¼ í•´ì œ ì‹œë„í•©ë‹ˆë‹¤.\nPath: %s", path.c_str());
 		_deletedTextureSRVArr.push_back(srvIndex);
 	}
 
@@ -1567,7 +1567,7 @@ namespace DK
 		case D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED:
 		case D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH:
 		default:
-			DK_ASSERT_LOG(false, "Áö¿øÇÏÁö ¾Ê´À TypeÀ» ÁöÁ¤ÇÏ¿´½À´Ï´Ù. PipelineÀ» È®ÀÎÇØÁÖ¼¼¿ä.");
+			DK_ASSERT_LOG(false, "ì§€ì›í•˜ì§€ ì•ŠëŠ Typeì„ ì§€ì •í•˜ì˜€ìŠµë‹ˆë‹¤. Pipelineì„ í™•ì¸í•´ì£¼ì„¸ìš”.");
 			return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 		}
 	}
@@ -1624,7 +1624,7 @@ namespace DK
 		UINT syncInterval = 0; //gVSync ? 1 : 0;
 		UINT presentFlags = 0; // CheckTearingSupport() && !gVSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
 		HRESULT hr = _swapChain->Present(syncInterval, presentFlags);
-		DK_ASSERT_LOG(SUCCEEDED(hr), "Present ½ÇÆĞ!");
+		DK_ASSERT_LOG(SUCCEEDED(hr), "Present ì‹¤íŒ¨!");
 	}
 
 	bool DKCommandList::reset()
@@ -1639,13 +1639,13 @@ namespace DK
 
 	void IBuffer::upload(const void* data)
 	{
-		//DK_ASSERT_LOG(data != nullptr, "nullptrÀÎ data¸¦ upload¿äÃ»ÇÏ·Á°íÇÕ´Ï´Ù.");
+		//DK_ASSERT_LOG(data != nullptr, "nullptrì¸ dataë¥¼ uploadìš”ì²­í•˜ë ¤ê³ í•©ë‹ˆë‹¤.");
 
 		_lastUploadIndex = (_lastUploadIndex + 1) % 2;
 
 		void* address = nullptr;
 		HRESULT hr = _buffers[_lastUploadIndex]->Map(0, nullptr, &address);
-		DK_ASSERT_LOG(SUCCEEDED(hr), "Map¿¡ ½ÇÆĞÇÏ¿´½À´Ï´Ù.");
+		DK_ASSERT_LOG(SUCCEEDED(hr), "Mapì— ì‹¤íŒ¨í•˜ì˜€ìŠµë‹ˆë‹¤.");
 		memcpy(address, data, _bufferSize);
 		_buffers[_lastUploadIndex]->Unmap(0, nullptr);
 	}

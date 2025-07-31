@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 namespace DK
 {
@@ -28,7 +28,7 @@ namespace DK
 		{
 			if (_duckingEngine != nullptr)
 			{
-				DK_ASSERT_LOG(false, "EngineÀ» 2°³ »ı¼ºÀ» ½ÃµµÇÏ°í ÀÖ½À´Ï´Ù. ¹İµå½Ã °ËÅä ¹Ù¶ø´Ï´Ù.");
+				DK_ASSERT_LOG(false, "Engineì„ 2ê°œ ìƒì„±ì„ ì‹œë„í•˜ê³  ìˆìŠµë‹ˆë‹¤. ë°˜ë“œì‹œ ê²€í†  ë°”ëë‹ˆë‹¤.");
 			}
 		}
 

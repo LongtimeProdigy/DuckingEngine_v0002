@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "DuckingEngine.h"
 
 #include "InputModule.h"
@@ -36,9 +36,9 @@ namespace DK
 		if (InputModule::InitializeXBOXController(0) == false) 
 			return false;
 
-		// SceneRendererÀÇ Initialize¿¡ RenderModuleÀÌ ÇÊ¿äÇÏ±â¶§¹®¿¡ ¸ÕÀú »ı¼º
-		// #todo- RenderModuleÀº SceneRenderer¿¡¼­¸¸ ¾²±â·Î ÇÒ ¼ö ÀÖ´Ù¸é.. SceneRendererÀÇ »ı¼ºÀÚ¿¡¼­ RenderModuleÀ» initializeÇÏ´Â ¹æÇâÀÌ ÁÁ¾Æº¸ÀÓ
-		// >> DuckingEngine::getInstance().getRenderModule()À» ÅëÇØ¼­ RenderModule¿¡ Á¢±ÙÇÏ´Â ÄÚµå°¡ ³Ê¹« ¸¹À½
+		// SceneRendererì˜ Initializeì— RenderModuleì´ í•„ìš”í•˜ê¸°ë•Œë¬¸ì— ë¨¼ì € ìƒì„±
+		// #todo- RenderModuleì€ SceneRendererì—ì„œë§Œ ì“°ê¸°ë¡œ í•  ìˆ˜ ìˆë‹¤ë©´.. SceneRendererì˜ ìƒì„±ìì—ì„œ RenderModuleì„ initializeí•˜ëŠ” ë°©í–¥ì´ ì¢‹ì•„ë³´ì„
+		// >> DuckingEngine::getInstance().getRenderModule()ì„ í†µí•´ì„œ RenderModuleì— ì ‘ê·¼í•˜ëŠ” ì½”ë“œê°€ ë„ˆë¬´ ë§ìŒ
 		_renderModule = dk_new RenderModule;
 		if (_renderModule->initialize(hwnd, width, height) == false) 
 			return false;
@@ -47,8 +47,8 @@ namespace DK
 		Transform cameraTransform(float3(0, 50, -200), Quaternion::Identity, float3::Identity);
 		Camera::gMainCamera->set_worldTransform(cameraTransform);
 
-		// Camera Á¤º¸°¡ ÇÊ¿äÇÏ±â ¶§¹®¿¡ ÀÌ °÷¿¡¼­ SceneConstantBuffer¸¦ »ı¼ºÇÕ´Ï´Ù.
-		// #todo- ¾îÂ÷ÇÇ ¸ÅÇÁ·¹ÀÓ ¾÷µ¥ÀÌÆ®ÇÏ±â ¶§¹®¿¡ ±»ÀÌ ÀÌ·¸°Ô ÇÒ ÇÊ¿ä´Â ¾øÀ½.. PreRenderÁ÷ÈÄ ¹Ù·Î ¾÷µ¥ÀÌÆ®ÇÏ±â ¶§¹®
+		// Camera ì •ë³´ê°€ í•„ìš”í•˜ê¸° ë•Œë¬¸ì— ì´ ê³³ì—ì„œ SceneConstantBufferë¥¼ ìƒì„±í•©ë‹ˆë‹¤.
+		// #todo- ì–´ì°¨í”¼ ë§¤í”„ë ˆì„ ì—…ë°ì´íŠ¸í•˜ê¸° ë•Œë¬¸ì— êµ³ì´ ì´ë ‡ê²Œ í•  í•„ìš”ëŠ” ì—†ìŒ.. PreRenderì§í›„ ë°”ë¡œ ì—…ë°ì´íŠ¸í•˜ê¸° ë•Œë¬¸
 		_sceneRenderer = dk_new SceneRenderer;
 		if (_sceneRenderer->initialize() == false) 
 			return false;
@@ -59,7 +59,6 @@ namespace DK
 		_sceneObjectManager = dk_new SceneObjectManager;
 
 #if defined(_DK_DEBUG_)
-		// ÇöÀç Editor´Â »ç¿ëÇÏÁö ¾Ê¾Æ ¾Æ¹«°Íµµ ÇÏÁö ¾Ê½À´Ï´Ù.
 		EditorDebugDrawManager::getSingleton().initialize();
 #endif
 

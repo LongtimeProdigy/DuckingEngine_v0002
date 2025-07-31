@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 namespace DK
 {
@@ -24,7 +24,7 @@ namespace DK
 		"Texture",
 	};
 
-	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_COUNT_OF(gMaterialParameterTypeName) - 1), "Type°ú TypeName °³¼ö°¡ ÀÏÄ¡µÇ¾î¾ßÇÕ´Ï´Ù.");
+	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_COUNT_OF(gMaterialParameterTypeName) - 1), "Typeê³¼ TypeName ê°œìˆ˜ê°€ ì¼ì¹˜ë˜ì–´ì•¼í•©ë‹ˆë‹¤.");
 	dk_inline MaterialParameterType convertStringToEnum(const char* str)
 	{
 		const uint32 count = static_cast<uint32>(MaterialParameterType::COUNT);
@@ -112,7 +112,7 @@ namespace DK
 
 	private:
 		const T _defaultValue;
-		T _value;				// ITextureÀÇ RefCount °ü¸®¸¦ À§ÇØ¼­ µé°í ÀÖ¾î¾ßÇÕ´Ï´Ù.
+		T _value;				// ITextureì˜ RefCount ê´€ë¦¬ë¥¼ ìœ„í•´ì„œ ë“¤ê³  ìˆì–´ì•¼í•©ë‹ˆë‹¤.
 	};
 
 	using MaterialParameterFloat = MaterialParameterTemplate<float>;

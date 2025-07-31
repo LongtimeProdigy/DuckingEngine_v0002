@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #pragma comment(lib, "XInput.lib") 
 #include <Xinput.h>
@@ -19,7 +19,6 @@ namespace DK
 		dk_inline const bool IsConnected() noexcept
 		{
 			ZeroMemory(&_xInputState, sizeof(XINPUT_STATE));
-			//Sleep(30);  // CPU Á¡À¯À² 100% ¹æÁö
 			DWORD Result = XInputGetState(_playerNumber, &_xInputState);
 
 			_joyStickL = float2((float)_xInputState.Gamepad.sThumbLX / 32767, (float)_xInputState.Gamepad.sThumbLY / 32767);

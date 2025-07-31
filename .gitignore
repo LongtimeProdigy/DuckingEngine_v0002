@@ -339,3 +339,11 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 *.ini
+
+# except lib
+!lib/dxc_2025_07_14/[Bb]in/[Aa]rm64
+!lib/dxc_2025_07_14/[Bb]in/x86
+!lib/dxc_2025_07_14/[Bb]in/x64
+!lib/dxc_2025_07_14/lib/[Aa]rm64
+!lib/dxc_2025_07_14/lib/x64
+!lib/dxc_2025_07_14/lib/x86

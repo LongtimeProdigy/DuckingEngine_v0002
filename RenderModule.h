@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 struct ID3D12Device8;
 struct ID3D12RootSignature;
@@ -26,7 +26,7 @@ namespace DK
 	struct IBuffer;
 	struct DKCommandList;
 
-	// MaterialParameter·Î ¾²ÀÌ´Â TypeÀº POD¸¦ À¯ÁöÇØ¾ßÇÕ´Ï´Ù. (memcpy¸¦ ÇÏ±â¶§¹®)
+	// MaterialParameterë¡œ ì“°ì´ëŠ” Typeì€ PODë¥¼ ìœ ì§€í•´ì•¼í•©ë‹ˆë‹¤. (memcpyë¥¼ í•˜ê¸°ë•Œë¬¸)
 	class ITexture
 	{
 	public:
@@ -65,7 +65,7 @@ namespace DK
 	{
 		ShaderParameterType _type = ShaderParameterType::Count;
 		uint32 _register = -1;
-		uint32 _rootParameterIndex = -1;		// createRenderPass ½ÃÁ¡¿¡ ¼³Á¤ (³ª¸ÓÁö´Â Resource·ÎºÎÅÍ)
+		uint32 _rootParameterIndex = -1;		// createRenderPass ì‹œì ì— ì„¤ì • (ë‚˜ë¨¸ì§€ëŠ” Resourceë¡œë¶€í„°)
 	};
 
 	struct Pipeline
@@ -125,7 +125,7 @@ namespace DK
 		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
 		{
 			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
-			DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "Á¸ÀçÇÏÁö ¾Ê´Â ShaderParameterÀ» Ã£½À´Ï´Ù.\nShaderParameterName: %s", name.c_str());
+			DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "ì¡´ì¬í•˜ì§€ ì•ŠëŠ” ShaderParameterì„ ì°¾ìŠµë‹ˆë‹¤.\nShaderParameterName: %s", name.c_str());
 #ifdef _DK_DEBUG_
 			if (iter == _shaderParameterMap.end())
 				return nullptr;
@@ -149,8 +149,8 @@ namespace DK
 		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
 		{
 			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
-			// RenderPass¿¡¼­ ¾ø´Ù¸é Pipeline¿¡¼­ Ã£¾Æ¾ßÇÔ
-			//DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "Á¸ÀçÇÏÁö ¾Ê´Â ShaderParameterÀ» Ã£½À´Ï´Ù.\nShaderParameterName: %s", name.c_str());
+			// RenderPassì—ì„œ ì—†ë‹¤ë©´ Pipelineì—ì„œ ì°¾ì•„ì•¼í•¨
+			//DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "ì¡´ì¬í•˜ì§€ ì•ŠëŠ” ShaderParameterì„ ì°¾ìŠµë‹ˆë‹¤.\nShaderParameterName: %s", name.c_str());
 #ifdef _DK_DEBUG_
 			if (iter == _shaderParameterMap.end())
 				return nullptr;
@@ -161,7 +161,7 @@ namespace DK
 		dk_inline Pipeline* getPipeline(const DKString& pipelineName)
 		{
 			DKHashMap<DKString, Pipeline>::iterator iter = _pipelineMap.find(pipelineName);
-			DK_ASSERT_LOG(iter != _pipelineMap.end(), "Á¸ÀçÇÏÁö ¾Ê´Â PipelineÀ» Ã£½À´Ï´Ù.\nPipelineName: %s", pipelineName.c_str());
+			DK_ASSERT_LOG(iter != _pipelineMap.end(), "ì¡´ì¬í•˜ì§€ ì•ŠëŠ” Pipelineì„ ì°¾ìŠµë‹ˆë‹¤.\nPipelineName: %s", pipelineName.c_str());
 #ifdef _DK_DEBUG_
 			if (iter == _pipelineMap.end())
 				return nullptr;
@@ -178,13 +178,13 @@ namespace DK
 #define RENDERING_ALREADY_BIND(object, name) \
 if(object != nullptr) \
 { \
-	DK_ASSERT_LOG(false, "ÀÌ¹Ì BindµÇ¾î ÀÖ½À´Ï´Ù. Bind¸¦ °Ç³Ê¶İ´Ï´Ù. Name: %s", name); \
+	DK_ASSERT_LOG(false, "ì´ë¯¸ Bindë˜ì–´ ìˆìŠµë‹ˆë‹¤. Bindë¥¼ ê±´ë„ˆëœë‹ˆë‹¤. Name: %s", name); \
 	break; \
 }
 #define RENDERING_VERIFY(object, name) \
 if (object == nullptr) \
 { \
-	DK_ASSERT_LOG(false, "Object¸¦ Ã£Áö ¸øÇß½À´Ï´Ù. Bind¸¦ °Ç³Ê¶İ´Ï´Ù. Name: %s", name); \
+	DK_ASSERT_LOG(false, "Objectë¥¼ ì°¾ì§€ ëª»í–ˆìŠµë‹ˆë‹¤. Bindë¥¼ ê±´ë„ˆëœë‹ˆë‹¤. Name: %s", name); \
 	break; \
 }
 #else
@@ -249,13 +249,13 @@ do{ \
 		bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
 
 		bool createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
-		// #todo- Container ÀÌ¿ëÇØµµµÉµí?
+		// #todo- Container ì´ìš©í•´ë„ë ë“¯?
 		IBuffer* createUploadBuffer(const uint32 size, const DKStringW& debugName);
 		const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName);
 		const bool createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView, const DKStringW& debugName);
 
-		// SceneRenderer Àü¿ë ÇÔ¼ö
-		void preRender();			// RenderTaget µîÀ» ¼³Á¤ÇÏ´Âµ¥.. ÀÌ°Ç RenderPass SetÀ¸·Î ¿Å°Ü¾ßÇÒµí. Áö±İÀº RenderTargetÀÌ ÇÏ³ª´Ï ÇÏ³ª·Î »©µÒ
+		// SceneRenderer ì „ìš© í•¨ìˆ˜
+		void preRender();			// RenderTaget ë“±ì„ ì„¤ì •í•˜ëŠ”ë°.. ì´ê±´ RenderPass Setìœ¼ë¡œ ì˜®ê²¨ì•¼í• ë“¯. ì§€ê¸ˆì€ RenderTargetì´ í•˜ë‚˜ë‹ˆ í•˜ë‚˜ë¡œ ë¹¼ë‘ 
 		void bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget);
 		bool bindPipeline(Pipeline& pipeline);
 		void bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress);
@@ -265,7 +265,7 @@ do{ \
 		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
 		void endRender();
 
-		// helper ÇÔ¼ö
+		// helper í•¨ìˆ˜
 		ITextureRef allocateTexture(const DKString& path);
 		void deallocateTextureSRV(const DKString& path, const ITexture::TextureSRVType srvIndex);
 
@@ -273,7 +273,7 @@ do{ \
 		{
 			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
 			FindResult find = _renderPassMap.find(renderPassName);
-			DK_ASSERT_LOG(find != _renderPassMap.end(), "Á¸ÀçÇÏÁö ¾Ê´Â RenderPass¸¦ Bind½ÃµµÇÕ´Ï´Ù.\nName: %s", renderPassName.c_str());
+			DK_ASSERT_LOG(find != _renderPassMap.end(), "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ê´ï¿½ RenderPassï¿½ï¿½ Bindï¿½Ãµï¿½ï¿½Õ´Ï´ï¿½.\nName: %s", renderPassName.c_str());
 #ifdef _DK_DEBUG_
 			if (find == _renderPassMap.end())
 				return nullptr;

@@ -109,7 +109,9 @@
     <ClCompile Include="ModelProperty.cpp">
       <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
-    <ClCompile Include="SceneManager.cpp" />
+    <ClCompile Include="SceneManager.cpp">
+      <Filter>1. EngineCore</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
@@ -219,7 +221,9 @@
     <ClInclude Include="ModelProperty.h">
       <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
-    <ClInclude Include="SceneManager.h" />
+    <ClInclude Include="SceneManager.h">
+      <Filter>1. EngineCore</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="0. Common">

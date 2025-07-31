@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "InputModule.h"
 
 #include "ComputerController.h"
@@ -36,7 +36,7 @@ namespace DK
 		if (kBlock)
 			return;
 
-		gXBOXController->IsConnected();	// isConnect°¡ Update¸¦ ´ë½ÅÇÕ´Ï´Ù.
+		gXBOXController->IsConnected();
 		gComputerController->Update();
 	}
 

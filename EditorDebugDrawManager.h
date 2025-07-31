@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 namespace DK
 {
@@ -21,7 +21,7 @@ namespace DK
 			{}
 
 			float3 _worldPosition;
-			float _radius = 1.0f;	// _radius�� _color �����γ����� class alignment�� ���ؼ� data upload�ÿ� ���� Ʋ����
+			float _radius = 1.0f;	// _radius를 _color 밑으로내리면 class alignment로 인해서 data upload시에 값이 틀어짐
 			float3 _color;
 			float _padding = 1.0f;
 		};
@@ -63,7 +63,7 @@ namespace DK
 		{
 			if (_primitiveInfoSphereArr.size() >= MAX_ELEMENT_COUNT)
 			{
-				DK_ASSERT_LOG(false, "�ִ� ������ �Ѿ�ϴ�. ������ ���۰� ������� �ʽ��ϴ�. �ǳʶݴϴ�.");
+				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
 				return;
 			}
 			_primitiveInfoSphereArr.push_back(SpherePrimitiveInfo(worldPosition, color, radius));
@@ -72,7 +72,7 @@ namespace DK
 		{
 			if (_primitiveInfoLineArr.size() >= MAX_ELEMENT_COUNT)
 			{
-				DK_ASSERT_LOG(false, "�ִ� ������ �Ѿ�ϴ�. ������ ���۰� ������� �ʽ��ϴ�. �ǳʶݴϴ�.");
+				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
 				return;
 			}
 			_primitiveInfoLineArr.push_back(LinePrimitiveInfo(startWorldPosition, endWorldPosition, color));
@@ -81,7 +81,7 @@ namespace DK
 		{
 			if (_primitiveInfoLineArr.size() >= MAX_ELEMENT_COUNT)
 			{
-				DK_ASSERT_LOG(false, "�ִ� ������ �Ѿ�ϴ�. ������ ���۰� ������� �ʽ��ϴ�. �ǳʶݴϴ�.");
+				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
 				return;
 			}
 

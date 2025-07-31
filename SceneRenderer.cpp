@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "SceneRenderer.h"
 
 #include "DuckingEngine.h"
@@ -50,15 +50,15 @@ namespace DK
 		const char* parameterTypeStr = variableNode->ToElement()->Attribute("Type");
 		const char* parameterRegisterStr = variableNode->ToElement()->Attribute("Register");
 
-		DK_ASSERT_LOG(parameterNameStr != nullptr && parameterTypeStr != nullptr && parameterRegisterStr != nullptr, "RenderPassÀÇ Parameter°¡ ºñÁ¤»óÀÎ »óÈ². ¿£ÁøÀÌ ºñÁ¤»ó ÀÛµ¿ÇÒ ¼ö ÀÖ½À´Ï´Ù.");
+		DK_ASSERT_LOG(parameterNameStr != nullptr && parameterTypeStr != nullptr && parameterRegisterStr != nullptr, "RenderPassì˜ Parameterê°€ ë¹„ì •ìƒì¸ ìƒí™©. ì—”ì§„ì´ ë¹„ì •ìƒ ì‘ë™í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
 
 		const ShaderParameterType variableType = convertStringToEnum2(parameterTypeStr);
-		DK_ASSERT_LOG(variableType != ShaderParameterType::Count, "RenderPassÀÇ ParameterTypeÀÌ Á¤È®ÇÏÁö ¾Ê½À´Ï´Ù.\nType: %s", parameterTypeStr);
+		DK_ASSERT_LOG(variableType != ShaderParameterType::Count, "RenderPassì˜ ParameterTypeì´ ì •í™•í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.\nType: %s", parameterTypeStr);
 		const uint32 variableRegister = atoi(parameterRegisterStr);
 
 		if (variableType == ShaderParameterType::Count)
 		{
-			DK_ASSERT_LOG(false, "ÇöÀç Áö¿øÇÏÁö ¾Ê´Â MaterialTypeÀ» »ç¿ëÇÏ¿´½À´Ï´Ù. ParameterName: %s, ParameterType: %d", parameterNameStr, variableType);
+			DK_ASSERT_LOG(false, "í˜„ì¬ ì§€ì›í•˜ì§€ ì•ŠëŠ” MaterialTypeì„ ì‚¬ìš©í•˜ì˜€ìŠµë‹ˆë‹¤. ParameterName: %s, ParameterType: %d", parameterNameStr, variableType);
 			return false;
 		}
 
@@ -134,7 +134,7 @@ namespace DK
 							{
 								DKString layoutElementType = layoutElement->Attribute("Type");
 								DKString layoutElementName = layoutElement->GetText();
-								DK_ASSERT_LOG(layoutElementType.empty() == false, "TypeÀÌ ºñ¾îÀÖÀ¸¸é ¾ÈµÊ");
+								DK_ASSERT_LOG(layoutElementType.empty() == false, "Typeì´ ë¹„ì–´ìˆìœ¼ë©´ ì•ˆë¨");
 								if (layoutElementType == "uint4")
 									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::UINT4, layoutElementName });
 								else if (layoutElementType == "float2")
@@ -166,7 +166,7 @@ namespace DK
 						}
 						else
 						{
-							DK_ASSERT_LOG(false, "Áö¿øÇÏÁö Pipeline ChildNodeÀÔ´Ï´Ù. NodeName: %s", pipelineChildNodeName.c_str());
+							DK_ASSERT_LOG(false, "ì§€ì›í•˜ì§€ Pipeline ChildNodeì…ë‹ˆë‹¤. NodeName: %s", pipelineChildNodeName.c_str());
 							return false;
 						}
 					}
@@ -175,7 +175,7 @@ namespace DK
 				}
 				else
 				{
-					DK_ASSERT_LOG(false, "Áö¿øÇÏÁö RenderPass ChildNodeÀÔ´Ï´Ù. NodeName: %s", renderPassChildNodeName.c_str());
+					DK_ASSERT_LOG(false, "ì§€ì›í•˜ì§€ RenderPass ChildNodeì…ë‹ˆë‹¤. NodeName: %s", renderPassChildNodeName.c_str());
 					return false;
 				}
 			}
@@ -193,7 +193,7 @@ namespace DK
 		TiXmlDocument materialDefinitionDocument;
 		if (materialDefinitionDocument.LoadFile(materialDefinitionFilePath.c_str()) == false)
 		{
-			DK_ASSERT_LOG(false, "MaterialDefinition XML ÆÄÀÏÀÇ °æ·Î°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù.");
+			DK_ASSERT_LOG(false, "MaterialDefinition XML íŒŒì¼ì˜ ê²½ë¡œê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.");
 			return false;
 		}
 		TiXmlElement* materialDefinitionRootNode = materialDefinitionDocument.RootElement();
@@ -202,7 +202,7 @@ namespace DK
 			ScopeString<DK_MAX_BUFFER> materialNodeName = materialNode->Value();
 			if (materialNodeName != "Material")
 			{
-				DK_ASSERT_LOG(false, "MaterialDefinitionÀÇ ChildÁß ¿Ã¹Ù¸£Áö ¾ÊÀº Node°¡ ÀÖ½À´Ï´Ù.");
+				DK_ASSERT_LOG(false, "MaterialDefinitionì˜ Childì¤‘ ì˜¬ë°”ë¥´ì§€ ì•Šì€ Nodeê°€ ìˆìŠµë‹ˆë‹¤.");
 				continue;
 			}
 
@@ -221,7 +221,7 @@ namespace DK
 			FindResult findResult = _materialDefinitionMap.find(materialName);
 			if (findResult != _materialDefinitionMap.end())
 			{
-				DK_ASSERT_LOG(false, "Áßº¹µÈ ÀÌ¸§ÀÇ MaterialDefinitionÀÌ ÀÖ½À´Ï´Ù.");
+				DK_ASSERT_LOG(false, "ì¤‘ë³µëœ ì´ë¦„ì˜ MaterialDefinitionì´ ìˆìŠµë‹ˆë‹¤.");
 				return false;
 			}
 
@@ -246,7 +246,7 @@ namespace DK
 					parameterDefinition._value = value;
 					break;
 				default:
-					DK_ASSERT_LOG(false, "Áö¿øÇÏÁö ¾Ê´Â MaterialParameterDefinition TypeÀÔ´Ï´Ù.");
+					DK_ASSERT_LOG(false, "ì§€ì›í•˜ì§€ ì•ŠëŠ” MaterialParameterDefinition Typeì…ë‹ˆë‹¤.");
 					break;
 				}
 
@@ -257,7 +257,7 @@ namespace DK
 			InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, DK::move(materialDefinition)));
 			if (insertResult.second == false)
 			{
-				DK_ASSERT_LOG(false, "HashMap Insert ½ÇÆĞ!");
+				DK_ASSERT_LOG(false, "HashMap Insert ì‹¤íŒ¨!");
 				return false;
 			}
 		}
@@ -266,9 +266,9 @@ namespace DK
 	}
 	bool SceneRenderer::initialize_createSceneConstantBuffer()
 	{
-		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera°¡ ¸ÕÀú »ı¼ºµÇ¾î¾ßÇÕ´Ï´Ù.");
+		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCameraê°€ ë¨¼ì € ìƒì„±ë˜ì–´ì•¼í•©ë‹ˆë‹¤.");
 
-		// »ç½Ç UpdateRenderÇÔ¼ö¿¡¼­ _sceneConstantBuffer¸¦ UploadÇÏ±â ¶§¹®¿¡ ¿©±â¼­ Camera°¡ ÇÊ¿äÇÏÁø ¾ÊÀ» ¼ö ÀÖÀ½
+		// ï¿½ï¿½ï¿½ UpdateRenderï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ _sceneConstantBufferï¿½ï¿½ Uploadï¿½Ï±ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½â¼­ Cameraï¿½ï¿½ ï¿½Ê¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
 		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
 
@@ -326,9 +326,9 @@ namespace DK
 			uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 			for (uint32 i = 0; i < componentCount; ++i)
 			{
-				// #todo- component ¿ÏÀü °³Æí ÇÊ¿äÇØº¸ÀÓ.
-				// for¹®ÀÌ ¾Æ´Ï¶ó unity, unreal¿¡¼­´Â GetComponent<T>°¡ ¾î¶»°Ô ÀÛµ¿ÇÏ´ÂÁö º¸°í °³ÆíÇÒ °Í
-				// Âü°í¸µÅ©: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+				// #todo- component ì™„ì „ ê°œí¸ í•„ìš”í•´ë³´ì„.
+				// forë¬¸ì´ ì•„ë‹ˆë¼ unity, unrealì—ì„œëŠ” GetComponent<T>ê°€ ì–´ë–»ê²Œ ì‘ë™í•˜ëŠ”ì§€ ë³´ê³  ê°œí¸í•  ê²ƒ
+				// ì°¸ê³ ë§í¬: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
 				SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[i].get());
 
 				// SkinnedMesh ConstantBuffer
@@ -563,9 +563,9 @@ namespace DK
 					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 					{
-						// #todo- component ¿ÏÀü °³Æí ÇÊ¿äÇØº¸ÀÓ.
-						// for¹®ÀÌ ¾Æ´Ï¶ó unity, unreal¿¡¼­´Â GetComponent<T>°¡ ¾î¶»°Ô ÀÛµ¿ÇÏ´ÂÁö º¸°í °³ÆíÇÒ °Í
-						// Âü°í¸µÅ©: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+						// #todo- component ì™„ì „ ê°œí¸ í•„ìš”í•´ë³´ì„.
+						// forë¬¸ì´ ì•„ë‹ˆë¼ unity, unrealì—ì„œëŠ” GetComponent<T>ê°€ ì–´ë–»ê²Œ ì‘ë™í•˜ëŠ”ì§€ ë³´ê³  ê°œí¸í•  ê²ƒ
+						// ì°¸ê³ ë§í¬: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
 						StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
 
 						DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
@@ -598,9 +598,9 @@ namespace DK
 					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 					{
-						// #todo- component ¿ÏÀü °³Æí ÇÊ¿äÇØº¸ÀÓ.
-						// for¹®ÀÌ ¾Æ´Ï¶ó unity, unreal¿¡¼­´Â GetComponent<T>°¡ ¾î¶»°Ô ÀÛµ¿ÇÏ´ÂÁö º¸°í °³ÆíÇÒ °Í
-						// Âü°í¸µÅ©: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+						// #todo- component ì™„ì „ ê°œí¸ í•„ìš”í•´ë³´ì„.
+						// forë¬¸ì´ ì•„ë‹ˆë¼ unity, unrealì—ì„œëŠ” GetComponent<T>ê°€ ì–´ë–»ê²Œ ì‘ë™í•˜ëŠ”ì§€ ë³´ê³  ê°œí¸í•  ê²ƒ
+						// ì°¸ê³ ë§í¬: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
 						SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
 
 						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());

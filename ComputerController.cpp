@@ -1,10 +1,10 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "ComputerController.h"
 
 namespace DK
 {
-	//DK_ASSERT_LOG(static_cast<uint32>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardState°³¼ö°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù. %d / %d", static_cast<uint32>(KeyboardState::COUNT), KEYBOARDSTATECOUNT);
-	static_assert(static_cast<uint32>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardState°³¼ö°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù.");
+	//DK_ASSERT_LOG(static_cast<uint32>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardStateê°œìˆ˜ê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤. %d / %d", static_cast<uint32>(KeyboardState::COUNT), KEYBOARDSTATECOUNT);
+	static_assert(static_cast<uint32>(KeyboardState::COUNT) < KEYBOARDSTATECOUNT, "KeyboardStateê°œìˆ˜ê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.");
 
 	void ComputerController::initialize()
 	{
@@ -31,12 +31,12 @@ namespace DK
 		ZeroMemory(_keyStates, sizeof(BYTE) * KEYBOARDSTATECOUNT);
 		if (::GetKeyboardState(_keyStates) == TRUE)
 		{
-			// Down, UpÀ» ÇÒ·Á¸é.. _oldKeyState°¡ ÇÊ¿äÇÔ
+			// Down, Upì„ í• ë ¤ë©´.. _oldKeyStateê°€ í•„ìš”í•¨
 		}
 		else
 		{
 			DWORD error = GetLastError();
-			DK_ASSERT_LOG(false, "KeyboardController_KeyCode¸¦ °¡Á®¿À´Âµ¥ ½ÇÆÐÇß½À´Ï´Ù. ErrorCode: %d", error);
+			DK_ASSERT_LOG(false, "KeyboardController_KeyCodeë¥¼ ê°€ì ¸ì˜¤ëŠ”ë° ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤. ErrorCode: %d", error);
 		}
 	}
 }

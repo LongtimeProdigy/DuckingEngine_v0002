@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Material.h"
 
@@ -39,9 +39,9 @@ namespace DK
 		uint32 _padding;
 
 		int _planetRadius = 0;
-		int _planetCentre[3] = { 0, -0, 0 };	// Áö±¸ ¹İÁö¸§ 6371km
+		int _planetCentre[3] = { 0, -0, 0 };	// ì§€êµ¬ ë°˜ì§€ë¦„ 6371km
 
-		int _atmosphereRadius = 6380000 - 6360000;				// ´ë±â ¹İÁö¸§ (1unit = 1m >> 30000  = 30km) [10km ´ë·ù±Ç, 50km ¼ºÃş±Ç, 80km Áß°£±Ç, 600km ¿­±Ç], Áö±¸ ´ë±âÀÇ 99%´Â 30km³»¿¡ Á¸Àç
+		int _atmosphereRadius = 6380000 - 6360000;				// ëŒ€ê¸° ë°˜ì§€ë¦„ (1unit = 1m >> 30000  = 30km) [10km ëŒ€ë¥˜ê¶Œ, 50km ì„±ì¸µê¶Œ, 80km ì¤‘ê°„ê¶Œ, 600km ì—´ê¶Œ], ì§€êµ¬ ëŒ€ê¸°ì˜ 99%ëŠ” 30kmë‚´ì— ì¡´ì¬
 	};
 
 	class SceneRenderer
@@ -70,7 +70,7 @@ namespace DK
 		SceneConstantBuffer _sceneConstantBufferData;
 		Ptr<IBuffer> _sceneConstantBuffer = nullptr;
 
-		mutable AtmosphereConstantBuffer _atmosphereConstantBufferData;	// TODO: Áö±İÀº ingui¶§¹®¿¡ preRender¿¡¼­ setÇÏ±â¶§¹®¿¡ mutableºÙ¾ú´Âµ¥.. UI½Ã½ºÅÛ ±¸¼ºµÇ¸é Áö¿ö¾ßÇÑ´Ù.
+		mutable AtmosphereConstantBuffer _atmosphereConstantBufferData;	// TODO: ì§€ê¸ˆì€ inguië•Œë¬¸ì— preRenderì—ì„œ setí•˜ê¸°ë•Œë¬¸ì— mutableë¶™ì—ˆëŠ”ë°.. UIì‹œìŠ¤í…œ êµ¬ì„±ë˜ë©´ ì§€ì›Œì•¼í•œë‹¤.
 		Ptr<IBuffer> _atmosphereConstantBuffer = nullptr;
 	};
 }

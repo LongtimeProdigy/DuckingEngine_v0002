@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "Application.h"
 
 #include "DuckingEngine.h"
@@ -13,10 +13,10 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 namespace DK
 {
-	// ½Ã°£À» ±¸ÇÏ±â À§ÇÑ º¯¼öµé
-	LARGE_INTEGER g_tSecond;   // ÃÊ´ç Å¬·Ï¼ö    ex) 360  (°íÁ¤°ª)
-	LARGE_INTEGER g_tTime;      // ÀÌÀü Å¬·Ï¼ö    
-	float		  g_fDeltaTime;   // (ÇöÀçÅ¬·Ï¼ö - ÀÌÀüÅ¬·Ï¼ö) / ÃÊ´ç Å¬·Ï¼ö --> ex 36 / 360
+	// ì‹œê°„ì„ êµ¬í•˜ê¸° ìœ„í•œ ë³€ìˆ˜ë“¤
+	LARGE_INTEGER g_tSecond;		// ì´ˆë‹¹ í´ë¡ìˆ˜    ex) 360  (ê³ ì •ê°’)
+	LARGE_INTEGER g_tTime;			// ì´ì „ í´ë¡ìˆ˜    
+	float		  g_fDeltaTime;		// (í˜„ì¬í´ë¡ìˆ˜ - ì´ì „í´ë¡ìˆ˜) / ì´ˆë‹¹ í´ë¡ìˆ˜ --> ex 36 / 360
 
 	LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
@@ -29,7 +29,7 @@ namespace DK
 		{
 			//case WM_SIZE:
 			//{
-			//	DK_ASSERT_LOG(false, "ÇöÀç resize ±â´ÉÀ» Áö¿øÇÏÁö ¾Ê½À´Ï´Ù.");
+			//	DK_ASSERT_LOG(false, "í˜„ì¬ resize ê¸°ëŠ¥ì„ ì§€ì›í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.");
 			//}
 			//break;
 			case WM_KILLFOCUS:
@@ -47,7 +47,7 @@ namespace DK
 			{
 				switch (wParam)
 				{
-				case VK_ESCAPE:	// ESC ´©¸¦ ½Ã ÇÁ·Î±×·¥ Á¾·á
+				case VK_ESCAPE:	// ESC ëˆ„ë¥¼ ì‹œ í”„ë¡œê·¸ë¨ ì¢…ë£Œ
 					if (MessageBox(0, L"Are you sure you want to exit?", L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
 					{
 						DestroyWindow(hwnd);
@@ -68,8 +68,8 @@ namespace DK
 
 	bool Application::initialize(const ApplicationInitializeData& data)
 	{
-		QueryPerformanceFrequency(&g_tSecond);    // ÃÊ´ç Å¬·Ï¼ö °¡Á®¿À±â
-		QueryPerformanceCounter(&g_tTime);  // ÀÌÀü Å¬·Ï¼ö °¡Á®¿À±â
+		QueryPerformanceFrequency(&g_tSecond);
+		QueryPerformanceCounter(&g_tTime);
 
 		if (initializeWindow(data._hInstance, data._showWnd, data._width, data._height, data._fullScreen) == false)
 		{
@@ -92,7 +92,6 @@ namespace DK
 		LPCTSTR windowName = L"DuckingEngine_v001";
 		LPCTSTR windowTitle = L"DuckingEngine_v001";
 
-		// ¾ÕÀ¸·Î ¸¸µé windowÀÇ Á¤º¸¸¦ ÀúÀåÇÕ´Ï´Ù.
 		WNDCLASSEX wc;
 		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -107,7 +106,6 @@ namespace DK
 		wc.lpszClassName = windowName;
 		wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
 
-		// wc¸¦ µî·ÏÇÕ´Ï´Ù.
 		if (false == RegisterClassEx(&wc))
 		{
 			MessageBox(NULL, L"Error registering class", L"Error", MB_OK | MB_ICONERROR);
@@ -120,29 +118,25 @@ namespace DK
 			height = GetSystemMetrics(SM_CYSCREEN);
 		}
 
-		// µî·ÏÇÑ wc¸¦ ÀÌ¿ëÇÏ¿© Ã¢À» ¸¸µì´Ï´Ù.
 		_hwnd = CreateWindowEx(
 			NULL, windowName, windowTitle, WS_OVERLAPPEDWINDOW,
 			CW_USEDEFAULT, CW_USEDEFAULT, width, height,
 			NULL, NULL, hInstance, NULL
 		);
 
-		// Ã¢ÀÌ Á¦´ë·Î ¸¸µé¾îÁöÁö ¾Ê¾Ò´ÂÁö Ã¼Å©!
 		if (_hwnd == nullptr)
 		{
 			MessageBox(NULL, L"Error Creating window", L"Error", MB_OK | MB_ICONERROR);
 			return false;
 		}
 
-		// ÀüÃ¼È­¸éÀÌ¸é Ã¢ ½ºÅ¸ÀÏÀ» Á¦°ÅÇØ¾ßÇÑ´Ù!
+		// ì „ì²´í™”ë©´ì´ë©´ ì°½ ìŠ¤íƒ€ì¼ì„ ì œê±°í•´ì•¼í•œë‹¤!
 		if (fullScreen == true)
 		{
 			SetWindowLong(_hwnd, GWL_STYLE, 0);
 		}
 
-		// Ã¢À» Ç¥½ÃÇÕ´Ï´Ù.
 		ShowWindow(_hwnd, showWnd);
-		// Ã¢À» ¾÷µ¥ÀÌÆ®ÇÕ´Ï´Ù.
 		UpdateWindow(_hwnd);
 
 		return true;
@@ -153,7 +147,7 @@ namespace DK
 		MSG msg;
 		ZeroMemory(&msg, sizeof(MSG));
 
-		// #todo- runningÀ» ÇÕÄ¥ ¼ö ÀÖÀ»±î?
+		// #todo- runningì„ í•©ì¹  ìˆ˜ ìˆì„ê¹Œ?
 		while (true)
 		{
 			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -173,16 +167,13 @@ namespace DK
 
 	void Application::updateFrame()
 	{
-		// DeltaTimeÀ» ±¸ÇØÁØ´Ù.
 		LARGE_INTEGER tTime;
-		QueryPerformanceCounter(&tTime);    // ÇöÀç Å¬·Ï¼ö °¡Á®¿À±â
+		QueryPerformanceCounter(&tTime);
 
-		// È£Ãâ1¹ø´ç ÀÌµ¿½Ã°£ =	ÇöÀç¿Í ÀÌÀü Å¬·Ï¼öÀÇ Â÷ÀÌ  /  1ÃÊ´ç Å¬·Ï¼ö  ex)   36/360  
 		g_fDeltaTime = (tTime.QuadPart - g_tTime.QuadPart) / (float)g_tSecond.QuadPart;
 
 		DuckingEngine::getInstance().Update(g_fDeltaTime);
 
-		// ÀÌÀü½Ã°£À» Áö±İ½Ã°£À¸·Î ÃÊ±âÈ­ÇØÁØ´Ù.
 		g_tTime = tTime;
 	}
 

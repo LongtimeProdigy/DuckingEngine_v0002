@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Object.h"
 
@@ -43,10 +43,10 @@ namespace DK
 		{
 			//outMaterix.Identity;
 
-			// https://marmelo12.tistory.com/338 (h == 1 ÀÌ¶ó´Â °¡Á¤ÇÏ°Ô ¼³¸íÇÏÁö¸¸ ´õ ÀÚ¼¼ÇÏ°Ô ¼³¸íÇØÁÜ)
+			// https://marmelo12.tistory.com/338 (h == 1 ì´ë¼ëŠ” ê°€ì •í•˜ê²Œ ì„¤ëª…í•˜ì§€ë§Œ ë” ìì„¸í•˜ê²Œ ì„¤ëª…í•´ì¤Œ)
 			// https://jw910911.tistory.com/19
-			// DX¿¡¼­ Åõ¿µÇà·ÄÀº (-1~1, -1~1, 0~1) ±îÁöÀÇ ¸ÅÇÎÀÛ¾÷À» ÀÇ¹ÌÇÔ
-			// °á°ú´Â w°¡ zÀÎ µ¿Â÷ÁÂÇ¥°è°¡ ³ª¿Àµµ·Ï Çà·ÄÀ» ±¸¼ºÇØ¾ßÇÔ (ÁøÂ¥ zÀ§Ä¡¸¦ ¾Ë±â À§ÇØ¼­´Â z/w¸¦ ÇØ¾ßÇÑ´Ù´Â ¼Ò¸®)
+			// DXì—ì„œ íˆ¬ì˜í–‰ë ¬ì€ (-1~1, -1~1, 0~1) ê¹Œì§€ì˜ ë§¤í•‘ì‘ì—…ì„ ì˜ë¯¸í•¨
+			// ê²°ê³¼ëŠ” wê°€ zì¸ ë™ì°¨ì¢Œí‘œê³„ê°€ ë‚˜ì˜¤ë„ë¡ í–‰ë ¬ì„ êµ¬ì„±í•´ì•¼í•¨ (ì§„ì§œ zìœ„ì¹˜ë¥¼ ì•Œê¸° ìœ„í•´ì„œëŠ” z/wë¥¼ í•´ì•¼í•œë‹¤ëŠ” ì†Œë¦¬)
 #if 0	// noOptimize
 			const float aspect = static_cast<float>(_width) / static_cast<float>(_height);
 			const float h = _nearPlaneDistance * tanf(_halfFov);

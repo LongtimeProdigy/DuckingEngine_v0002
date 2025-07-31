@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "SceneManager.h"
 
 #include "DuckingEngine.h"
@@ -14,7 +14,7 @@ namespace DK
 		// createSphere
 		// VertexBuffer
 		const uint32 tessellationY = 10;
-		DK_ASSERT_LOG(tessellationY % 2 == 0, "SphereÀÇ TessellationY´Â ¹İµå½Ã Â¦¼ö¿©¾ßÇÕ´Ï´Ù.");
+		DK_ASSERT_LOG(tessellationY % 2 == 0, "Sphereì˜ TessellationYëŠ” ë°˜ë“œì‹œ ì§ìˆ˜ì—¬ì•¼í•©ë‹ˆë‹¤.");
 		const uint32 tessellationX = 10;
 		const float radius = 1.0f; // DK::Math::kFloatMax;
 
@@ -23,7 +23,7 @@ namespace DK
 
 		DKVector<float3> vertexArr;
 		{
-			vertexArr.resize((tessellationY - 1) * tessellationX + 2);	// ¸Ç À§, ¸Ç ¾Æ·¡ Á¡ 2°³´Â µû·Î +·Î Ãß°¡s
+			vertexArr.resize((tessellationY - 1) * tessellationX + 2);	// ë§¨ ìœ„, ë§¨ ì•„ë˜ ì  2ê°œëŠ” ë”°ë¡œ +ë¡œ ì¶”ê°€s
 			uint32 n = 0;
 			vertexArr[n++] = float3(0, radius, 0);
 			for (uint32 i = 1; i < tessellationY; ++i)
@@ -39,11 +39,11 @@ namespace DK
 				}
 			}
 			vertexArr[n++] = float3(0, -radius, 0);
-			DK_ASSERT_LOG(n == vertexArr.size(), "Sphere VertexCount°¡ ¿Ã¹Ù¸£Áö ¾ÊÀ½");
+			DK_ASSERT_LOG(n == vertexArr.size(), "Sphere VertexCountê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŒ");
 		}
 
 		// IndexBuffer
-		// ¸ÇÀ§ »ï°¢Çü + Áß°£¶óÀÎ + ¸Ç ¸¶Áö¸· Á¡
+		// ï¿½ï¿½ï¿½ï¿½ ï¿½ï°¢ï¿½ï¿½ + ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
 		const uint32 indexCount = (tessellationX * 3) + (tessellationX * 6) * (tessellationY - 2) + (tessellationX * 3);
 		DKVector<uint32> indexArr;
 		{
@@ -73,7 +73,7 @@ namespace DK
 					}
 				}
 			}
-			DK_ASSERT_LOG(n == indexArr.size(), "Sphere IndexCount°¡ ¿Ã¹Ù¸£Áö ¾ÊÀ½");
+			DK_ASSERT_LOG(n == indexArr.size(), "Sphere IndexCountê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŒ");
 		}
 
 		VertexBufferViewRef vertexBufferView;
@@ -118,7 +118,7 @@ namespace DK
 			vertexArr[n++] = float2(0, i - float(SceneManager::TILE_RESOLUTION));
 			vertexArr[n++] = float2(1, i - float(SceneManager::TILE_RESOLUTION));
 		}
-		DK_ASSERT_LOG(n == vertexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == vertexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		DKVector<uint32> indexArr;
 		indexArr.resize(SceneManager::TILE_RESOLUTION * 24 + 6);
@@ -156,7 +156,7 @@ namespace DK
 			indexArr[n++] = start_of_vertical + br;
 			indexArr[n++] = start_of_vertical + bl;
 		}
-		DK_ASSERT_LOG(n == indexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == indexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
@@ -173,7 +173,7 @@ namespace DK
 			for (uint32 x = 0; x < SceneManager::PATCH_VERT_RESOLUTION; x++)
 				vertexArr[n++] = float2(x, y);
 		}
-		DK_ASSERT_LOG(n == vertexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == vertexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		DKVector<uint32> indexArr;
 		indexArr.resize(SceneManager::TILE_RESOLUTION * SceneManager::TILE_RESOLUTION * 6);
@@ -191,7 +191,7 @@ namespace DK
 				indexArr[n++] = yPos0 + x;
 			}
 		}
-		DK_ASSERT_LOG(n == indexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == indexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
@@ -228,7 +228,7 @@ namespace DK
 			vertexArr[n++] = float2(0, static_cast<float>((offset + i)) * -1);
 			vertexArr[n++] = float2(1, static_cast<float>((offset + i)) * -1);
 		}
-		DK_ASSERT_LOG(n == vertexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == vertexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		DKVector<uint32> indexArr;
 		indexArr.resize(SceneManager::TILE_RESOLUTION * 24);
@@ -259,7 +259,7 @@ namespace DK
 				indexArr[n++] = tr;
 			}
 		}
-		DK_ASSERT_LOG(n == indexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == indexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
@@ -287,7 +287,7 @@ namespace DK
 		// move to center (for Rotation)
 		for (float2& v : vertexArr)
 			v = v - float2(0.5f * (SceneManager::CLIPMAP_VERT_RESOLUTION + 1), 0.5f * (SceneManager::CLIPMAP_VERT_RESOLUTION + 1));
-		DK_ASSERT_LOG(n == vertexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == vertexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		DKVector<uint32> indexArr;
 		indexArr.resize((SceneManager::CLIPMAP_VERT_RESOLUTION * 2 - 1) * 6);
@@ -323,7 +323,7 @@ namespace DK
 			indexArr[n++] = br;
 			indexArr[n++] = bl;
 		}
-		DK_ASSERT_LOG(n == indexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == indexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
@@ -353,7 +353,7 @@ namespace DK
 		}
 		// make the last triangle wrap around
 		indexArr[indexArr.size() - 1] = 0;
-		DK_ASSERT_LOG(n == indexArr.size(), "Size°¡ ¾È¸Â½À´Ï´Ù.");
+		DK_ASSERT_LOG(n == indexArr.size(), "Sizeê°€ ì•ˆë§ìŠµë‹ˆë‹¤.");
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
@@ -362,7 +362,7 @@ namespace DK
 	}
 	void SceneManager::loadLevel()
 	{
-		// ÃâÃ³: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
+		// ì¶œì²˜: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
 		// TileMap
 		_clipmapTerrain._cross = loadLevel_ClipMap_Cross();
 		_clipmapTerrain._tile = loadLevel_ClipMap_Tile();
@@ -374,7 +374,7 @@ namespace DK
 		terrainModelPropertyPath.append("/TerrainClipMap.xml");
 		const ModelPropertyRef modelProperty = DuckingEngine::getInstance().GetResourceManagerWritable().loadModelProperty(terrainModelPropertyPath.c_str());
 		const DKVector<MaterialDefinition>& materialDefinitionArr = modelProperty->get_materialDefinitionArr();
-		DK_ASSERT_LOG(materialDefinitionArr.size() == 1, "Terrian MaterialÀº ÇöÀç Material 1°³¸¸ Áö¿øÇÕ´Ï´Ù.");
+		DK_ASSERT_LOG(materialDefinitionArr.size() == 1, "Terrian Materialì€ í˜„ì¬ Material 1ê°œë§Œ ì§€ì›í•©ë‹ˆë‹¤.");
 		Material* newMaterial = Material::createMaterial(materialDefinitionArr[0]);
 		_clipmapTerrain._material.assign(newMaterial);
 

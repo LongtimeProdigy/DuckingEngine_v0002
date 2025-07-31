@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "ResourceManager.h"
 
 #include "RenderModule.h"
@@ -66,7 +66,7 @@ namespace DK
 			errno_t err = fopen_s(&_fp, path.c_str(), "rb");
 			if (err != 0)
 			{
-				DK_ASSERT_LOG(false, "ÆÄÀÏÀ» OpenÇÏÁö ¸øÇß½À´Ï´Ù.\n%s\npath: %s", errorString[err], path.c_str());
+				DK_ASSERT_LOG(false, "íŒŒì¼ì„ Opení•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.\n%s\npath: %s", errorString[err], path.c_str());
 				_fp = nullptr;
 			}
 		}
@@ -84,7 +84,7 @@ namespace DK
 		if (resourcePath.empty() == false)
 			return false;
 
-		DK_ASSERT_LOG(false, "ResourcePath°¡ ºñ¾îÀÖ½À´Ï´Ù. ResourceLoading¿¡ ½ÇÆĞÇÕ´Ï´Ù.");
+		DK_ASSERT_LOG(false, "ResourcePathê°€ ë¹„ì–´ìˆìŠµë‹ˆë‹¤. ResourceLoadingì— ì‹¤íŒ¨í•©ë‹ˆë‹¤.");
 		return true;
 	}
 
@@ -136,28 +136,28 @@ namespace DK
 		TiXmlDocument doc;
 		if (doc.LoadFile(skeletonFullPath.c_str()) == false)
 		{
-			DK_ASSERT_LOG(false, "Skeleton XML ·Îµù¿¡ ½ÇÆĞ!, %s", doc.ErrorDesc());
+			DK_ASSERT_LOG(false, "Skeleton XML ë¡œë”©ì— ì‹¤íŒ¨!, %s", doc.ErrorDesc());
 			return false;
 		}
 
 		TiXmlElement* rootNode = doc.FirstChildElement("Skeleton");
 		if (rootNode == nullptr)
 		{
-			DK_ASSERT_LOG(false, "Skeleton XMLÀÇ RootNode°¡ SkeletonÀÌ ¾Æ´Õ´Ï´Ù.");
+			DK_ASSERT_LOG(false, "Skeleton XMLì˜ RootNodeê°€ Skeletonì´ ì•„ë‹™ë‹ˆë‹¤.");
 			return false;
 		}
 
 		TiXmlAttribute* boneCountAttr = rootNode->FirstAttribute();
 		if (boneCountAttr == nullptr)
 		{
-			DK_ASSERT_LOG(false, "BoneCount Attribute¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.");
+			DK_ASSERT_LOG(false, "BoneCount Attributeë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
 			return false;
 		}
 
 		uint32 boneCount = atoi(boneCountAttr->Value());
 		if (boneCount == 0)
 		{
-			DK_ASSERT_LOG(false, "BoneCount°¡ 0ÀÔ´Ï´Ù.");
+			DK_ASSERT_LOG(false, "BoneCountê°€ 0ì…ë‹ˆë‹¤.");
 			return false;
 		}
 
@@ -173,7 +173,7 @@ namespace DK
 			TiXmlElement* scaleNode = boneNode->FirstChildElement("Scale");
 			if (positionNode == nullptr || rotationNode == nullptr || scaleNode == nullptr)
 			{
-				DK_ASSERT_LOG(false, "Transform³ëµå¸¦ DecomposeÇÒ ¼ö ¾ø½À´Ï´Ù.");
+				DK_ASSERT_LOG(false, "Transformë…¸ë“œë¥¼ Decomposeí•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
 				return false;
 			}
 
@@ -195,7 +195,7 @@ namespace DK
 					break;
 				}
 			}
-			DK_ASSERT_LOG(parentBoneName.empty() == true || parentBoneIndex != -1, "parentBoneÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù. ½ºÅ°´×ÀÌ Á¤»óµ¿ÀÛÇÏÁö ¾ÊÀ» ¼ö ÀÖ½À´Ï´Ù.");
+			DK_ASSERT_LOG(parentBoneName.empty() == true || parentBoneIndex != -1, "parentBoneì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤. ìŠ¤í‚¤ë‹ì´ ì •ìƒë™ì‘í•˜ì§€ ì•Šì„ ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
 
 			Bone bone(boneName, parentBoneName, parentBoneIndex, Transform(position, rotation, scale));
 			bones.push_back(bone);
@@ -217,14 +217,14 @@ namespace DK
 		TiXmlElement* rootNode = doc.FirstChildElement("Animation");
 		if (rootNode == nullptr)
 		{
-			DK_ASSERT_LOG(false, "Animation XMLÀÇ RootNode°¡ AnimationÀÌ ¾Æ´Õ´Ï´Ù.");
+			DK_ASSERT_LOG(false, "Animation XMLì˜ RootNodeê°€ Animationì´ ì•„ë‹™ë‹ˆë‹¤.");
 			return false;
 		}
 
 		TiXmlAttribute* frameCountAttr = rootNode->FirstAttribute();
 		if (frameCountAttr == nullptr)
 		{
-			DK_ASSERT_LOG(false, "Animation DataÀÇ FrameCount Attribute¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.");
+			DK_ASSERT_LOG(false, "Animation Dataì˜ FrameCount Attributeë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
 			return false;
 		}
 
@@ -256,7 +256,7 @@ namespace DK
 
 			if (boneIndex == -1)
 			{
-				//DK_ASSERT_LOG(false, "AnimationÀÌ Skeleton¿¡ ¾ø´Â º»À» °¡Áö°í ÀÖ½À´Ï´Ù. BoneName: %s", boneName.c_str());
+				//DK_ASSERT_LOG(false, "Animationì´ Skeletonì— ì—†ëŠ” ë³¸ì„ ê°€ì§€ê³  ìˆìŠµë‹ˆë‹¤. BoneName: %s", boneName.c_str());
 				//return false;
 			}
 			else
@@ -273,7 +273,7 @@ namespace DK
 					TiXmlNode* scaleNode = transformNode->FirstChild("Scale");
 					if (positionNode == nullptr || rotationNode == nullptr || scaleNode == nullptr)
 					{
-						DK_ASSERT_LOG(false, "Transform³ëµå¸¦ DecomposeÇÒ ¼ö ¾ø½À´Ï´Ù.");
+						DK_ASSERT_LOG(false, "Transformë…¸ë“œë¥¼ Decomposeí•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
 						return false;
 					}
 
@@ -293,7 +293,7 @@ namespace DK
 
 				if (frameCount != boneFrameCount)
 				{
-					DK_ASSERT_LOG(false, "FrameCount¿Í BoneFrameCount°¡ ´Ù¸¨´Ï´Ù. %d / %d", boneFrameCount, frameCount);
+					DK_ASSERT_LOG(false, "FrameCountì™€ BoneFrameCountê°€ ë‹¤ë¦…ë‹ˆë‹¤. %d / %d", boneFrameCount, frameCount);
 					return false;
 				}
 			}
@@ -304,7 +304,7 @@ namespace DK
 		{
 			if (boneAnimationFound[boneIndex] == false)
 			{
-				DK_ASSERT_LOG(false, "Skeleton¿¡ Animation¿¡´Â ¾ø´Â BoneÀÌ ÀÖ½À´Ï´Ù. BoneName: %s", bones[boneIndex]._boneName.c_str());
+				DK_ASSERT_LOG(false, "Skeletonì— Animationì—ëŠ” ì—†ëŠ” Boneì´ ìˆìŠµë‹ˆë‹¤. BoneName: %s", bones[boneIndex]._boneName.c_str());
 				return false;
 			}
 		}
@@ -330,8 +330,8 @@ namespace DK
 		TiXmlDocument modelPropertyDocument;
 		if (modelPropertyDocument.LoadFile(modelPropertyFullPath.c_str()) == false)
 		{
-			DK_ASSERT_LOG(false, "ModelPropertyÀÇ °æ·Î°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù. Path: %s, error: %s", modelPropertyPath.c_str(), modelPropertyDocument.ErrorDesc());
-			// #todo- nullptr ³»º¸³¾ ¼ö ÀÖ¾î¾ßÇÔ
+			DK_ASSERT_LOG(false, "ModelPropertyì˜ ê²½ë¡œê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤. Path: %s, error: %s", modelPropertyPath.c_str(), modelPropertyDocument.ErrorDesc());
+			// #todo- nullptr ë‚´ë³´ë‚¼ ìˆ˜ ìˆì–´ì•¼í•¨
 		}
 
 		const TiXmlElement* modelPropertyNode = modelPropertyDocument.RootElement();
@@ -397,7 +397,7 @@ namespace DK
 		bufferOffset += 4;
 		if (subMeshCount == 0)
 		{
-			DK_ASSERT_LOG(false, "SubMesh °³¼ö´Â 0°³ÀÏ ¼ö ¾ø½À´Ï´Ù!");
+			DK_ASSERT_LOG(false, "SubMesh ê°œìˆ˜ëŠ” 0ê°œì¼ ìˆ˜ ì—†ìŠµë‹ˆë‹¤!");
 			return nullptr;
 		}
 
@@ -405,8 +405,8 @@ namespace DK
 		const uint32 materialDefinitionCount = static_cast<const uint32>(materialDefinitionArr.size());
 		if (subMeshCount != materialDefinitionCount)
 		{
-			// #todo- °³¼ö°¡ ´Ù¸¥ °æ¿ì DefaultMaterialÀ» »ı¼ºÇØÁÖ¾î¾ßÇÒµí? MaterialEditor?
-			DK_ASSERT_LOG(false, "SubMesh°³¼ö¿Í ModelPropertyÀÇ °³¼ö°¡ ´Ù¸¨´Ï´Ù.");
+			// #todo- ê°œìˆ˜ê°€ ë‹¤ë¥¸ ê²½ìš° DefaultMaterialì„ ìƒì„±í•´ì£¼ì–´ì•¼í• ë“¯? MaterialEditor?
+			DK_ASSERT_LOG(false, "SubMeshê°œìˆ˜ì™€ ModelPropertyì˜ ê°œìˆ˜ê°€ ë‹¤ë¦…ë‹ˆë‹¤.");
 			return nullptr;
 		}
 
@@ -454,7 +454,7 @@ namespace DK
 			subMeshArr.push_back(DK::move(subMesh));
 		}
 
-		DK_ASSERT_LOG(feof(fileHandle._fp) == 0, "ÆÄÀÏÀÌ ³¡¿¡ µµ´ŞÇÏÁö ¸øÇß½À´Ï´Ù. %d/%d", ftell(fileHandle._fp), blockSize);
+		DK_ASSERT_LOG(feof(fileHandle._fp) == 0, "íŒŒì¼ì´ ëì— ë„ë‹¬í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤. %d/%d", ftell(fileHandle._fp), blockSize);
 
 		auto insertResult = _staticMeshModelContainer.insert(DKPair<DKString, StaticMeshModelRef>(modelPath, dk_new StaticMeshModel(DK::move(subMeshArr))));
 		if (insertResult.second == false)
@@ -492,15 +492,15 @@ namespace DK
 		// SubMeshCount
 		uint32 subMeshCount = 0;
 		DK::memcpy(&subMeshCount, &buffer[bufferOffset], 4);
-		DK_ASSERT_LOG(subMeshCount != 0, "SubMesh °³¼ö´Â 0°³ÀÏ ¼ö ¾ø½À´Ï´Ù!");
+		DK_ASSERT_LOG(subMeshCount != 0, "SubMesh ê°œìˆ˜ëŠ” 0ê°œì¼ ìˆ˜ ì—†ìŠµë‹ˆë‹¤!");
 		bufferOffset += 4;
 
 		const DKVector<MaterialDefinition>& materialDefinitionArr = modelProperty->get_materialDefinitionArr();
 		const uint32 materialDefinitionCount = static_cast<const uint32>(materialDefinitionArr.size());
 		if (subMeshCount != materialDefinitionCount)
 		{
-			// #todo- °³¼ö°¡ ´Ù¸¥ °æ¿ì DefaultMaterialÀ» »ı¼ºÇØÁÖ¾î¾ßÇÒµí? MaterialEditor?
-			DK_ASSERT_LOG(false, "SubMesh°³¼ö¿Í ModelPropertyÀÇ °³¼ö°¡ ´Ù¸¨´Ï´Ù.");
+			// #todo- ê°œìˆ˜ê°€ ë‹¤ë¥¸ ê²½ìš° DefaultMaterialì„ ìƒì„±í•´ì£¼ì–´ì•¼í• ë“¯? MaterialEditor?
+			DK_ASSERT_LOG(false, "SubMeshê°œìˆ˜ì™€ ModelPropertyì˜ ê°œìˆ˜ê°€ ë‹¤ë¦…ë‹ˆë‹¤.");
 			return nullptr;
 		}
 
@@ -534,10 +534,10 @@ namespace DK
 					sumWeight += vertex.weights[i];
 
 					if (vertex.boneIndexArr[i] == Bone::kInvalidBoneIndex)
-						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndex°¡ Invalid(Bone::kInvalidBoneIndex)ÇÑµ¥ Weight(%f)°¡ Á¸ÀçÇÕ´Ï´Ù.", sumWeight);
+						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndexê°€ Invalid(Bone::kInvalidBoneIndex)í•œë° Weight(%f)ê°€ ì¡´ì¬í•©ë‹ˆë‹¤.", sumWeight);
 				}
 #define EPSILON 0.00001f
-				DK_ASSERT_LOG(1.0f - sumWeight < EPSILON, "weightÀÇ ÇÕÀÌ 1.0ÀÌ µÇÁö ¾Ê½À´Ï´Ù.");
+				DK_ASSERT_LOG(1.0f - sumWeight < EPSILON, "weightì˜ í•©ì´ 1.0ì´ ë˜ì§€ ì•ŠìŠµë‹ˆë‹¤.");
 			}
 #endif
 
@@ -563,7 +563,7 @@ namespace DK
 			subMeshArr.push_back(DK::move(subMesh));
 		}
 
-		DK_ASSERT_LOG(feof(handle._fp) == 0, "ÆÄÀÏÀÌ ³¡¿¡ µµ´ŞÇÏÁö ¸øÇß½À´Ï´Ù. %d/%d", ftell(handle._fp), blockSize);
+		DK_ASSERT_LOG(feof(handle._fp) == 0, "íŒŒì¼ì´ ëì— ë„ë‹¬í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤. %d/%d", ftell(handle._fp), blockSize);
 
 		auto insertResult = _skinnedMeshModelContainer.insert(DKPair<DKString, SkinnedMeshModelRef>(modelPath, dk_new SkinnedMeshModel(DK::move(subMeshArr))));
 		if (insertResult.second == false)

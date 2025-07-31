@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 namespace DK
 {
@@ -16,7 +16,7 @@ namespace DK
 		UNDEFINED0, 
 		KEYBOARD_BACKSPACE,			// VK_BACK		// Backspace
 		KEYBOARD_TAB,				// VK_TAB
-		RESERVED0, RESERVED1,		// ¿¹¾àµÊ?
+		RESERVED0, RESERVED1,		// ì˜ˆì•½ë¨?
 		KEYBOARD_CLEAR,				// VK_CLEAR		// Clear
 		KEYBOARD_ENTER,				// VK_RETURN	// Enter
 		UNDEFINED1, UNDEFINED2, 
@@ -25,17 +25,17 @@ namespace DK
 		KEYBOARD_ACL,				// VK_MENU
 		KEYBOARD_PAUSE,				// VK_PAUSE
 		KEYBOARD_CAPSLOCK,			// VK_CAPITAL
-		IME_HANGUEL, 				// VK_KANA, VK_HANGUEL	// IME°¡³ª¸ðµå / IMEÇÑ±Û¸ðµå
+		IME_HANGUEL, 				// VK_KANA, VK_HANGUEL		// IMEê°€ë‚˜ëª¨ë“œ / IMEí•œê¸€ëª¨ë“œ
 		UNDEFINED3, 
-		IME_JUNJA,					// VK_JUNJA		// IME ÀüÀÚ ¸ðµå
-		IME_FINAL,					// VK_FINAL		// IME ÃÖÁ¾ ¸ðµå
-		IME_HANJA,					// VK_HANJA, VK_KANJI		// IME ÇÑÀÚ ¸ðµå
+		IME_JUNJA,					// VK_JUNJA					// IME ì „ìž ëª¨ë“œ
+		IME_FINAL,					// VK_FINAL					// IME ìµœì¢… ëª¨ë“œ
+		IME_HANJA,					// VK_HANJA, VK_KANJI		// IME í•œìž ëª¨ë“œ
 		UNDEFINED4, 
 		KEYBOARD_ESC,				// VK_ESCAPE
-		IME_CONVERT, 				// VK_CONVERT	// IME º¯È¯
-		IME_NONCONVERT, 			// VK_NONCONVERT	// IME º¯È¯ ¾ÈÇÔ
-		IME_ACCEPT,					// VK_ACCEPT	// IME ½ÂÀÎ
-		IME_MODECHANGE, 			// VK_MODECHANGE	// IME ¸ðµå º¯°æ ¿äÃ»
+		IME_CONVERT, 				// VK_CONVERT				// IME ë³€í™˜
+		IME_NONCONVERT, 			// VK_NONCONVERT			// IME ë³€í™˜ ì•ˆí•¨
+		IME_ACCEPT,					// VK_ACCEPT				// IME ìŠ¹ì¸
+		IME_MODECHANGE, 			// VK_MODECHANGE			// IME ëª¨ë“œ ë³€ê²½ ìš”ì²­
 		KEYBOARD_SPACE, 			// VK_SPACE
 		KEYBOARD_PAGEUP, 
 		KEYBOARD_PAGEDOWN,
@@ -157,14 +157,14 @@ namespace DK
 		{
 			DK_ASSERT_LOG(
 				static_cast<uint32>(keyCode) < static_cast<uint32>(KeyboardState::COUNT), 
-				"keyCodeÀÇ ¹üÀ§°¡ ÀÌ»óÇÕ´Ï´Ù. KeyCode: %d / %d", 
+				"keyCodeì˜ ë²”ìœ„ê°€ ì´ìƒí•©ë‹ˆë‹¤. KeyCode: %d / %d", 
 				static_cast<uint32>(keyCode), static_cast<uint32>(KeyboardState::COUNT)
 			);
 
-			// 0Àº ÇÑ¹øµµ ¾È´­¸° »óÅÂ ¶Ç´Â 1¿¡¼­ ÇÑ¹ø ´©¸¥ »óÅÂ
-			// 1Àº ÇÑ¹ø ´­·ÁÁø »óÅÂ (´Ù½Ã ´©¸£¸é 0ÀÌµÊ)
-			// 128Àº 0ÀÌ¾ú´ø »óÅÂ¿¡¼­ ´­¸®°í ÀÖ´Â »óÅÂ(¶¼¸é 1ÀÌµÊ)
-			// 129´Â 1ÀÌ¾ú´ø »óÅÂ¿¡¼­ ´­¸®°í ÀÖ´Â »óÅÂ(¶¼¸é 0ÀÌµÊ)
+			// 0ì€ í•œë²ˆë„ ì•ˆëˆŒë¦° ìƒíƒœ ë˜ëŠ” 1ì—ì„œ í•œë²ˆ ëˆ„ë¥¸ ìƒíƒœ
+			// 1ì€ í•œë²ˆ ëˆŒë ¤ì§„ ìƒíƒœ (ë‹¤ì‹œ ëˆ„ë¥´ë©´ 0ì´ë¨)
+			// 128ì€ 0ì´ì—ˆë˜ ìƒíƒœì—ì„œ ëˆŒë¦¬ê³  ìžˆëŠ” ìƒíƒœ(ë–¼ë©´ 1ì´ë¨)
+			// 129ëŠ” 1ì´ì—ˆë˜ ìƒíƒœì—ì„œ ëˆŒë¦¬ê³  ìžˆëŠ” ìƒíƒœ(ë–¼ë©´ 0ì´ë¨)
 			return _keyStates[static_cast<uint32>(keyCode)] == 128 || _keyStates[static_cast<uint32>(keyCode)] == 129;
 		}
 

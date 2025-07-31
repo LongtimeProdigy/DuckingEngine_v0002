@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "SkinnedMeshComponent.h"
 
 #include "DuckingEngine.h"
@@ -57,7 +57,7 @@ namespace DK
 		_animation->setCurrentAnimationTime(currentAnimationTime);
 
 		const DKVector<Animation::BoneAnimation>& boneAnimations = _animation->getBoneAnimation();
-		DK_ASSERT_LOG(boneCount == boneAnimations.size(), "Skeleton°ú AnimationÀÇ Bone Count°¡ ´Ù¸¨´Ï´Ù.");
+		DK_ASSERT_LOG(boneCount == boneAnimations.size(), "Skeletonê³¼ Animationì˜ BoneCountëŠ” ì¼ì¹˜í•´ì•¼í•©ë‹ˆë‹¤.");
 
 		// build InvertMatrix by CharacterSpace Bone DressPose
 		DKVector<float4x4> characterSpaceBoneMatrix;

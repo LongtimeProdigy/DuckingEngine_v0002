@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 namespace DK
 {
@@ -17,12 +17,12 @@ namespace DK
 		dk_inline static void setBlock(const bool value) { kBlock = value; }
 		static void Update();
 
-		// PC´Â ±âº» Áö¿øÀÔ´Ï´Ù.
+		// PCëŠ” ê¸°ë³¸ ì§€ì›ì…ë‹ˆë‹¤.
 		static const bool InitializePCController();
 		static const bool GetKeyDown(KeyboardState keyCode);
 		static const float2& getMouseDelta();
 
-		// XBOX ÆĞµå Áö¿ø
+		// XBOX íŒ¨ë“œ ì§€ì›
 		static const bool InitializeXBOXController(int playerNumber);
 		static const bool GetXJoypadDown(const XboxState code) noexcept;
 		static const float2& GetJoystickL() noexcept;

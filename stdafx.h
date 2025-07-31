@@ -1,31 +1,31 @@
-#pragma once
+ï»¿#pragma once
 
 #ifndef __DEFINE_STDAFX__
 #define __DEFINE_STDAFX__
 
 /*
-* DEV °ü·Ã
+* DEV ê´€ë ¨
 */
 #if defined(_DEBUG)
 #define _DK_DEBUG_
 #endif
 
 /*
-* Platform °ü·Ã
+* Platform ê´€ë ¨
 */
 #if defined(_WIN64)
 #define _DK_WINDOW_
 #endif
 
 /*
-* ¸Ş¸ğ¸® °ü·Ã
+* ë©”ëª¨ë¦¬ ê´€ë ¨
 */
 #define dk_new new
 #define dk_delete delete
 #define dk_delete_array delete[]
 
 /*
-* SAL ¹× inline °ü·Ã
+* SAL ë° inline ê´€ë ¨
 */
 #include <sal.h>
 #define _IN_ _In_
@@ -33,7 +33,7 @@
 #define dk_inline inline
 
 /*
-* Å¸ÀÔ °ü·Ã
+* íƒ€ì… ê´€ë ¨
 */
 typedef unsigned char byte;
 typedef unsigned char uint8;
@@ -45,15 +45,15 @@ typedef unsigned long long uint64;
 #pragma warning(disable : 4267)
 
 /*
-* Logger °ü·Ã
+* Logger ê´€ë ¨
 */
 #ifdef _DK_DEBUG_
 #include <stdio.h>		// for sprintf_s(), strcat_s();
 #include <intrin.h>		// for __debugbreak();
 #ifdef _DK_WINDOW_
-/////////////////////// #todo- ³ªÁß¿¡ ²À »èÁ¦ÇÒ °Í /////////////////////// 
+/////////////////////// #todo- ë‚˜ì¤‘ì— ê¼­ ì‚­ì œí•  ê²ƒ /////////////////////// 
 #include <Windows.h>	// for OutputDebugStringA
-/////////////////////// #todo- ³ªÁß¿¡ ²À »èÁ¦ÇÒ °Í /////////////////////// 
+/////////////////////// #todo- ë‚˜ì¤‘ì— ê¼­ ì‚­ì œí•  ê²ƒ /////////////////////// 
 #endif
 namespace DK
 {
@@ -95,7 +95,7 @@ namespace DK
 }
 
 /*
-* #todo- ¿ÜºÎ ¶óÀÌºê·¯¸® ¸ñ·Ï (ÇÊ¿ä½Ã ³ªÁß¿¡ µû·Î ÀÚÃ¼Á¦ÀÛ ÇÒ ¸ñ·Ïµé)
+* #todo- ì™¸ë¶€ ë¼ì´ë¸ŒëŸ¬ë¦¬ ëª©ë¡ (í•„ìš”ì‹œ ë‚˜ì¤‘ì— ë”°ë¡œ ìì²´ì œì‘ í•  ëª©ë¡ë“¤)
 */
 #define USE_IMGUI
 #ifdef USE_IMGUI
@@ -162,11 +162,11 @@ namespace DK
 #ifdef USE_TINYXML
 #include "tinyxml.h"
 #else
-static_assert(false, "XML ÆÄ½Ì Class Á¤ÀÇ°¡ ÇÊ¿äÇÕ´Ï´Ù.");
+static_assert(false, "XML íŒŒì‹± Class ì •ì˜ê°€ í•„ìš”í•©ë‹ˆë‹¤.");
 #endif
 
 /*
-* ETC Helper ÇÔ¼ö
+* ETC Helper ï¿½Ô¼ï¿½
 */
 namespace DK
 {
@@ -201,7 +201,7 @@ namespace DK
 }
 
 /*
-* String ÇÔ¼ö
+* String í•¨ìˆ˜
 */
 #include <wchar.h>
 #include <stdlib.h>
@@ -223,6 +223,10 @@ namespace DK
 			return ::_itoa(value, buffer, radix);
 #undef _CRT_SECURE_NO_WARNINGS
 #pragma warning(pop)
+		}
+		static int atoi(const char* str) noexcept
+		{
+			return std::atoi(str);
 		}
 		static float atof(const char* str) noexcept
 		{
@@ -281,7 +285,7 @@ namespace DK
 #pragma warning(pop)
 		}
 
-		//wchar_t ¿¡¼­ char ·ÎÀÇ Çüº¯È¯ ÇÔ¼ö
+		//wchar_t ì—ì„œ char ë¡œì˜ í˜•ë³€í™˜ í•¨ìˆ˜
 		static DKString convertWCtoC(const wchar_t* str)
 		{
 			DKVector<char> pStr;
@@ -292,7 +296,7 @@ namespace DK
 		}
 
 		///////////////////////////////////////////////////////////////////////
-		//char ¿¡¼­ wchar_t ·ÎÀÇ Çüº¯È¯ ÇÔ¼ö
+		//char ì—ì„œ wchar_t ë¡œì˜ í˜•ë³€í™˜ í•¨ìˆ˜
 		static DKStringW ConverCtoWC(const char* str)
 		{
 			DKVector<wchar_t> pStr;
@@ -341,7 +345,7 @@ namespace DK
 
 		bool operator!=(const T* rhs) const
 		{
-			DK_ASSERT_LOG(rhs != nullptr, "ÀÔ·Â°ªÀÌ nullptrÀÌ¸é ¾ÈµË´Ï´Ù.");
+			DK_ASSERT_LOG(rhs != nullptr, "ì…ë ¥ê°’ì´ nullptrì´ë©´ ì•ˆë©ë‹ˆë‹¤.");
 			return StringUtil::strcmp(c_str(), rhs) != 0;
 		}
 
@@ -353,7 +357,7 @@ namespace DK
 		{
 #ifdef _DK_DEBUG_
 			const uint32 length = StringUtil::strlen(_string) + StringUtil::strlen(str);
-			DK_ASSERT_LOG(length < SIZE, "Size¸¦ ³Ñ¾î°©´Ï´Ù. %d/%d", length, SIZE);
+			DK_ASSERT_LOG(length < SIZE, "Sizeë¥¼ ë„˜ì–´ê°‘ë‹ˆë‹¤. %d/%d", length, SIZE);
 #endif
 			StringUtil::strcat(_string, str);
 		}
@@ -407,7 +411,7 @@ namespace DK
 */
 
 /*
-* Refleciton °ü·Ã
+* Refleciton ê´€ë ¨
 */
 namespace DK
 {
@@ -446,7 +450,7 @@ public: \
 }
 
 /*
-* RAII °ü·Ã
+* RAII ê´€ë ¨
 */
 namespace DK
 {
@@ -972,7 +976,7 @@ namespace DK
 
 			return outMatrix;
 #else
-			static_assert(false, "Matrix slerp ±¸Çö ÇÊ¿äÇÕ´Ï´Ù");
+			static_assert(false, "Matrix slerp êµ¬í˜„ í•„ìš”í•©ë‹ˆë‹¤");
 #endif
 		}
 
@@ -1067,7 +1071,7 @@ namespace DK
 				E.r[3].m128_f32[0], E.r[3].m128_f32[1], E.r[3].m128_f32[2], E.r[3].m128_f32[3]
 			);
 #else
-			static_assert(false, "Matrix Inverse ±¸Çö ÇÊ¿äÇÕ´Ï´Ù");
+			static_assert(false, "Matrix Inverse êµ¬í˜„ í•„ìš”í•©ë‹ˆë‹¤");
 #endif
 		}
 
@@ -1147,7 +1151,7 @@ namespace DK
 			r = DirectX::XMQuaternionRotationRollPitchYaw(pitch, yaw, roll);
 
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1157,7 +1161,7 @@ namespace DK
 			this->r = DirectX::XMQuaternionMultiply(this->r, rhs.r);
 			return *this;
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 		dk_inline Quaternion operator*(const Quaternion& rhs) const
@@ -1166,7 +1170,7 @@ namespace DK
 			DirectX::XMVECTOR tempQuaternion = DirectX::XMQuaternionMultiply(this->r, rhs.r);
 			return Quaternion(tempQuaternion.m128_f32[0], tempQuaternion.m128_f32[1], tempQuaternion.m128_f32[2], tempQuaternion.m128_f32[3]);
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1176,7 +1180,7 @@ namespace DK
 			* this = this->operator*(rhs);
 			return *this;
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1185,7 +1189,7 @@ namespace DK
 #ifdef USE_DIRECTX_MATH
 			r = DirectX::XMQuaternionNormalize(r);
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1194,7 +1198,7 @@ namespace DK
 #ifdef USE_DIRECTX_MATH
 			r = DirectX::XMQuaternionInverse(r);
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1209,7 +1213,7 @@ namespace DK
 				matrix.r[3].m128_f32[0], matrix.r[3].m128_f32[1], matrix.r[3].m128_f32[2], matrix.r[3].m128_f32[3]
 			);
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1235,7 +1239,7 @@ namespace DK
 			vResult.f[3] = 0.f;
 			outEuler = float3(vResult.f[0], vResult.f[1], vResult.f[2]);
 #else
-			static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+			static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 		}
 
@@ -1260,7 +1264,7 @@ namespace DK
 		DirectX::FXMVECTOR rotatedTranslation = DirectX::XMVector3Rotate(translation, rhs.r);
 		return float3(rotatedTranslation.m128_f32[0], rotatedTranslation.m128_f32[1], rotatedTranslation.m128_f32[2]);
 #else
-		static_assert(false, "Quaternion ±¸Çö ÇÊ¿ä");
+		static_assert(false, "Quaternion êµ¬í˜„ í•„ìš”");
 #endif
 	}
 
@@ -1398,7 +1402,7 @@ namespace DK
 			float yaw = _rotation.y;
 			float pitch = _rotation.x;
 
-			// ÃâÃ³ : https://en.wikipedia.org/wiki/Rotation_matrix
+			// ï¿½ï¿½Ã³ : https://en.wikipedia.org/wiki/Rotation_matrix
 			outMatrix._11 = cos(yaw) * cos(pitch);
 			outMatrix._12 = cos(yaw) * sin(pitch) * sin(roll) - sin(yaw) * cos(roll);
 			outMatrix._13 = cos(yaw) * sin(pitch) * cos(roll) + sin(yaw) * sin(roll);
@@ -1437,7 +1441,7 @@ namespace DK
 }
 
 /*
-*	Thread °ü·Ã
+*	Thread ê´€ë ¨
 */
 #include <processthreadsapi.h>
 namespace DK
@@ -1452,7 +1456,7 @@ namespace DK
 	}
 #endif
 
-#define EnsureMainThread() DK_ASSERT_LOG(isMainThread(), "MainThread°¡ ¾Æ´Õ´Ï´Ù. %d/%d", gMainThreadID, GetCurrentThreadId());
+#define EnsureMainThread() DK_ASSERT_LOG(isMainThread(), "MainThreadê°€ ì•„ë‹™ë‹ˆë‹¤. %d/%d", gMainThreadID, GetCurrentThreadId());
 }
 
 namespace DK

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "Material.h"
 
 #include "DuckingEngine.h"
@@ -21,7 +21,7 @@ namespace DK
 			return dk_new MaterialParameterTexture(parameterDefinition._name, texture);
 		}
 		default:
-			DK_ASSERT_LOG(false, "ParameterMaterialÀÌ ÁöÁ¤µÇÁö ¾Ê¾Ò½À´Ï´Ù. RenderPass¸¦ È®ÀÎ¹Ù¶ø´Ï´Ù.");
+			DK_ASSERT_LOG(false, "ParameterMaterialì´ ì§€ì •ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤. RenderPassë¥¼ í™•ì¸ë°”ëë‹ˆë‹¤.");
 			break;
 		}
 
@@ -49,23 +49,23 @@ namespace DK
 	}
 	void MaterialParameterTexture::setParameterValue(const ITextureRef& value) noexcept
 	{
-		DK_ASSERT_LOG(value != nullptr, "value°¡ nullptrÀÔ´Ï´Ù. Å©·¡½Ã°¡ ³¯ °ÍÀÔ´Ï´Ù.");
+		DK_ASSERT_LOG(value != nullptr, "valueê°€ nullptrì…ë‹ˆë‹¤. í¬ë˜ì‹œê°€ ë‚  ê²ƒì…ë‹ˆë‹¤.");
 		_value = value;
 		DK::memcpy(_valuePtr, &_value->getSRV(), getParameterSize());
 	}
 
 	Material* Material::createMaterial(const MaterialDefinition& modelProperty)
 	{
-		// ±âÁ¸ÀÇ ParameterµéÀÇ ValueµéÀº À¯ÁöÇÏ¸é¼­ MaterialDefinitionÀÇ Parameterµé·Î Material::Parameters¸¦ ±¸¼ºÇÕ´Ï´Ù.
+		// ê¸°ì¡´ì˜ Parameterë“¤ì˜ Valueë“¤ì€ ìœ ì§€í•˜ë©´ì„œ MaterialDefinitionì˜ Parameterë“¤ë¡œ Material::Parametersë¥¼ êµ¬ì„±í•©ë‹ˆë‹¤.
 		SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
 		const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(modelProperty._materialName);
 		if (materialDefinition == nullptr)
 		{
-			DK_ASSERT_LOG(false, "RenderPass¿¡ ¾ø´Â Material(%s)À» ¸¸µé·ÁÇÕ´Ï´Ù! Àı´ë ¹ß»ıÇÏ¸é ¾ÈµË´Ï´Ù!", modelProperty._materialName.c_str());
+			DK_ASSERT_LOG(false, "RenderPassì— ì—†ëŠ” Material(%s)ì„ ë§Œë“¤ë ¤í•©ë‹ˆë‹¤! ì ˆëŒ€ ë°œìƒí•˜ë©´ ì•ˆë©ë‹ˆë‹¤!", modelProperty._materialName.c_str());
 			return nullptr;
 		}
 
-		// RenderPass·ÎºÎÅÍ Parameter¸¦ ¼¼ÆÃ
+		// RenderPassë¡œë¶€í„° Parameterë¥¼ ì„¸íŒ…
 		uint32 parameterBufferSize = 0;
 		const uint32 parameterCount = static_cast<uint32>(materialDefinition->_parameters.size());
 		Material* outMaterial = dk_new Material;
@@ -79,7 +79,7 @@ namespace DK
 			parameterBufferSize += outMaterial->_parameterArr[i]->getParameterSize();
 		}
 
-		// CPU ¹× GPU ¹öÆÛ »ı¼º ¹× Parameter ValuePtr ¼¼ÆÃ
+		// CPU ë° GPU ë²„í¼ ìƒì„± ë° Parameter ValuePtr ì„¸íŒ…
 		uint32 offset = 0;
 		outMaterial->_parameterBufferForCPU.resize(parameterBufferSize);
 		for (uint32 i = 0; i < parameterCount; ++i)
@@ -99,8 +99,8 @@ namespace DK
 
 	bool Material::setModelProperty(const MaterialDefinition& modelProperty)
 	{
-		DK_ASSERT_LOG(_materialName == modelProperty._materialName, "MaterialNameÀÌ ModelPropertyÀÇ MaterialName°ú ÀÏÄ¡ÇÏÁö ¾Ê½À´Ï´Ù!");
-		DK_ASSERT_LOG(_parameterArr.size() != 0, "Parameters°¡ ºñ¾îÀÖ½À´Ï´Ù. UpdateTechnique°¡ ¸ÕÀú ÀÌ·ç¾îÁ®¾ßÇÕ´Ï´Ù.");
+		DK_ASSERT_LOG(_materialName == modelProperty._materialName, "MaterialNameì´ ModelPropertyì˜ MaterialNameê³¼ ì¼ì¹˜í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤!");
+		DK_ASSERT_LOG(_parameterArr.size() != 0, "Parametersê°€ ë¹„ì–´ìˆìŠµë‹ˆë‹¤. UpdateTechniqueê°€ ë¨¼ì € ì´ë£¨ì–´ì ¸ì•¼í•©ë‹ˆë‹¤.");
 
 		const uint32 parameterCount = _parameterArr.size();
 		const uint32 parameterDefinitionCount = modelProperty._parameters.size();
@@ -130,7 +130,7 @@ namespace DK
 					}
 					default:
 					{
-						DK_ASSERT_LOG(false, "¾ÆÁ÷ Áö¿øÇÏÁö ¾Ê´Â MaterialParameter TypeÀÔ´Ï´Ù.");
+						DK_ASSERT_LOG(false, "ì•„ì§ ì§€ì›í•˜ì§€ ì•ŠëŠ” MaterialParameter Typeì…ë‹ˆë‹¤.");
 						break;
 					}
 					}
@@ -139,7 +139,7 @@ namespace DK
 				}
 			}
 
-			DK_ASSERT_LOG(validation, "Material°ú ModelProperty»çÀÌ¿¡ NameÀÌ ´Ù¸¥ Parameter°¡ ÀÖ½À´Ï´Ù.");
+			DK_ASSERT_LOG(validation, "Materialê³¼ ModelPropertyì‚¬ì´ì— Nameì´ ë‹¤ë¥¸ Parameterê°€ ìˆìŠµë‹ˆë‹¤.");
 		}
 
 		_parameterBufferForGPU->upload(_parameterBufferForCPU.data());
@@ -157,7 +157,7 @@ namespace DK
 			switch (parameter->getType())
 			{
 			case MaterialParameter::Type::FLOAT:
-				parameter->setParameterValuePtr(value);	// ±âº»Å¸ÀÔÀº Ä³½ºÆÃ ¾øÀÌ ±×³É ´ëÀÔÇØµµ ¹®Á¦¾øÀ½
+				parameter->setParameterValuePtr(value);	// ê¸°ë³¸íƒ€ì…ì€ ìºìŠ¤íŒ… ì—†ì´ ê·¸ëƒ¥ ëŒ€ì…í•´ë„ ë¬¸ì œì—†ìŒ
 				break;
 			case MaterialParameter::Type::TEXTURE:
 			{

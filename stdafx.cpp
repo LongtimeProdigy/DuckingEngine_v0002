@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 
 namespace DK
 {
@@ -37,7 +37,7 @@ namespace DK
 			float3(scale.m128_f32[0], scale.m128_f32[1], scale.m128_f32[2])
 			);
 #else
-		static_assert(false, "Matrix Inverse ±¸Çö ÇÊ¿äÇÕ´Ï´Ù");
+		static_assert(false, "Matrix Inverse êµ¬í˜„ í•„ìš”");
 #endif
 	}
 
