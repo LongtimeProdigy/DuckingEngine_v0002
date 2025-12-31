@@ -173,6 +173,39 @@ namespace DK
 
 					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
 				}
+				else if (renderPassChildNodeName == "ComputePipeline")
+				{
+					Pipeline::CreateInfo pipelineCreateInfo;
+					DKString pipelineName = renderPassChildNode->Attribute("Name");
+
+					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
+					{
+						if (pipelineChildNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
+							continue;
+
+						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "Shader")
+						{
+							pipelineCreateInfo._computeShaderEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._computeShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "Parameter")
+						{
+							DKString name;
+							ShaderParameter shaderParameter;
+							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
+								return false;
+							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
+						}
+						else
+						{
+							DK_ASSERT_LOG(false, "지원하지 ComputePipeline ChildNode입니다. NodeName: %s", pipelineChildNodeName.c_str());
+							return false;
+						}
+					}
+
+					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+				}
 				else
 				{
 					DK_ASSERT_LOG(false, "지원하지 RenderPass ChildNode입니다. NodeName: %s", renderPassChildNodeName.c_str());

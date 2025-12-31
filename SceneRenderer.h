@@ -33,15 +33,15 @@ namespace DK
 		uint32 _densityFallOff = 1;
 		uint32 _scatteringStrength = 21;
 
-		float _sunDegree = 7.f;
+		float _sunDegree = 90.f;
 		uint32 _sunIntensity = 20;
 		uint32 _sunRadius = 10;
 		uint32 _padding;
 
-		int _planetRadius = 0;
-		int _planetCentre[3] = { 0, -0, 0 };	// 지구 반지름 6371km
+		int _planetRadius = 6360000;
+		int _planetCentre[3] = { 0, -6360000, 0 };	// 지구 반지름 6371km
 
-		int _atmosphereRadius = 6380000 - 6360000;				// 대기 반지름 (1unit = 1m >> 30000  = 30km) [10km 대류권, 50km 성층권, 80km 중간권, 600km 열권], 지구 대기의 99%는 30km내에 존재
+		int _atmosphereRadius = 6390000;			// 대기 반지름 (1unit = 1m >> 30000  = 30km) [10km 대류권, 50km 성층권, 80km 중간권, 600km 열권], 지구 대기의 99%는 30km내에 존재
 	};
 
 	class SceneRenderer

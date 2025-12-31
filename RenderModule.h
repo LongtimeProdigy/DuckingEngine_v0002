@@ -107,10 +107,12 @@ namespace DK
 			bool _depthEnable;
 			FillMode _fillMode;
 			CullMode _cullMode;
-			const char* _vertexShaderPath;
-			const char* _vertexShaderEntry;
-			const char* _pixelShaderPath;
-			const char* _pixelShaderEntry;
+			const char* _vertexShaderPath = nullptr;
+			const char* _vertexShaderEntry = nullptr;
+			const char* _pixelShaderPath = nullptr;
+			const char* _pixelShaderEntry = nullptr;
+			const char* _computeShaderPath = nullptr;
+			const char* _computeShaderEntry = nullptr;
 
 			DKVector<LayoutInfo> _layout;
 			DKHashMap<DKString, ShaderParameter> _shaderParameterMap;

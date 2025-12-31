@@ -22,9 +22,6 @@ cbuffer AtmosphereConstantBuffer : register(b1)
     int _atmosphereRadius;
 };
 
-static float3 planetCentre = float3(0, -6360000, 0);
-static float atmosphereRadius = 6380000;
-
 struct VS_INPUT
 {
     float2 position : POSITION;
@@ -174,7 +171,7 @@ float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float r
 
     for(uint i = 0; i < _numInScatteringPoints; ++i)
     {
-        const float sunRayLength = raySphere(_planetCentre, atmosphereRadius, inScatterPoint, -sunDir).y; // 태양빛이 대기를 가로지르는 길이
+        const float sunRayLength = raySphere(_planetCentre, _atmosphereRadius, inScatterPoint, -sunDir).y; // 태양빛이 대기를 가로지르는 길이
         const float sunRayOpticalDepth = opticalDepth(inScatterPoint, -sunDir, sunRayLength); // 태양빛이 inScatterPoint까지 도달하면서 산란되는 비율
         const float localDensity = densityAtPoint(inScatterPoint); // inScatterPoint에서의 대기 입자 밀도
         viewRayOpticalDepth = opticalDepth(inScatterPoint, rayDir, stepSize * i); // 다시 inScatterPoint부터 카메라까지 도달하면서 산란되는 비율
@@ -196,7 +193,10 @@ float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float r
     static float3 betaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
     static float Hr = 7994; //Thickness of the atmosphere if density was uniform (Hr) 
 
-    const float segmentLength = rayLength / _numInScatteringPoints;
+    // rayLength를 너무 길게 가져가면 레일리산란이 너무 누적되어서 지평선에 붉은 띠가 형성됩니다.
+    const float maxViewDistance = 120000.0; // 120 km 정도
+    const float effectiveRayLength = min(rayLength, maxViewDistance);
+    const float segmentLength = effectiveRayLength / _numInScatteringPoints;
     float tCurrent = 0;
     float3 sumR = float3(0, 0, 0);
     float opticalDepthR = 0;
@@ -204,27 +204,36 @@ float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float r
     for(int i = 0; i < _numInScatteringPoints; ++i)
     {
         const float3 samplePosition = rayOrigin + (tCurrent + segmentLength * 0.5f) * rayDir; // Segment 중간에서 Sample하기 위해 semgentLength * 0.5를 더함
-        const float height = samplePosition.y - _planetRadius; // 지구 해수면을 0m라 했을 때 현재 samplePosition의 높이
+#if 0
+        const float height = samplePosition.y -     ; // 지구 해수면을 0m라 했을 때 현재 samplePosition의 높이
+#else
+        float height = length(samplePosition - _planetCentre) - _planetRadius;
+        //height = max(height, 0.0);
+#endif
 
         ////// view dir opticalDepth //////
-        const float hr = exp(-height / Hr) * segmentLength;
+        const float hr = exp(-height / Hr) * segmentLength; // 현재 height에서의 공기 밀도 백분률을 적분 리만합
         opticalDepthR += hr; // 원래는 betaR * hr을 더해야하지만 한꺼번에 모아서 할려고 betaR은 나중에 곱한다. (tau 부분)
 
         ////// 여기서부턴 light의 opticalDepth 계산 //////
-        const float sunRayLength = raySphere(planetCentre, atmosphereRadius, samplePosition, sunDir).y; // 태양빛이 대기를 가로지르는 길이
+        const float sunRayLength = raySphere(_planetCentre, _atmosphereRadius, samplePosition, sunDir).y; // 태양빛이 대기를 가로지르는 길이
         const float segmentLengthLight = sunRayLength / _opticalDepthPointCount;
         float tCurrentLight = 0;
         float opticalDepthLightR = 0;
         for(int j = 0; j < _opticalDepthPointCount; ++j )
         {
             const float3 samplePositionLight = samplePosition + (tCurrentLight + segmentLengthLight * 0.5f) * (sunDir);
+#if 0
             const float heightLight = samplePositionLight.y - _planetRadius;
+#else
+            const float heightLight = length(samplePositionLight - _planetCentre) - _planetRadius;
+#endif
             opticalDepthLightR += exp(-heightLight / Hr) * segmentLengthLight; // 원래는 betaR * hr을 더해야하지만 한꺼번에 모아서 할려고 betaR은 나중에 곱한다.
             tCurrentLight += segmentLengthLight;
         }
 
         const float3 tau = betaR * (opticalDepthR + opticalDepthLightR);
-        const float3 attenuation = float3(exp(-tau.x), exp(-tau.y), exp(-tau.z)); // 투과율 합
+        const float3 attenuation = float3(exp(-tau.x), exp(-tau.y), exp(-tau.z)); // 투과율
         sumR += attenuation * hr; // 원래는 betaR * hr을 더해야하지만 한꺼번에 모아서 할려고 betaR은 나중에 곱한다.
 
         tCurrent += segmentLength;
@@ -257,6 +266,15 @@ bool renderSun(const float3 rayOrigin, const float3 rayDir, out float3 sunDir)
     return true;
 }
 
+float3 toneMapACES(float3 x)
+{
+    const float a = 2.51;
+    const float b = 0.03;
+    const float c = 2.43;
+    const float d = 0.59;
+    const float e = 0.14;
+    return saturate((x*(a*x+b))/(x*(c*x+d)+e));
+}
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
     const float nearPlaneHalfHeightWS = _nearDistance * getFOVTangent();
@@ -285,15 +303,18 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     if(depth != 1.f)
         return originalCol;
     
-    const float2 hitInfo = raySphere(planetCentre, atmosphereRadius, rayOriginWS, rayDirWS);
+    const float2 hitInfo = raySphere(_planetCentre, _atmosphereRadius, rayOriginWS, rayDirWS);
     const float destToAtmosphere = hitInfo.x;                       // 카메라부터 가까운 대기 HitPoint까지 거리
     const float lengthAtmosphere = hitInfo.y;                       // 지표면에 안닿을 경우 두 개의 hitPoint의 거리(대기 관통 거리)
 
+    if(lengthAtmosphere == 0)
+        return float4(0, 0, 0, 1);  // 우주공간
+
     const float lengthToSurface = linearDepthDistanceWS - destToAtmosphere;   // 가까운 HitPoint부터 지면까지 거리
     const float destThroughAtrmosphere = min(lengthAtmosphere, lengthToSurface);
-    const float3 pointInAtmosphere = rayOriginWS + rayDirWS * (destToAtmosphere + FLOAT_EPSILON);
+    const float3 pointInAtmosphere = rayOriginWS + rayDirWS * (destToAtmosphere/* + FLOAT_EPSILON*/);
     const float3 light = calculateLight(pointInAtmosphere, rayDirWS, lengthAtmosphere /*- FLOAT_EPSILON * 2*/, originalCol.xyz, sunDir);
-    return float4(light, 1);//originalCol * (1 - float4(light, 1)) + float4(light, 1);
+    return float4(toneMapACES(light), 1);//originalCol * (1 - float4(light, 1)) + float4(light, 1);
 }
 
 #endif

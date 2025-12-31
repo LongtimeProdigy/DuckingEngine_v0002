@@ -733,7 +733,14 @@ namespace DK
 
 		return wc;
 	}
-	bool compileShader(const char* shaderPath, const char* entry, const bool isVertexShader, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader)
+	enum class ShaderType : uint8
+	{
+		VertexShader,
+		PixelShader,
+		ComputeShader,
+		COUNT
+	};
+	bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader)
 	{
 		RenderResourcePtr<IDxcUtils> utils(nullptr);
 		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.getAddress()));
@@ -772,7 +779,21 @@ namespace DK
 
 		//-T for the target profile (eg. ps_6_2)
 		arguments.push_back(L"-T");
-		arguments.push_back(isVertexShader ? L"vs_6_2" : L"ps_6_2");
+		switch (shaderType)
+		{
+			case ShaderType::VertexShader:
+				arguments.push_back(L"vs_6_2");
+				break;
+			case ShaderType::PixelShader:
+				arguments.push_back(L"ps_6_2");
+				break;
+			case ShaderType::ComputeShader:
+				arguments.push_back(L"cs_6_2");
+				break;
+			default:
+				DK_ASSERT_LOG(false, "지원하지 않는 ShaderType입니다.");
+				return false;
+		}
 
 #ifndef _DK_DEBUG_
 		// HLSL Object파일에 Reflect, PBD파일을 제거하는 옵션
@@ -907,12 +928,12 @@ namespace DK
 	{
 		D3D12_SHADER_BYTECODE vertexShaderView = {};
 		RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
-		bool success = compileShader(pipelineCreateInfo._vertexShaderPath, pipelineCreateInfo._vertexShaderEntry, true, vertexShader.get(), vertexShaderView);
+		bool success = compileShader(pipelineCreateInfo._vertexShaderPath, pipelineCreateInfo._vertexShaderEntry, ShaderType::VertexShader, vertexShader.get(), vertexShaderView);
 		if (success == false)
 			return false;
 		D3D12_SHADER_BYTECODE pixelShaderView = {};
 		RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
-		success = compileShader(pipelineCreateInfo._pixelShaderPath, pipelineCreateInfo._pixelShaderEntry, false, pixelShader.get(), pixelShaderView);
+		success = compileShader(pipelineCreateInfo._pixelShaderPath, pipelineCreateInfo._pixelShaderEntry, ShaderType::PixelShader, pixelShader.get(), pixelShaderView);
 		if (success == false)
 			return false;
 
@@ -1071,17 +1092,44 @@ namespace DK
 			Pipeline::CreateInfo& pipelineCreateInfo = renderPassCreateInfo._pipelineArr[i].second;
 
 			Pipeline newPipeline;
-			D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveType = convertPrimitiveTopologyType(pipelineCreateInfo._primitiveTopologyType);
-			if (primitiveType == D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED)
-				continue;
+			if (pipelineCreateInfo._computeShaderPath != nullptr && StringUtil::strcmp(pipelineCreateInfo._computeShaderPath, "") != 0)
+			{
+				newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
+				if (createRootSignature(renderPass, newPipeline) == false)
+					return false;
 
-			newPipeline._primitiveTopologyType = primitiveType;
+				D3D12_SHADER_BYTECODE computeShaderView = {};
+				RenderResourcePtr<IDxcBlob> computeShader = nullptr;
+				bool success = compileShader(pipelineCreateInfo._computeShaderPath, pipelineCreateInfo._computeShaderEntry, ShaderType::ComputeShader, computeShader.get(), computeShaderView);
+				if (success == false)
+					return false;
 
-			newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
-			if (createRootSignature(renderPass, newPipeline) == false)
-				return false;
-			if (createPipelineObjectState(pipelineCreateInfo, newPipeline) == false)
-				return false;
+				D3D12_COMPUTE_PIPELINE_STATE_DESC cpsoDesc = {};
+				cpsoDesc.pRootSignature = newPipeline._rootSignature.get();
+				cpsoDesc.CS = computeShaderView;
+				cpsoDesc.NodeMask = 0;
+
+				HRESULT hr = _device->CreateComputePipelineState(&cpsoDesc, IID_PPV_ARGS(newPipeline._pipelineStateObject.getAddress()));
+				if (FAILED(hr))
+				{
+					DK_ASSERT_LOG(false, "Compute Pipeline State Object 생성 실패");
+					return false;
+				}
+			}
+			else
+			{
+				D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveType = convertPrimitiveTopologyType(pipelineCreateInfo._primitiveTopologyType);
+				if (primitiveType == D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED)
+					continue;
+
+				newPipeline._primitiveTopologyType = primitiveType;
+
+				newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
+				if (createRootSignature(renderPass, newPipeline) == false)
+					return false;
+				if (createPipelineObjectState(pipelineCreateInfo, newPipeline) == false)
+					return false;
+			}
 
 			renderPass._pipelineMap.insert(DKPair<DKString, Pipeline>(pipelineName, DK::move(newPipeline)));
 		}

@@ -1,4 +1,11 @@
 <RenderPassGroup>
+	<RenderPass Name="OceanComputeH0">
+		<ComputePipeline Name="ComputeH0">
+			<Parameter Name="OceanComputeConstantBuffer" Type="Buffer" Register="0"/>
+			<Shader Entry="ComputeH0">Shader/Ocean.hlsl</Shader>
+		</ComputePipeline>
+	</RenderPass>
+
 	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 		
