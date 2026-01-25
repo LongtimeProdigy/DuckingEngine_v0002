@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "EditorDebugDrawManager.h"
 
 #include "DuckingEngine.h"
@@ -38,14 +38,6 @@ namespace DK
 	}
 	bool EditorDebugDrawManager::initialize_Sphere()
 	{
-		sizeof(SpherePrimitiveInfo);
-		alignof(SpherePrimitiveInfo);
-
-		sizeof(LinePrimitiveInfo);
-		alignof(LinePrimitiveInfo);
-
-		sizeof(float4);
-
 		static float3 vertices[6] =
 		{
 			float3(1, 0, 0),

@@ -285,12 +285,6 @@ namespace DK
 			hr = CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory));
 			if (SUCCEEDED(hr) == false)
 				return false;
-
-			// Disable the Alt+Enter fullscreen toggle feature. Switching to fullscreen
-			// will be handled manually.
-			hr = factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
-			if (SUCCEEDED(hr) == false)
-				return false;
 		}
 
 		// Activate DebugLayer
@@ -539,6 +533,13 @@ namespace DK
 			}
 		}
 
+		// CreateSwapChainForHwnd뒤에 호출되어야함
+		// Disable the Alt+Enter fullscreen toggle feature. Switching to fullscreen
+		// will be handled manually.
+		hr = factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
+		if (SUCCEEDED(hr) == false)
+			return false;
+
 		// Viewport
 		{
 			_viewport = dk_new D3D12_VIEWPORT;
@@ -591,10 +592,10 @@ namespace DK
 
 		RECT rc;
 		GetClientRect(hwnd, &rc);
-		DK_LOG("Client = %d %d", rc.right, rc.bottom);
-		DK_LOG("Backbuffer = %d %d", width, height);
-
-
+		UINT swapChainWidth, swapChainHeight;
+		_swapChain->GetSourceSize(&swapChainWidth, &swapChainHeight);
+		DK_ASSERT_LOG(rc.right == swapChainWidth, "diff width: %d - %d", rc.right, swapChainWidth);
+		DK_ASSERT_LOG(rc.bottom == swapChainHeight, "diff width: %d - %d", rc.bottom, swapChainHeight);
 #endif // USE_IMGUI
 
 		return true;
@@ -1234,7 +1235,7 @@ namespace DK
 
 		return dk_new IBuffer(buffers, size);
 	}
-	ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const DKStringW& debugName)
+	ID3D12Resource* RenderModule::createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const DKStringW& debugName)
 	{
 		ID3D12Resource* uploadBuffer = createBufferInternal(bufferSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
 		if (uploadBuffer == nullptr)
@@ -1245,19 +1246,18 @@ namespace DK
 		DK_ASSERT_LOG(SUCCEEDED(hr), "Map 실패");
 		memcpy(uploadBufferGPUAddress, data, bufferSize);
 
-		D3D12_RESOURCE_STATES defaultBufferState = D3D12_RESOURCE_STATE_COPY_DEST;
-		ID3D12Resource* defaultBuffer = createDefaultBuffer(bufferSize, defaultBufferState, debugName);
+		ID3D12Resource* defaultBuffer = createDefaultBuffer(bufferSize, D3D12_RESOURCE_STATE_COMMON, debugName);
 		if (defaultBuffer == nullptr)
 			return nullptr;
 
 		waitFenceAndResetCommandList();
 
+		CD3DX12_RESOURCE_BARRIER trans = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
+		_commandList->_commandList->ResourceBarrier(1, &trans);
 		_commandList->_commandList->CopyResource(defaultBuffer, uploadBuffer);
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Transition.pResource = defaultBuffer;
-		barrier.Transition.StateBefore = defaultBufferState;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_GENERIC_READ;
-		_commandList->_commandList->ResourceBarrier(1, &barrier);
+		trans = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COPY_DEST, state);
+		_commandList->_commandList->ResourceBarrier(1, &trans);
+
 
 		execute();
 
@@ -1266,7 +1266,7 @@ namespace DK
 	const bool RenderModule::createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName)
 	{
 		uint32 bufferSizeInBytes = strideSize * vertexCount;
-		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes, debugName);
+		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, debugName);
 		if (defaultBuffer == nullptr)
 			return false;
 
@@ -1282,7 +1282,7 @@ namespace DK
 	const bool RenderModule::createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView, const DKStringW& debugName)
 	{
 		uint32 bufferSizeInBytes = sizeof(uint32) * bufferSize;
-		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes, debugName);
+		ID3D12Resource* defaultBuffer = createInitializedDefaultBuffer(data, bufferSizeInBytes, D3D12_RESOURCE_STATE_INDEX_BUFFER, debugName);
 		if (defaultBuffer == nullptr)
 			return false;
 

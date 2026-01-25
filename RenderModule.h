@@ -295,7 +295,7 @@ do{ \
 
 		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
 		ID3D12Resource* createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
-		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const DKStringW& debugName);
+		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
 
 		void waitFenceAndResetCommandList();
 		void execute();
