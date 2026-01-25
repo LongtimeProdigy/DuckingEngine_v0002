@@ -78,6 +78,9 @@ namespace DK
 		}
 		DK_LOG("Window Initialize - Success");
 
+		UINT dpi = GetDpiForWindow(_hwnd);
+		DK_LOG("Window DPI = %u\n", dpi);
+
 		if (DuckingEngine::getInstance().Initialize(_hwnd, data._width, data._height) == false)
 		{
 			DK_ASSERT_LOG(false, "Engine Initialize - Failed");

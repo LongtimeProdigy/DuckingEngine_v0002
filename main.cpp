@@ -5,6 +5,9 @@
 #include <shlobj.h>
 #include <strsafe.h>
 
+#include <ShellScalingApi.h>
+#pragma comment(lib, "Shcore.lib")
+
 #if defined(USE_PIX)
 static std::wstring GetLatestWinPixGpuCapturerPath()
 {
@@ -55,6 +58,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 {
 	try
 	{
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
         DK::gMainThreadID = GetCurrentThreadId();
 
 #if defined(USE_PIX)

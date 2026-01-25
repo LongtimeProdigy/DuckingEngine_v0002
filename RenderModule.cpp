@@ -496,10 +496,16 @@ namespace DK
 
 		// Create SwapChain and BackBuffer RTV
 		{
+			RECT rc;
+			GetClientRect(hwnd, &rc);
+			UINT realWidth = rc.right - rc.left;
+			UINT realHeight = rc.bottom - rc.top;
+
+
 			DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
 			DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-			swapChainDesc.Width = width;
-			swapChainDesc.Height = height;
+			swapChainDesc.Width = realWidth;
+			swapChainDesc.Height = realHeight;
 			swapChainDesc.Format = renderTargetFormat;
 			swapChainDesc.Stereo = FALSE;
 			swapChainDesc.SampleDesc = sampleDesc;
@@ -570,12 +576,25 @@ namespace DK
 				return false;
 			}
 
+			ImGui_ImplWin32_EnableDpiAwareness();
 			ImGui_ImplWin32_Init(hwnd);
 			ImGui_ImplDX12_Init(
 				_device.get(), kFrameCount, DXGI_FORMAT_R8G8B8A8_UNORM, _pd3dSrvDescHeap.get(),
 				_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(), _pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart()
 			);
 		}
+
+		assert(io.BackendPlatformName != nullptr);
+		DK_LOG("Backend: %s", io.BackendPlatformName);
+		DK_LOG("BackendFlags: %d", io.BackendFlags);
+		DK_LOG("DisplayFramebufferScale: %f, %f", io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+
+		RECT rc;
+		GetClientRect(hwnd, &rc);
+		DK_LOG("Client = %d %d", rc.right, rc.bottom);
+		DK_LOG("Backbuffer = %d %d", width, height);
+
+
 #endif // USE_IMGUI
 
 		return true;
