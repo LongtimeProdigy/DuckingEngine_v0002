@@ -120,6 +120,11 @@ namespace DK
 						{
 							pipelineCreateInfo._cullMode = Pipeline::CreateInfo::CullMode::NONE;
 						}
+						else
+						{
+							DK_ASSERT_LOG(false, "Incorrect Pipeline CullMode(%s).", cullMode);
+							return false;
+						}
 					}
 
 					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
@@ -447,18 +452,20 @@ namespace DK
 		// MainRender
 		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true);
 		{
-			//startPipeline("SkyDomePipeline");
-			//{
-			//	setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+#if (0)
+			startPipeline("SkyDomePipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
-			//	SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			//	SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
 
-			//	renderModule.setVertexBuffers(0, 1, skyDome._mesh._vertexBufferView.get());
-			//	renderModule.setIndexBuffer(skyDome._mesh._indexBufferView.get());
-			//	renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._mesh._indexCount), 1, 0, 0, 0);
-			//}
-			//endPipeline();
+				renderModule.setVertexBuffers(0, 1, skyDome._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(skyDome._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
+#endif
 
 			startPipeline("TerrainClipmapPipeline");
 			{

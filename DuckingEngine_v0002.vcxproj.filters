@@ -112,6 +112,9 @@
     <ClCompile Include="SceneManager.cpp">
       <Filter>1. EngineCore</Filter>
     </ClCompile>
+    <ClCompile Include="MeshUtil.cpp">
+      <Filter>0. Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
@@ -223,6 +226,9 @@
     </ClInclude>
     <ClInclude Include="SceneManager.h">
       <Filter>1. EngineCore</Filter>
+    </ClInclude>
+    <ClInclude Include="MeshUtil.h">
+      <Filter>0. Common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

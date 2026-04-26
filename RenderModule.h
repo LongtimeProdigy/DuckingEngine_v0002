@@ -275,7 +275,7 @@ do{ \
 		{
 			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
 			FindResult find = _renderPassMap.find(renderPassName);
-			DK_ASSERT_LOG(find != _renderPassMap.end(), "�������� �ʴ� RenderPass�� Bind�õ��մϴ�.\nName: %s", renderPassName.c_str());
+			DK_ASSERT_LOG(find != _renderPassMap.end(), "Can't not find RenderPass named %s", renderPassName.c_str());
 #ifdef _DK_DEBUG_
 			if (find == _renderPassMap.end())
 				return nullptr;

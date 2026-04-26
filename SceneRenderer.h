@@ -28,8 +28,8 @@ namespace DK
 	};
 	struct AtmosphereConstantBuffer
 	{
-		uint32 _numInScatteringPoints = 16;
-		uint32 _opticalDepthPointCount = 8;
+		uint32 _numInScatteringPoints = 7;
+		uint32 _opticalDepthPointCount = 2;
 		uint32 _densityFallOff = 1;
 		uint32 _scatteringStrength = 21;
 

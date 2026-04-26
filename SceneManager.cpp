@@ -6,6 +6,7 @@
 #include "Material.h"
 #include "ResourceManager.h"
 #include "ModelProperty.h"
+#include "MeshUtil.h"
 
 namespace DK
 {
@@ -18,68 +19,17 @@ namespace DK
 		const uint32 tessellationX = 10;
 		const float radius = 1.0f; // DK::Math::kFloatMax;
 
-		float degreeY = (180.0f / tessellationY) * DK::Math::kToRadian;
-		float degreeX = (360.0f / tessellationX) * DK::Math::kToRadian;
-
-		DKVector<float3> vertexArr;
-		{
-			vertexArr.resize((tessellationY - 1) * tessellationX + 2);	// 맨 위, 맨 아래 점 2개는 따로 +로 추가s
-			uint32 n = 0;
-			vertexArr[n++] = float3(0, radius, 0);
-			for (uint32 i = 1; i < tessellationY; ++i)
-			{
-				float positionY = radius * DK::Math::sin(DK::Math::Half_PI - degreeY * i);
-				float radiusXZ = radius * DK::Math::cos(DK::Math::Half_PI - degreeY * i);
-				for (uint32 j = 0; j < tessellationX; ++j)
-				{
-					float positionX = radiusXZ * DK::Math::cos(degreeX * j);
-					float positionZ = radiusXZ * DK::Math::sin(degreeX * j);
-
-					vertexArr[n++] = float3(positionX, positionY, positionZ);
-				}
-			}
-			vertexArr[n++] = float3(0, -radius, 0);
-			DK_ASSERT_LOG(n == vertexArr.size(), "Sphere VertexCount가 올바르지 않음");
-		}
-
-		// IndexBuffer
-		// ���� �ﰢ�� + �߰����� + �� ������ ��
-		const uint32 indexCount = (tessellationX * 3) + (tessellationX * 6) * (tessellationY - 2) + (tessellationX * 3);
+		DKVector<float3> positionArr;
+		DKVector<float3> normalArr;
+		DKVector<float2> uvArr;
 		DKVector<uint32> indexArr;
-		{
-			indexArr.resize(indexCount);
-			uint32 n = 0;
-			for (uint32 i = 0; i < tessellationY; ++i)
-			{
-				for (uint32 j = 0; j < tessellationX; ++j)
-				{
-					uint32 innerCircleVetexIndex0 = i == 0 ? 0 : 1 + (i - 1) * tessellationX + j;
-					uint32 innerCircleVetexIndex1 = j == tessellationX - 1 ? 1 + (i - 1) * tessellationX : 1 + (i - 1) * tessellationX + j + 1;
-					uint32 outerCircleVertexIndex0 = 1 + i * tessellationX + j;
-					uint32 outerCircleVertexIndex1 = i == tessellationY - 1 ? vertexArr.size() - 1 : j == tessellationX - 1 ? 1 + i * tessellationX : 1 + i * tessellationX + j + 1;
-
-					if (i != tessellationY - 1)
-					{
-						indexArr[n++] = innerCircleVetexIndex0;
-						indexArr[n++] = outerCircleVertexIndex0;
-						indexArr[n++] = outerCircleVertexIndex1;
-					}
-
-					if (i != 0)
-					{
-						indexArr[n++] = innerCircleVetexIndex0;
-						indexArr[n++] = outerCircleVertexIndex1;
-						indexArr[n++] = innerCircleVetexIndex1;
-					}
-				}
-			}
-			DK_ASSERT_LOG(n == indexArr.size(), "Sphere IndexCount가 올바르지 않음");
-		}
+		const bool success = MeshUtil::createSphere(tessellationX, tessellationY, radius, positionArr, normalArr, uvArr, indexArr);
+		DK_ASSERT_LOG(success, "");
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"SkyeDome_VertexBuffer");
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(positionArr.data(), sizeof(decltype(positionArr[0])), static_cast<uint32>(positionArr.size()), vertexBufferView, L"SkyeDome_VertexBuffer");
 		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"SkyDome_IndexBuffer");
 
 		_skyDome._mesh._vertexBufferView = vertexBufferView;

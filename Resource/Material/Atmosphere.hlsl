@@ -4,6 +4,8 @@
 #include "CommonRendering.hlsl"
 #include "CommonTexture.hlsl"
 
+#define APPLY_MIE_SCATTERING
+
 cbuffer AtmosphereConstantBuffer : register(b1)
 {
 	uint _numInScatteringPoints;
@@ -42,21 +44,6 @@ VS_OUTPUT VSMain(VS_INPUT input)
     return output;
 }
 
-// 기본적으로 depthTexture의 Value(depthValue)는 log한 값입니다.
-// 이를 선형적 값으로 변환합니다.
-float linearEyeDepth01(const float depthValue, const float nearClip, const float farClip)
-{
-    return (nearClip) / (farClip + nearClip - depthValue * (farClip - nearClip));
-}
-
-float intersectRaySphere(float4 rayOrigin, float4 rayDirection, float4 sphere) 
-{ 
-    float4 sphereCenter = sphere; sphereCenter.w = 1.0f; 
-    float4 dist = rayOrigin - sphereCenter; 
-    float B_half = dot(dist, rayDirection); 
-    float C = dot(dist, dist) - sphere.w; 
-    return B_half * B_half - C; 
-}
 float2 raySphere(const float3 sphereCentre, const float sphereRadius, const float3 rayOrigin, const float3 rayDir)
 {
     /*
@@ -111,6 +98,8 @@ float2 raySphere(const float3 sphereCentre, const float sphereRadius, const floa
 #endif
     return float2(nearestPoint, throughLength);
 #else
+    // destToSphere1이 음수인 경우: rayOrigin이 Sphere 내부에 있다. >> rayOrigin/Dir의 양수거리만큼만 반환한다. 그리고 Through는 rayOrigin부터 HitPoint까지만 반환한다.
+    // destToSphere1이 양수인 경우: rayOrigin이 Sphere 외부에 있다. >> 이경우엔 destToSphere1이 무조건 더 작으므로 가장 가까운 거리를 반환한다.
     const float3 nearPoint = float3(
         rayOrigin.x + (destToSphere1 < 0 ? 0 : destToSphere1) * rayDir.x, 
         rayOrigin.y + (destToSphere1 < 0 ? 0 : destToSphere1) * rayDir.y, 
@@ -129,69 +118,18 @@ float2 raySphere(const float3 sphereCentre, const float sphereRadius, const floa
 #endif
 }
 
-float densityAtPoint(const float3 densitySamplePoint)
-{
-    const float heightAboveSurface = length(densitySamplePoint - _planetCentre) - _planetRadius;
-    const float height01 = heightAboveSurface / (_atmosphereRadius - _planetRadius);
-    const float localDensity = exp(-height01 * _densityFallOff) * (1 - height01);          // 0 -> 1 / 1 -> 0 으로가는 exp지수함수 그래프
-
-    return localDensity;
-}
-float opticalDepth(const float3 rayOrigin, const float3 rayDir, const float rayLength)
-{
-    float3 densitySamplePoint = rayOrigin;
-    const float stepSize = rayLength / (_opticalDepthPointCount - 1);
-    float opticalDepth = 0;
-
-    for(int i = 0; i < _opticalDepthPointCount; ++i)
-    {
-        const float localDensity = densityAtPoint(densitySamplePoint);
-        opticalDepth += localDensity * stepSize;
-        densitySamplePoint += rayDir * stepSize;
-    }
-
-    return opticalDepth * stepSize;
-}
-//const float3 light = calculateLight(pointInAtmosphere, rayDirWS, lengthAtmosphere /*- FLOAT_EPSILON * 2*/, originalCol.xyz, sunDir);
 float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float rayLength, const float3 originalCol, const float3 sunDir)
 {
-#if 0
-    // Atmosphere PostProcessing
-    // https://www.youtube.com/watch?v=DxfEbulyFcY&t=653s&ab_channel=SebastianLague
-    float3 inScatterPoint = rayOrigin;
-    const float stepSize = rayLength / (_numInScatteringPoints - 1);
-    float3 inScatteredLight = 0;
-    float viewRayOpticalDepth = 0;
-
-    const float3 scatteringCoefficients = float3(
-        pow(400.0f / 700.0f, 4) * _scatteringStrength, 
-        pow(400.0f / 530.0f, 4) * _scatteringStrength, 
-        pow(400.0f / 440.0f, 4) * _scatteringStrength
-    );
-
-    for(uint i = 0; i < _numInScatteringPoints; ++i)
-    {
-        const float sunRayLength = raySphere(_planetCentre, _atmosphereRadius, inScatterPoint, -sunDir).y; // 태양빛이 대기를 가로지르는 길이
-        const float sunRayOpticalDepth = opticalDepth(inScatterPoint, -sunDir, sunRayLength); // 태양빛이 inScatterPoint까지 도달하면서 산란되는 비율
-        const float localDensity = densityAtPoint(inScatterPoint); // inScatterPoint에서의 대기 입자 밀도
-        viewRayOpticalDepth = opticalDepth(inScatterPoint, rayDir, stepSize * i); // 다시 inScatterPoint부터 카메라까지 도달하면서 산란되는 비율
-        const float3 transmittance = exp(-((sunRayOpticalDepth + viewRayOpticalDepth)));
-
-        inScatteredLight += localDensity * transmittance;
-        inScatterPoint += rayDir * stepSize;
-    }
-
-    inScatteredLight *= scatteringCoefficients * stepSize;
-
-    return inScatteredLight;
-    //const float originalColTransmittance = exp(-viewRayOpticalDepth);
-    //return originalCol * originalColTransmittance + inScatteredLight;
-#else
+    static const float M_PI = 3.141592f;
     // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky/simulating-colors-of-the-sky.html
     // https://www.shadertoy.com/view/tdSXzD
-    static float M_PI = 3.141592f;
-    static float3 betaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
-    static float Hr = 7994; //Thickness of the atmosphere if density was uniform (Hr) 
+    // Rayleigh
+    static const float3 betaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
+    static const float HrR = 7994;
+    // Mie
+    static const float3 betaM = float3(21e-6, 21e-6, 21e-6);
+    static const float HrM = 1200;
+    static const float g = 0.76;
 
     // rayLength를 너무 길게 가져가면 레일리산란이 너무 누적되어서 지평선에 붉은 띠가 형성됩니다.
     const float maxViewDistance = 120000.0; // 120 km 정도
@@ -199,49 +137,68 @@ float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float r
     const float segmentLength = effectiveRayLength / _numInScatteringPoints;
     float tCurrent = 0;
     float3 sumR = float3(0, 0, 0);
+    float3 sumM = float3(0, 0, 0);
     float opticalDepthR = 0;
+    float opticalDepthM = 0;
 
     for(int i = 0; i < _numInScatteringPoints; ++i)
     {
         const float3 samplePosition = rayOrigin + (tCurrent + segmentLength * 0.5f) * rayDir; // Segment 중간에서 Sample하기 위해 semgentLength * 0.5를 더함
-#if 0
-        const float height = samplePosition.y -     ; // 지구 해수면을 0m라 했을 때 현재 samplePosition의 높이
-#else
         float height = length(samplePosition - _planetCentre) - _planetRadius;
-        //height = max(height, 0.0);
-#endif
+        height = max(height, 0.0);
 
-        ////// view dir opticalDepth //////
-        const float hr = exp(-height / Hr) * segmentLength; // 현재 height에서의 공기 밀도 백분률을 적분 리만합
-        opticalDepthR += hr; // 원래는 betaR * hr을 더해야하지만 한꺼번에 모아서 할려고 betaR은 나중에 곱한다. (tau 부분)
+        // View 방향으로의 공기 밀도 누적
+        const float hrR = exp(-height / HrR);
+        opticalDepthR += hrR * segmentLength;
+        const float hrM = exp(-height / HrM);
+        opticalDepthM += hrM * segmentLength;
 
-        ////// 여기서부턴 light의 opticalDepth 계산 //////
+        // 태양 위치부터 SamplePosition까지의 공기 밀도 계산
         const float sunRayLength = raySphere(_planetCentre, _atmosphereRadius, samplePosition, sunDir).y; // 태양빛이 대기를 가로지르는 길이
+
+        // Self Shadow 제외
+        if (sunRayLength <= 0.0)
+            continue;
+
         const float segmentLengthLight = sunRayLength / _opticalDepthPointCount;
         float tCurrentLight = 0;
         float opticalDepthLightR = 0;
+        float opticalDepthLightM = 0;
         for(int j = 0; j < _opticalDepthPointCount; ++j )
         {
-            const float3 samplePositionLight = samplePosition + (tCurrentLight + segmentLengthLight * 0.5f) * (sunDir);
-#if 0
-            const float heightLight = samplePositionLight.y - _planetRadius;
-#else
-            const float heightLight = length(samplePositionLight - _planetCentre) - _planetRadius;
-#endif
-            opticalDepthLightR += exp(-heightLight / Hr) * segmentLengthLight; // 원래는 betaR * hr을 더해야하지만 한꺼번에 모아서 할려고 betaR은 나중에 곱한다.
+            const float3 samplePositionLight = samplePosition + (tCurrentLight + segmentLengthLight * 0.5f) * sunDir;
+            float heightLight = length(samplePositionLight - _planetCentre) - _planetRadius;
+            heightLight = max(heightLight, 0.0);
+
+            opticalDepthLightR += exp(-heightLight / HrR) * segmentLengthLight;
+            opticalDepthLightM += exp(-heightLight / HrM) * segmentLengthLight;
+
             tCurrentLight += segmentLengthLight;
         }
 
+        // Camera방향, Sun방향 공기밀도를 합해서 투과율로 변환
+#if !defined(APPLY_MIE_SCATTERING)
         const float3 tau = betaR * (opticalDepthR + opticalDepthLightR);
-        const float3 attenuation = float3(exp(-tau.x), exp(-tau.y), exp(-tau.z)); // 투과율
-        sumR += attenuation * hr; // 원래는 betaR * hr을 더해야하지만 한꺼번에 모아서 할려고 betaR은 나중에 곱한다.
+#else
+        const float3 tau = betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM);
+#endif
+        const float3 attenuation = exp(-tau);
+
+        // 투과율을 리만적분 누적
+        sumR += attenuation * hrR * segmentLength;
+        sumM += attenuation * hrM * segmentLength;
 
         tCurrent += segmentLength;
     }
 
+    // 리만적분에 필요했던 상수 부분들 마지막에 곱(위상함수, beta)
     const float mu = dot(rayDir, sunDir);
     const float phaseR = (3.f / (16.f * M_PI)) * (1 + mu * mu);
-    return _sunIntensity * betaR * sumR * phaseR;
+#if !defined(APPLY_MIE_SCATTERING)
+    return _sunIntensity * (betaR * sumR * phaseR);
+#else
+    const float phaseM = (1.0 - g * g) / (4.0 * M_PI * pow(1.0 + mu - 2.0 * g * mu, 1.5));
+    return _sunIntensity * (betaR * sumR * phaseR + sumM * betaM * phaseM);
 #endif
 }
 
@@ -297,24 +254,26 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float4 originalCol = renderTexture.Load(uint3(input.uv * _resolution, 0));
     
     const float depth = depthTexture.Load(uint3(input.uv * _resolution, 0)).x;
-    const float linearDepthDistanceWS = linearEyeDepth01(depth, _nearDistance, _farDistance) * (_farDistance - _nearDistance);
+    // 기본적으로 depthTexture의 Value는 log된 값입니다. 이를 선형적 값으로 변환합니다.
+    const float linearDepth01 = (_nearDistance) / (_farDistance + _nearDistance - depth * (_farDistance - _nearDistance));
+    const float linearDepthDistanceWS = linearDepth01 * (_farDistance - _nearDistance);
 
-    // TODO: 나중엔 stencil로 교체해야함
-    if(depth != 1.f)
-        return originalCol;
+    // // TODO: 나중엔 stencil로 교체해야함
+    // if(depth != 1.f)
+    //     return originalCol;
     
     const float2 hitInfo = raySphere(_planetCentre, _atmosphereRadius, rayOriginWS, rayDirWS);
-    const float destToAtmosphere = hitInfo.x;                       // 카메라부터 가까운 대기 HitPoint까지 거리
-    const float lengthAtmosphere = hitInfo.y;                       // 지표면에 안닿을 경우 두 개의 hitPoint의 거리(대기 관통 거리)
+    const float destToAtmosphere = hitInfo.x;                       // 대기 near 거리 (만약 카메라가 대기 안에 있다면 0)
+    const float lengthAtmosphere = hitInfo.y;                       // 대기 관통 거리 (만약 카메라가 대기 안에 있다면 far - camerapos)
 
     if(lengthAtmosphere == 0)
-        return float4(0, 0, 0, 1);  // 우주공간
+        return float4(1, 0, 0, 1);  // 우주공간
 
-    const float lengthToSurface = linearDepthDistanceWS - destToAtmosphere;   // 가까운 HitPoint부터 지면까지 거리
-    const float destThroughAtrmosphere = min(lengthAtmosphere, lengthToSurface);
-    const float3 pointInAtmosphere = rayOriginWS + rayDirWS * (destToAtmosphere/* + FLOAT_EPSILON*/);
-    const float3 light = calculateLight(pointInAtmosphere, rayDirWS, lengthAtmosphere /*- FLOAT_EPSILON * 2*/, originalCol.xyz, sunDir);
-    return float4(toneMapACES(light), 1);//originalCol * (1 - float4(light, 1)) + float4(light, 1);
+    const float lengthToSurface = linearDepthDistanceWS - destToAtmosphere;                 // near to surface 또는 camerapos to surface
+    const float destThroughAtrmosphere = depth != 1.f ? lengthToSurface : lengthAtmosphere; // 지면에 안부딪힐 경우 대기 관통거리, 지면에 부딪힌 경우 카메라 또는 near부터 부딪힌 지면까지의 거리
+    const float3 pointInAtmosphere = rayOriginWS + rayDirWS * (destThroughAtrmosphere/* + FLOAT_EPSILON*/);
+    const float3 lightHDR = calculateLight(rayOriginWS, rayDirWS, destThroughAtrmosphere /*- FLOAT_EPSILON * 2*/, originalCol.xyz, sunDir);
+    const float3 lightToneMap = toneMapACES(lightHDR);
+    return originalCol * (1 - float4(lightToneMap, 1)) + float4(lightToneMap, 1);
 }
-
 #endif

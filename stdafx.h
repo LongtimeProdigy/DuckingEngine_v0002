@@ -57,6 +57,8 @@ typedef unsigned long long uint64;
 #endif
 namespace DK
 {
+#define BLOCK(category)
+
 #define MAX_LOG_BUFFER_LENGTH 32768
 #define DK_LOG(text, ...)												\
 {																		\

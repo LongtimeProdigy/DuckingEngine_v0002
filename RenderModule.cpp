@@ -125,7 +125,7 @@ uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
 
 namespace DK
 {
-	static const float4 gClearRenderTargetViewColor(0, 1, 0, 1);
+	static const float4 gClearRenderTargetViewColor(0, 0, 0, 1);
 
 	uint32 RenderModule::kCurrentFrameIndex = 0;
 	uint32 RenderModule::kWidth = 0;
@@ -468,7 +468,7 @@ namespace DK
 				clearValue.Color[2] = gClearRenderTargetViewColor.z;
 				clearValue.Color[3] = gClearRenderTargetViewColor.w;
 				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
-				DK_ASSERT_LOG(SUCCEEDED(hr), "RenderTarget Resource ���� ����");
+				DK_ASSERT_LOG(SUCCEEDED(hr), "Faile to create RenderTarget Resource");
 
 				_device->CreateRenderTargetView(_renderTargetResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
