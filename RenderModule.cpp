@@ -459,6 +459,8 @@ namespace DK
 			ID3D12Resource* renderTargetResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
 			for (uint32 i = 0; i < DK_COUNT_OF(renderTargetResourceArr); ++i)
 			{
+				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(renderTargetFormat, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
 				D3D12_CLEAR_VALUE clearValue;
 				clearValue.Format = renderTargetFormat;
 				clearValue.Color[0] = gClearRenderTargetViewColor.x;
