@@ -30,12 +30,14 @@ namespace DK
 	class ITexture
 	{
 	public:
-		using TextureSRVType = uint32;
-		static constexpr TextureSRVType kErrorTextureSRVIndex = 0xffffffff;
+		using TextureResourceViewType = uint32;
+		static constexpr TextureResourceViewType kErrorTextureResourceViewIndex = 0xffffffff;
+
 	public:
-		ITexture(const DKString& path, const TextureSRVType& textureSRV)
+		ITexture(const DKString& path, ID3D12Resource* textureBuffer, DXGI_FORMAT format)
 			: _path(path)
-			, _textureSRVIndex(textureSRV)
+			, _textureBuffer(textureBuffer)
+			, _format(format)
 		{}
 		~ITexture();
 
@@ -43,15 +45,36 @@ namespace DK
 		{
 			return _path;
 		}
-
-		dk_inline const TextureSRVType& getSRV() const noexcept
+		dk_inline const DXGI_FORMAT getFormat() const
 		{
+			return _format;
+		}
+		dk_inline const ID3D12Resource* getTextureBuffer() const
+		{
+			return _textureBuffer;
+		}
+		dk_inline ID3D12Resource* getTextureBuffer()
+		{
+			return const_cast<ID3D12Resource*>(_textureBuffer);
+		}
+		dk_inline const TextureResourceViewType& getSRV() const noexcept
+		{
+			DK_ASSERT_LOG(_textureSRVIndex != kErrorTextureResourceViewIndex, "유효하지 않은 TextureSRV입니다. Path: %s", _path.c_str());
 			return _textureSRVIndex;
+		}
+		dk_inline const TextureResourceViewType& getUAV() const noexcept
+		{
+			DK_ASSERT_LOG(_textureUAVIndex != kErrorTextureResourceViewIndex, "유효하지 않은 TextureSRV입니다. Path: %s", _path.c_str());
+			return _textureUAVIndex;
 		}
 
 	private:
-		DKString _path;
-		TextureSRVType _textureSRVIndex = kErrorTextureSRVIndex;
+		const DKString _path = "";
+		const ID3D12Resource* _textureBuffer = nullptr;
+		const DXGI_FORMAT _format = DXGI_FORMAT_FORCE_UINT;
+
+		TextureResourceViewType _textureSRVIndex = kErrorTextureResourceViewIndex;
+		TextureResourceViewType _textureUAVIndex = kErrorTextureResourceViewIndex;
 	};
 
 	enum class ShaderParameterType
@@ -265,11 +288,15 @@ do{ \
 		void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
 		void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
 		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
+		void dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ);
 		void endRender();
 
 		// helper 함수
-		ITextureRef allocateTexture(const DKString& path);
-		void deallocateTextureSRV(const DKString& path, const ITexture::TextureSRVType srvIndex);
+		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
+		ITextureRef loadAndCreateTexture(const DKString& path);
+		void deleteTexture(ITexture* texture);
+		void deallocateTextureSRV(const ITexture::TextureResourceViewType index);
+		void deallocateTextureUAV(const ITexture::TextureResourceViewType index);
 
 		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
 		{
@@ -291,7 +318,8 @@ do{ \
 		bool createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
-		ITextureRef allocateTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format);
+		const bool allocateTextureSRV(ITexture* texture);
+		const bool allocateTextureUAV(ITexture* texture);
 
 		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
 		ID3D12Resource* createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
@@ -314,18 +342,14 @@ do{ \
 
 		// RenderTarget + BackBuffer
 		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetViewHeap = nullptr;
-
 		// RenderTarget
-		RenderResourcePtr<ID3D12Resource> _renderTargetResourceArr[kFrameCount * 2];	// Deffered
-		ITextureRef _renderTargetTextureArr[DK_COUNT_OF(_renderTargetResourceArr)];
-
+		ITextureRef _renderTargetTextureArr[kFrameCount * 2];
 		// BackBuffer
 		RenderResourcePtr<ID3D12Resource> _backBufferResourceArr[kFrameCount];			// BackBuffer
 
 		// DepthStencil
 		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
-		RenderResourcePtr<ID3D12Resource2> _depthStencilResourceArr[DK_COUNT_OF(_renderTargetResourceArr)];
-		ITextureRef _depthStencilTextureArr[DK_COUNT_OF(_renderTargetResourceArr)];
+		ITextureRef _depthStencilTextureArr[DK_COUNT_OF(_renderTargetTextureArr)];
 
 		// SwapChain
 #if defined(USE_IMGUI)
@@ -333,7 +357,9 @@ do{ \
 #endif
 
 		// Texture
-		DKVector<ITexture::TextureSRVType> _deletedTextureSRVArr;
+		static constexpr const uint32 kMaxTextureSRVCount = 1024;
+		DKVector<ITexture::TextureResourceViewType> _deletedTextureSRVArr;
+		DKVector<ITexture::TextureResourceViewType> _deletedTextureUAVArr;
 		DKHashMap<DKString, ITextureRef> _textureContainer;
 		RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
 

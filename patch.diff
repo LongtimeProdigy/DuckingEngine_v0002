@@ -1,0 +1,1353 @@
+diff --git a/DuckingEngine_v0002.vcxproj b/DuckingEngine_v0002.vcxproj
+index 77a8774..42e0db6 100644
+--- a/DuckingEngine_v0002.vcxproj
++++ b/DuckingEngine_v0002.vcxproj
+@@ -266,6 +266,7 @@
+       <ConformanceMode>true</ConformanceMode>
+       <PrecompiledHeader>Create</PrecompiledHeader>
+       <AdditionalIncludeDirectories>$(SolutionDir)lib\assimp\include;$(SolutionDir)lib\fbx\include;$(SolutionDir)lib\imgui;$(SolutionDir)lib\imgui/backends;$(SolutionDir)lib\tinyXML</AdditionalIncludeDirectories>
++      <LanguageStandard>stdcpp17</LanguageStandard>
+     </ClCompile>
+     <Link>
+       <SubSystem>Windows</SubSystem>
+diff --git a/GameModule.cpp b/GameModule.cpp
+index e8ea526..3306ba3 100644
+--- a/GameModule.cpp
++++ b/GameModule.cpp
+@@ -1,4 +1,4 @@
+-#include "stdafx.h"
++﻿#include "stdafx.h"
+ #include "GameModule.h"
+ 
+ #include "DuckingEngine.h"
+@@ -14,6 +14,7 @@ namespace DK
+ 	bool GameModule::initialize()
+ 	{
+ 		// Test Terrain
++		DuckingEngine::getInstance().getSceneManagerWritable().loadOcean();
+ 		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
+ 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
+ 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
+@@ -39,4 +40,4 @@ namespace DK
+ 
+ 		return true;
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/Material.cpp b/Material.cpp
+index ee9256b..6d1d2ae 100644
+--- a/Material.cpp
++++ b/Material.cpp
+@@ -17,7 +17,7 @@ namespace DK
+ 		}
+ 		case MaterialParameterType::TEXTURE:
+ 		{
+-			ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().allocateTexture(parameterDefinition._value);
++			ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().loadAndCreateTexture(parameterDefinition._value);
+ 			return dk_new MaterialParameterTexture(parameterDefinition._name, texture);
+ 		}
+ 		default:
+@@ -30,7 +30,7 @@ namespace DK
+ 
+ 	uint32 MaterialParameterTexture::getParameterSize() const noexcept
+ 	{
+-		return sizeof(ITexture::TextureSRVType);
++		return sizeof(ITexture::TextureResourceViewType);
+ 	}
+ 
+ 	MaterialParameter::Type MaterialParameterFloat::getType() const noexcept
+@@ -123,7 +123,7 @@ namespace DK
+ 					}
+ 					case MaterialParameterType::TEXTURE:
+ 					{
+-						ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().allocateTexture(parameterDefinition._value);
++						ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().loadAndCreateTexture(parameterDefinition._value);
+ 						MaterialParameterTexture* textureParameter = static_cast<MaterialParameterTexture*>(parameter);
+ 						textureParameter->setParameterValue(texture);
+ 						break;
+diff --git a/RenderModule.cpp b/RenderModule.cpp
+index 7bc3ceb..99d077d 100644
+--- a/RenderModule.cpp
++++ b/RenderModule.cpp
+@@ -85,7 +85,7 @@ WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID)
+ 
+ 	else return GUID_WICPixelFormatDontCare;
+ }
+-uint32 GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat)
++uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
+ {
+ 	if (dxgiFormat == DXGI_FORMAT_R32G32B32A32_FLOAT) return 128;
+ 	else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_FLOAT) return 64;
+@@ -391,8 +391,9 @@ namespace DK
+ 			depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+ 			depthOptimizedClearValue.DepthStencil.Stencil = 0;
+ 
++			ID3D12Resource* depthStencilResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
+ 			D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+-			dsvHeapDesc.NumDescriptors = DK_COUNT_OF(_depthStencilResourceArr);
++			dsvHeapDesc.NumDescriptors = DK_COUNT_OF(depthStencilResourceArr);
+ 			dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+ 			dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+ 			hr = _device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(_depthStencilDescriptorHeap.getAddress()));
+@@ -405,34 +406,32 @@ namespace DK
+ 			CD3DX12_HEAP_PROPERTIES dsvHeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+ 			CD3DX12_RESOURCE_DESC dsvDesc = CD3DX12_RESOURCE_DESC::Tex2D(GetDepthResourceFormat(gDepthStencilFormat), width, height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+ 			// TODO: 현재 Depth/Stencil 버퍼는 2개만 필요하다.. 근데 4개나 만들고 있다. 다음에 FrameBuffer Instance를 만들어서 관리할 수 있도록 해야겠다
+-			for (uint32 i = 0; i < DK_COUNT_OF(_depthStencilResourceArr); ++i)
++			for (uint32 i = 0; i < DK_COUNT_OF(depthStencilResourceArr); ++i)
+ 			{
+ 				hr = _device->CreateCommittedResource(
+-					&dsvHeapProperty, D3D12_HEAP_FLAG_NONE, &dsvDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &depthOptimizedClearValue, IID_PPV_ARGS(_depthStencilResourceArr[i].getAddress())
++					&dsvHeapProperty, D3D12_HEAP_FLAG_NONE, &dsvDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
++					&depthOptimizedClearValue, IID_PPV_ARGS(&depthStencilResourceArr[i])
+ 				);
+ 				if (FAILED(hr) == true)
+ 					return false;
+ 
++				ScopeString<DK_MAX_BUFFER> indexString;
++				StringUtil::itoa(i, indexString.data(), indexString.capacity());
++				ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture_");
++				dsvTextureName.append(indexString.c_str());
++				depthStencilResourceArr[i]->SetName(StringUtil::ConverCtoWC(dsvTextureName.c_str()).c_str());
++
+ 				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+ 				depthStencilViewDesc.Format = gDepthStencilFormat;
+ 				depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+ 				depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
+-				_device->CreateDepthStencilView(_depthStencilResourceArr[i].get(), &depthStencilViewDesc, dsvHandle);
+-
++				_device->CreateDepthStencilView(depthStencilResourceArr[i], &depthStencilViewDesc, dsvHandle);
+ 				dsvHandle.ptr += dsvHandleSize;
+ 
+-				ScopeString<DK_MAX_BUFFER> indexString;
+-				StringUtil::itoa(i, indexString.data(), indexString.capacity());
+-				ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture_");
+-				dsvTextureName.append(indexString.c_str());
+-				_depthStencilTextureArr[i] = allocateTextureSRV(dsvTextureName.c_str(), _depthStencilResourceArr[i].get(), GetDepthSRVFormat(gDepthStencilFormat));
+-				if (_depthStencilTextureArr[i] == nullptr)
+-				{
+-					DK_ASSERT_LOG(false, "PostProcess에 사용하는 Depth/Stencil Texture 생성에 실패.");
+-					return false;
+-				}
++				ITexture* depthStencilTexture = dk_new ITexture(DKString(dsvTextureName.c_str()), depthStencilResourceArr[i], DXGI_FORMAT_FORCE_UINT);
++				allocateTextureSRV(depthStencilTexture);
+ 
+-				_depthStencilResourceArr[i]->SetName(StringUtil::ConverCtoWC(dsvTextureName.c_str()).c_str());
++				_depthStencilTextureArr[i] = ITextureRef(depthStencilTexture);
+ 			}
+ 		}
+ 
+@@ -440,7 +439,7 @@ namespace DK
+ 		UINT rtvDescriptorSize = 0;
+ 		{
+ 			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+-			rtvHeapDesc.NumDescriptors = DK_COUNT_OF(_renderTargetResourceArr) + DK_COUNT_OF(_backBufferResourceArr);
++			rtvHeapDesc.NumDescriptors = DK_COUNT_OF(_renderTargetTextureArr) + DK_COUNT_OF(_backBufferResourceArr);
+ 			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+ 			hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(_renderTargetViewHeap.getAddress()));
+ 			if (FAILED(hr) == true)
+@@ -457,10 +456,9 @@ namespace DK
+ 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
+ 		DXGI_FORMAT renderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+ 		{
+-			for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetResourceArr); ++i)
++			ID3D12Resource* renderTargetResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
++			for (uint32 i = 0; i < DK_COUNT_OF(renderTargetResourceArr); ++i)
+ 			{
+-				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+-				CD3DX12_RESOURCE_DESC rtResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(renderTargetFormat, width, height, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+ 				D3D12_CLEAR_VALUE clearValue;
+ 				clearValue.Format = renderTargetFormat;
+ 				clearValue.Color[0] = gClearRenderTargetViewColor.x;
+@@ -470,21 +468,23 @@ namespace DK
+ 				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
+ 				DK_ASSERT_LOG(SUCCEEDED(hr), "Faile to create RenderTarget Resource");
+ 
+-				_device->CreateRenderTargetView(_renderTargetResourceArr[i].get(), nullptr, rtvHandle);
+-				rtvHandle.ptr += rtvDescriptorSize;
+-
+ 				ScopeString<DK_MAX_BUFFER> indexString;
+ 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
+ 				ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
+ 				rtvTextureName.append(indexString.c_str());
+-				_renderTargetTextureArr[i] = allocateTextureSRV(rtvTextureName.c_str(), _renderTargetResourceArr[i].get(), renderTargetFormat);
++				renderTargetResourceArr[i]->SetName(StringUtil::ConverCtoWC(rtvTextureName.c_str()).c_str());
++
++				_device->CreateRenderTargetView(renderTargetResourceArr[i], nullptr, rtvHandle);
++				rtvHandle.ptr += rtvDescriptorSize;
++
++				ITexture* renderTargetTexture = dk_new ITexture(DKString(rtvTextureName.c_str()), renderTargetResourceArr[i], renderTargetFormat);
++				allocateTextureSRV(renderTargetTexture);
++				_renderTargetTextureArr[i] = ITextureRef(renderTargetTexture);
+ 				if (_renderTargetTextureArr[i] == nullptr)
+ 				{
+ 					DK_ASSERT_LOG(false, "Fail - Create RenderTargetTexture");
+ 					return false;
+ 				}
+-
+-				_renderTargetResourceArr[i]->SetName(StringUtil::ConverCtoWC(rtvTextureName.c_str()).c_str());
+ 			}
+ 		}
+ 
+@@ -1296,36 +1296,66 @@ namespace DK
+ 		return true;
+ 	}
+ 
+-	ITextureRef RenderModule::allocateTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format)
++	const bool RenderModule::allocateTextureSRV(ITexture* texture)
+ 	{
+ 		EnsureMainThread();
+ 
+-		ITexture::TextureSRVType index = static_cast<ITexture::TextureSRVType>(_textureContainer.size());
++		uint32 index;
+ 		if (_deletedTextureSRVArr.empty() == false)
+ 		{
+ 			index = _deletedTextureSRVArr.back();
+ 			_deletedTextureSRVArr.pop_back();
+ 		}
++		else
++		{
++			index = _deletedTextureSRVArr.size();
++		}
++
++		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
++		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
+ 
+ 		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+ 
+ 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+ 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+-		srvDesc.Format = format;
++		srvDesc.Format = texture->getFormat();
+ 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+ 		srvDesc.Texture2D.MipLevels = 1;
+ 		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+-		_device->CreateShaderResourceView(textureBuffer, &srvDesc, textureDescriptorHeapHandle);
++		_device->CreateShaderResourceView(const_cast<ID3D12Resource*>(texture->getTextureBuffer()), &srvDesc, textureDescriptorHeapHandle);
+ 
+-		using InsertResult = DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool>;
+-		InsertResult insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(name, dk_new ITexture(name, index)));
+-		if (insertResult.second == false)
++		return true;
++	}
++	const bool RenderModule::allocateTextureUAV(ITexture* texture)
++	{
++		EnsureMainThread();
++
++		uint32 index;
++		if (_deletedTextureUAVArr.empty() == false)
+ 		{
+-			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
+-			return nullptr;
++			index = _deletedTextureUAVArr.back();
++			_deletedTextureUAVArr.pop_back();
+ 		}
++		else
++		{
++			index = _deletedTextureUAVArr.size();
++		}
++		index += kMaxTextureSRVCount;
+ 
+-		return insertResult.first->second;
++		DK_ASSERT_LOG(index >= kMaxTextureSRVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
++		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
++
++		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
++
++		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
++		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
++		srvDesc.Format = texture->getFormat();
++		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
++		srvDesc.Texture2D.MipLevels = 1;
++		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
++		_device->CreateShaderResourceView(const_cast<ID3D12Resource*>(texture->getTextureBuffer()), &srvDesc, textureDescriptorHeapHandle);
++
++		return true;
+ 	}
+ 	class TextureRaw
+ 	{
+@@ -1429,36 +1459,24 @@ namespace DK
+ 
+ 		return true;
+ 	}
+-	ITextureRef RenderModule::allocateTexture(const DKString& path)
++	ITextureRef RenderModule::createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
+ 	{
+-		DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(path);
+-		if (findResult != _textureContainer.end())
+-			return findResult->second;
+-
+-		ScopeString<DK_MAX_PATH> textureFullPath = GlobalPath::makeResourceFullPath(path);
+-
+-		TextureRaw textureRaw;
+-		const bool loadingTextureSuccess = loadImageDataFromFile(textureFullPath.c_str(), textureRaw);
+-		if (loadingTextureSuccess == false)
+-		{
+-			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+-			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
+-		}
++		//#todo- 여기도 textureContainer에 이미 존재하는 이름인지 체크해야할듯. 중복된 이름이 있을 경우 덮어쓰거나, 실패하거나, 이름 뒤에 숫자 붙이는 등의 처리가 필요할듯
+ 
+ 		D3D12_RESOURCE_DESC resourceDescription = {};
+ 		// now describe the texture with the information we have obtained from the image
+ 		resourceDescription = {};
+ 		resourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+ 		resourceDescription.Alignment = 0; // may be 0, 4KB, 64KB, or 4MB. 0 will let runtime decide between 64KB and 4MB (4MB for multi-sampled textures)
+-		resourceDescription.Width = textureRaw._width; // width of the texture
+-		resourceDescription.Height = textureRaw._height; // height of the texture
++		resourceDescription.Width = width; // width of the texture
++		resourceDescription.Height = height; // height of the texture
+ 		resourceDescription.DepthOrArraySize = 1; // if 3d image, depth of 3d image. Otherwise an array of 1D or 2D textures (we only have one image, so we set 1)
+ 		resourceDescription.MipLevels = 1; // Number of mipmaps. We are not generating mipmaps for this texture, so we have only one level
+-		resourceDescription.Format = textureRaw._format; // This is the dxgi format of the image (format of the pixels)
++		resourceDescription.Format = format; // This is the dxgi format of the image (format of the pixels)
+ 		resourceDescription.SampleDesc.Count = 1; // This is the number of samples per pixel, we just want 1 sample
+ 		resourceDescription.SampleDesc.Quality = 0; // The quality level of the samples. Higher is better quality, but worse performance
+ 		resourceDescription.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // The arrangement of the pixels. Setting to unknown lets the driver choose the most efficient one
+-		resourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE; // no flags
++		resourceDescription.Flags = flags;
+ 
+ 		D3D12_HEAP_PROPERTIES heapProperty;
+ 		heapProperty.Type = D3D12_HEAP_TYPE_DEFAULT;
+@@ -1467,14 +1485,18 @@ namespace DK
+ 		heapProperty.CreationNodeMask = 1;
+ 		heapProperty.VisibleNodeMask = 1;
+ 		ID3D12Resource* defaultBuffer;
+-		// #todo- createcommittedresource가 실패할 수 있습니다. 예외 처리가 필요함!
+-		HRESULT hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&defaultBuffer));
++		HRESULT hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription, data ? D3D12_RESOURCE_STATE_COPY_DEST : state, nullptr, IID_PPV_ARGS(&defaultBuffer));
+ 		if (FAILED(hr) == true)
+ 		{
+ 			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+ 			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
+ 		}
+-		defaultBuffer->SetName(L"DefaultBuffer - Texture");
++#if defined(_DK_DEBUG_)
++		ScopeStringW<DK_MAX_PATH> debugName(L"Texture(");
++		debugName.append(StringUtil::ConverCtoWC(path.c_str()).c_str());
++		debugName.append(L")");
++		defaultBuffer->SetName(debugName.c_str());
++#endif
+ 
+ 		UINT64 textureUploadBufferSize = 0;
+ 		// this function gets the size an upload buffer needs to be to upload a texture to the gpu.
+@@ -1487,45 +1509,104 @@ namespace DK
+ 		_device->GetCopyableFootprints(&resourceDescription, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+ #endif
+ 
+-		heapProperty.Type = D3D12_HEAP_TYPE_UPLOAD;
+-		heapProperty.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+-		heapProperty.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+-		heapProperty.CreationNodeMask = 1;
+-		heapProperty.VisibleNodeMask = 1;
+-		ID3D12Resource* uploadBuffer;
+-		CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize);
+-		hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer));
+-		if (FAILED(hr) == true)
++		if (data)
+ 		{
+-			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+-			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
++			heapProperty.Type = D3D12_HEAP_TYPE_UPLOAD;
++			heapProperty.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
++			heapProperty.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
++			heapProperty.CreationNodeMask = 1;
++			heapProperty.VisibleNodeMask = 1;
++			ID3D12Resource* uploadBuffer;
++			CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize);
++			hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer));
++			if (FAILED(hr) == true)
++			{
++				DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
++				// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
++			}
++#if defined(_DK_DEBUG_)
++			ScopeStringW<DK_MAX_PATH> debugName(L"UploadTexture(");
++			debugName.append(StringUtil::ConverCtoWC(path.c_str()).c_str());
++			debugName.append(L")");
++			defaultBuffer->SetName(debugName.c_str());
++#endif
++
++			const uint32 bitsPerPixel = GetDXGIFormatBitsPerPixel(format);
++
++			D3D12_SUBRESOURCE_DATA textureData = {};
++			textureData.pData = data;
++			textureData.RowPitch = width * (bitsPerPixel / 8);
++			textureData.SlicePitch = textureData.RowPitch * height;
++
++			waitFenceAndResetCommandList();
++
++			UpdateSubresources(_commandList->_commandList.get(), defaultBuffer, uploadBuffer, 0, 0, 1, &textureData);
++
++			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COPY_DEST, state);
++			_commandList->_commandList->ResourceBarrier(1, &barrier);
++
++			execute();
+ 		}
+-		uploadBuffer->SetName(L"UploadBuffer - Texture");
+ 
+-		D3D12_SUBRESOURCE_DATA textureData = {};
+-		textureData.pData = textureRaw._data;
+-		textureData.RowPitch = textureRaw._width * (textureRaw._bitsPerPixel / 8);
+-		textureData.SlicePitch = textureData.RowPitch * textureRaw._height;
++		ITexture* texture = dk_new ITexture(path, defaultBuffer, format);
++		if (createSRV)
++			allocateTextureSRV(texture);
++		if (createUAV)
++			allocateTextureUAV(texture);
+ 
+-		waitFenceAndResetCommandList();
++		return ITextureRef(texture);
++	}
++	ITextureRef RenderModule::loadAndCreateTexture(const DKString& path)
++	{
++		DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(path);
++		if (findResult != _textureContainer.end())
++			return findResult->second;
+ 
+-		UpdateSubresources(_commandList->_commandList.get(), defaultBuffer, uploadBuffer, 0, 0, 1, &textureData);
++		ScopeString<DK_MAX_PATH> textureFullPath = GlobalPath::makeResourceFullPath(path);
++		TextureRaw textureRaw;
++		const bool loadingTextureSuccess = loadImageDataFromFile(textureFullPath.c_str(), textureRaw);
++		if (loadingTextureSuccess == false)
++		{
++			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
++			return nullptr;
++		}
+ 
+-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+-		_commandList->_commandList->ResourceBarrier(1, &barrier);
++		// no flags
++		ITextureRef newTexture = createTexture(
++			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
++			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
++			true, false);
+ 
+-		execute();
++		DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool> insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(newTexture->getPath(), newTexture));
++		if (insertResult.second == false)
++		{
++			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
++			return nullptr;
++		}
+ 
+-		return allocateTextureSRV(path, defaultBuffer, textureRaw._format);
++		return insertResult.first->second;
+ 	}
+ 
+-	void RenderModule::deallocateTextureSRV(const DKString& path, const ITexture::TextureSRVType srvIndex)
++	void RenderModule::deleteTexture(ITexture* texture)
+ 	{
+-		EnsureMainThread();
++		const size_t insertResult = _textureContainer.erase(texture->getPath());
++		DK_ASSERT_LOG(insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", texture->getPath().c_str());
+ 
+-		const size_t insertResult = _textureContainer.erase(path);
+-		DK_ASSERT_LOG(insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", path.c_str());
+-		_deletedTextureSRVArr.push_back(srvIndex);
++		if (texture->getSRV() != ITexture::kErrorTextureResourceViewIndex)
++			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureSRV(texture->getSRV());
++		if (texture->getUAV() != ITexture::kErrorTextureResourceViewIndex)
++			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureUAV(texture->getUAV());
++	}
++
++	void RenderModule::deallocateTextureSRV(const ITexture::TextureResourceViewType index)
++	{
++		EnsureMainThread();
++		_deletedTextureSRVArr.push_back(index);
++	}
++	void RenderModule::deallocateTextureUAV(const ITexture::TextureResourceViewType index)
++	{
++		EnsureMainThread();
++		_deletedTextureUAVArr.push_back(index);
+ 	}
+ 
+ 	void RenderModule::preRender()
+@@ -1544,7 +1625,7 @@ namespace DK
+ 			D3D12_RESOURCE_BARRIER barrier;
+ 			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+ 			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+-			barrier.Transition.pResource = _renderTargetResourceArr[rtvPrevIndex].get();
++			barrier.Transition.pResource = _renderTargetTextureArr[rtvPrevIndex].get()->getTextureBuffer();
+ 			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+ 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+ 			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+@@ -1555,7 +1636,7 @@ namespace DK
+ 			D3D12_RESOURCE_BARRIER barrier;
+ 			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+ 			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+-			barrier.Transition.pResource = 2 == rtvSlot ? _backBufferResourceArr[kCurrentFrameIndex].get() : _renderTargetResourceArr[rtvIndex].get();
++			barrier.Transition.pResource = 2 == rtvSlot ? _backBufferResourceArr[kCurrentFrameIndex].get() : _renderTargetTextureArr[rtvIndex].get()->getTextureBuffer();
+ 			barrier.Transition.StateBefore = 2 == rtvSlot ? D3D12_RESOURCE_STATE_PRESENT : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+ 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+ 			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+@@ -1569,7 +1650,7 @@ namespace DK
+ 			D3D12_RESOURCE_BARRIER barrier;
+ 			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+ 			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+-			barrier.Transition.pResource = _depthStencilResourceArr[rtvPrevIndex].get();
++			barrier.Transition.pResource = _depthStencilTextureArr[rtvPrevIndex]->getTextureBuffer();
+ 			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+ 			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+ 			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+@@ -1586,7 +1667,7 @@ namespace DK
+ 				D3D12_RESOURCE_BARRIER barrier;
+ 				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+ 				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+-				barrier.Transition.pResource = _depthStencilResourceArr[rtvIndex].get();
++				barrier.Transition.pResource = _depthStencilTextureArr[rtvIndex]->getTextureBuffer();
+ 				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+ 				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+ 				barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+@@ -1668,6 +1749,11 @@ namespace DK
+ 		_commandList->_commandList->DrawIndexedInstanced(indexCountPerInstance, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation);
+ 	}
+ 
++	void RenderModule::dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ)
++	{
++		_commandList->_commandList->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
++	}
++
+ 	void RenderModule::endRender()
+ 	{
+ #ifdef USE_IMGUI
+@@ -1724,7 +1810,8 @@ namespace DK
+ 
+ 	ITexture::~ITexture()
+ 	{
+-		DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureSRV(getPath(), getSRV());
++		DuckingEngine::getInstance().GetRenderModuleWritable().deleteTexture(this);
++		getTextureBuffer()->Release();
+ 	}
+ 
+ }
+diff --git a/RenderModule.h b/RenderModule.h
+index d36625f..8d77847 100644
+--- a/RenderModule.h
++++ b/RenderModule.h
+@@ -30,12 +30,14 @@ namespace DK
+ 	class ITexture
+ 	{
+ 	public:
+-		using TextureSRVType = uint32;
+-		static constexpr TextureSRVType kErrorTextureSRVIndex = 0xffffffff;
++		using TextureResourceViewType = uint32;
++		static constexpr TextureResourceViewType kErrorTextureResourceViewIndex = 0xffffffff;
++
+ 	public:
+-		ITexture(const DKString& path, const TextureSRVType& textureSRV)
++		ITexture(const DKString& path, ID3D12Resource* textureBuffer, DXGI_FORMAT format)
+ 			: _path(path)
+-			, _textureSRVIndex(textureSRV)
++			, _textureBuffer(textureBuffer)
++			, _format(format)
+ 		{}
+ 		~ITexture();
+ 
+@@ -43,15 +45,36 @@ namespace DK
+ 		{
+ 			return _path;
+ 		}
+-
+-		dk_inline const TextureSRVType& getSRV() const noexcept
++		dk_inline const DXGI_FORMAT getFormat() const
++		{
++			return _format;
++		}
++		dk_inline const ID3D12Resource* getTextureBuffer() const
+ 		{
++			return _textureBuffer;
++		}
++		dk_inline ID3D12Resource* getTextureBuffer()
++		{
++			return const_cast<ID3D12Resource*>(_textureBuffer);
++		}
++		dk_inline const TextureResourceViewType& getSRV() const noexcept
++		{
++			DK_ASSERT_LOG(_textureSRVIndex != kErrorTextureResourceViewIndex, "유효하지 않은 TextureSRV입니다. Path: %s", _path.c_str());
+ 			return _textureSRVIndex;
+ 		}
++		dk_inline const TextureResourceViewType& getUAV() const noexcept
++		{
++			DK_ASSERT_LOG(_textureUAVIndex != kErrorTextureResourceViewIndex, "유효하지 않은 TextureSRV입니다. Path: %s", _path.c_str());
++			return _textureUAVIndex;
++		}
+ 
+ 	private:
+-		DKString _path;
+-		TextureSRVType _textureSRVIndex = kErrorTextureSRVIndex;
++		const DKString _path = "";
++		const ID3D12Resource* _textureBuffer = nullptr;
++		const DXGI_FORMAT _format = DXGI_FORMAT_FORCE_UINT;
++
++		TextureResourceViewType _textureSRVIndex = kErrorTextureResourceViewIndex;
++		TextureResourceViewType _textureUAVIndex = kErrorTextureResourceViewIndex;
+ 	};
+ 
+ 	enum class ShaderParameterType
+@@ -265,11 +288,15 @@ do{ \
+ 		void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
+ 		void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
+ 		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
++		void dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ);
+ 		void endRender();
+ 
+ 		// helper 함수
+-		ITextureRef allocateTexture(const DKString& path);
+-		void deallocateTextureSRV(const DKString& path, const ITexture::TextureSRVType srvIndex);
++		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
++		ITextureRef loadAndCreateTexture(const DKString& path);
++		void deleteTexture(ITexture* texture);
++		void deallocateTextureSRV(const ITexture::TextureResourceViewType index);
++		void deallocateTextureUAV(const ITexture::TextureResourceViewType index);
+ 
+ 		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
+ 		{
+@@ -291,7 +318,8 @@ do{ \
+ 		bool createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline);
+ 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
+ 
+-		ITextureRef allocateTextureSRV(const DKString& name, ID3D12Resource* textureBuffer, const DXGI_FORMAT format);
++		const bool allocateTextureSRV(ITexture* texture);
++		const bool allocateTextureUAV(ITexture* texture);
+ 
+ 		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
+ 		ID3D12Resource* createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
+@@ -314,18 +342,14 @@ do{ \
+ 
+ 		// RenderTarget + BackBuffer
+ 		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetViewHeap = nullptr;
+-
+ 		// RenderTarget
+-		RenderResourcePtr<ID3D12Resource> _renderTargetResourceArr[kFrameCount * 2];	// Deffered
+-		ITextureRef _renderTargetTextureArr[DK_COUNT_OF(_renderTargetResourceArr)];
+-
++		ITextureRef _renderTargetTextureArr[kFrameCount * 2];
+ 		// BackBuffer
+ 		RenderResourcePtr<ID3D12Resource> _backBufferResourceArr[kFrameCount];			// BackBuffer
+ 
+ 		// DepthStencil
+ 		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
+-		RenderResourcePtr<ID3D12Resource2> _depthStencilResourceArr[DK_COUNT_OF(_renderTargetResourceArr)];
+-		ITextureRef _depthStencilTextureArr[DK_COUNT_OF(_renderTargetResourceArr)];
++		ITextureRef _depthStencilTextureArr[DK_COUNT_OF(_renderTargetTextureArr)];
+ 
+ 		// SwapChain
+ #if defined(USE_IMGUI)
+@@ -333,7 +357,9 @@ do{ \
+ #endif
+ 
+ 		// Texture
+-		DKVector<ITexture::TextureSRVType> _deletedTextureSRVArr;
++		static constexpr const uint32 kMaxTextureSRVCount = 1024;
++		DKVector<ITexture::TextureResourceViewType> _deletedTextureSRVArr;
++		DKVector<ITexture::TextureResourceViewType> _deletedTextureUAVArr;
+ 		DKHashMap<DKString, ITextureRef> _textureContainer;
+ 		RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
+ 
+diff --git a/Resource/Material/MaterialDefinition.xml b/Resource/Material/MaterialDefinition.xml
+index 7e27b77..bb818e2 100644
+--- a/Resource/Material/MaterialDefinition.xml
++++ b/Resource/Material/MaterialDefinition.xml
+@@ -1,4 +1,5 @@
+ <MaterialDefinition>
++    <Material Path="Material/Ocean/Ocean.xml"/>
+     <Material Path="Material/TerrainClipMap.xml"/>
+     <Material Path="Material/SkinnedMeshStandard.xml"/>
+     <Material Path="Material/StaticMeshStandard.xml"/>
+diff --git a/Resource/RenderPass/RenderPassGroup.xml b/Resource/RenderPass/RenderPassGroup.xml
+index c887c96..fb5f734 100644
+--- a/Resource/RenderPass/RenderPassGroup.xml
++++ b/Resource/RenderPass/RenderPassGroup.xml
+@@ -1,10 +1,15 @@
+ <RenderPassGroup>
+-	<RenderPass Name="OceanComputeH0">
+-		<ComputePipeline Name="ComputeH0">
+-			<Parameter Name="OceanComputeConstantBuffer" Type="Buffer" Register="0"/>
+-			<Shader Entry="ComputeH0">Shader/Ocean.hlsl</Shader>
++	<RenderPass Name="OceanRenderPass">
++		<ComputePipeline Name="InitialSpectrum">
++			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
++			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
+ 		</ComputePipeline>
+-	</RenderPass>
++		<ComputePipeline Name="UpdateSpectrum">
++			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
++			<Parameter Name="H0" Type="Texture2D" Register="0"/>
++			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
++		</ComputePipeline>
++	</RemderPass>
+ 
+ 	<RenderPass Name="MainRenderPass">
+ 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+@@ -16,8 +21,7 @@
+ 			<VertexShader Entry="VSMain">Material/SkyDome.hlsl</VertexShader>
+ 			<PixelShader Entry="PSMain">Material/SkyDome.hlsl</PixelShader>
+ 		</Pipeline>
+-
+-		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
++		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="WireFrame" CullMode="Back">
+ 			<LayoutInfo>
+ 				<Element Type="float2">POSITION</Element>
+ 			</LayoutInfo>
+diff --git a/Resource/Shader/Ocean.hlsl b/Resource/Shader/Ocean.hlsl
+deleted file mode 100644
+index e723e8b..0000000
+--- a/Resource/Shader/Ocean.hlsl
++++ /dev/null
+@@ -1,5 +0,0 @@
+-[numthreads(32, 1, 1)]
+-void ComputeH0(uint3 DTid : SV_DispatchThreadID)
+-{
+-    
+-}
+\ No newline at end of file
+diff --git a/SceneManager.cpp b/SceneManager.cpp
+index 15ad307..afbe98b 100644
+--- a/SceneManager.cpp
++++ b/SceneManager.cpp
+@@ -10,6 +10,8 @@
+ 
+ namespace DK
+ {
++	const float2 SceneManager::ClipMapTerrain::TILE_SCALE = float2::Identity;
++
+ 	void SceneManager::loadSkyDome()
+ 	{
+ 		// createSphere
+@@ -37,7 +39,38 @@ namespace DK
+ 		_skyDome._mesh._indexCount = indexArr.size();
+ 	}
+ 
+-	static bool createTerrainMeshBuffer(const DKVector<float2>& vertexArr, DKVector<uint32>& indexArr, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
++	static const bool createSquareMesh(const uint32 resolution, const float2 resolutionScale, DKVector<float2>& vertexArr, DKVector<uint32>& indexArr)
++	{
++		const uint32 vertResolution = resolution + 1;
++
++		vertexArr.resize(vertResolution * vertResolution);
++		uint32 n = 0;
++		for (uint32 y = 0; y < vertResolution; y++)
++		{
++			for (uint32 x = 0; x < vertResolution; x++)
++				vertexArr[n++] = float2(x, y) * resolutionScale;
++		}
++
++		indexArr.resize(resolution * resolution * 6);
++		n = 0;
++		for (uint32 y = 0; y < resolution; y++)
++		{
++			uint32 yPos0 = y * vertResolution;
++			uint32 yPos1 = (y + 1) * vertResolution;
++			for (uint32 x = 0; x < resolution; x++) {
++				indexArr[n++] = yPos0 + x;
++				indexArr[n++] = yPos1 + x;
++				indexArr[n++] = yPos1 + x + 1;
++				indexArr[n++] = yPos1 + x + 1;
++				indexArr[n++] = yPos0 + x + 1;
++				indexArr[n++] = yPos0 + x;
++			}
++		}
++		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
++
++		return true;
++	}
++	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
+ 	{
+ 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+ 		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"TerrainMesh_VertexBuffer");
+@@ -50,31 +83,51 @@ namespace DK
+ 
+ 		return true;
+ 	}
++
++	void SceneManager::loadOcean()
++	{
++		DKVector<float2> vertexArr;
++		DKVector<uint32> indexArr;
++		createSquareMesh(SceneManager::Ocean::TILE_RESOLUTION, float2::Identity, vertexArr, indexArr);
++
++		VertexBufferViewRef vertexBufferView;
++		IndexBufferViewRef indexBufferView;
++		const bool success = createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
++		_ocean._mesh = SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
++
++		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(Ocean::OceanParams), L"_initialSpectrumConstantBuffer");
++		_ocean._h0 = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
++			"OceanH0", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr,
++			DXGI_FORMAT_R32G32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
++			true, true);
++	}
++
+ 	static SceneManager::Mesh loadLevel_ClipMap_Cross()
+ 	{
+ 		DKVector<float2> vertexArr;
+-		vertexArr.resize(SceneManager::SceneManager::PATCH_VERT_RESOLUTION * 8);
+-		size_t n = 0;
++		vertexArr.resize(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 8);
++		uint32 n = 0;
+ 		// horizontal vertices
+-		for (uint32 i = 0; i < SceneManager::PATCH_VERT_RESOLUTION * 2; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 2; i++)
+ 		{
+-			vertexArr[n++] = float2(i - float(SceneManager::TILE_RESOLUTION), 0);
+-			vertexArr[n++] = float2(i - float(SceneManager::TILE_RESOLUTION), 1);
++			vertexArr[n++] = float2(i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION), 0);
++			vertexArr[n++] = float2(i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION), 1);
+ 		}
+-		uint32 start_of_vertical = n;
++		const uint32 start_of_vertical = n;
++
+ 		// vertical vertices
+-		for (uint32 i = 0; i < SceneManager::PATCH_VERT_RESOLUTION * 2; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 2; i++)
+ 		{
+-			vertexArr[n++] = float2(0, i - float(SceneManager::TILE_RESOLUTION));
+-			vertexArr[n++] = float2(1, i - float(SceneManager::TILE_RESOLUTION));
++			vertexArr[n++] = float2(0, i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION));
++			vertexArr[n++] = float2(1, i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION));
+ 		}
+ 		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
+ 
+ 		DKVector<uint32> indexArr;
+-		indexArr.resize(SceneManager::TILE_RESOLUTION * 24 + 6);
++		indexArr.resize(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 24 + 6);
+ 		n = 0;
+ 		// horizontal indices
+-		for (uint32 i = 0; i < SceneManager::TILE_RESOLUTION * 2 + 1; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2 + 1; i++)
+ 		{
+ 			uint32 bl = i * 2 + 0;
+ 			uint32 tl = i * 2 + 1;
+@@ -89,9 +142,9 @@ namespace DK
+ 			indexArr[n++] = bl;
+ 		}
+ 		// vertical indices
+-		for (uint32 i = 0; i < SceneManager::TILE_RESOLUTION * 2 + 1; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2 + 1; i++)
+ 		{
+-			if (i == SceneManager::TILE_RESOLUTION)
++			if (i == SceneManager::ClipMapTerrain::TILE_RESOLUTION)
+ 				continue;
+ 
+ 			uint32 bl = i * 2 + 0;
+@@ -110,70 +163,46 @@ namespace DK
+ 
+ 		VertexBufferViewRef vertexBufferView;
+ 		IndexBufferViewRef indexBufferView;
+-		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
++		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
+ 		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+ 	}
+ 	static SceneManager::Mesh loadLevel_ClipMap_Tile()
+ 	{
+ 		DKVector<float2> vertexArr;
+-		vertexArr.resize(SceneManager::PATCH_VERT_RESOLUTION * SceneManager::PATCH_VERT_RESOLUTION);
+-		uint32 n = 0;
+-		for (uint32 y = 0; y < SceneManager::PATCH_VERT_RESOLUTION; y++)
+-		{
+-			for (uint32 x = 0; x < SceneManager::PATCH_VERT_RESOLUTION; x++)
+-				vertexArr[n++] = float2(x, y);
+-		}
+-		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
+-
+ 		DKVector<uint32> indexArr;
+-		indexArr.resize(SceneManager::TILE_RESOLUTION * SceneManager::TILE_RESOLUTION * 6);
+-		n = 0;
+-		for (uint32 y = 0; y < SceneManager::TILE_RESOLUTION; y++)
+-		{
+-			uint32 yPos0 = y * SceneManager::PATCH_VERT_RESOLUTION;
+-			uint32 yPos1 = (y + 1) * SceneManager::PATCH_VERT_RESOLUTION;
+-			for (uint32 x = 0; x < SceneManager::TILE_RESOLUTION; x++) {
+-				indexArr[n++] = yPos0 + x;
+-				indexArr[n++] = yPos1 + x;
+-				indexArr[n++] = yPos1 + x + 1;
+-				indexArr[n++] = yPos1 + x + 1;
+-				indexArr[n++] = yPos0 + x + 1;
+-				indexArr[n++] = yPos0 + x;
+-			}
+-		}
+-		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
++		createSquareMesh(SceneManager::ClipMapTerrain::TILE_RESOLUTION, float2::Identity, vertexArr, indexArr);
+ 
+ 		VertexBufferViewRef vertexBufferView;
+ 		IndexBufferViewRef indexBufferView;
+-		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
++		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
+ 		return SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
+ 	}
+ 	static SceneManager::Mesh loadLevel_ClipMap_Filter()
+ 	{
+ 		DKVector<float2> vertexArr;
+-		vertexArr.resize(SceneManager::PATCH_VERT_RESOLUTION * 8);
+-		uint32 offset = SceneManager::TILE_RESOLUTION;
++		vertexArr.resize(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 8);
++		uint32 offset = SceneManager::ClipMapTerrain::TILE_RESOLUTION;
+ 		uint32 n = 0;
+ 		// X
+-		for (uint32 i = 0; i < SceneManager::PATCH_VERT_RESOLUTION; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+ 		{
+ 			vertexArr[n++] = float2(offset + i + 1, 0);
+ 			vertexArr[n++] = float2(offset + i + 1, 1);
+ 		}
+ 		// Z
+-		for (uint32 i = 0; i < SceneManager::PATCH_VERT_RESOLUTION; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+ 		{
+ 			vertexArr[n++] = float2(1, offset + i + 1);
+ 			vertexArr[n++] = float2(0, offset + i + 1);
+ 		}
+ 		// -X
+-		for (uint32 i = 0; i < SceneManager::PATCH_VERT_RESOLUTION; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+ 		{
+ 			vertexArr[n++] = float2(static_cast<float>((offset + i)) * -1, 1);
+ 			vertexArr[n++] = float2(static_cast<float>((offset + i)) * -1, 0);
+ 		}
+ 		// -Y
+-		for (uint32 i = 0; i < SceneManager::PATCH_VERT_RESOLUTION; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+ 		{
+ 			vertexArr[n++] = float2(0, static_cast<float>((offset + i)) * -1);
+ 			vertexArr[n++] = float2(1, static_cast<float>((offset + i)) * -1);
+@@ -181,11 +210,11 @@ namespace DK
+ 		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
+ 
+ 		DKVector<uint32> indexArr;
+-		indexArr.resize(SceneManager::TILE_RESOLUTION * 24);
++		indexArr.resize(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 24);
+ 		n = 0;
+-		for (uint32 i = 0; i < SceneManager::TILE_RESOLUTION * 4; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::TILE_RESOLUTION * 4; i++)
+ 		{
+-			uint32 arm = i / SceneManager::TILE_RESOLUTION;
++			uint32 arm = i / SceneManager::ClipMapTerrain::TILE_RESOLUTION;
+ 			uint32 bl = (arm + i) * 2 + 0;
+ 			uint32 tl = (arm + i) * 2 + 1;
+ 			uint32 br = (arm + i) * 2 + 2;
+@@ -213,36 +242,36 @@ namespace DK
+ 
+ 		VertexBufferViewRef vertexBufferView;
+ 		IndexBufferViewRef indexBufferView;
+-		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
++		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
+ 		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+ 	}
+ 	static SceneManager::Mesh loadLevel_ClipMap_Trim()
+ 	{
+ 		DKVector<float2> vertexArr;
+-		vertexArr.resize((SceneManager::CLIPMAP_VERT_RESOLUTION * 2 + 1) * 2);
++		vertexArr.resize((SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 2 + 1) * 2);
+ 		uint32 n = 0;
+ 		// vertical part of L
+-		for (uint32 i = 0; i < SceneManager::CLIPMAP_VERT_RESOLUTION + 1; i++) 
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION + 1; i++)
+ 		{
+-			vertexArr[n++] = float2(0, SceneManager::CLIPMAP_VERT_RESOLUTION - i);
+-			vertexArr[n++] = float2(1, SceneManager::CLIPMAP_VERT_RESOLUTION - i);
++			vertexArr[n++] = float2(0, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i);
++			vertexArr[n++] = float2(1, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i);
+ 		}
+ 		uint32 start_of_horizontal = n;
+ 		// horizontal part of L
+-		for (uint32 i = 0; i < SceneManager::CLIPMAP_VERT_RESOLUTION; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION; i++)
+ 		{
+ 			vertexArr[n++] = float2(i + 1, 0);
+ 			vertexArr[n++] = float2(i + 1, 1);
+ 		}
+ 		// move to center (for Rotation)
+ 		for (float2& v : vertexArr)
+-			v = v - float2(0.5f * (SceneManager::CLIPMAP_VERT_RESOLUTION + 1), 0.5f * (SceneManager::CLIPMAP_VERT_RESOLUTION + 1));
++			v = v - float2(0.5f * (SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION + 1), 0.5f * (SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION + 1));
+ 		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
+ 
+ 		DKVector<uint32> indexArr;
+-		indexArr.resize((SceneManager::CLIPMAP_VERT_RESOLUTION * 2 - 1) * 6);
++		indexArr.resize((SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 2 - 1) * 6);
+ 		n = 0;
+-		for (uint32 i = 0; i < SceneManager::CLIPMAP_VERT_RESOLUTION; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION; i++)
+ 		{
+ 			uint32 bl = (i + 1) * 2 + 0;
+ 			uint32 tl = (i + 0) * 2 + 0;
+@@ -258,7 +287,7 @@ namespace DK
+ 			indexArr[n++] = bl;
+ 			
+ 		}
+-		for (uint32 i = 0; i < SceneManager::CLIPMAP_VERT_RESOLUTION - 1; i++)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - 1; i++)
+ 		{
+ 			uint32 bl = start_of_horizontal + (i + 1) * 2 + 0;
+ 			uint32 tl = start_of_horizontal + (i + 0) * 2 + 0;
+@@ -277,25 +306,25 @@ namespace DK
+ 
+ 		VertexBufferViewRef vertexBufferView;
+ 		IndexBufferViewRef indexBufferView;
+-		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
++		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
+ 		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+ 	}
+ 	static SceneManager::Mesh loadLevel_ClipMap_Seam()
+ 	{
+ 		DKVector<float2> vertexArr;
+-		vertexArr.resize(SceneManager::CLIPMAP_VERT_RESOLUTION * 4);
+-		for (uint32 i = 0; i < SceneManager::CLIPMAP_VERT_RESOLUTION; i++)
++		vertexArr.resize(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 4);
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION; i++)
+ 		{
+-			vertexArr[SceneManager::CLIPMAP_VERT_RESOLUTION * 0 + i] = float2(i, 0);
+-			vertexArr[SceneManager::CLIPMAP_VERT_RESOLUTION * 1 + i] = float2(SceneManager::CLIPMAP_VERT_RESOLUTION, i);
+-			vertexArr[SceneManager::CLIPMAP_VERT_RESOLUTION * 2 + i] = float2(SceneManager::CLIPMAP_VERT_RESOLUTION - i, SceneManager::CLIPMAP_VERT_RESOLUTION);
+-			vertexArr[SceneManager::CLIPMAP_VERT_RESOLUTION * 3 + i] = float2(0, SceneManager::CLIPMAP_VERT_RESOLUTION - i);
++			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 0 + i] = float2(i, 0);
++			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 1 + i] = float2(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION, i);
++			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 2 + i] = float2(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION);
++			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 3 + i] = float2(0, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i);
+ 		}
+ 
+ 		DKVector<uint32> indexArr;
+-		indexArr.resize(SceneManager::CLIPMAP_VERT_RESOLUTION * 6);
++		indexArr.resize(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 6);
+ 		uint32 n = 0;
+-		for (uint32 i = 0; i < SceneManager::CLIPMAP_VERT_RESOLUTION * 4; i += 2)
++		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 4; i += 2)
+ 		{
+ 			indexArr[n++] = i;
+ 			indexArr[n++] = i + 1;
+@@ -307,7 +336,7 @@ namespace DK
+ 
+ 		VertexBufferViewRef vertexBufferView;
+ 		IndexBufferViewRef indexBufferView;
+-		createTerrainMeshBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
++		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
+ 		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+ 	}
+ 	void SceneManager::loadLevel()
+@@ -329,7 +358,7 @@ namespace DK
+ 		_clipmapTerrain._material.assign(newMaterial);
+ 
+ 		// Cross(1) + (tile(4) + Filter(1) + Trim(1) + Seam(1)) * (level count)
+-		const uint32 tileCountPerClipMap = 1 + (4 * 4 + 1 + 1 + 1) * NUM_CLIPMAP_LEVELS;
++		const uint32 tileCountPerClipMap = 1 + (4 * 4 + 1 + 1 + 1) * ClipMapTerrain::NUM_CLIPMAP_LEVELS;
+ 		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
+ 		for (uint32 i = 0; i < tileCountPerClipMap; ++i)
+ 		{
+@@ -337,6 +366,7 @@ namespace DK
+ 			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
+ 		}
+ 	}
++
+ 	static DKVector<float2> getScreenPlaneVertexBufferData()
+ 	{
+ 		DKVector<float2> vertexArr;
+diff --git a/SceneManager.h b/SceneManager.h
+index 1a5d4a7..4d1e724 100644
+--- a/SceneManager.h
++++ b/SceneManager.h
+@@ -5,6 +5,10 @@ namespace DK
+ 	class Material;
+ 	struct IBuffer;
+ 
++	template<typename T>
++	class MaterialParameterTemplate;
++	using MaterialParameterTexture = MaterialParameterTemplate<ITextureRef>;
++
+ 	struct TerrainMeshConstantBuffer
+ 	{
+ 		float4 _baseXY_scale_rotate;
+@@ -13,13 +17,6 @@ namespace DK
+ 
+ 	class SceneManager
+ 	{
+-	public:
+-		static constexpr uint32 TILE_RESOLUTION = 32;
+-		static constexpr uint32 PATCH_VERT_RESOLUTION = TILE_RESOLUTION + 1;
+-		static constexpr uint32 CLIPMAP_RESOLUTION = TILE_RESOLUTION * 4 + 1;
+-		static constexpr uint32 CLIPMAP_VERT_RESOLUTION = CLIPMAP_RESOLUTION + 1;
+-		static constexpr uint32 NUM_CLIPMAP_LEVELS = 7;
+-
+ 	public:
+ 		struct Mesh
+ 		{
+@@ -32,21 +29,54 @@ namespace DK
+ 			{}
+ 
+ 		public:
+-			VertexBufferViewRef _vertexBufferView;
+-			IndexBufferViewRef _indexBufferView;
+-			uint32 _indexCount;
++			VertexBufferViewRef _vertexBufferView = nullptr;
++			IndexBufferViewRef _indexBufferView = nullptr;
++			uint32 _indexCount = 0;
+ 		};
+ 
+ 		struct PostProcess
+ 		{
+ 			Mesh _mesh;
+ 		};
++		struct Ocean
++		{
++			static constexpr const uint32 TILE_RESOLUTION = 32;
++			static_assert((TILE_RESOLUTION % 8) == 0, "Ocean TIleResolution must be mul by 8");
++
++			static constexpr const float OCEAN_LENGTH = 256; // or 516
++			static constexpr const uint32 OCEAN_N = 256;	// or 512	
++
++			Mesh _mesh;
++
++			struct OceanParams
++			{
++				OceanParams(const float2& windDir, const float A, const float L, const uint32 N)
++					: _windDir(windDir)
++					, _A(A)
++					, _L(L)
++					, _N(N)
++				{}
++
++				float2 _windDir;
++				float _A;
++				float _L;
++				uint32 _N;
++			};
++			Ptr<IBuffer> _initialSpectrumConstantBuffer;
++			ITextureRef _h0;
++		};
+ 		struct SkyDome
+ 		{
+ 			Mesh _mesh;
+ 		};
+ 		struct ClipMapTerrain
+ 		{
++			static const float2 TILE_SCALE;
++			static constexpr const uint32 TILE_RESOLUTION = 32;
++			static constexpr const uint32 PATCH_VERT_RESOLUTION = TILE_RESOLUTION + 1;
++			static constexpr const uint32 CLIPMAP_VERT_RESOLUTION = TILE_RESOLUTION * 4 + 1 + 1;
++			static constexpr const uint32 NUM_CLIPMAP_LEVELS = 8;
++
+ 			Mesh _tile;
+ 			Mesh _filter;
+ 			Mesh _trim;
+@@ -62,20 +92,23 @@ namespace DK
+ 		};
+ 
+ 	public:
++		void loadOcean();
+ 		void loadSkyDome();
+ 		void loadLevel();
+ 		void loadPostProcess();
+ 		void loadGbuffer();
+ 
+ 		SkyDome& getSkyDomeWritable() { return _skyDome; }
++		Ocean& getOceanWritable() { return _ocean; }
+ 		ClipMapTerrain& getClipMapTerrainWritable() { return _clipmapTerrain; }
+ 		PostProcess& getPostProcessWritable() { return _postProcess; }
+ 		GBuffer& getGBufferWritable() { return _gBuffer; }
+ 
+ 	private:
+ 		SkyDome _skyDome;
++		Ocean _ocean;
+ 		ClipMapTerrain _clipmapTerrain;
+ 		PostProcess _postProcess;
+ 		GBuffer _gBuffer;
+ 	};
+-}
+\ No newline at end of file
++}
+diff --git a/SceneRenderer.cpp b/SceneRenderer.cpp
+index b637a51..9de1230 100644
+--- a/SceneRenderer.cpp
++++ b/SceneRenderer.cpp
+@@ -449,10 +449,72 @@ namespace DK
+ 	{
+ 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+ 
++		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, false, false);
++		{
++			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
++			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
++
++			/*
++				A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
++				L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
++				N       = FFT 해상도						// 256 표준, 512 고품질
++				Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
++				WindDir = 바람 방향 + 세기
++			*/
++			// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
++			static float2 windDir = float2(32.f, 32.f);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
++			static float waveEnergy = 0.0005f;
++			static float g = 9.81f;
++			const float windLength = windDir.length();
++			SceneManager::Ocean::OceanParams params(
++				windDir, windLength * windLength * g, SceneManager::Ocean::OCEAN_LENGTH, SceneManager::Ocean::OCEAN_N
++			);
++			ocean._initialSpectrumConstantBuffer->upload(&params);
++
++			startPipeline("InitialSpectrum");
++			{
++				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
++				renderModule.bindTexture(ocean._h0, ReadWrite);
++				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
++			}
++			endPipeline();
++			startPipeline("UpdateSpectrum");
++			{
++				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
++				renderModule.bindTexture(ocean._h0, Read);
++				renderModule.barrier(ocean._h0, Write, Read);
++				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
++			}
++			endPipeline();
++			startPipeline("FFTButterfly");
++			{
++				cmd->SetPipelineState(mFFTPSO.Get());
++
++				UINT stages = (UINT)log2((float)mN);
++
++				for (UINT stage = 0; stage < stages; ++stage)
++				{
++					cmd->SetComputeRoot32BitConstant(0, stage, 0);
++					cmd->Dispatch(mN / 8, mN / 8, 1);
++
++					auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(mHt.Get());
++					cmd->ResourceBarrier(1, &barrier);
++				}
++			}
++			endPipeline();
++			startPipeline("RenderOcean");
++			{
++				cmd->SetPipelineState(mHeightPSO.Get());
++				cmd->Dispatch(mN / 8, mN / 8, 1);
++			}
++			endPipeline();
++		}
++		endRenderPass();
++
+ 		// MainRender
+-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true);
++		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, false, false);
+ 		{
+-#if (0)
++#if 0
+ 			startPipeline("SkyDomePipeline");
+ 			{
+ 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+@@ -486,7 +548,6 @@ namespace DK
+ 				// Draw Cross
+ 				{
+ 					float tileScale = vertexScale;
+-					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
+ 					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+ 
+ 					TerrainMeshConstantBuffer meshCBuffer;
+@@ -501,10 +562,10 @@ namespace DK
+ 					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
+ 				}
+ 
+-				for (uint32 i = 0; i < SceneManager::NUM_CLIPMAP_LEVELS; ++i)
++				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
+ 				{
+ 					float tileScale = (1 << i) * vertexScale;
+-					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
++					float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION * tileScale);
+ 					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
+ 
+ 					float2 base = snappedCameraPos - gridScale * 2;
+@@ -551,7 +612,7 @@ namespace DK
+ 					float nextGridScale = gridScale * 1;
+ 					float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
+ 					// Draw Seam
+-					if (i != SceneManager::NUM_CLIPMAP_LEVELS)
++					if (i != SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+ 					{
+ 						float2 next_base = nextSnappedPos - nextGridScale * 2;
+ 
+@@ -699,35 +760,39 @@ namespace DK
+ 		endRenderPass();
+ 
+ 		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false);
+-		startPipeline("AtmospherePipeline");
+ 		{
+-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+-			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
++			startPipeline("AtmospherePipeline");
++			{
++				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
++				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
+ 
+-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+-			SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
++				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
++				SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
+ 
+-			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
+-			renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
+-			renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
++				renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
++				renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
++				renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
++			}
++			endPipeline();
+ 		}
+-		endPipeline();
+ 		endRenderPass();
+ 
+ 		// GBuffer
+ 		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false);
+-		startPipeline("GBufferPipeline");
+ 		{
+-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
++			startPipeline("GBufferPipeline");
++			{
++				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+ 
+-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+-			SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
++				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
++				SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
+ 
+-			renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
+-			renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
+-			renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
++				renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
++				renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
++				renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
++			}
++			endPipeline();
+ 		}
+-		endPipeline();
+ 		endRenderPass();
+ 	}
+ 
+diff --git a/stdafx.h b/stdafx.h
+index 784b0b5..07a88b2 100644
+--- a/stdafx.h
++++ b/stdafx.h
+@@ -659,6 +659,9 @@ namespace DK
+ 			return float2(x / rhs, y / rhs);
+ 		}
+ 
++		dk_inline const float length() const;
++		dk_inline const float lengthSq() const;
++
+ 	public:
+ 		union
+ 		{
+@@ -1259,6 +1262,15 @@ namespace DK
+ 		};
+ 	};
+ 
++	const float float2::length() const
++	{
++		return Math::sqrt(x * x + y * y);
++	}
++	const float float2::lengthSq() const
++	{
++		return x * x + y * y;
++	}
++
+ 	static float3 operator*(const float3& lhs, const Quaternion& rhs)
+ 	{
+ #ifdef USE_DIRECTX_MATH

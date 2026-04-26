@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "GameModule.h"
 
 #include "DuckingEngine.h"
@@ -14,6 +14,7 @@ namespace DK
 	bool GameModule::initialize()
 	{
 		// Test Terrain
+		DuckingEngine::getInstance().getSceneManagerWritable().loadOcean();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();

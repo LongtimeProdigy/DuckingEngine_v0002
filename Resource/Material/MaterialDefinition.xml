@@ -1,4 +1,5 @@
 <MaterialDefinition>
+    <Material Path="Material/Ocean/Ocean.xml"/>
     <Material Path="Material/TerrainClipMap.xml"/>
     <Material Path="Material/SkinnedMeshStandard.xml"/>
     <Material Path="Material/StaticMeshStandard.xml"/>

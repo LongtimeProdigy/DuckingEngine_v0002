@@ -1,10 +1,15 @@
 <RenderPassGroup>
-	<RenderPass Name="OceanComputeH0">
-		<ComputePipeline Name="ComputeH0">
-			<Parameter Name="OceanComputeConstantBuffer" Type="Buffer" Register="0"/>
-			<Shader Entry="ComputeH0">Shader/Ocean.hlsl</Shader>
+	<RenderPass Name="OceanRenderPass">
+		<ComputePipeline Name="InitialSpectrum">
+			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
+			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
 		</ComputePipeline>
-	</RenderPass>
+		<ComputePipeline Name="UpdateSpectrum">
+			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
+			<Parameter Name="H0" Type="Texture2D" Register="0"/>
+			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
+		</ComputePipeline>
+	</RemderPass>
 
 	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
@@ -16,8 +21,7 @@
 			<VertexShader Entry="VSMain">Material/SkyDome.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material/SkyDome.hlsl</PixelShader>
 		</Pipeline>
-
-		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="WireFrame" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>

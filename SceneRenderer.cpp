@@ -449,10 +449,72 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true);
+		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, false, false);
 		{
-#if (0)
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
+
+			/*
+				A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
+				L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
+				N       = FFT 해상도						// 256 표준, 512 고품질
+				Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
+				WindDir = 바람 방향 + 세기
+			*/
+			// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
+			static float2 windDir = float2(32.f, 32.f);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
+			static float waveEnergy = 0.0005f;
+			static float g = 9.81f;
+			const float windLength = windDir.length();
+			SceneManager::Ocean::OceanParams params(
+				windDir, windLength * windLength * g, SceneManager::Ocean::OCEAN_LENGTH, SceneManager::Ocean::OCEAN_N
+			);
+			ocean._initialSpectrumConstantBuffer->upload(&params);
+
+			startPipeline("InitialSpectrum");
+			{
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.bindTexture(ocean._h0, ReadWrite);
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+			startPipeline("UpdateSpectrum");
+			{
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.bindTexture(ocean._h0, Read);
+				renderModule.barrier(ocean._h0, Write, Read);
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+			startPipeline("FFTButterfly");
+			{
+				cmd->SetPipelineState(mFFTPSO.Get());
+
+				UINT stages = (UINT)log2((float)mN);
+
+				for (UINT stage = 0; stage < stages; ++stage)
+				{
+					cmd->SetComputeRoot32BitConstant(0, stage, 0);
+					cmd->Dispatch(mN / 8, mN / 8, 1);
+
+					auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(mHt.Get());
+					cmd->ResourceBarrier(1, &barrier);
+				}
+			}
+			endPipeline();
+			startPipeline("RenderOcean");
+			{
+				cmd->SetPipelineState(mHeightPSO.Get());
+				cmd->Dispatch(mN / 8, mN / 8, 1);
+			}
+			endPipeline();
+		}
+		endRenderPass();
+
+		// MainRender
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, false, false);
+		{
+#if 0
 			startPipeline("SkyDomePipeline");
 			{
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
@@ -486,7 +548,6 @@ namespace DK
 				// Draw Cross
 				{
 					float tileScale = vertexScale;
-					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
 					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
 
 					TerrainMeshConstantBuffer meshCBuffer;
@@ -501,10 +562,10 @@ namespace DK
 					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
 				}
 
-				for (uint32 i = 0; i < SceneManager::NUM_CLIPMAP_LEVELS; ++i)
+				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
 				{
 					float tileScale = (1 << i) * vertexScale;
-					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
+					float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION * tileScale);
 					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
 
 					float2 base = snappedCameraPos - gridScale * 2;
@@ -551,7 +612,7 @@ namespace DK
 					float nextGridScale = gridScale * 1;
 					float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
 					// Draw Seam
-					if (i != SceneManager::NUM_CLIPMAP_LEVELS)
+					if (i != SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
 					{
 						float2 next_base = nextSnappedPos - nextGridScale * 2;
 
@@ -699,35 +760,39 @@ namespace DK
 		endRenderPass();
 
 		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false);
-		startPipeline("AtmospherePipeline");
 		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
+			startPipeline("AtmospherePipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
 
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
 
-			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
-			renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+				renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
 		}
-		endPipeline();
 		endRenderPass();
 
 		// GBuffer
 		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false);
-		startPipeline("GBufferPipeline");
 		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+			startPipeline("GBufferPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
 
-			renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
-			renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
+				renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
 		}
-		endPipeline();
 		endRenderPass();
 	}
 

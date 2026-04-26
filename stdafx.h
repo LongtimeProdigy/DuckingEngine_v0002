@@ -659,6 +659,9 @@ namespace DK
 			return float2(x / rhs, y / rhs);
 		}
 
+		dk_inline const float length() const;
+		dk_inline const float lengthSq() const;
+
 	public:
 		union
 		{
@@ -1258,6 +1261,15 @@ namespace DK
 #endif
 		};
 	};
+
+	const float float2::length() const
+	{
+		return Math::sqrt(x * x + y * y);
+	}
+	const float float2::lengthSq() const
+	{
+		return x * x + y * y;
+	}
 
 	static float3 operator*(const float3& lhs, const Quaternion& rhs)
 	{

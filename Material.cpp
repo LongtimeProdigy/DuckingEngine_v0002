@@ -17,7 +17,7 @@ namespace DK
 		}
 		case MaterialParameterType::TEXTURE:
 		{
-			ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().allocateTexture(parameterDefinition._value);
+			ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().loadAndCreateTexture(parameterDefinition._value);
 			return dk_new MaterialParameterTexture(parameterDefinition._name, texture);
 		}
 		default:
@@ -30,7 +30,7 @@ namespace DK
 
 	uint32 MaterialParameterTexture::getParameterSize() const noexcept
 	{
-		return sizeof(ITexture::TextureSRVType);
+		return sizeof(ITexture::TextureResourceViewType);
 	}
 
 	MaterialParameter::Type MaterialParameterFloat::getType() const noexcept
@@ -123,7 +123,7 @@ namespace DK
 					}
 					case MaterialParameterType::TEXTURE:
 					{
-						ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().allocateTexture(parameterDefinition._value);
+						ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().loadAndCreateTexture(parameterDefinition._value);
 						MaterialParameterTexture* textureParameter = static_cast<MaterialParameterTexture*>(parameter);
 						textureParameter->setParameterValue(texture);
 						break;
