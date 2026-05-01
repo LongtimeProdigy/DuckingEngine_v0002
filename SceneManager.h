@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "RenderModule.h"	// TODO: ITexture::TextureResourceViewType때문에 있는데.. 분리하자
+#include "RenderModule.h"	// TODO: TextureResourceViewType때문에 있는데.. 분리하자
 
 namespace DK
 {
@@ -42,9 +42,6 @@ namespace DK
 		};
 		struct Ocean
 		{
-			static constexpr const uint32 TILE_RESOLUTION = 32;
-			static_assert((TILE_RESOLUTION % 8) == 0, "Ocean TIleResolution must be mul by 8");
-
 			static constexpr const float OCEAN_LENGTH = 256; // or 516
 			static constexpr const uint32 OCEAN_N = 256;	// or 512	
 
@@ -52,22 +49,37 @@ namespace DK
 
 			struct OceanParams
 			{
-				OceanParams(const float2& windDir, const float A, const float L, const uint32 N, const ITexture::TextureResourceViewType h0)
-					: _windDir(windDir)
+				OceanParams(const float time, const float g, const uint32 stages, const float2& windDir, const float A, const float L, const uint32 N, const TextureResourceViewType h0SRV, const TextureResourceViewType h0UAV, const TextureResourceViewType htSRV, const TextureResourceViewType htUAV)
+					: _time(time)
+					, _g(g)
+					, _stages(stages)
+					, _windDir(windDir)
 					, _A(A)
 					, _L(L)
 					, _N(N)
-					, _h0(h0)
+					, _h0SRV(h0SRV)
+					, _h0UAV(h0UAV)
+					, _htSRV(htSRV)
+					, _htUAV(htUAV)
 				{}
 
-				float2 _windDir;
-				float _A;
-				float _L;
-				uint32 _N;
-				ITexture::TextureResourceViewType _h0;
+				const float _time;
+				const float _g;
+				const uint32 _stages;
+				const float2 _windDir;
+				const float _A;
+				const float _L;
+				const uint32 _N;
+				const TextureResourceViewType _h0SRV;
+				const TextureResourceViewType _h0UAV;
+				const TextureResourceViewType _htSRV;
+				const TextureResourceViewType _htUAV;
 			};
 			Ptr<IBuffer> _initialSpectrumConstantBuffer;
-			ITextureRef _h0;
+			ITextureRef _h0[RenderModule::kFrameCount];
+			ITextureRef _ht[RenderModule::kFrameCount];
+
+			uint32 _currentReadTextureIndex = 0;
 		};
 		struct SkyDome
 		{

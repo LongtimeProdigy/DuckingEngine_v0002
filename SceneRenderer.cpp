@@ -449,66 +449,76 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		//startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, false, false);
-		//{
-		//	SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-		//	SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
+#if 0
+		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true);
+		{
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
 
-		//	/*
-		//		A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
-		//		L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
-		//		N       = FFT 해상도						// 256 표준, 512 고품질
-		//		Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
-		//		WindDir = 바람 방향 + 세기
-		//	*/
-		//	// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
-		//	static float2 windDir = float2(32.f, 32.f);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
-		//	static float waveEnergy = 0.0005f;
-		//	static float g = 9.81f;
-		//	const float windLength = windDir.length();
-		//	SceneManager::Ocean::OceanParams params(
-		//		windDir, windLength * windLength * g, SceneManager::Ocean::OCEAN_LENGTH, SceneManager::Ocean::OCEAN_N, ocean._h0->getSRV()
-		//	);
-		//	ocean._initialSpectrumConstantBuffer->upload(&params);
+			/*
+				A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
+				L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
+				N       = FFT 해상도						// 256 표준, 512 고품질
+				Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
+				WindDir = 바람 방향 + 세기
+			*/
+			// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
+			static float2 windDir = float2(32.f, 32.f);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
+			static float waveEnergy = 0.0005f;
+			static float g = 9.81f;
+			const float windLength = windDir.length();
+			const uint32 stages = static_cast<uint32>(log2(static_cast<float>(ocean.OCEAN_N)));
+			SceneManager::Ocean::OceanParams params(
+				_sceneConstantBufferData._time, g, stages, windDir, windLength * windLength * g,
+				SceneManager::Ocean::OCEAN_LENGTH, SceneManager::Ocean::OCEAN_N,
+				ocean._h0[ocean._currentReadTextureIndex]->getSRV(), ocean._h0[ocean._currentReadTextureIndex]->getUAV(),
+				ocean._ht[ocean._currentReadTextureIndex]->getSRV(), ocean._ht[ocean._currentReadTextureIndex]->getUAV()
+			);
+			ocean._initialSpectrumConstantBuffer->upload(&params);
 
-		//	startComputePipeline("InitialSpectrum");
-		//	{
-		//		setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
-		//		renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
-		//	}
-		//	endPipeline();
-		//	startComputePipeline("UpdateSpectrum");
-		//	{
-		//		setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
-		//		renderModule.barrier(ocean._h0, Write, Read);
-		//		renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
-		//	}
-		//	endPipeline();
-		//	startComputePipeline("FFTButterfly");
-		//	{
-		//		UINT stages = (UINT)log2((float)mN);
+			startPipeline("InitialSpectrum");
+			{
+				renderModule.resourceBarrier(ocean._h0[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+			startPipeline("UpdateSpectrum");
+			{
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.resourceBarrier(ocean._h0[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+				renderModule.resourceBarrier(ocean._ht[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+			startPipeline("FFTButterfly");
+			{
+				for (UINT stage = 0; stage < stages; ++stage)
+				{
+					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+				}
+			}
+			endPipeline();
 
-		//		for (UINT stage = 0; stage < stages; ++stage)
-		//		{
-		//			cmd->SetComputeRoot32BitConstant(0, stage, 0);
-		//			cmd->Dispatch(mN / 8, mN / 8, 1);
+			renderModule.resourceBarrier(ocean._ht[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-		//			auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(mHt.Get());
-		//			cmd->ResourceBarrier(1, &barrier);
-		//		}
-		//	}
-		//	endPipeline();
-		//	startComputePipeline("RenderOcean");
-		//	{
-		//		cmd->SetPipelineState(mHeightPSO.Get());
-		//		cmd->Dispatch(mN / 8, mN / 8, 1);
-		//	}
-		//	endPipeline();
-		//}
-		//endRenderPass();
+			startPipeline("RenderOcean");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+
+				renderModule.setVertexBuffers(0, 1, ocean._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(ocean._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(ocean._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
+
+			ocean._currentReadTextureIndex = (ocean._currentReadTextureIndex + 1) % DK_COUNT_OF(ocean._h0);
+		}
+		endRenderPass();
+#endif
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true);
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true);
 		{
 #if 0
 			startPipeline("SkyDomePipeline");
@@ -525,6 +535,7 @@ namespace DK
 			endPipeline();
 #endif
 
+#if 0
 			startPipeline("TerrainClipmapPipeline");
 			{
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
@@ -646,6 +657,7 @@ namespace DK
 				}
 			}
 			endPipeline();
+#endif
 
 			startPipeline("StaticMeshStandardPipeline");
 			{

@@ -1,3 +1,6 @@
+#ifndef __DEFINE_TEXTURESTANDARD_HLSL__
+#define __DEFINE_TEXTURESTANDARD_HLSL__
+
 #include "TextureCommon.hlsl"
 
 struct VS_INPUT
@@ -51,3 +54,5 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
     return input.color;
 }
+
+#endif

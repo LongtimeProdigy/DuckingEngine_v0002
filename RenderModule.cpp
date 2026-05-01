@@ -382,6 +382,7 @@ namespace DK
 #endif
 		}
 
+		static constexpr const D3D12_RESOURCE_STATES kResourceState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 		// Create Depth/Stencil View
 		{
 			/*
@@ -394,7 +395,7 @@ namespace DK
 			depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
 			depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
-			ID3D12Resource* depthStencilResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
+			RenderResourcePtr<ID3D12Resource> depthStencilResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
 			D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
 			dsvHeapDesc.NumDescriptors = DK_COUNT_OF(depthStencilResourceArr);
 			dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -412,8 +413,8 @@ namespace DK
 			for (uint32 i = 0; i < DK_COUNT_OF(depthStencilResourceArr); ++i)
 			{
 				hr = _device->CreateCommittedResource(
-					&dsvHeapProperty, D3D12_HEAP_FLAG_NONE, &dsvDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-					&depthOptimizedClearValue, IID_PPV_ARGS(&depthStencilResourceArr[i])
+					&dsvHeapProperty, D3D12_HEAP_FLAG_NONE, &dsvDesc, kResourceState,
+					&depthOptimizedClearValue, IID_PPV_ARGS(depthStencilResourceArr[i].getAddress())
 				);
 				if (FAILED(hr) == true)
 				{
@@ -459,7 +460,7 @@ namespace DK
 				depthStencilViewDesc.Format = gDepthStencilFormat;
 				depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 				depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
-				_device->CreateDepthStencilView(depthStencilResourceArr[i], &depthStencilViewDesc, dsvHandle);
+				_device->CreateDepthStencilView(depthStencilResourceArr[i].get(), &depthStencilViewDesc, dsvHandle);
 				dsvHandle.ptr += dsvHandleSize;
 
 				ITexture* depthStencilTexture = dk_new ITexture(DKString(dsvTextureName.c_str()), 1, depthStencilResourceArr[i], GetDepthSRVFormat(gDepthStencilFormat));
@@ -492,7 +493,7 @@ namespace DK
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 		DXGI_FORMAT renderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 		{
-			ID3D12Resource* renderTargetResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
+			RenderResourcePtr<ID3D12Resource> renderTargetResourceArr[DK_COUNT_OF(_renderTargetTextureArr)];
 			for (uint32 i = 0; i < DK_COUNT_OF(renderTargetResourceArr); ++i)
 			{
 				CD3DX12_HEAP_PROPERTIES rtvHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
@@ -503,7 +504,7 @@ namespace DK
 				clearValue.Color[1] = gClearRenderTargetViewColor.y;
 				clearValue.Color[2] = gClearRenderTargetViewColor.z;
 				clearValue.Color[3] = gClearRenderTargetViewColor.w;
-				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(&renderTargetResourceArr[i]));
+				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, kResourceState, &clearValue, IID_PPV_ARGS(renderTargetResourceArr[i].getAddress()));
 				DK_ASSERT_LOG(SUCCEEDED(hr), "Faile to create RenderTarget Resource");
 
 #if defined(_DK_DEBUG_)
@@ -514,7 +515,7 @@ namespace DK
 				renderTargetResourceArr[i]->SetName(StringUtil::ConverCtoWC(rtvTextureName.c_str()).c_str());
 #endif
 
-				_device->CreateRenderTargetView(renderTargetResourceArr[i], nullptr, rtvHandle);
+				_device->CreateRenderTargetView(renderTargetResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
 
 				ITexture* renderTargetTexture = dk_new ITexture(DKString(rtvTextureName.c_str()), 1, renderTargetResourceArr[i], renderTargetFormat);
@@ -1203,6 +1204,8 @@ namespace DK
 					DK_ASSERT_LOG(false, "Compute Pipeline State Object 생성 실패");
 					return false;
 				}
+
+				newPipeline._type = Pipeline::Type::COMPUTE;
 			}
 			else
 			{
@@ -1217,6 +1220,8 @@ namespace DK
 					return false;
 				if (createPipelineObjectState(pipelineCreateInfo, newPipeline) == false)
 					return false;
+
+				newPipeline._type = Pipeline::Type::GRAPHIC;
 			}
 
 			renderPass._pipelineMap.insert(DKPair<DKString, Pipeline>(pipelineName, DK::move(newPipeline)));
@@ -1288,10 +1293,6 @@ namespace DK
 
 		return returnBuffer;
 	}
-	ID3D12Resource* RenderModule::createDefaultBuffer(const uint32 size, const D3D12_RESOURCE_STATES state, const DKStringW& debugName)
-	{
-		return createBufferInternal(size, D3D12_HEAP_TYPE_DEFAULT, state, debugName);
-	}
 	IBuffer* RenderModule::createUploadBuffer(const uint32 size, const DKStringW& debugName)
 	{
 		RenderResourcePtr<ID3D12Resource> buffers[RenderModule::kFrameCount];
@@ -1314,22 +1315,25 @@ namespace DK
 		DK_ASSERT_LOG(SUCCEEDED(hr), "Map 실패");
 		memcpy(uploadBufferGPUAddress, data, bufferSize);
 
-		ID3D12Resource* defaultBuffer = createDefaultBuffer(bufferSize, D3D12_RESOURCE_STATE_COMMON, debugName);
+		ID3D12Resource* defaultBuffer = createBufferInternal(bufferSize, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, debugName);
 		if (defaultBuffer == nullptr)
 			return nullptr;
 
 		waitFenceAndResetCommandList();
 
-		CD3DX12_RESOURCE_BARRIER trans = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
-		_commandList->_commandList->ResourceBarrier(1, &trans);
+		resourceBarrier(defaultBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
 		_commandList->_commandList->CopyResource(defaultBuffer, uploadBuffer);
-		trans = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COPY_DEST, state);
-		_commandList->_commandList->ResourceBarrier(1, &trans);
+		resourceBarrier(defaultBuffer, D3D12_RESOURCE_STATE_COPY_DEST, state);
 
 
 		execute();
 
 		return defaultBuffer;
+	}
+	void RenderModule::resourceBarrier(ID3D12Resource* resource, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState)
+	{
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource, beforeState, afterState);
+		_commandList->_commandList->ResourceBarrier(1, &barrier);
 	}
 	const bool RenderModule::createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName)
 	{
@@ -1556,8 +1560,8 @@ namespace DK
 		heapProperty.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 		heapProperty.CreationNodeMask = 1;
 		heapProperty.VisibleNodeMask = 1;
-		ID3D12Resource* defaultBuffer;
-		HRESULT hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription, data ? D3D12_RESOURCE_STATE_COPY_DEST : state, nullptr, IID_PPV_ARGS(&defaultBuffer));
+		RenderResourcePtr<ID3D12Resource> defaultBuffer;
+		HRESULT hr = _device->CreateCommittedResource(&heapProperty, D3D12_HEAP_FLAG_NONE, &resourceDescription, data ? D3D12_RESOURCE_STATE_COPY_DEST : state, nullptr, IID_PPV_ARGS(defaultBuffer.getAddress()));
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
@@ -1612,10 +1616,9 @@ namespace DK
 
 			waitFenceAndResetCommandList();
 
-			UpdateSubresources(_commandList->_commandList.get(), defaultBuffer, uploadBuffer, 0, 0, 1, &textureData);
+			UpdateSubresources(_commandList->_commandList.get(), defaultBuffer.get(), uploadBuffer, 0, 0, 1, &textureData);
 
-			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer, D3D12_RESOURCE_STATE_COPY_DEST, state);
-			_commandList->_commandList->ResourceBarrier(1, &barrier);
+			resourceBarrier(defaultBuffer.get(), D3D12_RESOURCE_STATE_COPY_DEST, state);
 
 			execute();
 		}
@@ -1670,19 +1673,24 @@ namespace DK
 			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureUAV(texture->getUAV());
 	}
 
-	void RenderModule::deallocateTextureSRV(const ITexture::TextureResourceViewType index)
+	void RenderModule::deallocateTextureSRV(const TextureResourceViewType index)
 	{
 		EnsureMainThread();
 		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 		DK_ASSERT_LOG(index < _deletedTextureSRVArr.size(), "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureSRVArr.push_back(index);
 	}
-	void RenderModule::deallocateTextureUAV(const ITexture::TextureResourceViewType index)
+	void RenderModule::deallocateTextureUAV(const TextureResourceViewType index)
 	{
 		EnsureMainThread();
 		DK_ASSERT_LOG(index >= kMaxTextureSRVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 		DK_ASSERT_LOG(index < _deletedTextureUAVArr.size(), "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureUAVArr.push_back(index);
+	}
+
+	void RenderModule::resourceBarrier(const ITextureRef& texture, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState)
+	{
+		resourceBarrier(texture->getTextureBuffer(), beforeState, afterState);
 	}
 
 	void RenderModule::preRender()
@@ -1694,83 +1702,70 @@ namespace DK
 	{
 		const uint32 rtvIndex = kCurrentFrameIndex * kFrameCount + rtvSlot;
 
-		if(rtvReadSlot != 0xFFFFFFFF)
-		{
-			const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
-
-			D3D12_RESOURCE_BARRIER barrier;
-			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			barrier.Transition.pResource = _renderTargetTextureArr[rtvPrevIndex].get()->getTextureBuffer();
-			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			_commandList->_commandList->ResourceBarrier(1, &barrier);
-		}
-
-		{
-			D3D12_RESOURCE_BARRIER barrier;
-			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			barrier.Transition.pResource = 2 == rtvSlot ? _backBufferResourceArr[kCurrentFrameIndex].get() : _renderTargetTextureArr[rtvIndex].get()->getTextureBuffer();
-			barrier.Transition.StateBefore = 2 == rtvSlot ? D3D12_RESOURCE_STATE_PRESENT : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			_commandList->_commandList->ResourceBarrier(1, &barrier);
-		}
-
-		if (rtvReadSlot != 0xFFFFFFFF && 2 != rtvSlot)
-		{
-			const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
-
-			D3D12_RESOURCE_BARRIER barrier;
-			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			barrier.Transition.pResource = _depthStencilTextureArr[rtvPrevIndex]->getTextureBuffer();
-			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			_commandList->_commandList->ResourceBarrier(1, &barrier);
-		}
-
-		const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
-		rtvHandle.ptr += rtvSlot == 2 ? rtvDescriptorSize * (4 + kCurrentFrameIndex) : rtvDescriptorSize * rtvIndex;
-
-		if (bindDSV)
-		{
-			{
-				D3D12_RESOURCE_BARRIER barrier;
-				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-				barrier.Transition.pResource = _depthStencilTextureArr[rtvIndex]->getTextureBuffer();
-				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-				barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-				_commandList->_commandList->ResourceBarrier(1, &barrier);
-			}
-
-			const UINT dsvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			dsvHandle.ptr += dsvDescriptorSize * rtvIndex;
-			_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-			if (clearTarget)
-			{
-				_commandList->_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
-				_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-			}
-		}
-		else
-		{
-			_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-			if (clearTarget)
-				_commandList->_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
-		}
+		const bool isDeffered1 = rtvReadSlot == 0xFFFFFFFF && rtvSlot == 0;
+		const bool isDeffered2 = rtvReadSlot == 0xFFFFFFFE && rtvSlot == 0;
+		const bool isPostProcess = rtvReadSlot == 0 && rtvSlot == 1;
+		const bool isGBuffer = rtvReadSlot == 1 && rtvSlot == 2;
+		const bool isBackBuffer = rtvSlot == 2;
 
 		_commandList->_commandList->RSSetViewports(1, _viewport.get());
 		_commandList->_commandList->RSSetScissorRects(1, _scissorRect.get());
 		_commandList->_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		// 이전 renderTarget의 Shader에서 쓸 수 있게 Read로 변경
+		if(isPostProcess || isGBuffer)
+		{
+			const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
+			resourceBarrier(_renderTargetTextureArr[rtvPrevIndex]->getTextureBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+			// PostProcessing이면 DepthStencil도 Shader에서 쓸 수 있게 Read로 변경
+			if (isPostProcess)
+			{
+				const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
+				resourceBarrier(_depthStencilTextureArr[rtvPrevIndex], D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			}
+		}
+
+		// Deffered1인 경우 현재프레임의 rtv를 다시 RenderTarget으로 변경
+		// PostProcess, GBUffer인 경우 현재프레임의 BackBuffer 또는 RenderTarget을 Shader에서 쓸 수 있게 RenderTarget으로 변경
+		if (isDeffered2 || isPostProcess || isGBuffer)
+		{
+			// 현재 Pass에 해당하는 Texture를 renderTarget으로 변경
+			ID3D12Resource* resource = isBackBuffer ? _backBufferResourceArr[kCurrentFrameIndex].get() : _renderTargetTextureArr[rtvIndex].get()->getTextureBuffer();
+			D3D12_RESOURCE_STATES beforeState = isBackBuffer ? D3D12_RESOURCE_STATE_PRESENT : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			resourceBarrier(resource, beforeState, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+			// Deffered 최초 한번 시에 렌더타겟과 뎁스스텐실을 동시에 바인딩해야해서 따로 처리
+			if (isDeffered2)
+			{
+				const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
+				rtvHandle.ptr += rtvDescriptorSize * rtvIndex;
+
+				resourceBarrier(_depthStencilTextureArr[rtvIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+				const UINT dsvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+				dsvHandle.ptr += dsvDescriptorSize * rtvIndex;
+				_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+				if (clearTarget)
+				{
+					_commandList->_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
+					_commandList->_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+				}
+			}
+			else if (isPostProcess || isGBuffer)
+			{
+				const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
+				rtvHandle.ptr += isBackBuffer ? rtvDescriptorSize * (4 + kCurrentFrameIndex) : rtvDescriptorSize * rtvIndex;
+
+				_commandList->_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+				if (clearTarget)
+					_commandList->_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
+			}
+		}
 	}
 	D3D_PRIMITIVE_TOPOLOGY convertPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY_TYPE type)
 	{
@@ -1797,24 +1792,35 @@ namespace DK
 	}
 	bool RenderModule::bindPipeline(Pipeline& pipeline, const bool isCompute)
 	{
-		_commandList->_commandList->SetGraphicsRootSignature(pipeline._rootSignature.get());
 		_commandList->_commandList->SetPipelineState(pipeline._pipelineStateObject.get());
-		_commandList->_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
 		_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());	// TODO 비싼 함수니까 initialize쪽으로 옮기자. 어차피 bindless인데..
-		if(isCompute)
+		if (isCompute)
+		{
+			_commandList->_commandList->SetComputeRootSignature(pipeline._rootSignature.get());
 			_commandList->_commandList->SetComputeRootDescriptorTable(1, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		}
 		else
+		{
+			_commandList->_commandList->SetGraphicsRootSignature(pipeline._rootSignature.get());
 			_commandList->_commandList->SetGraphicsRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			_commandList->_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
+		}
 
 		return true;
 	}
-	void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress)
+	void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute)
 	{
-		_commandList->_commandList->SetGraphicsRootConstantBufferView(rootParameterIndex, gpuAdress);
+		if (isCompute)
+			_commandList->_commandList->SetComputeRootConstantBufferView(rootParameterIndex, gpuAdress);
+		else
+			_commandList->_commandList->SetGraphicsRootConstantBufferView(rootParameterIndex, gpuAdress);
 	}
-	void RenderModule::bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress)
+	void RenderModule::bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute)
 	{
-		_commandList->_commandList->SetGraphicsRootShaderResourceView(rootParameterIndex, gpuAdress);
+		if (isCompute)
+			_commandList->_commandList->SetComputeRootShaderResourceView(rootParameterIndex, gpuAdress);
+		else
+			_commandList->_commandList->SetGraphicsRootShaderResourceView(rootParameterIndex, gpuAdress);
 	}
 	void RenderModule::setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* views)
 	{
@@ -1841,16 +1847,7 @@ namespace DK
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _commandList->_commandList.get());
 #endif // USE_IMGUI
 
-		{
-			D3D12_RESOURCE_BARRIER barrier;
-			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			barrier.Transition.pResource = _backBufferResourceArr[kCurrentFrameIndex].get();
-			barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			_commandList->_commandList->ResourceBarrier(1, &barrier);
-		}
+		resourceBarrier(_backBufferResourceArr[kCurrentFrameIndex].get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
 		execute();
 
@@ -1874,7 +1871,7 @@ namespace DK
 	{
 		//DK_ASSERT_LOG(data != nullptr, "nullptr인 data를 upload요청하려고합니다.");
 
-		_lastUploadIndex = (_lastUploadIndex + 1) % 2;
+		_lastUploadIndex = (_lastUploadIndex + 1) % RenderModule::kFrameCount;
 
 		void* address = nullptr;
 		HRESULT hr = _buffers[_lastUploadIndex]->Map(0, nullptr, &address);
@@ -1891,7 +1888,6 @@ namespace DK
 	ITexture::~ITexture()
 	{
 		DuckingEngine::getInstance().GetRenderModuleWritable().deleteTexture(this);
-		getTextureBuffer()->Release();
 	}
 
 }

@@ -1,15 +1,27 @@
 <RenderPassGroup>
-	<!-- <RenderPass Name="OceanRenderPass">
+	<RenderPass Name="OceanRenderPass">
 		<ComputePipeline Name="InitialSpectrum">
-			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
 			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
 		</ComputePipeline>
 		<ComputePipeline Name="UpdateSpectrum">
-			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
-			<Parameter Name="H0" Type="Texture2D" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
 			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
 		</ComputePipeline>
-	</RemderPass> -->
+		<ComputePipeline Name="FFTButterfly">
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/FFTButterflyCS.hlsl</Shader>
+		</ComputePipeline>
+		<Pipeline Name="RenderOcean" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material/Ocean/RenderOcean.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material/Ocean/RenderOcean.hlsl</PixelShader>
+			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+		</Pipeline>
+	</RenderPass>
 
 	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>

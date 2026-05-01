@@ -1,40 +1,36 @@
+#ifndef __DEFINE_SPECTRUMUPDATE_HLSL__
+#define __DEFINE_SPECTRUMUPDATE_HLSL__
+
 #include "CommonComplex.hlsl"
-
-Texture2D<float2> H0 : register(t0);
-RWTexture2D<float2> Ht : register(u0);
-
-cbuffer TimeCB : register(b0)
-{
-    float time;
-    float g;
-    uint N;
-    float L;
-}
+#include "CommonTexture.hlsl"
+#include "Ocean/OceanCommon.hlsl"
 
 [numthreads(8,8,1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
-    int x = id.x;
-    int y = id.y;
+    const int x = id.x;
+    const int y = id.y;
 
-    float2 k = float2(
-        (x - N/2) * 2.0 * 3.14159 / L,
-        (y - N/2) * 2.0 * 3.14159 / L
-    );
+    const float2 k = float2((x - _N/2) * 2.0 * 3.14159 / _L, (y - _N/2) * 2.0 * 3.14159 / _L);
 
-    float kLen = length(k);
-    float w = sqrt(g * kLen);
+    const float kLen = length(k);
+    const float w = sqrt(_g * kLen);
 
-    float2 h0 = H0[id.xy];
-    float2 h0_conj = float2(h0.x, -h0.y);
+    Texture2D<float4> H0 = getTextureRW(_h0SRV);
 
-    float coswt = cos(w * time);
-    float sinwt = sin(w * time);
+    const float2 h0 = H0[id.xy];
+    const float2 h0_conj = float2(h0.x, -h0.y);
 
-    float2 exp_iwt = float2(coswt, sinwt);
-    float2 exp_neg = float2(coswt, -sinwt);
+    const float coswt = cos(w * _timeForOcean);
+    const float sinwt = sin(w * _timeForOcean);
 
-    float2 h = complexMul(h0, exp_iwt) + complexMul(h0_conj, exp_neg);
+    const float2 exp_iwt = float2(coswt, sinwt);
+    const float2 exp_neg = float2(coswt, -sinwt);
 
+    const float2 h = complexMul(h0, exp_iwt) + complexMul(h0_conj, exp_neg);
+
+    RWTexture2D<float4> Ht = getTextureRW(_htUAV);
     Ht[id.xy] = h;
 }
+
+#endif

@@ -1,9 +1,7 @@
 #ifndef __DEFINE_COMMONRENDERING_HLSL__
 #define __DEFINE_COMMONRENDERING_HLSL__
 
-//based on google's omni-directional stereo rendering thread
-#define FLOAT_EPSILON 2.4414e-4
-#define FLOAT_MAX 3.402823466e+38F
+#include "CommonMath.hlsl"
 
 cbuffer SceneConstantBuffer : register(b0)
 {

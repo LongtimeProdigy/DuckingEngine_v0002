@@ -1,47 +1,39 @@
-#include "CommonTexture.hlsl"
+#ifndef __DEFINE_INITIALSPECTRUM_HLSL__
+#define __DEFINE_INITIALSPECTRUM_HLSL__
 
-cbuffer OceanParams : register(b0)
-{
-    float2 _windDir;
-    float _A;
-    float _L;
-    uint _N;
-    TextureParameter _h0;
-}
+#include "CommonMath.hlsl"
+#include "CommonTexture.hlsl"
+#include "Ocean/OceanCommon.hlsl"
 
 float Phillips(float2 k)
 {
-    float kLen = length(k);
-    if (kLen < 1e-6) return 0.0;
+    const float kLen = length(k);
+    if (kLen < FLOAT_EPSILON) 
+        return 0.0;
 
-    float k2 = kLen * kLen;
-    float k4 = k2 * k2;
+    const float k2 = kLen * kLen;
+    const float k4 = k2 * k2;
 
-    float2 kNorm = k / kLen;
-    float kw = dot(kNorm, normalize(_windDir));
+    const float2 kNorm = k / kLen;
+    const float kw = dot(kNorm, normalize(_windDir));
 
-    float damping = exp(-1.0 / (k2 * _L * _L));
+    const float damping = exp(-1.0 / (k2 * _L * _L));
     return _A * damping * kw * kw / k4;
 }
 
 [numthreads(8,8,1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
-    int x = id.x;
-    int y = id.y;
+    const uint x = id.x;
+    const uint y = id.y;
+    const float2 k = float2((x - _N/2) * 2.0 * 3.14159 / _L, (y - _N/2) * 2.0 * 3.14159 / _L);
+    const float P = Phillips(k);
 
-    float2 k = float2(
-        (x - _N/2) * 2.0 * 3.14159 / _L,
-        (y - _N/2) * 2.0 * 3.14159 / _L
-    );
+    const float2 gaussian = randGaussian(uint2(x, y));
+    const float2 value = gaussian * sqrt(P * 0.5);
+    RWTexture2D<float4> H0 = getTextureRW(_h0UAV);
 
-    float P = Phillips(k);
-
-    float2 gaussian = float2(
-        rand(x, y),
-        rand(y, x)
-    );
-
-    RWTexture2D<float4> H0 = getTextureRW(_h0);
-    H0[id.xy] = gaussian * sqrt(P * 0.5);
+    H0[id.xy] = float4(value.x, value.y, 0, 0);
 }
+
+#endif

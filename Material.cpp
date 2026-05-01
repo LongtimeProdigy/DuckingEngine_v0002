@@ -30,7 +30,7 @@ namespace DK
 
 	uint32 MaterialParameterTexture::getParameterSize() const noexcept
 	{
-		return sizeof(ITexture::TextureResourceViewType);
+		return sizeof(TextureResourceViewType);
 	}
 
 	MaterialParameter::Type MaterialParameterFloat::getType() const noexcept

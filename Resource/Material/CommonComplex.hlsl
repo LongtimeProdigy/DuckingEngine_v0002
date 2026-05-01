@@ -1,3 +1,6 @@
+#ifndef __DEFINE_COMMONCOMPLEX_HLSL__
+#define __DEFINE_COMMONCOMPLEX_HLSL__
+
 float2 ComplexMul(float2 a, float2 b)
 {
     return float2(
@@ -5,3 +8,5 @@ float2 ComplexMul(float2 a, float2 b)
         a.x * b.y + a.y * b.x  // 결과 허수부: ad + bc
     );
 }
+
+#endif

@@ -88,7 +88,7 @@ namespace DK
 	{
 		DKVector<float2> vertexArr;
 		DKVector<uint32> indexArr;
-		createSquareMesh(SceneManager::Ocean::TILE_RESOLUTION, float2::Identity, vertexArr, indexArr);
+		createSquareMesh(SceneManager::Ocean::OCEAN_LENGTH, float2::Identity, vertexArr, indexArr);
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
@@ -96,10 +96,19 @@ namespace DK
 		_ocean._mesh = SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 
 		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(Ocean::OceanParams), L"_initialSpectrumConstantBuffer");
-		_ocean._h0 = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-			"OceanH0", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1, 
-			DXGI_FORMAT_R32G32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			true, true);
+
+		// TODO : h0, ht 둘 다 R32, G32만 사용중인데, Bindless연결하려다보니 B32, A32까지 만들었다. 추후에 개선하자
+		for (uint32 i = 0; i < RenderModule::kFrameCount; i++)
+		{
+			_ocean._h0[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+				"OceanH0", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+				DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+				true, true);
+			_ocean._ht[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+				"OceanHt", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+				DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+				true, true);
+		}
 	}
 
 	static SceneManager::Mesh loadLevel_ClipMap_Cross()
