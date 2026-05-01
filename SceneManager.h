@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "RenderModule.h"	// TODO: ITexture::TextureResourceViewType때문에 있는데.. 분리하자
+
 namespace DK
 {
 	class Material;
@@ -50,17 +52,19 @@ namespace DK
 
 			struct OceanParams
 			{
-				OceanParams(const float2& windDir, const float A, const float L, const uint32 N)
+				OceanParams(const float2& windDir, const float A, const float L, const uint32 N, const ITexture::TextureResourceViewType h0)
 					: _windDir(windDir)
 					, _A(A)
 					, _L(L)
 					, _N(N)
+					, _h0(h0)
 				{}
 
 				float2 _windDir;
 				float _A;
 				float _L;
 				uint32 _N;
+				ITexture::TextureResourceViewType _h0;
 			};
 			Ptr<IBuffer> _initialSpectrumConstantBuffer;
 			ITextureRef _h0;

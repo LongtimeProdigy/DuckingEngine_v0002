@@ -130,7 +130,7 @@ namespace DK
 	uint32 RenderModule::kCurrentFrameIndex = 0;
 	uint32 RenderModule::kWidth = 0;
 	uint32 RenderModule::kHeight = 0;
-	DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	static constexpr const DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	DXGI_FORMAT GetDepthResourceFormat(DXGI_FORMAT depthformat)
 	{
 		DXGI_FORMAT resformat;
@@ -175,6 +175,7 @@ namespace DK
 
 #define TEXTUREBINDLESS_MAX_COUNT 4096
 #define TEXTUREBINDLESS_SPACE 10
+	static constexpr const D3D12_DESCRIPTOR_HEAP_TYPE gTextureBindlessDescriptorHeapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
 	template<typename T>
 	RenderResourcePtr<T>::~RenderResourcePtr()
@@ -289,7 +290,7 @@ namespace DK
 
 		// Activate DebugLayer
 		{
-#if 0
+#if 0 && !defined(USE_PIX)
 			//실험적 기능 목록을 사용하도록 설정합니다.
 			const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
 				0x76f5573e,
@@ -366,17 +367,19 @@ namespace DK
 				return false;
 		}
 
-		// Create Bindless Texture Descriptor
+		// Create Bindless Texture DescriptorHeap
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 			heapDesc.NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
 			heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-			heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			heapDesc.Type = gTextureBindlessDescriptorHeapType;
 			hr = _device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_textureDescriptorHeap.getAddress()));
 			if (FAILED(hr))
 				return false;
 
+#if defined(_DK_DEBUG_)
 			_textureDescriptorHeap->SetName(L"BindlessTextureDescriptorHeap");
+#endif
 		}
 
 		// Create Depth/Stencil View
@@ -413,13 +416,44 @@ namespace DK
 					&depthOptimizedClearValue, IID_PPV_ARGS(&depthStencilResourceArr[i])
 				);
 				if (FAILED(hr) == true)
+				{
+					// 장치가 제거된 구체적인 원인을 가져옵니다.
+					HRESULT removedReason = _device->GetDeviceRemovedReason();
+					
+					// 로그 출력 또는 브레이크포인트
+					OutputDebugStringA("Device Removed Reason: ");
+					switch (removedReason)
+					{
+						case DXGI_ERROR_DEVICE_HUNG:
+						OutputDebugStringA("DXGI_ERROR_DEVICE_HUNG (GPU가 명령 처리 중 멈춤 - 주로 무한루프)\n");
+						break;
+						case DXGI_ERROR_DEVICE_REMOVED:
+						OutputDebugStringA("DXGI_ERROR_DEVICE_REMOVED (드라이버 업데이트나 물리적 제거)\n");
+						break;
+						case DXGI_ERROR_DEVICE_RESET:
+						OutputDebugStringA("DXGI_ERROR_DEVICE_RESET (사용자나 시스템에 의한 리셋)\n");
+						break;
+						case DXGI_ERROR_DRIVER_INTERNAL_ERROR:
+						OutputDebugStringA("DXGI_ERROR_DRIVER_INTERNAL_ERROR (드라이버 내부 버그)\n");
+						break;
+						case DXGI_ERROR_INVALID_CALL:
+						OutputDebugStringA("DXGI_ERROR_INVALID_CALL (잘못된 API 호출)\n");
+						break;
+					default:
+						// 기타 에러 코드 확인
+						break;
+					}
+					
 					return false;
+				}
 
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> indexString;
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture_");
 				dsvTextureName.append(indexString.c_str());
 				depthStencilResourceArr[i]->SetName(StringUtil::ConverCtoWC(dsvTextureName.c_str()).c_str());
+#endif
 
 				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
 				depthStencilViewDesc.Format = gDepthStencilFormat;
@@ -428,7 +462,7 @@ namespace DK
 				_device->CreateDepthStencilView(depthStencilResourceArr[i], &depthStencilViewDesc, dsvHandle);
 				dsvHandle.ptr += dsvHandleSize;
 
-				ITexture* depthStencilTexture = dk_new ITexture(DKString(dsvTextureName.c_str()), depthStencilResourceArr[i], DXGI_FORMAT_FORCE_UINT);
+				ITexture* depthStencilTexture = dk_new ITexture(DKString(dsvTextureName.c_str()), 1, depthStencilResourceArr[i], GetDepthSRVFormat(gDepthStencilFormat));
 				allocateTextureSRV(depthStencilTexture);
 
 				_depthStencilTextureArr[i] = ITextureRef(depthStencilTexture);
@@ -449,7 +483,9 @@ namespace DK
 			if (FAILED(hr) == true)
 				return false;
 
+#if defined(_DK_DEBUG_)
 			_renderTargetViewHeap->SetName(L"RTVDescriptorHeap");
+#endif
 		}
 
 		// Create RTV
@@ -467,19 +503,21 @@ namespace DK
 				clearValue.Color[1] = gClearRenderTargetViewColor.y;
 				clearValue.Color[2] = gClearRenderTargetViewColor.z;
 				clearValue.Color[3] = gClearRenderTargetViewColor.w;
-				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(_renderTargetResourceArr[i].getAddress()));
+				hr = _device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &rtResourceDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, &clearValue, IID_PPV_ARGS(&renderTargetResourceArr[i]));
 				DK_ASSERT_LOG(SUCCEEDED(hr), "Faile to create RenderTarget Resource");
 
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> indexString;
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
 				rtvTextureName.append(indexString.c_str());
 				renderTargetResourceArr[i]->SetName(StringUtil::ConverCtoWC(rtvTextureName.c_str()).c_str());
+#endif
 
 				_device->CreateRenderTargetView(renderTargetResourceArr[i], nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
 
-				ITexture* renderTargetTexture = dk_new ITexture(DKString(rtvTextureName.c_str()), renderTargetResourceArr[i], renderTargetFormat);
+				ITexture* renderTargetTexture = dk_new ITexture(DKString(rtvTextureName.c_str()), 1, renderTargetResourceArr[i], renderTargetFormat);
 				allocateTextureSRV(renderTargetTexture);
 				_renderTargetTextureArr[i] = ITextureRef(renderTargetTexture);
 				if (_renderTargetTextureArr[i] == nullptr)
@@ -527,11 +565,13 @@ namespace DK
 				_device->CreateRenderTargetView(_backBufferResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
 
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> indexString;
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeStringW<DK_MAX_BUFFER> resourceName(L"BackBufferResource_");
 				resourceName.append(StringUtil::ConverCtoWC(indexString.c_str()).c_str());
 				_backBufferResourceArr[i]->SetName(resourceName.c_str());
+#endif
 			}
 		}
 
@@ -571,7 +611,7 @@ namespace DK
 
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-			desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			desc.Type = gTextureBindlessDescriptorHeapType;
 			desc.NumDescriptors = 1;
 			desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 			if (_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(_pd3dSrvDescHeap.getAddress())) != S_OK)
@@ -614,14 +654,18 @@ namespace DK
 			if (FAILED(hr))
 				return nullptr;
 
+#if defined(_DK_DEBUG_)
 			outCommandAllocator[i]->SetName(L"CommandAllocator");
+#endif
 		}
 
 		hr = _device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, outCommandAllocator[0].get(), NULL, IID_PPV_ARGS(outCommandList.getAddress()));
 		if (FAILED(hr))
 			return nullptr;
 
+#if defined(_DK_DEBUG_)
 		outCommandList->SetName(L"CommandList");
+#endif
 
 		return dk_new DKCommandList(outCommandAllocator, outCommandList);
 	}
@@ -644,27 +688,49 @@ namespace DK
 
 	bool RenderModule::createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline)
 	{
-		const uint32 parameterCount = static_cast<uint32>(renderPass._shaderParameterMap.size() + inoutPipeline._shaderParameterMap.size()) + 1;	// Texture Bindless 전용 +1
+		const uint32 parameterCount = static_cast<uint32>(renderPass._shaderParameterMap.size() + inoutPipeline._shaderParameterMap.size()) + 2;	// Texture Bindless 전용 +2
 		DKVector<D3D12_ROOT_PARAMETER> rootParameters;
 		rootParameters.resize(parameterCount);
 		uint32 rootParameterIndex = 0;
 
 		// Bindless Texture 2D Table
 		{
-			D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
-			texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-			texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
-			texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
-			texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
-			texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0;
-			D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
-			texture2DTableDescriptorTable.NumDescriptorRanges = _countof(texture2DTableDescriptorRange);
-			texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
+			// For SRV
+			{
+				D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
+				texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+				texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
+				texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+				texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
+				texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0;
+				D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
+				texture2DTableDescriptorTable.NumDescriptorRanges = DK_COUNT_OF(texture2DTableDescriptorRange);
+				texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
 
-			rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-			rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
-			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-			++rootParameterIndex;
+				rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+				rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
+				rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+				++rootParameterIndex;
+			}
+
+			// For UAV
+			{
+				D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
+				texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+				texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
+				texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+				texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
+				texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0;
+				D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
+				texture2DTableDescriptorTable.NumDescriptorRanges = DK_COUNT_OF(texture2DTableDescriptorRange);
+				texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
+
+				rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+				rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
+				rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+				++rootParameterIndex;
+
+			}
 		}
 
 		for(DKPair<const DKString, ShaderParameter>& renderPassShaderParameter : renderPass._shaderParameterMap)
@@ -1310,7 +1376,7 @@ namespace DK
 		}
 		else
 		{
-			index = _deletedTextureSRVArr.size();
+			index = _currentTextureSRV++;
 		}
 
 		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
@@ -1322,15 +1388,18 @@ namespace DK
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Format = texture->getFormat();
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = 1;
-		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		srvDesc.Texture2D.MipLevels = texture->getMipLevelCount();
+		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(gTextureBindlessDescriptorHeapType);
 		_device->CreateShaderResourceView(const_cast<ID3D12Resource*>(texture->getTextureBuffer()), &srvDesc, textureDescriptorHeapHandle);
+
+		texture->_textureSRVIndex = index;
 
 		return true;
 	}
 	const bool RenderModule::allocateTextureUAV(ITexture* texture)
 	{
 		EnsureMainThread();
+		DK_ASSERT_LOG(texture->getMipLevelCount() == 1, "UAV로 접근할 Texture는 MipLevel이 1개인 경우에만 허용됩니다.");
 
 		uint32 index;
 		if (_deletedTextureUAVArr.empty() == false)
@@ -1340,22 +1409,23 @@ namespace DK
 		}
 		else
 		{
-			index = _deletedTextureUAVArr.size();
+			index = _currentTextureUAV++;
+			index += kMaxTextureSRVCount;
 		}
-		index += kMaxTextureSRVCount;
 
 		DK_ASSERT_LOG(index >= kMaxTextureSRVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 
 		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = texture->getFormat();
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = 1;
-		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		_device->CreateShaderResourceView(const_cast<ID3D12Resource*>(texture->getTextureBuffer()), &srvDesc, textureDescriptorHeapHandle);
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.Format = texture->getFormat();
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Texture2D.MipSlice = 0; // UAV로 접근할 Mip 레벨 지정
+		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(gTextureBindlessDescriptorHeapType);
+		_device->CreateUnorderedAccessView(const_cast<ID3D12Resource*>(texture->getTextureBuffer()), nullptr, &uavDesc, textureDescriptorHeapHandle);
+
+		texture->_textureUAVIndex = index;
 
 		return true;
 	}
@@ -1461,7 +1531,7 @@ namespace DK
 
 		return true;
 	}
-	ITextureRef RenderModule::createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
+	ITextureRef RenderModule::createTexture(const DKString& debugString, const uint32 width, const uint32 height, const byte* data, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
 	{
 		//#todo- 여기도 textureContainer에 이미 존재하는 이름인지 체크해야할듯. 중복된 이름이 있을 경우 덮어쓰거나, 실패하거나, 이름 뒤에 숫자 붙이는 등의 처리가 필요할듯
 
@@ -1473,7 +1543,7 @@ namespace DK
 		resourceDescription.Width = width; // width of the texture
 		resourceDescription.Height = height; // height of the texture
 		resourceDescription.DepthOrArraySize = 1; // if 3d image, depth of 3d image. Otherwise an array of 1D or 2D textures (we only have one image, so we set 1)
-		resourceDescription.MipLevels = 1; // Number of mipmaps. We are not generating mipmaps for this texture, so we have only one level
+		resourceDescription.MipLevels = mipLevelCount; // Number of mipmaps.
 		resourceDescription.Format = format; // This is the dxgi format of the image (format of the pixels)
 		resourceDescription.SampleDesc.Count = 1; // This is the number of samples per pixel, we just want 1 sample
 		resourceDescription.SampleDesc.Quality = 0; // The quality level of the samples. Higher is better quality, but worse performance
@@ -1495,24 +1565,24 @@ namespace DK
 		}
 #if defined(_DK_DEBUG_)
 		ScopeStringW<DK_MAX_PATH> debugName(L"Texture(");
-		debugName.append(StringUtil::ConverCtoWC(path.c_str()).c_str());
+		debugName.append(StringUtil::ConverCtoWC(debugString.c_str()).c_str());
 		debugName.append(L")");
 		defaultBuffer->SetName(debugName.c_str());
 #endif
 
-		UINT64 textureUploadBufferSize = 0;
-		// this function gets the size an upload buffer needs to be to upload a texture to the gpu.
-		// each row must be 256 byte aligned except for the last row, which can just be the size in bytes of the row
-		// eg. textureUploadBufferSize = ((((width * numBytesPerPixel) + 255) & ~255) * (height - 1)) + (width * numBytesPerPixel);
-#if 0
-		UINT64 imageBytesPerRow = resourceDescription.Width * (textureRaw._bitsPerPixel / 4);
-		textureUploadBufferSize = (((imageBytesPerRow + 255) & ~255) * (resourceDescription.Height - 1)) + imageBytesPerRow;
-#else
-		_device->GetCopyableFootprints(&resourceDescription, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
-#endif
-
 		if (data)
 		{
+			UINT64 textureUploadBufferSize = 0;
+			// this function gets the size an upload buffer needs to be to upload a texture to the gpu.
+			// each row must be 256 byte aligned except for the last row, which can just be the size in bytes of the row
+			// eg. textureUploadBufferSize = ((((width * numBytesPerPixel) + 255) & ~255) * (height - 1)) + (width * numBytesPerPixel);
+#if 0
+			UINT64 imageBytesPerRow = resourceDescription.Width * (textureRaw._bitsPerPixel / 4);
+			textureUploadBufferSize = (((imageBytesPerRow + 255) & ~255) * (resourceDescription.Height - 1)) + imageBytesPerRow;
+#else
+			_device->GetCopyableFootprints(&resourceDescription, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+#endif
+
 			heapProperty.Type = D3D12_HEAP_TYPE_UPLOAD;
 			heapProperty.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 			heapProperty.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
@@ -1528,7 +1598,7 @@ namespace DK
 			}
 #if defined(_DK_DEBUG_)
 			ScopeStringW<DK_MAX_PATH> debugName(L"UploadTexture(");
-			debugName.append(StringUtil::ConverCtoWC(path.c_str()).c_str());
+			debugName.append(StringUtil::ConverCtoWC(debugString.c_str()).c_str());
 			debugName.append(L")");
 			defaultBuffer->SetName(debugName.c_str());
 #endif
@@ -1550,7 +1620,7 @@ namespace DK
 			execute();
 		}
 
-		ITexture* texture = dk_new ITexture(path, defaultBuffer, format);
+		ITexture* texture = dk_new ITexture(debugString, mipLevelCount, defaultBuffer, format);
 		if (createSRV)
 			allocateTextureSRV(texture);
 		if (createUAV)
@@ -1573,9 +1643,9 @@ namespace DK
 			return nullptr;
 		}
 
-		// no flags
+		// TODO : Miplevel이 생기면 1말고 Resource에서 가져올 수 있도록하자
 		ITextureRef newTexture = createTexture(
-			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
+			path, textureRaw._width, textureRaw._height, textureRaw._data, 1, textureRaw._format,
 			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			true, false);
 
@@ -1603,11 +1673,15 @@ namespace DK
 	void RenderModule::deallocateTextureSRV(const ITexture::TextureResourceViewType index)
 	{
 		EnsureMainThread();
+		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
+		DK_ASSERT_LOG(index < _deletedTextureSRVArr.size(), "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureSRVArr.push_back(index);
 	}
 	void RenderModule::deallocateTextureUAV(const ITexture::TextureResourceViewType index)
 	{
 		EnsureMainThread();
+		DK_ASSERT_LOG(index >= kMaxTextureSRVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
+		DK_ASSERT_LOG(index < _deletedTextureUAVArr.size(), "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureUAVArr.push_back(index);
 	}
 
@@ -1721,13 +1795,17 @@ namespace DK
 			return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 		}
 	}
-	bool RenderModule::bindPipeline(Pipeline& pipeline)
+	bool RenderModule::bindPipeline(Pipeline& pipeline, const bool isCompute)
 	{
 		_commandList->_commandList->SetGraphicsRootSignature(pipeline._rootSignature.get());
 		_commandList->_commandList->SetPipelineState(pipeline._pipelineStateObject.get());
 		_commandList->_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
-		_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());
-		_commandList->_commandList->SetGraphicsRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());	// TODO 비싼 함수니까 initialize쪽으로 옮기자. 어차피 bindless인데..
+		if(isCompute)
+			_commandList->_commandList->SetComputeRootDescriptorTable(1, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		else
+			_commandList->_commandList->SetGraphicsRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
 		return true;
 	}
 	void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress)

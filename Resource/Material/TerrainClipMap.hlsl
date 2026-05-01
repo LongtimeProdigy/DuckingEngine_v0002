@@ -53,7 +53,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
     //localPosition = localPosition;
 #endif
 
-    Texture2D heightTexture = gBindlessTextureArray[_heightTexture];
+    Texture2D<float4> heightTexture = getTexture(_heightTexture);
     float meterPerTexel = 0.125f;
     uint2 texSize;
     heightTexture.GetDimensions(texSize.x, texSize.y);
@@ -84,7 +84,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
 #if 1
-    Texture2D diffuseTexture = gBindlessTextureArray[_diffuseTexture];
+    Texture2D<float4> diffuseTexture = getTexture(_diffuseTexture);
     return diffuseTexture.Sample(normalSampler, input.uv0);
 #else
     return input.color;

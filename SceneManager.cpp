@@ -97,7 +97,7 @@ namespace DK
 
 		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(Ocean::OceanParams), L"_initialSpectrumConstantBuffer");
 		_ocean._h0 = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-			"OceanH0", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr,
+			"OceanH0", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1, 
 			DXGI_FORMAT_R32G32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			true, true);
 	}

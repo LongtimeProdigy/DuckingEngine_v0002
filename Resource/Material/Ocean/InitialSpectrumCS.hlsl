@@ -1,4 +1,4 @@
-RWTexture2D<float2> H0 : register(u0);
+#include "CommonTexture.hlsl"
 
 cbuffer OceanParams : register(b0)
 {
@@ -6,7 +6,6 @@ cbuffer OceanParams : register(b0)
     float _A;
     float _L;
     uint _N;
-
     TextureParameter _h0;
 }
 
@@ -43,5 +42,6 @@ void main(uint3 id : SV_DispatchThreadID)
         rand(y, x)
     );
 
+    RWTexture2D<float4> H0 = getTextureRW(_h0);
     H0[id.xy] = gaussian * sqrt(P * 0.5);
 }

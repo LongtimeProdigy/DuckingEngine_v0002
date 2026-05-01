@@ -1,5 +1,5 @@
 <RenderPassGroup>
-	<RenderPass Name="OceanRenderPass">
+	<!-- <RenderPass Name="OceanRenderPass">
 		<ComputePipeline Name="InitialSpectrum">
 			<Parameter Name="OceanParams" Type="Buffer" Register="0"/>
 			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
@@ -9,19 +9,19 @@
 			<Parameter Name="H0" Type="Texture2D" Register="0"/>
 			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
 		</ComputePipeline>
-	</RemderPass>
+	</RemderPass> -->
 
 	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 		
-		<Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Front">
+		<!-- <Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Front">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material/SkyDome.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material/SkyDome.hlsl</PixelShader>
-		</Pipeline>
-		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="WireFrame" CullMode="Back">
+		</Pipeline> -->
+		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>

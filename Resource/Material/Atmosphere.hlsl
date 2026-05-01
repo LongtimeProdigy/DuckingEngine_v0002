@@ -249,8 +249,8 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     if(successSunRender)
         return float4(255 / 255.0f, 221 / 255.0f, 64 / 255.0f, 1);
 
-    const Texture2D renderTexture = getRenderTargetTexture(_frameIndex.x, 0);
-    const Texture2D depthTexture = getDepthStencilTexture(_frameIndex.x, 0);
+    const Texture2D<float4> renderTexture = getRenderTargetTexture(_frameIndex.x, 0);
+    const Texture2D<float4> depthTexture = getDepthStencilTexture(_frameIndex.x, 0);
     const float4 originalCol = renderTexture.Load(uint3(input.uv * _resolution, 0));
     
     const float depth = depthTexture.Load(uint3(input.uv * _resolution, 0)).x;
