@@ -6,14 +6,19 @@ cbuffer OceanParams : register(b1)
     float _timeForOcean;
     float _g;
     uint _stages;
+    float _heightScale;
     float2 _windDir;
+    uint _length;
     float _A;
     float _L;
     uint _N;
     TextureParameter _h0SRV;
-    TextureParameter _h0UAV;
     TextureParameter _htSRV;
+    TextureParameter _heightSRV;
+    TextureParameter _h0UAV;
     TextureParameter _htUAV;
+    TextureParameter _heightUAV;
+    float padding2;
 }
 
 #endif

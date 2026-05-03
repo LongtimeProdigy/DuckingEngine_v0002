@@ -2,8 +2,12 @@
 #define __DEFINE_COMMONMATH_HLSL__
 
 //based on google's omni-directional stereo rendering thread
-#define FLOAT_EPSILON 2.4414e-4
-#define FLOAT_MAX 3.402823466e+38F
+#define FLOAT_EPSILON (1e-6)
+#define FLOAT_MAX (3.402823466e+38F)
+
+#define PI 3.14159265358979
+#define PI2 (2 * PI)
+
 
 // 예전부터 가장 많이 쓰인 방식으로, 속도는 빠르지만 패턴이 반복되는 단점이 있습니다. (오션 시뮬레이션의 초기값 정도로 쓰기엔 적당합니다.)
 float rand(float2 uv)
@@ -25,13 +29,23 @@ float rand(uint2 pixel)
 // 두 개의 균등 분포 난수를 받아 두 개의 가우시안 난수(float2)를 반환
 float2 randGaussian(uint2 id)
 {
+#if 0   // claude
     float u1 = rand(id);          // 0~1 난수 1
     float u2 = rand(id + 100);    // 0~1 난수 2 (시드 다르게)
 
     float r = sqrt(-2.0 * log(max(u1, 1e-6)));
-    float theta = 2.0 * 3.14159265 * u2;
+    float theta = PI2 * u2;
 
     return float2(r * cos(theta), r * sin(theta));
+#else   // gemini
+    float r1 = max(rand(float2(id.x, id.y)), FLOAT_EPSILON);
+    float r2 = max(rand(float2(id.y, id.x)), FLOAT_EPSILON);
+    
+    float theta = PI2 * r2;
+    float rho = sqrt(-2.0 * log(r1));
+    
+    return float2(rho * cos(theta), rho * sin(theta));
+#endif
 }
 
 #endif

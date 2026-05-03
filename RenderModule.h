@@ -7,6 +7,7 @@ struct ID3D12Resource;
 struct ID3D12CommandAllocator;
 struct ID3D12GraphicsCommandList;
 enum D3D12_RESOURCE_STATES;
+enum D3D12_RESOURCE_BARRIER_TYPE;
 enum D3D12_HEAP_TYPE;
 struct ID3D12CommandQueue;
 struct ID3D12Fence;
@@ -27,6 +28,22 @@ namespace DK
 	struct DKCommandList;
 
 	using TextureResourceViewType = uint32;
+
+	struct RootConstant32BitParameter
+	{
+		DKVector<DKString> _parameters;
+		uint32 _register = -1;
+
+		uint32 _offset;
+		uint32 _rootParameterIndex = -1;		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
+	};
+
+	struct RootConstant32BitParameterBindingInfo
+	{
+		uint32 _rootParameterIndex;
+		uint32 _offset;
+		void* _buffer;
+	};
 
 	enum class ShaderParameterType
 	{
@@ -89,6 +106,7 @@ namespace DK
 			const char* _computeShaderEntry = nullptr;
 
 			DKVector<LayoutInfo> _layout;
+			DKVector<RootConstant32BitParameter> _rootConstant32BitParameter;
 			DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 		};
 		enum class Type : uint8
@@ -104,8 +122,23 @@ namespace DK
 		RenderResourcePtr<ID3D12PipelineState> _pipelineStateObject;
 
 		D3D12_PRIMITIVE_TOPOLOGY_TYPE _primitiveTopologyType;
+		DKVector<DKVector<char>> _rootConstant32BitParameterBuffer;
+		DKHashMap<DKString, RootConstant32BitParameterBindingInfo> _rootConstant32BitParameterMap;
 		DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 
+		// static하게만 호출해야합니다.
+		dk_inline RootConstant32BitParameterBindingInfo* getRootConstantParameter(const DKString& name)
+		{
+			DKHashMap<DKString, RootConstant32BitParameterBindingInfo>::iterator iter = _rootConstant32BitParameterMap.find(name);
+			DK_ASSERT_LOG(iter != _rootConstant32BitParameterMap.end(), "존재하지 않는 RootConstantParameter을 찾습니다.\nRootConstantParameterName: %s", name.c_str());
+#ifdef _DK_DEBUG_
+			if (iter == _rootConstant32BitParameterMap.end())
+				return nullptr;
+#endif
+
+			return &iter->second;
+		}
+		// static하게만 호출해야합니다.
 		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
 		{
 			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
@@ -201,6 +234,15 @@ do{ \
 	currentPipeline = nullptr; \
 }while(false)
 
+#define setRootConstantParameter(name, value) \
+{ \
+	DK_ASSERT_LOG(sizeof(value), "현재 RootConstant는 4byte만 지원합니다.\nName: %s", name); \
+	static RootConstant32BitParameterBindingInfo* bindingInfo = currentPipeline->getRootConstantParameter(name); \
+	RENDERING_VERIFY(bindingInfo, name); \
+	DK::memcpy(((uint8*)bindingInfo->_buffer + bindingInfo->_offset), &value, 4); \
+	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, currentPipeline->_type == Pipeline::Type::COMPUTE); \
+}
+
 #define setConstantBuffer(name, address) \
 { \
 	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
@@ -222,15 +264,11 @@ do{ \
 		static uint32 kWidth;
 		static uint32 kHeight;
 
-		static uint32 getPrevFrameIndex()
-		{
-			return kCurrentFrameIndex == 0 ? kFrameCount - 1 : kCurrentFrameIndex - 1;
-		}
-
 	public:
 		~RenderModule();
 
 		bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
+		bool postInitialize();
 
 		bool createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
 		// #todo- Container 이용해도될듯?
@@ -239,10 +277,13 @@ do{ \
 		const bool createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView, const DKStringW& debugName);
 
 		// SceneRenderer 전용 함수
-		void resourceBarrier(const ITextureRef& texture, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState);
+		void resourceBarrierTransition(const ITextureRef& texture, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState);
+		void resourceBarrier(ID3D12Resource* resource, const D3D12_RESOURCE_BARRIER_TYPE barrierType);
+
 		void preRender();			// RenderTaget 등을 설정하는데.. 이건 RenderPass Set으로 옮겨야할듯. 지금은 RenderTarget이 하나니 하나로 빼둠
 		void bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget);
 		bool bindPipeline(Pipeline& pipeline, const bool isCompute);
+		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const bool isCompute);
 		void bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute);
 		void bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute);
 		void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
@@ -275,7 +316,7 @@ do{ \
 		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
 		DKCommandList* createCommandList();
 		bool initialize_createFence();
-		bool createRootSignature(RenderPass& renderPass, Pipeline& inoutPipeline);
+		bool createRootSignature(RenderPass& renderPass, const DKVector<RootConstant32BitParameter>& rootConstant32BitParameters, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		const bool allocateTextureSRV(ITexture* texture);
@@ -284,7 +325,7 @@ do{ \
 		ID3D12Resource* createBufferInternal(const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
 		ID3D12Resource* createInitializedDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const DKStringW& debugName);
 
-		void resourceBarrier(ID3D12Resource* resource, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState);
+		void resourceBarrierTransition(ID3D12Resource* resource, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState);
 
 		void waitFenceAndResetCommandList();
 		void execute();
@@ -341,6 +382,7 @@ do{ \
 		}
 
 		void upload(const void* data);
+		void uploadImmediately(const void* data);
 		D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress();
 
 	private:

@@ -42,18 +42,24 @@ namespace DK
 		};
 		struct Ocean
 		{
-			static constexpr const float OCEAN_LENGTH = 256; // or 516
-			static constexpr const uint32 OCEAN_N = 256;	// or 512	
+			static constexpr const float OCEAN_LENGTH = 258; // or 516
+			static constexpr const uint32 OCEAN_N = 258;	// or 512	
 
 			Mesh _mesh;
 
 			struct OceanParams
 			{
-				OceanParams(const float time, const float g, const uint32 stages, const float2& windDir, const float A, const float L, const uint32 N, const TextureResourceViewType h0SRV, const TextureResourceViewType h0UAV, const TextureResourceViewType htSRV, const TextureResourceViewType htUAV)
+				OceanParams(
+					const float time, const float g, const uint32 stages, const float heightScale, const float2& windDir, const uint32 length, const float A, const float L, const uint32 N,
+					const TextureResourceViewType h0SRV, const TextureResourceViewType h0UAV,
+					const TextureResourceViewType htSRV, const TextureResourceViewType htUAV,
+					const TextureResourceViewType heightSRV, const TextureResourceViewType heightUAV)
 					: _time(time)
 					, _g(g)
 					, _stages(stages)
+					, _heightScale(heightScale)
 					, _windDir(windDir)
+					, _length(length)
 					, _A(A)
 					, _L(L)
 					, _N(N)
@@ -61,23 +67,33 @@ namespace DK
 					, _h0UAV(h0UAV)
 					, _htSRV(htSRV)
 					, _htUAV(htUAV)
+					, _heightSRV(heightSRV)
+					, _heightUAV(heightUAV)
 				{}
 
 				const float _time;
 				const float _g;
 				const uint32 _stages;
+				const float _heightScale;
+
 				const float2 _windDir;
+				const uint32 _length;
 				const float _A;
+
 				const float _L;
 				const uint32 _N;
 				const TextureResourceViewType _h0SRV;
-				const TextureResourceViewType _h0UAV;
 				const TextureResourceViewType _htSRV;
+
+				const TextureResourceViewType _heightSRV;
+				const TextureResourceViewType _h0UAV;
 				const TextureResourceViewType _htUAV;
+				const TextureResourceViewType _heightUAV;
 			};
 			Ptr<IBuffer> _initialSpectrumConstantBuffer;
 			ITextureRef _h0[RenderModule::kFrameCount];
-			ITextureRef _ht[RenderModule::kFrameCount];
+			ITextureRef _ht[RenderModule::kFrameCount * 2]; // *2 for Ping-pong
+			ITextureRef _height[RenderModule::kFrameCount];
 
 			uint32 _currentReadTextureIndex = 0;
 		};

@@ -330,6 +330,12 @@ namespace DK
 			return _container[index];
 		}
 
+		const uint32 size() const { return _container.size(); }
+
+#if defined(_DK_DEBUG_)
+		const DKVector<DKString>& getStrings() const { return _container; }
+#endif
+
 	private:
 		DKVector<DKString> _container;
 	};
@@ -365,7 +371,7 @@ namespace DK
 		}
 
 	private:
-		T _string[SIZE];
+		T _string[SIZE] = { 0, };
 	};
 	template <uint32 SIZE> using ScopeString = ScopeStringBase<char, SIZE>;
 	template <uint32 SIZE> using ScopeStringW = ScopeStringBase<wchar_t, SIZE>;

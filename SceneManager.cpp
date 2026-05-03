@@ -98,16 +98,53 @@ namespace DK
 		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(Ocean::OceanParams), L"_initialSpectrumConstantBuffer");
 
 		// TODO : h0, ht 둘 다 R32, G32만 사용중인데, Bindless연결하려다보니 B32, A32까지 만들었다. 추후에 개선하자
-		for (uint32 i = 0; i < RenderModule::kFrameCount; i++)
+		for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
 		{
-			_ocean._h0[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-				"OceanH0", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-				true, true);
-			_ocean._ht[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-				"OceanHt", SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-				true, true);
+			ScopeString<DK_MAX_BUFFER> tempString;
+			StringUtil::itoa(i, tempString.data(), tempString.capacity());
+
+			{
+				ScopeString<DK_MAX_BUFFER> debugString;
+				debugString.append("OceanH0_");
+				debugString.append(tempString.c_str());
+				_ocean._h0[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+					true, true);
+			}
+
+			{
+				ScopeString<DK_MAX_BUFFER> debugString;
+				StringUtil::itoa(i * RenderModule::kFrameCount, tempString.data(), tempString.capacity());
+				debugString.append("OceanHt_");
+				debugString.append(tempString.c_str());
+				_ocean._ht[i * RenderModule::kFrameCount] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+					true, true);
+			}
+
+			{
+				ScopeString<DK_MAX_BUFFER> debugString;
+				StringUtil::itoa(i * RenderModule::kFrameCount + 1, tempString.data(), tempString.capacity());
+				debugString.append("OceanHt_");
+				debugString.append(tempString.c_str());
+				_ocean._ht[i * RenderModule::kFrameCount + 1] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+					true, true);
+			}
+
+			{
+				ScopeString<DK_MAX_BUFFER> debugString;
+				StringUtil::itoa(i, tempString.data(), tempString.capacity());
+				debugString.append("OceanHeight_");
+				debugString.append(tempString.c_str());
+				_ocean._height[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+					true, true);
+			}
 		}
 	}
 

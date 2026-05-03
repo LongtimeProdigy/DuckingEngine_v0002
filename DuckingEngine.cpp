@@ -65,6 +65,8 @@ namespace DK
 		_gameModule = dk_new GameModule;
 		if (_gameModule->initialize() == false) return false;
 
+		_renderModule->postInitialize();
+
 		return true;
 	}
 

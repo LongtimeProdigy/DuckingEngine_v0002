@@ -6,11 +6,22 @@
 		</ComputePipeline>
 		<ComputePipeline Name="UpdateSpectrum">
 			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
-			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
+			<Shader Entry="main">Material/Ocean/SpectrumUpdateCS.hlsl</Shader>
 		</ComputePipeline>
-		<ComputePipeline Name="FFTButterfly">
+		<ComputePipeline Name="FFTButterflyHorizontal">
+			<RootConstant Names="_stage _sourceSRV _targetUAV" Register="0"/>
 			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
-			<Shader Entry="main">Material/Ocean/FFTButterflyCS.hlsl</Shader>
+			<Shader Entry="mainHorizontal">Material/Ocean/FFTButterflyCS.hlsl</Shader>
+		</ComputePipeline>
+		<ComputePipeline Name="FFTButterflyVertical">
+			<RootConstant Names="_stage _sourceSRV _targetUAV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="mainVertical">Material/Ocean/FFTButterflyCS.hlsl</Shader>
+		</ComputePipeline>
+		<ComputePipeline Name="Finalize">
+			<RootConstant Names="_sourceSRV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/FinalizeCS.hlsl</Shader>
 		</ComputePipeline>
 		<Pipeline Name="RenderOcean" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
