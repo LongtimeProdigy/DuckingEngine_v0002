@@ -88,7 +88,7 @@ namespace DK
 	{
 		DKVector<float2> vertexArr;
 		DKVector<uint32> indexArr;
-		createSquareMesh(SceneManager::Ocean::OCEAN_LENGTH, float2::Identity, vertexArr, indexArr);
+		createSquareMesh(Ocean::OCEAN_LENGTH, static_cast<float>(Ocean::OCEAN_N) / static_cast<float>(Ocean::OCEAN_LENGTH), vertexArr, indexArr);
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;

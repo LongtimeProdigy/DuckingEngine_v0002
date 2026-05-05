@@ -42,8 +42,8 @@ namespace DK
 		};
 		struct Ocean
 		{
-			static constexpr const float OCEAN_LENGTH = 258; // or 516
-			static constexpr const uint32 OCEAN_N = 258;	// or 512	
+			static constexpr const float OCEAN_LENGTH = 512; // or 512
+			static constexpr const uint32 OCEAN_N = 512;	// or 512	
 
 			Mesh _mesh;
 
