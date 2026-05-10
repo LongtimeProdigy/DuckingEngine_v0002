@@ -170,14 +170,10 @@ namespace DK
 			QueryPerformanceCounter(&tTime);
 			g_fDeltaTime = (tTime.QuadPart - g_tTime.QuadPart) / (float)g_tSecond.QuadPart;
 
-			static float kIntervalSecond = (1000.f / 30.f) / 1000.f;
-			if(g_fDeltaTime >= kIntervalSecond)
-			{
-				updateFrame();
-				renderFrame();
+			updateFrame();
+			renderFrame();
 
-				g_tTime = tTime;
-			}
+			g_tTime = tTime;
 		}
 	}
 

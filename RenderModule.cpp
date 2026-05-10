@@ -125,6 +125,12 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 
 namespace DK
 {
+#if defined(_DK_DEBUG_)
+	static constexpr const bool gSerializeRender = false;
+#else
+	static constexpr const bool gSerializeRender = false;
+#endif
+
 	static const float4 gClearRenderTargetViewColor(0, 0, 0, 1);
 
 	uint32 RenderModule::kCurrentFrameIndex = 0;
@@ -258,7 +264,8 @@ namespace DK
 	}
 	bool RenderModule::postInitialize()
 	{
-		waitFenceAndResetCommandList();
+		if(gSerializeRender)
+			waitFenceAndResetCommandList();
 		return true;
 	}
 	bool CheckTearingSupport()
@@ -1775,7 +1782,8 @@ namespace DK
 
 	void RenderModule::preRender()
 	{
-		//waitFenceAndResetCommandList();		
+		if(gSerializeRender == false)
+			waitFenceAndResetCommandList();		
 	}
 
 	void RenderModule::bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget)
@@ -1944,7 +1952,8 @@ namespace DK
 		HRESULT hr = _swapChain->Present(syncInterval, presentFlags);
 		DK_ASSERT_LOG(SUCCEEDED(hr), "Present 실패!");
 
-		waitFenceAndResetCommandList();
+		if(gSerializeRender)
+			waitFenceAndResetCommandList();
 	}
 
 	bool DKCommandList::reset()

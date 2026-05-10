@@ -404,7 +404,7 @@ namespace DK
 		}
 	}
 
-	static float gHeightScale = 500.f;
+	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
 	void SceneRenderer::preRender() const noexcept
 	{
 #if defined(USE_IMGUI)
