@@ -506,7 +506,8 @@ namespace DK
 				time, g, 0, gHeightScale, windDir, length, A, L, N,
 				ocean._h0[0]->getSRV(), ocean._h0[0]->getUAV(),
 				sourceTexture->getSRV(), sourceTexture->getUAV(),
-				ocean._height[ocean._currentReadTextureIndex]->getSRV(), ocean._height[ocean._currentReadTextureIndex]->getUAV()
+				ocean._height[ocean._currentReadTextureIndex]->getSRV(), ocean._height[ocean._currentReadTextureIndex]->getUAV(), 
+				ocean._normal[ocean._currentReadTextureIndex]->getSRV(), ocean._normal[ocean._currentReadTextureIndex]->getUAV()
 			);
 			ocean._initialSpectrumConstantBuffer->upload(&params);
 
@@ -592,6 +593,17 @@ namespace DK
 			}
 			endPipeline();
 
+			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			startPipeline("ComputeOceanNormal");
+			{
+				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+
+			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 			startPipeline("RenderOcean");

@@ -145,6 +145,17 @@ namespace DK
 					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 					true, true);
 			}
+
+			{
+				ScopeString<DK_MAX_BUFFER> debugString;
+				StringUtil::itoa(i, tempString.data(), tempString.capacity());
+				debugString.append("OceanNormal_");
+				debugString.append(tempString.c_str());
+				_ocean._normal[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
+					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+					true, true);
+			}
 		}
 	}
 

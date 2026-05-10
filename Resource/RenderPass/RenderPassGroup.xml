@@ -23,6 +23,11 @@
 			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
 			<Shader Entry="main">Material/Ocean/FinalizeCS.hlsl</Shader>
 		</ComputePipeline>
+		<ComputePipeline Name="ComputeOceanNormal">
+			<RootConstant Names="_sourceSRV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/ComputeOceanNormal.hlsl</Shader>
+		</ComputePipeline>
 		<Pipeline Name="RenderOcean" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>

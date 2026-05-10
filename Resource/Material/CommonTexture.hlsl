@@ -1,7 +1,8 @@
 #ifndef __DEFINE_COMMON_HLSL__
 #define __DEFINE_COMMON_HLSL__
 
-SamplerState normalSampler : register(s0);
+SamplerState pointSampler : register(s0);
+SamplerState bilinearRepeatSampler : register(s1);
 
 #define TextureParameter uint
 #define BINDLESSTEXTUREARRAY_SPACE space10

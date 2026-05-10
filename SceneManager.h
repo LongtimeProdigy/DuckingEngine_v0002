@@ -53,7 +53,9 @@ namespace DK
 					const float time, const float g, const uint32 stages, const float heightScale, const float2& windDir, const uint32 length, const float A, const float L, const uint32 N,
 					const TextureResourceViewType h0SRV, const TextureResourceViewType h0UAV,
 					const TextureResourceViewType htSRV, const TextureResourceViewType htUAV,
-					const TextureResourceViewType heightSRV, const TextureResourceViewType heightUAV)
+					const TextureResourceViewType heightSRV, const TextureResourceViewType heightUAV,
+					const TextureResourceViewType normalSRV, const TextureResourceViewType normalUAV
+				)
 					: _time(time)
 					, _g(g)
 					, _stages(stages)
@@ -69,6 +71,8 @@ namespace DK
 					, _htUAV(htUAV)
 					, _heightSRV(heightSRV)
 					, _heightUAV(heightUAV)
+					, _normalSRV(normalSRV)
+					, _normalUAV(normalUAV)
 				{}
 
 				const float _time;
@@ -86,14 +90,18 @@ namespace DK
 				const TextureResourceViewType _htSRV;
 
 				const TextureResourceViewType _heightSRV;
+				const TextureResourceViewType _normalSRV;
 				const TextureResourceViewType _h0UAV;
 				const TextureResourceViewType _htUAV;
+
 				const TextureResourceViewType _heightUAV;
+				const TextureResourceViewType _normalUAV;
 			};
 			Ptr<IBuffer> _initialSpectrumConstantBuffer;
 			ITextureRef _h0[RenderModule::kFrameCount];
 			ITextureRef _ht[RenderModule::kFrameCount * 2]; // *2 for Ping-pong
 			ITextureRef _height[RenderModule::kFrameCount];
+			ITextureRef _normal[RenderModule::kFrameCount];
 
 			uint32 _currentReadTextureIndex = 0;
 		};

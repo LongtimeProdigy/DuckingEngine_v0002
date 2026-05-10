@@ -838,11 +838,30 @@ namespace DK
 		sampler.RegisterSpace = 0;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+		D3D12_STATIC_SAMPLER_DESC samplerRepeatBilinear = {};
+		samplerRepeatBilinear.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerRepeatBilinear.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerRepeatBilinear.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerRepeatBilinear.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerRepeatBilinear.MipLODBias = 0;
+		samplerRepeatBilinear.MaxAnisotropy = 0;
+		samplerRepeatBilinear.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		samplerRepeatBilinear.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		samplerRepeatBilinear.MinLOD = 0.0f;
+		samplerRepeatBilinear.MaxLOD = D3D12_FLOAT32_MAX;
+		samplerRepeatBilinear.ShaderRegister = 1;
+		samplerRepeatBilinear.RegisterSpace = 0;
+		samplerRepeatBilinear.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+		DKVector<D3D12_STATIC_SAMPLER_DESC> samplers;
+		samplers.push_back(sampler);
+		samplers.push_back(samplerRepeatBilinear);
+
 		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.NumParameters = static_cast<uint32>(rootParameters.size());
 		rootSignatureDesc.pParameters = rootParameters.data();
-		rootSignatureDesc.NumStaticSamplers = 1;
-		rootSignatureDesc.pStaticSamplers = &sampler;
+		rootSignatureDesc.NumStaticSamplers = samplers.size();
+		rootSignatureDesc.pStaticSamplers = samplers.data();
 		rootSignatureDesc.Flags =
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 			| D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
