@@ -39,7 +39,10 @@ void main(uint3 id : SV_DispatchThreadID)
     const float2 exp_neg_iwt = float2(coswt, -sinwt);   // 구한 회전량을 반대로 회전시키는 복소수를 만듦
 
     // 최종 H(t) 계산: h0(k)*exp(iwt) + h0^*(-k)*exp(-iwt)
-    // h0^*(-k)*exp(-iwt)는 IFFT수행할 -k 위치와 더해지는 때에 복소수가 사라지게 하기 위해서 더해줌
+    // h0^*(-k)*exp(-iwt)는 IFFT수행할 -k 위치와 더해지는 때에 복소수가 사라지게 하기 위해서 더해줌 (에르미트 대칭을 맞춘다)
+    // 여기서 에르미트 대칭을 하기 위해서 더하는 행위가 IFFT후 결과값의 에너지에 영향을 주지 않음은 증명해보면 알 수 있음
+    // 또한, H_t의 값은 시간에 의한 파동의 위상 변화만 나타낼 뿐 아직 특정 위치에서의 파도 높이를 나타내는 건 아님
+    // IFFT에서 특정 월드 위치값을 넣고(회전시켜) 파도의 높이 값을 가져올 수 있다
     const float2 h_t = ComplexMul(h0, exp_iwt) + ComplexMul(h0_minus_k_conj, exp_neg_iwt);
 
     RWTexture2D<float4> Ht = getTextureRW(_htUAV);

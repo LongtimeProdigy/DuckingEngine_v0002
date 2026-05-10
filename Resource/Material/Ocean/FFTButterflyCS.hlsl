@@ -26,6 +26,12 @@ void mainHorizontal(uint3 id : SV_DispatchThreadID)
     const uint localIdx = x % (2 * m);
     const bool isUpper = localIdx < m;
 
+    /*
+    *   각 텍셀이 하나의 파동이고 upper는 lower위치와, lower는 upper위치와 더하는 과정이고 그걸 상상해보자
+    *   여기서 x, y는 월드의 x,y라고 생각해도 무방하다. 만약 x, y위치에서 upper는 그대로 구한다고 약속했을 때
+    *   lower 정현파는 x, y위치로 보정해줘야 하는 작업이 필요해서 angle을 구한 후 위상을 x, y위치로 보정해준다
+    */
+    // 주파수 공간 Ht를 월드 공간으로 변경해주는 angle이기도 하다.
     uint j;
     float2 w;
     float angle = -PI2 * (localIdx % m) / (2.0 * m);
@@ -38,8 +44,8 @@ void mainHorizontal(uint3 id : SV_DispatchThreadID)
     {
         // 상단 노드일 때: 하단 노드(x + m)의 값을 가져옴
         j = x + m;
-        float2 a = Source[uint2(x, y)].xy;
-        float2 b = Source[uint2(j, y)].xy;
+        float2 a = Source[uint2(x, y)].xy;  // 상단 값 (현재 thread의 값)
+        float2 b = Source[uint2(j, y)].xy;  // 하단 값
         float2 t = ComplexMul(w, b);
         Target[uint2(x, y)] = float4(a + t, 0, 0);
     } 
@@ -47,8 +53,8 @@ void mainHorizontal(uint3 id : SV_DispatchThreadID)
     {
         // 하단 노드일 때: 상단 노드(x - m)의 값을 가져옴
         j = x - m;
-        float2 a = Source[uint2(j, y)].xy; // 상단 값
-        float2 b = Source[uint2(x, y)].xy; // 내 값
+        float2 a = Source[uint2(j, y)].xy;  // 상단 값
+        float2 b = Source[uint2(x, y)].xy;  // 하단 값 (현재 thread의 값)
         float2 t = ComplexMul(w, b);
         Target[uint2(x, y)] = float4(a - t, 0, 0);
     }
@@ -81,6 +87,8 @@ void mainVertical(uint3 id : SV_DispatchThreadID)
         j = y + m;
         float2 a = Source[uint2(x, y)].xy;
         float2 b = Source[uint2(x, j)].xy;
+
+        // upper인 경우 lower를 회전 시킨 그대로를 더함
         float2 t = ComplexMul(w, b);
         Target[uint2(x, y)] = float4(a + t, 0, 0);
     } 
@@ -90,6 +98,8 @@ void mainVertical(uint3 id : SV_DispatchThreadID)
         j = y - m;
         float2 a = Source[uint2(x, j)].xy; // 상단 값
         float2 b = Source[uint2(x, y)].xy; // 내 값
+
+        // lower인 경우 lower를 반대로 회전해서 upper와 더하면 upper에서 lower를 정방향 외전한 것과 완전히 동일한 값을 가질 수 있음
         float2 t = ComplexMul(w, b);
         Target[uint2(x, y)] = float4(a - t, 0, 0);
     }
