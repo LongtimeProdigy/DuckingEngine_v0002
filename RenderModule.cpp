@@ -564,16 +564,10 @@ namespace DK
 
 		// Create SwapChain and BackBuffer RTV
 		{
-			RECT rc;
-			GetClientRect(hwnd, &rc);
-			UINT realWidth = rc.right - rc.left;
-			UINT realHeight = rc.bottom - rc.top;
-
-
 			DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
 			DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-			swapChainDesc.Width = realWidth;
-			swapChainDesc.Height = realHeight;
+			swapChainDesc.Width = width;
+			swapChainDesc.Height = height;
 			swapChainDesc.Format = renderTargetFormat;
 			swapChainDesc.Stereo = FALSE;
 			swapChainDesc.SampleDesc = sampleDesc;
