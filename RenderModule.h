@@ -94,16 +94,16 @@ namespace DK
 				COUNT
 			};
 
-			const char* _primitiveTopologyType;
+			DKString _primitiveTopologyType;
 			bool _depthEnable;
 			FillMode _fillMode;
 			CullMode _cullMode;
-			const char* _vertexShaderPath = nullptr;
-			const char* _vertexShaderEntry = nullptr;
-			const char* _pixelShaderPath = nullptr;
-			const char* _pixelShaderEntry = nullptr;
-			const char* _computeShaderPath = nullptr;
-			const char* _computeShaderEntry = nullptr;
+			DKString _vertexShaderPath;
+			DKString _vertexShaderEntry;
+			DKString _pixelShaderPath;
+			DKString _pixelShaderEntry;
+			DKString _computeShaderPath;
+			DKString _computeShaderEntry;
 
 			DKVector<LayoutInfo> _layout;
 			DKVector<RootConstant32BitParameter> _rootConstant32BitParameter;
@@ -115,6 +115,10 @@ namespace DK
 			GRAPHIC,
 			COUNT
 		};
+
+#if defined(_DK_DEBUG_)
+		CreateInfo _createInfo;
+#endif
 
 		Type _type = Type::COUNT;
 
@@ -271,6 +275,9 @@ do{ \
 		bool postInitialize();
 
 		bool createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
+#if defined(_DK_DEBUG_)
+		const bool reloadShader();
+#endif
 		// #todo- Container 이용해도될듯?
 		IBuffer* createUploadBuffer(const uint32 size, const DKStringW& debugName);
 		const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName);

@@ -407,6 +407,9 @@ namespace DK
 	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
 	void SceneRenderer::preRender() const noexcept
 	{
+#if defined(_DK_DEBUG_)
+		bool isReload = false;
+#endif
 #if defined(USE_IMGUI)
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
@@ -419,6 +422,10 @@ namespace DK
 			static char buf[200] = {};
 
 			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+#if defined(_DK_DEBUG_)
+			ImGui::Checkbox("Shader Reload", &isReload);
+#endif
 
 #define MAX_BUFFER_LENGTH 200
 			ImGui::Text("MainCameraPosition");
@@ -471,6 +478,14 @@ namespace DK
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		renderModule.preRender();
+
+#if defined(_DK_DEBUG_)
+		if (isReload)
+		{
+			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+			renderModule.reloadShader();
+		}
+#endif
 	}
 	void SceneRenderer::updateRender() noexcept
 	{

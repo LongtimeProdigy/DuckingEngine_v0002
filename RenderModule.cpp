@@ -126,7 +126,7 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 namespace DK
 {
 #if defined(_DK_DEBUG_)
-	static constexpr const bool gSerializeRender = false;
+	static constexpr const bool gSerializeRender = true;
 #else
 	static constexpr const bool gSerializeRender = false;
 #endif
@@ -357,7 +357,7 @@ namespace DK
 			pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
 
 			// (선택 사항) 경고 발생 시에도 멈추고 싶다면 아래 줄 주석 해제
-			// pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
+			pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
 
 			// 4. 수동으로 가져온 인터페이스이므로 사용 후 Release 호출
 			pInfoQueue->Release();
@@ -659,13 +659,6 @@ namespace DK
 		DK_LOG("Backend: %s", io.BackendPlatformName);
 		DK_LOG("BackendFlags: %d", io.BackendFlags);
 		DK_LOG("DisplayFramebufferScale: %f, %f", io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-
-		RECT rc;
-		GetClientRect(hwnd, &rc);
-		UINT swapChainWidth, swapChainHeight;
-		_swapChain->GetSourceSize(&swapChainWidth, &swapChainHeight);
-		DK_ASSERT_LOG(rc.right == swapChainWidth, "diff width: %d - %d", rc.right, swapChainWidth);
-		DK_ASSERT_LOG(rc.bottom == swapChainHeight, "diff width: %d - %d", rc.bottom, swapChainHeight);
 #endif // USE_IMGUI
 
 		return true;
@@ -1086,130 +1079,6 @@ namespace DK
 
 		return true;
 	}
-	bool RenderModule::createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
-	{
-		D3D12_SHADER_BYTECODE vertexShaderView = {};
-		RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
-		bool success = compileShader(pipelineCreateInfo._vertexShaderPath, pipelineCreateInfo._vertexShaderEntry, ShaderType::VertexShader, vertexShader.get(), vertexShaderView);
-		if (success == false)
-			return false;
-		D3D12_SHADER_BYTECODE pixelShaderView = {};
-		RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
-		success = compileShader(pipelineCreateInfo._pixelShaderPath, pipelineCreateInfo._pixelShaderEntry, ShaderType::PixelShader, pixelShader.get(), pixelShaderView);
-		if (success == false)
-			return false;
-
-		DKVector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
-		inputLayout.reserve(pipelineCreateInfo._layout.size());
-		for (const Pipeline::CreateInfo::LayoutInfo& layoutElement : pipelineCreateInfo._layout)
-		{
-			DXGI_FORMAT layoutFormat;
-			switch (layoutElement._type)
-			{
-			case Pipeline::CreateInfo::LayoutInfo::Type::UINT4:
-				layoutFormat = DXGI_FORMAT_R32G32B32A32_UINT;
-				break;
-			case Pipeline::CreateInfo::LayoutInfo::Type::FLOAT2:
-				layoutFormat = DXGI_FORMAT_R32G32_FLOAT;
-				break;
-			case Pipeline::CreateInfo::LayoutInfo::Type::FLOAT3:
-				layoutFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-				break;
-			case Pipeline::CreateInfo::LayoutInfo::Type::FLOAT4:
-				layoutFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
-				break;
-			default:
-				DK_ASSERT_LOG(false, "존재하지 않는 Layout세팅할려합니다.");
-				break;
-			}
-
-			inputLayout.push_back({ layoutElement._name.c_str(), 0, layoutFormat, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-		}
-
-		D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
-		inputLayoutDesc.NumElements = static_cast<UINT>(inputLayout.size());
-		inputLayoutDesc.pInputElementDescs = inputLayout.data();
-
-		D3D12_RASTERIZER_DESC rasterizerDesc = {};
-		rasterizerDesc.FillMode = pipelineCreateInfo._fillMode == Pipeline::CreateInfo::FillMode::WIREFRAME ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
-		rasterizerDesc.CullMode = pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::FRONT ? D3D12_CULL_MODE_FRONT : (pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::BACK ? D3D12_CULL_MODE_BACK : D3D12_CULL_MODE_NONE);
-		rasterizerDesc.FrontCounterClockwise = FALSE;
-		rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-		rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-		rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-		rasterizerDesc.DepthClipEnable = TRUE;
-		rasterizerDesc.MultisampleEnable = FALSE;
-		rasterizerDesc.AntialiasedLineEnable = FALSE;
-		rasterizerDesc.ForcedSampleCount = 0;
-		rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-
-		DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
-
-		D3D12_BLEND_DESC blendDesc = {};
-		blendDesc.AlphaToCoverageEnable = FALSE;
-		blendDesc.IndependentBlendEnable = FALSE;
-		const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc =
-		{
-			FALSE,FALSE,
-			D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
-			D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
-			D3D12_LOGIC_OP_NOOP,
-			D3D12_COLOR_WRITE_ENABLE_ALL,
-		};
-		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-			blendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
-
-		D3D12_DEPTH_STENCIL_DESC depthStencilDesc;
-		depthStencilDesc.DepthEnable = pipelineCreateInfo._depthEnable;
-		depthStencilDesc.DepthWriteMask = depthStencilDesc.DepthEnable ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
-		depthStencilDesc.DepthFunc = depthStencilDesc.DepthEnable ? D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
-		depthStencilDesc.StencilEnable = FALSE;
-		depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
-		depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
-		const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
-		{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
-		depthStencilDesc.FrontFace = defaultStencilOp;
-		depthStencilDesc.BackFace = defaultStencilOp;
-
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.InputLayout = inputLayoutDesc;
-		psoDesc.pRootSignature = inoutPipeline._rootSignature.get();
-		psoDesc.VS = vertexShaderView;
-		psoDesc.PS = pixelShaderView;
-		psoDesc.PrimitiveTopologyType = inoutPipeline._primitiveTopologyType;
-		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.SampleDesc = sampleDesc;
-		psoDesc.SampleMask = 0xffffffff;
-		psoDesc.RasterizerState = rasterizerDesc;
-		psoDesc.BlendState = blendDesc;
-		psoDesc.NumRenderTargets = 1;
-		psoDesc.DepthStencilState = depthStencilDesc;
-		psoDesc.DSVFormat = gDepthStencilFormat;
-
-		HRESULT hr = _device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(inoutPipeline._pipelineStateObject.getAddress()));
-		if (SUCCEEDED(hr) == false)
-		{
-			DK_ASSERT_LOG(false, "Pipeline State Object 생성에 실패");
-			return false;
-		}
-
-		if (pipelineCreateInfo._computeShaderPath != nullptr)
-		{
-			ScopeStringW<DK_MAX_BUFFER> tempString;
-			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._computeShaderPath).c_str());
-			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
-		}
-		else
-		{
-			ScopeStringW<DK_MAX_BUFFER> tempString;
-			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._vertexShaderPath).c_str());
-			tempString.append(L"_");
-			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._pixelShaderPath).c_str());
-			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
-		}
-
-		return true;
-	}
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE convertPrimitiveTopologyType(const char* value)
 	{
 		static const char* primitiveTopologyTypeStr[] =
@@ -1230,6 +1099,162 @@ namespace DK
 
 		DK_ASSERT_LOG(false, "Ptimitive정보가 올바르지 않습니다. pipeline이 작동되지 않을테니 반드시 확인이 필요합니다.");
 		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
+	}
+	bool RenderModule::createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
+	{
+		if (pipelineCreateInfo._computeShaderPath.empty())
+		{
+			inoutPipeline._type = Pipeline::Type::GRAPHIC;
+
+			D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveType = convertPrimitiveTopologyType(pipelineCreateInfo._primitiveTopologyType.c_str());
+			if (primitiveType == D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED)
+				return false;
+
+			inoutPipeline._primitiveTopologyType = primitiveType;
+
+			D3D12_SHADER_BYTECODE vertexShaderView = {};
+			RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
+			bool success = compileShader(pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(), ShaderType::VertexShader, vertexShader.get(), vertexShaderView);
+			if (success == false)
+				return false;
+			D3D12_SHADER_BYTECODE pixelShaderView = {};
+			RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
+			success = compileShader(pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(), ShaderType::PixelShader, pixelShader.get(), pixelShaderView);
+			if (success == false)
+				return false;
+
+			DKVector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
+			inputLayout.reserve(pipelineCreateInfo._layout.size());
+			for (const Pipeline::CreateInfo::LayoutInfo& layoutElement : pipelineCreateInfo._layout)
+			{
+				DXGI_FORMAT layoutFormat;
+				switch (layoutElement._type)
+				{
+				case Pipeline::CreateInfo::LayoutInfo::Type::UINT4:
+					layoutFormat = DXGI_FORMAT_R32G32B32A32_UINT;
+					break;
+				case Pipeline::CreateInfo::LayoutInfo::Type::FLOAT2:
+					layoutFormat = DXGI_FORMAT_R32G32_FLOAT;
+					break;
+				case Pipeline::CreateInfo::LayoutInfo::Type::FLOAT3:
+					layoutFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+					break;
+				case Pipeline::CreateInfo::LayoutInfo::Type::FLOAT4:
+					layoutFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+					break;
+				default:
+					DK_ASSERT_LOG(false, "존재하지 않는 Layout세팅할려합니다.");
+					break;
+				}
+
+				inputLayout.push_back({ layoutElement._name.c_str(), 0, layoutFormat, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+			}
+
+			D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
+			inputLayoutDesc.NumElements = static_cast<UINT>(inputLayout.size());
+			inputLayoutDesc.pInputElementDescs = inputLayout.data();
+
+			D3D12_RASTERIZER_DESC rasterizerDesc = {};
+			rasterizerDesc.FillMode = pipelineCreateInfo._fillMode == Pipeline::CreateInfo::FillMode::WIREFRAME ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
+			rasterizerDesc.CullMode = pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::FRONT ? D3D12_CULL_MODE_FRONT : (pipelineCreateInfo._cullMode == Pipeline::CreateInfo::CullMode::BACK ? D3D12_CULL_MODE_BACK : D3D12_CULL_MODE_NONE);
+			rasterizerDesc.FrontCounterClockwise = FALSE;
+			rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+			rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+			rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+			rasterizerDesc.DepthClipEnable = TRUE;
+			rasterizerDesc.MultisampleEnable = FALSE;
+			rasterizerDesc.AntialiasedLineEnable = FALSE;
+			rasterizerDesc.ForcedSampleCount = 0;
+			rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+			DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
+
+			D3D12_BLEND_DESC blendDesc = {};
+			blendDesc.AlphaToCoverageEnable = FALSE;
+			blendDesc.IndependentBlendEnable = FALSE;
+			const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc =
+			{
+				FALSE,FALSE,
+				D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
+				D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
+				D3D12_LOGIC_OP_NOOP,
+				D3D12_COLOR_WRITE_ENABLE_ALL,
+			};
+			for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+				blendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
+
+			D3D12_DEPTH_STENCIL_DESC depthStencilDesc;
+			depthStencilDesc.DepthEnable = pipelineCreateInfo._depthEnable;
+			depthStencilDesc.DepthWriteMask = depthStencilDesc.DepthEnable ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+			depthStencilDesc.DepthFunc = depthStencilDesc.DepthEnable ? D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
+			depthStencilDesc.StencilEnable = FALSE;
+			depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+			depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+			const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+			{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+			depthStencilDesc.FrontFace = defaultStencilOp;
+			depthStencilDesc.BackFace = defaultStencilOp;
+
+			D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+			psoDesc.InputLayout = inputLayoutDesc;
+			psoDesc.pRootSignature = inoutPipeline._rootSignature.get();
+			psoDesc.VS = vertexShaderView;
+			psoDesc.PS = pixelShaderView;
+			psoDesc.PrimitiveTopologyType = inoutPipeline._primitiveTopologyType;
+			psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+			psoDesc.SampleDesc = sampleDesc;
+			psoDesc.SampleMask = 0xffffffff;
+			psoDesc.RasterizerState = rasterizerDesc;
+			psoDesc.BlendState = blendDesc;
+			psoDesc.NumRenderTargets = 1;
+			psoDesc.DepthStencilState = depthStencilDesc;
+			psoDesc.DSVFormat = gDepthStencilFormat;
+
+			HRESULT hr = _device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(inoutPipeline._pipelineStateObject.getAddress()));
+			if (SUCCEEDED(hr) == false)
+			{
+				DK_ASSERT_LOG(false, "Pipeline State Object 생성에 실패");
+				return false;
+			}
+
+			ScopeStringW<DK_MAX_BUFFER> tempString;
+			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._vertexShaderPath.c_str()).c_str());
+			tempString.append(L"_");
+			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._pixelShaderPath.c_str()).c_str());
+			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
+		}
+		else
+		{
+			inoutPipeline._type = Pipeline::Type::COMPUTE;
+
+			D3D12_SHADER_BYTECODE computeShaderView = {};
+			RenderResourcePtr<IDxcBlob> computeShader = nullptr;
+			bool success = compileShader(pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(), ShaderType::ComputeShader, computeShader.get(), computeShaderView);
+			if (success == false)
+				return false;
+
+			D3D12_COMPUTE_PIPELINE_STATE_DESC cpsoDesc = {};
+			cpsoDesc.pRootSignature = inoutPipeline._rootSignature.get();
+			cpsoDesc.CS = computeShaderView;
+			cpsoDesc.NodeMask = 0;
+
+			HRESULT hr = _device->CreateComputePipelineState(&cpsoDesc, IID_PPV_ARGS(inoutPipeline._pipelineStateObject.getAddress()));
+			if (FAILED(hr))
+			{
+				DK_ASSERT_LOG(false, "Compute Pipeline State Object 생성 실패");
+				return false;
+			}
+
+			ScopeStringW<DK_MAX_BUFFER> tempString;
+			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._computeShaderPath.c_str()).c_str());
+			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
+		}
+
+#if defined(_DK_DEBUG_)
+		inoutPipeline._createInfo = pipelineCreateInfo;
+#endif
+
+		return true;
 	}
 	bool RenderModule::createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
 	{
@@ -1269,52 +1294,11 @@ namespace DK
 			Pipeline::CreateInfo& pipelineCreateInfo = renderPassCreateInfo._pipelineArr[i].second;
 
 			Pipeline newPipeline;
-			if (pipelineCreateInfo._computeShaderPath != nullptr && StringUtil::strcmp(pipelineCreateInfo._computeShaderPath, "") != 0)
-			{
-				newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
-				if (createRootSignature(renderPass, pipelineCreateInfo._rootConstant32BitParameter, newPipeline) == false)
-					return false;
-
-				D3D12_SHADER_BYTECODE computeShaderView = {};
-				RenderResourcePtr<IDxcBlob> computeShader = nullptr;
-				bool success = compileShader(pipelineCreateInfo._computeShaderPath, pipelineCreateInfo._computeShaderEntry, ShaderType::ComputeShader, computeShader.get(), computeShaderView);
-				if (success == false)
-					return false;
-
-				D3D12_COMPUTE_PIPELINE_STATE_DESC cpsoDesc = {};
-				cpsoDesc.pRootSignature = newPipeline._rootSignature.get();
-				cpsoDesc.CS = computeShaderView;
-				cpsoDesc.NodeMask = 0;
-
-				HRESULT hr = _device->CreateComputePipelineState(&cpsoDesc, IID_PPV_ARGS(newPipeline._pipelineStateObject.getAddress()));
-				if (FAILED(hr))
-				{
-					DK_ASSERT_LOG(false, "Compute Pipeline State Object 생성 실패");
-					return false;
-				}
-
-				newPipeline._type = Pipeline::Type::COMPUTE;
-
-				ScopeStringW<DK_MAX_BUFFER> tempString;
-				tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._computeShaderPath).c_str());
-				newPipeline._pipelineStateObject->SetName(tempString.c_str());
-			}
-			else
-			{
-				D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveType = convertPrimitiveTopologyType(pipelineCreateInfo._primitiveTopologyType);
-				if (primitiveType == D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED)
-					continue;
-
-				newPipeline._primitiveTopologyType = primitiveType;
-
-				newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
-				if (createRootSignature(renderPass, pipelineCreateInfo._rootConstant32BitParameter, newPipeline) == false)
-					return false;
-				if (createPipelineObjectState(pipelineCreateInfo, newPipeline) == false)
-					return false;
-
-				newPipeline._type = Pipeline::Type::GRAPHIC;
-			}
+			newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
+			if (createRootSignature(renderPass, pipelineCreateInfo._rootConstant32BitParameter, newPipeline) == false)
+				return false;
+			if (createPipelineObjectState(pipelineCreateInfo, newPipeline) == false)
+				return false;
 
 			renderPass._pipelineMap.insert(DKPair<DKString, Pipeline>(pipelineName, DK::move(newPipeline)));
 		}
@@ -1322,6 +1306,22 @@ namespace DK
 		return true;
 	}
 #pragma endregion
+
+#if defined(_DK_DEBUG_)
+	const bool RenderModule::reloadShader()
+	{
+		for (DKHashMap<DKString, RenderPass>::iterator iter = _renderPassMap.begin(); iter != _renderPassMap.end(); ++iter)
+		{
+			for (DKHashMap<DKString, Pipeline>::iterator pipelineIter = iter->second._pipelineMap.begin(); pipelineIter != iter->second._pipelineMap.end(); ++pipelineIter)
+			{
+				if (createPipelineObjectState(pipelineIter->second._createInfo, pipelineIter->second) == false)
+					return false;
+			}
+		}
+
+		return true;
+	}
+#endif
 
 	void RenderModule::waitFenceAndResetCommandList()
 	{
