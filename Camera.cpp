@@ -12,7 +12,14 @@ namespace DK
 	void Camera::update(float deltaTime)
 	{
 		static constexpr float mouseRotationFriction = 0.05f;
-		const float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_RIGHT)) * mouseRotationFriction;
+		float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_RIGHT)) * mouseRotationFriction;
+
+		// 노트북으로 작업 시에 패드로 카메라 회전이 힘들어서 임시로 추가
+		static float kKeyboardRotateFraction = 0.01f;
+		mouseDelta.y -= static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_I)) * kKeyboardRotateFraction;
+		mouseDelta.x -= static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_J)) * kKeyboardRotateFraction;
+		mouseDelta.y += static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_K)) * kKeyboardRotateFraction;
+		mouseDelta.x += static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_L)) * kKeyboardRotateFraction;
 
 		const float2& lJoystick = InputModule::GetJoystickL();
 		const float2& rJoystick = InputModule::GetJoystickR();
