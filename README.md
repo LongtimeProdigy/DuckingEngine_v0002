@@ -4,9 +4,12 @@
 - Bindless Resource
 - PushConstant
 - Deferred Rendering
+- Runtime Shader Reloading
 
 ## Graphics
 - Rayleigh scattering
+- Mie scattering
+- Simple Ocean
 
 ## Terrain
 - ClipMap Terrain
@@ -35,6 +38,10 @@
 #### **Clipmap Terrain**
 ![Clipmap Terrain 1](https://github.com/user-attachments/assets/641e291f-7f51-4f78-bfcf-775b234f5cc3)
 ![Clipmap Terrain 2](https://github.com/user-attachments/assets/e1957ce8-df5a-4c62-9587-c3666e999a1a)
+
+-----
+#### **Ocean**
+<img width="2538" height="1429" alt="image" src="https://github.com/user-attachments/assets/8fd3cc27-4c07-412d-a0da-e47620fe7a83" />
 
 -----
 ## TODO
