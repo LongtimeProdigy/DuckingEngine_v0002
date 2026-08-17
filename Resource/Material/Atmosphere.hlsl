@@ -6,6 +6,16 @@
 
 #define APPLY_MIE_SCATTERING
 
+#define APPLY_ADVICE_CHATCPT
+
+#if defined(APPLY_ADVICE_CHATCPT)
+struct AtmosphereSegment
+{
+    float3 transmittance;
+    float3 inScattering;
+};
+#endif
+
 cbuffer AtmosphereConstantBuffer : register(b1)
 {
 	uint _numInScatteringPoints;
@@ -118,7 +128,11 @@ float2 raySphere(const float3 sphereCentre, const float sphereRadius, const floa
 #endif
 }
 
+#if defined(APPLY_ADVICE_CHATCPT)
+AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDir, const float rayLength, const float3 sunDir)
+#else
 float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float rayLength, const float3 originalCol, const float3 sunDir)
+#endif
 {
     static const float M_PI = 3.141592f;
     // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky/simulating-colors-of-the-sky.html
@@ -197,8 +211,19 @@ float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float r
 #if !defined(APPLY_MIE_SCATTERING)
     return _sunIntensity * (betaR * sumR * phaseR);
 #else
+#if defined(APPLY_ADVICE_CHATCPT)
+    const float phaseM = (1.0 - g * g) / (4.0 * M_PI * pow(1.0 + g * g - 2.0 * g * mu, 1.5));
+#else
     const float phaseM = (1.0 - g * g) / (4.0 * M_PI * pow(1.0 + mu - 2.0 * g * mu, 1.5));
+#endif
+#if defined(APPLY_ADVICE_CHATCPT)
+    AtmosphereSegment result;
+    result.transmittance = exp(-betaR * opticalDepthR - betaM * opticalDepthM);
+    result.inScattering = _sunIntensity * (betaR * sumR * phaseR + betaM * sumM * phaseM);
+    return result;
+#else
     return _sunIntensity * (betaR * sumR * phaseR + sumM * betaM * phaseM);
+#endif
 #endif
 }
 
@@ -272,8 +297,26 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float lengthToSurface = linearDepthDistanceWS - destToAtmosphere;                 // near to surface 또는 camerapos to surface
     const float destThroughAtrmosphere = depth != 1.f ? lengthToSurface : lengthAtmosphere; // 지면에 안부딪힐 경우 대기 관통거리, 지면에 부딪힌 경우 카메라 또는 near부터 부딪힌 지면까지의 거리
     const float3 pointInAtmosphere = rayOriginWS + rayDirWS * (destThroughAtrmosphere/* + FLOAT_EPSILON*/);
+#if defined(APPLY_ADVICE_CHATCPT)
+    const float atmosphereEnd = destToAtmosphere + lengthAtmosphere;
+    const float rayEnd = depth != 1.0f ? min(linearDepthDistanceWS, atmosphereEnd) : atmosphereEnd;
+    
+    const float integrationLength = max(0.0f, rayEnd - destToAtmosphere);
+    const float3 atmosphereStart = rayOriginWS + rayDirWS * destToAtmosphere;
+    
+    const AtmosphereSegment atmosphere = calculateAtmosphere( atmosphereStart, rayDirWS, integrationLength, sunDir);
+#else
     const float3 lightHDR = calculateLight(rayOriginWS, rayDirWS, destThroughAtrmosphere /*- FLOAT_EPSILON * 2*/, originalCol.xyz, sunDir);
+#endif
+
+#if defined(APPLY_ADVICE_CHATCPT)
+    const float3 composedHDR = originalCol.xyz * atmosphere.transmittance + atmosphere.inScattering;
+    const float3 test = toneMapACES(composedHDR);
+
+    return float4(test, originalCol.a);
+#else
     const float3 lightToneMap = toneMapACES(lightHDR);
     return originalCol * (1 - float4(lightToneMap, 1)) + float4(lightToneMap, 1);
+#endif
 }
 #endif
