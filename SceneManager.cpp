@@ -34,9 +34,9 @@ namespace DK
 		const bool vertexBufferSuccess = renderModule.createVertexBuffer(positionArr.data(), sizeof(decltype(positionArr[0])), static_cast<uint32>(positionArr.size()), vertexBufferView, L"SkyeDome_VertexBuffer");
 		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"SkyDome_IndexBuffer");
 
-		_skyDome._mesh._vertexBufferView = vertexBufferView;
+		/*_skyDome._mesh._vertexBufferView = vertexBufferView;
 		_skyDome._mesh._indexBufferView = indexBufferView;
-		_skyDome._mesh._indexCount = indexArr.size();
+		_skyDome._mesh._indexCount = indexArr.size();*/
 	}
 
 	static const bool createSquareMesh(const uint32 resolution, const float2 resolutionScale, DKVector<float2>& vertexArr, DKVector<uint32>& indexArr)
@@ -159,32 +159,32 @@ namespace DK
 		}
 	}
 
-	static SceneManager::Mesh loadLevel_ClipMap_Cross()
+	static SceneManager::Mesh loadLevel_ClipMap_Cross(const uint32 patchVertexResolution, const uint32 tileResolution)
 	{
 		DKVector<float2> vertexArr;
-		vertexArr.resize(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 8);
+		vertexArr.resize(patchVertexResolution * 8);
 		uint32 n = 0;
 		// horizontal vertices
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 2; i++)
+		for (uint32 i = 0; i < patchVertexResolution * 2; i++)
 		{
-			vertexArr[n++] = float2(i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION), 0);
-			vertexArr[n++] = float2(i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION), 1);
+			vertexArr[n++] = float2(i - float(tileResolution), 0);
+			vertexArr[n++] = float2(i - float(tileResolution), 1);
 		}
 		const uint32 start_of_vertical = n;
 
 		// vertical vertices
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 2; i++)
+		for (uint32 i = 0; i < patchVertexResolution * 2; i++)
 		{
-			vertexArr[n++] = float2(0, i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION));
-			vertexArr[n++] = float2(1, i - float(SceneManager::ClipMapTerrain::TILE_RESOLUTION));
+			vertexArr[n++] = float2(0, i - float(tileResolution));
+			vertexArr[n++] = float2(1, i - float(tileResolution));
 		}
 		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
 
 		DKVector<uint32> indexArr;
-		indexArr.resize(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 24 + 6);
+		indexArr.resize(tileResolution * 24 + 6);
 		n = 0;
 		// horizontal indices
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2 + 1; i++)
+		for (uint32 i = 0; i < tileResolution * 2 + 1; i++)
 		{
 			uint32 bl = i * 2 + 0;
 			uint32 tl = i * 2 + 1;
@@ -199,9 +199,9 @@ namespace DK
 			indexArr[n++] = bl;
 		}
 		// vertical indices
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2 + 1; i++)
+		for (uint32 i = 0; i < tileResolution * 2 + 1; i++)
 		{
-			if (i == SceneManager::ClipMapTerrain::TILE_RESOLUTION)
+			if (i == tileResolution)
 				continue;
 
 			uint32 bl = i * 2 + 0;
@@ -223,43 +223,43 @@ namespace DK
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
 		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
 	}
-	static SceneManager::Mesh loadLevel_ClipMap_Tile()
+	static SceneManager::Mesh loadLevel_ClipMap_Tile(const uint32 tileResolution)
 	{
 		DKVector<float2> vertexArr;
 		DKVector<uint32> indexArr;
-		createSquareMesh(SceneManager::ClipMapTerrain::TILE_RESOLUTION, float2::Identity, vertexArr, indexArr);
+		createSquareMesh(tileResolution, float2::Identity, vertexArr, indexArr);
 
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
 		return SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 	}
-	static SceneManager::Mesh loadLevel_ClipMap_Filter()
+	static SceneManager::Mesh loadLevel_ClipMap_Filter(const uint32 patchVertexResolution, const uint32 tileResolution)
 	{
 		DKVector<float2> vertexArr;
-		vertexArr.resize(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION * 8);
-		uint32 offset = SceneManager::ClipMapTerrain::TILE_RESOLUTION;
+		vertexArr.resize(patchVertexResolution * 8);
+		uint32 offset = tileResolution;
 		uint32 n = 0;
 		// X
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+		for (uint32 i = 0; i < patchVertexResolution; i++)
 		{
 			vertexArr[n++] = float2(offset + i + 1, 0);
 			vertexArr[n++] = float2(offset + i + 1, 1);
 		}
 		// Z
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+		for (uint32 i = 0; i < patchVertexResolution; i++)
 		{
 			vertexArr[n++] = float2(1, offset + i + 1);
 			vertexArr[n++] = float2(0, offset + i + 1);
 		}
 		// -X
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+		for (uint32 i = 0; i < patchVertexResolution; i++)
 		{
 			vertexArr[n++] = float2(static_cast<float>((offset + i)) * -1, 1);
 			vertexArr[n++] = float2(static_cast<float>((offset + i)) * -1, 0);
 		}
 		// -Y
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION; i++)
+		for (uint32 i = 0; i < patchVertexResolution; i++)
 		{
 			vertexArr[n++] = float2(0, static_cast<float>((offset + i)) * -1);
 			vertexArr[n++] = float2(1, static_cast<float>((offset + i)) * -1);
@@ -267,11 +267,11 @@ namespace DK
 		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
 
 		DKVector<uint32> indexArr;
-		indexArr.resize(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 24);
+		indexArr.resize(tileResolution * 24);
 		n = 0;
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::TILE_RESOLUTION * 4; i++)
+		for (uint32 i = 0; i < tileResolution * 4; i++)
 		{
-			uint32 arm = i / SceneManager::ClipMapTerrain::TILE_RESOLUTION;
+			uint32 arm = i / tileResolution;
 			uint32 bl = (arm + i) * 2 + 0;
 			uint32 tl = (arm + i) * 2 + 1;
 			uint32 br = (arm + i) * 2 + 2;
@@ -400,9 +400,9 @@ namespace DK
 	{
 		// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
 		// TileMap
-		_clipmapTerrain._cross = loadLevel_ClipMap_Cross();
-		_clipmapTerrain._tile = loadLevel_ClipMap_Tile();
-		_clipmapTerrain._filter = loadLevel_ClipMap_Filter();
+		_clipmapTerrain._cross = loadLevel_ClipMap_Cross(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION, SceneManager::ClipMapTerrain::TILE_RESOLUTION);
+		_clipmapTerrain._tile = loadLevel_ClipMap_Tile(SceneManager::ClipMapTerrain::TILE_RESOLUTION);
+		_clipmapTerrain._filter = loadLevel_ClipMap_Filter(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION, SceneManager::ClipMapTerrain::TILE_RESOLUTION);
 		_clipmapTerrain._trim = loadLevel_ClipMap_Trim();
 		_clipmapTerrain._seam = loadLevel_ClipMap_Seam();
 

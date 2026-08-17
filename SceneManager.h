@@ -107,7 +107,11 @@ namespace DK
 		};
 		struct SkyDome
 		{
-			Mesh _mesh;
+			Mesh _tile;
+			Mesh _filter;
+			Mesh _trim;
+			Mesh _cross;
+			Mesh _seam;
 		};
 		struct ClipMapTerrain
 		{
