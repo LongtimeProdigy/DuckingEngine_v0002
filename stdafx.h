@@ -205,6 +205,7 @@ namespace DK
 /*
 * String 함수
 */
+#include <filesystem>
 #include <wchar.h>
 #include <stdlib.h>
 namespace DK
@@ -285,6 +286,19 @@ namespace DK
 			return ::wcscat(dest, src);
 #undef _CRT_SECURE_NO_WARNINGS
 #pragma warning(pop)
+		}
+
+		static DKString extension(const DKString& source)
+		{
+			std::filesystem::path p = source;
+			return p.extension().string();
+		}
+
+		static void lower(DKString& inoutString)
+		{
+			std::transform(inoutString.begin(), inoutString.end(), inoutString.begin(), [](unsigned char c) {
+				return std::tolower(c);
+				});
 		}
 
 		//wchar_t 에서 char 로의 형변환 함수

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 namespace DK
 {
@@ -40,6 +40,8 @@ namespace DK
 	class SceneObjectManager
 	{
 	public:
+		SceneObject* loadGLTF(const char* path);
+
 		static SceneObject* createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
 		static SceneObject* createCharacter(const char* appearancePath);
 

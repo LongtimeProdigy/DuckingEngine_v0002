@@ -140,12 +140,13 @@ namespace DK
 
 		void setParameterValue(const DKString& name, void* value);
 
-	private:
+		// TODO: private 로 내릴것
 		DK_REFLECTION_PROPERTY(DKString, _materialName);
 		DKVector<Ptr<MaterialParameter>> _parameterArr;
-
 		DKVector<char> _parameterBufferForCPU;
 		DK_REFLECTION_PTR_PROPERTY_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);
+	private:
+
 	};
 #pragma endregion
 }
