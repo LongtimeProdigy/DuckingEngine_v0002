@@ -54,14 +54,13 @@ namespace DK
 		DK::memcpy(_valuePtr, &_value->getSRV(), getParameterSize());
 	}
 
-	Material* Material::createMaterial(const MaterialDefinition& modelProperty)
+	Material* Material::createMaterial(const DKString& materialName)
 	{
-		// 기존의 Parameter들의 Value들은 유지하면서 MaterialDefinition의 Parameter들로 Material::Parameters를 구성합니다.
 		SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
-		const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(modelProperty._materialName);
+		const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(materialName);
 		if (materialDefinition == nullptr)
 		{
-			DK_ASSERT_LOG(false, "RenderPass에 없는 Material(%s)을 만들려합니다! 절대 발생하면 안됩니다!", modelProperty._materialName.c_str());
+			DK_ASSERT_LOG(false, "RenderPass에 없는 Material(%s)을 만들려합니다! 절대 발생하면 안됩니다!", materialName.c_str());
 			return nullptr;
 		}
 
@@ -69,7 +68,7 @@ namespace DK
 		uint32 parameterBufferSize = 0;
 		const uint32 parameterCount = static_cast<uint32>(materialDefinition->_parameters.size());
 		Material* outMaterial = dk_new Material;
-		outMaterial->_materialName = modelProperty._materialName;
+		outMaterial->_materialName = materialName;
 		outMaterial->_parameterArr.resize(parameterCount);
 		for (uint32 i = 0; i < parameterCount; ++i)
 		{
@@ -90,6 +89,16 @@ namespace DK
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		outMaterial->_parameterBufferForGPU = renderModule.createUploadBuffer(parameterBufferSize, L"Material_CBuffer");
+
+		return outMaterial;
+	}
+
+	Material* Material::createMaterial(const MaterialDefinition& modelProperty)
+	{
+		// 기존의 Parameter들의 Value들은 유지하면서 MaterialDefinition의 Parameter들로 Material::Parameters를 구성합니다.
+		Material* outMaterial = createMaterial(modelProperty._materialName);
+		if(outMaterial == nullptr)
+			return nullptr;
 
 		if (outMaterial->setModelProperty(modelProperty) == false)
 			return nullptr;
@@ -147,28 +156,39 @@ namespace DK
 		return true;
 	}
 
-	void Material::setParameterValue(const DKString& name, void* value)
+	Material* Material::clone() const
 	{
-		for (Ptr<MaterialParameter>& parameter : _parameterArr)
-		{
-			if (parameter->getParameterName() != name)
-				continue;
+		Material* newMaterial = createMaterial(_materialName);
 
-			switch (parameter->getType())
+		const uint32 parameterCount = _parameterArr.size();
+		for(uint32 i = 0; i < parameterCount; ++i)
+		{
+			const Ptr<MaterialParameter>& sourceParameter = _parameterArr[i];
+			Ptr<MaterialParameter>& targetParameter = newMaterial->_parameterArr[i];
+			switch (sourceParameter->getType())
 			{
 			case MaterialParameter::Type::FLOAT:
-				parameter->setParameterValuePtr(value);	// 기본타입은 캐스팅 없이 그냥 대입해도 문제없음
+			{
+				const MaterialParameterFloat* floatParameter = static_cast<const MaterialParameterFloat*>(sourceParameter.get());
+				MaterialParameterFloat* floatTargetParameter = static_cast<MaterialParameterFloat*>(targetParameter.get());
+				floatTargetParameter->setParameterValue(floatParameter->_value);
 				break;
+			}
 			case MaterialParameter::Type::TEXTURE:
 			{
-				MaterialParameterTexture* textureParameter = static_cast<MaterialParameterTexture*>(parameter.get());
-				textureParameter->setParameterValue(*static_cast<ITextureRef*>(value));
+				const MaterialParameterTexture* textureParameter = static_cast<const MaterialParameterTexture*>(sourceParameter.get());
+				MaterialParameterTexture* textureTargetParameter = static_cast<MaterialParameterTexture*>(targetParameter.get());
+				textureTargetParameter->setParameterValue(textureParameter->_value);
 				break;
 			}
+			default:
+				DK_ASSERT_LOG(false, "아직 지원하지 않는 MaterialParameter Type입니다.");
+				break;
 			}
-;
-			_parameterBufferForGPU->upload(_parameterBufferForCPU.data());
-			return;
 		}
+
+		newMaterial->_parameterBufferForGPU->upload(newMaterial->_parameterBufferForCPU.data());
+
+		return newMaterial;
 	}
 }

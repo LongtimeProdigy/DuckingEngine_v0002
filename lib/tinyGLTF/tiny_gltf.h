@@ -1,4 +1,4 @@
-//
+﻿//
 // Header-only tiny glTF 2.0 loader and serializer.
 //
 //
@@ -1626,6 +1626,7 @@ class TinyGLTF {
 
 #ifndef TINYGLTF_NO_INCLUDE_JSON
 #ifndef TINYGLTF_USE_RAPIDJSON
+//#include "../tinyGLTF/json.hpp"
 #include "json.hpp"
 #else
 #include "document.h"

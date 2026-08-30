@@ -11,6 +11,7 @@
 
 #define USE_TINY_GLTF
 #if defined(USE_TINY_GLTF)
+#define _CRT_SECURE_NO_WARNINGS
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -86,17 +87,17 @@ namespace DK
 		else
 		{
 			DK_ASSERT_LOG(false, "확장자는 .gltf 또는 .glb여야 합니다.");
-			return false;
+			return nullptr;
 		}
 		if (!loaded)
 		{
-			DK_ASSERT_LOG(false, "파일 로딩 실패: %s", error);
-			return false;
+			DK_ASSERT_LOG(false, "파일 로딩 실패: %s", error.c_str());
+			return nullptr;
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		DKVector<ITextureRef> textures;
+		static DKVector<ITextureRef> textures;
 		for (const tinygltf::Image& src : gltfModel.images)
 		{
 			if (src.width <= 0 || src.height <= 0)
@@ -178,7 +179,7 @@ namespace DK
 			float alphaCutoff = 0.5f;
 		};
 
-		DKVector<CpuMaterial> materials;
+		DKVector<Ptr<Material>> materials;
 		materials.reserve(gltfModel.materials.size());
 
 		auto MakeTextureBinding = [](const tinygltf::Model & model, int textureIndex, int texCoord)->TextureBinding
@@ -195,7 +196,7 @@ namespace DK
 
 			return result;
 		};
-		auto ConvertMaterial = [&textures, &MakeTextureBinding](const tinygltf::Model& model, const tinygltf::Material& src)->CpuMaterial
+		auto ConvertMaterial = [&MakeTextureBinding](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
 		{
 			CpuMaterial dst;
 			//dst.name = src.name;
@@ -238,7 +239,7 @@ namespace DK
 			if (materialDefinition == nullptr)
 			{
 				DK_ASSERT_LOG(false, "RenderPass에 없는 Material(%s)을 만들려합니다! 절대 발생하면 안됩니다!", "StaticMeshStandard");
-				return dst;
+				return nullptr;
 			}
 
 			// RenderPass로부터 Parameter를 세팅
@@ -281,7 +282,7 @@ namespace DK
 
 			outMaterial->_parameterBufferForGPU->upload(outMaterial->_parameterBufferForCPU.data());
 
-			return dst;
+			return outMaterial;
 		};
 		for (const tinygltf::Material& src : gltfModel.materials)
 			materials.push_back(ConvertMaterial(gltfModel, src));
@@ -576,7 +577,7 @@ namespace DK
 			result.sourceMeshIndex = meshIndex;
 			result.sourcePrimitiveIndex = primitiveIndex;
 
-			result.vertices.resize(vertexCount);
+			result.vertices.reserve(vertexCount);
 			for (size_t i = 0; i < vertexCount; ++i)
 			{
 				float3 position = { ReadFloatComponent(positions, i, 0), ReadFloatComponent(positions, i, 1), ReadFloatComponent(positions, i, 2) };
@@ -625,7 +626,7 @@ namespace DK
 					Fail("primitive가 존재하지 않는 material을 참조합니다.");
 
 				// CpuModel::materials[0]은 기본 material.
-				result.materialIndex = static_cast<uint32_t>(primitive.material + 1);
+				result.materialIndex = static_cast<uint32_t>(primitive.material);
 			}
 			else
 			{
@@ -656,16 +657,16 @@ namespace DK
 				//result.model.primitives.push_back();
 
 				VertexBufferViewRef vertexBufferView;
-				const bool vertexBufferSuccess = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBufferView, L"StaticMesh_VertexBuffer");
+				const bool vertexBufferSuccess = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBufferView, L"GLTF_VertexBuffer");
 				if (vertexBufferSuccess == false)
 					return nullptr;
 
 				IndexBufferViewRef indexBufferView;
-				const bool indexBufferSuccess = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBufferView, L"StaticMesh_IndexBuffer");
+				const bool indexBufferSuccess = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBufferView, L"GLTF_IndexBuffer");
 				if (indexBufferSuccess == false)
 					return nullptr;
 
-				Material* newMaterial = Material::createMaterial(materialDefinitionArr[i]);
+				Material* newMaterial = materials[cpuPrimitive.materialIndex]->clone();
 				if (newMaterial == nullptr)
 					return nullptr;
 
@@ -685,6 +686,10 @@ namespace DK
 				DK_ASSERT_LOG(false, "Container Insert Failed!");
 				return nullptr;
 			}
+
+			staticMeshComponent->set_model(insertResult.first->second);
+			if (staticMeshComponent->get_model() == nullptr)
+				return nullptr;
 		}
 
 		if (createSceneObjectConstantBuffer(newSceneObject) == false)
