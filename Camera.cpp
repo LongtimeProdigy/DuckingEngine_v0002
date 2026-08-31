@@ -15,7 +15,7 @@ namespace DK
 		float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_RIGHT)) * mouseRotationFriction;
 
 		// 노트북으로 작업 시에 패드로 카메라 회전이 힘들어서 임시로 추가
-		static float kKeyboardRotateFraction = 0.01f;
+		static float kKeyboardRotateFraction = 0.07f;
 		mouseDelta.y -= static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_I)) * kKeyboardRotateFraction;
 		mouseDelta.x -= static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_J)) * kKeyboardRotateFraction;
 		mouseDelta.y += static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_K)) * kKeyboardRotateFraction;
@@ -48,21 +48,12 @@ namespace DK
 		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_CAPSLOCK) == true)
 			moveOffset *= 10;
 		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SHIFT) == true)
-			moveOffset *= 10;
+			moveOffset *= 30;
 
 		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
 		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();
 
 #if 0
-		static float test = 0.0f;
-		test += deltaTime;
-		float x = Math::sin(test*15) * 150;
-		float xr = (Math::sin(test * 10)) * 15;
-		finalMoveOffset = float3(0, 300, -300);// +float3(x, 0, 0);
-		pitch = 45;//(45 + xr) * DK::Math::kToRadian;
-		static float tttt = 0.0f;
-		tttt += deltaTime * 4;
-		yaw = tttt;
 #endif
 		
 #if 1

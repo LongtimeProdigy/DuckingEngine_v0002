@@ -124,7 +124,7 @@ namespace DK
 				break;
 			}
 
-			ITextureRef newTexture = renderModule.createTexture(src.name, src.width, src.height, src.image.data(), 1, format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
+			ITextureRef newTexture = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), 1, format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
 			textures.push_back(DK::move(newTexture));
 		}
 
