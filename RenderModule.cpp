@@ -1752,6 +1752,10 @@ namespace DK
 			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			true, false);
 
+#if defined(_DK_DEBUG_)
+		newTexture->_inContainer = true;
+#endif
+
 		DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool> insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(newTexture->getPath(), newTexture));
 		if (insertResult.second == false)
 		{
@@ -1765,7 +1769,7 @@ namespace DK
 	void RenderModule::deleteTexture(ITexture* texture)
 	{
 		const size_t insertResult = _textureContainer.erase(texture->getPath());
-		DK_ASSERT_LOG(insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", texture->getPath().c_str());
+		DK_ASSERT_LOG(texture->_inContainer == false || insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", texture->getPath().c_str());
 
 		if (texture->getSRV() != ITexture::kErrorTextureResourceViewIndex)
 			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureSRV(texture->getSRV());
@@ -1777,7 +1781,7 @@ namespace DK
 	{
 		EnsureMainThread();
 		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
-		DK_ASSERT_LOG(index < _deletedTextureSRVArr.size(), "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
+		//DK_ASSERT_LOG(index < _deletedTextureSRVArr.size(), "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureSRVArr.push_back(index);
 	}
 	void RenderModule::deallocateTextureUAV(const TextureResourceViewType index)

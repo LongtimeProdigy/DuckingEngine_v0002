@@ -20,6 +20,7 @@
 #include "Model.h"
 #include "ResourceManager.h"
 #include "SceneRenderer.h"
+#include <iostream>
 #endif
 
 namespace DK
@@ -97,9 +98,28 @@ namespace DK
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
+		//for (size_t i = 0; i < gltfModel.textures.size(); ++i)
+		//{
+		//	const auto& tex = gltfModel.textures[i];
+		//	DK_LOG("Textre[%d] -> Image[%d] : %s", i, tex.source, tex.name.c_str());
+		//}
+
+		//for (size_t i = 0; i < gltfModel.images.size(); ++i)
+		//{
+		//	const auto& image = gltfModel.images[i];
+		//	DK_LOG("Image[%d] : %s / %s / %dx%d component=%d", i, image.name.c_str(), image.uri.c_str(), image.width, image.height, image.component);
+		//}
+
 		static DKVector<ITextureRef> textures;
-		for (const tinygltf::Image& src : gltfModel.images)
+		textures.resize(gltfModel.textures.size());
+		for (size_t i = 0; i < gltfModel.textures.size(); ++i)
 		{
+			const tinygltf::Texture& srcTexture = gltfModel.textures[i];
+			const int imageIndex = srcTexture.source;
+			if (imageIndex < 0 || imageIndex >= static_cast<int>(gltfModel.images.size()))
+				Fail("Invalid image index.");
+
+			const tinygltf::Image& src =gltfModel.images[imageIndex];
 			if (src.width <= 0 || src.height <= 0)
 				throw std::runtime_error("Invalid CpuImage size.");
 			if (src.bits != 8)
@@ -124,8 +144,7 @@ namespace DK
 				break;
 			}
 
-			ITextureRef newTexture = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), 1, format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
-			textures.push_back(DK::move(newTexture));
+			textures[i] = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), 1, format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
 		}
 
 		//// Texture 추출
@@ -199,17 +218,17 @@ namespace DK
 		auto ConvertMaterial = [&MakeTextureBinding](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
 		{
 			CpuMaterial dst;
-			//dst.name = src.name;
-			//
+			dst.name = src.name;
+			
 			//{
 			//	std::array<float, 4> factor{ dst.baseColorFactor.x, dst.baseColorFactor.y, dst.baseColorFactor.z, dst.baseColorFactor.w };
 			//	CopyFactor(src.pbrMetallicRoughness.baseColorFactor, factor);
 			//	dst.baseColorFactor = { factor[0], factor[1], factor[2], factor[3] };
 			//}
-			//
-			//dst.metallicFactor = static_cast<float>(src.pbrMetallicRoughness.metallicFactor);
-			//dst.roughnessFactor = static_cast<float>(src.pbrMetallicRoughness.roughnessFactor);
-			//
+			
+			dst.metallicFactor = static_cast<float>(src.pbrMetallicRoughness.metallicFactor);
+			dst.roughnessFactor = static_cast<float>(src.pbrMetallicRoughness.roughnessFactor);
+			
 			//{
 			//	std::array<float, 3> factor{ dst.emissiveFactor.x, dst.emissiveFactor.y, dst.emissiveFactor.z };
 			//	CopyFactor(src.emissiveFactor, factor);
@@ -217,22 +236,15 @@ namespace DK
 			//}
 
 			dst.baseColorTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.baseColorTexture.index, src.pbrMetallicRoughness.baseColorTexture.texCoord);
-
-			//dst.metallicRoughnessTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.metallicRoughnessTexture.index, src.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
-
+			dst.metallicRoughnessTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.metallicRoughnessTexture.index, src.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
 			dst.normalTexture = MakeTextureBinding(model, src.normalTexture.index, src.normalTexture.texCoord);
-
-			//dst.occlusionTexture = MakeTextureBinding(model, src.occlusionTexture.index, src.occlusionTexture.texCoord);
-			//
-			//dst.emissiveTexture = MakeTextureBinding(model, src.emissiveTexture.index, src.emissiveTexture.texCoord);
-			//
-			//dst.normalScale = static_cast<float>(src.normalTexture.scale);
-			//
-			//dst.occlusionStrength = static_cast<float>(src.occlusionTexture.strength);
-			//
-			//dst.doubleSided = src.doubleSided;
-			//dst.alphaMode = src.alphaMode.empty() ? "OPAQUE" : src.alphaMode;
-			//dst.alphaCutoff = static_cast<float>(src.alphaCutoff);
+			dst.occlusionTexture = MakeTextureBinding(model, src.occlusionTexture.index, src.occlusionTexture.texCoord);
+			dst.emissiveTexture = MakeTextureBinding(model, src.emissiveTexture.index, src.emissiveTexture.texCoord);
+			dst.normalScale = static_cast<float>(src.normalTexture.scale);
+			dst.occlusionStrength = static_cast<float>(src.occlusionTexture.strength);
+			dst.doubleSided = src.doubleSided;
+			dst.alphaMode = src.alphaMode.empty() ? "OPAQUE" : src.alphaMode;
+			dst.alphaCutoff = static_cast<float>(src.alphaCutoff);
 
 			SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
 			const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition("StaticMeshStandard");
