@@ -129,6 +129,10 @@ namespace DK
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
 #include "d3dx12.h"
+#pragma region DXC
+#pragma comment(lib, "lib/dxc_2025_07_14/lib/x64/dxcompiler.lib")
+#include "lib/dxc_2025_07_14/inc/dxcapi.h"
+#pragma endregion
 #endif
 
 #include <vector>
@@ -313,7 +317,7 @@ namespace DK
 
 		///////////////////////////////////////////////////////////////////////
 		//char 에서 wchar_t 로의 형변환 함수
-		static DKStringW ConverCtoWC(const char* str)
+		static DKStringW convertCtoWC(const char* str)
 		{
 			DKVector<wchar_t> pStr;
 			int strSize = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, NULL);
@@ -419,7 +423,7 @@ namespace DK
 		static void setResourcePath(const DKString& resourcePath)
 		{
 			kResourcePathA = resourcePath;
-			kResourcePathW = StringUtil::ConverCtoWC(kResourcePathA.c_str());
+			kResourcePathW = StringUtil::convertCtoWC(kResourcePathA.c_str());
 		}
 
 	private:
@@ -582,7 +586,11 @@ namespace DK
 		{
 			_ptr = nullptr;
 		}
-		dk_inline ~RenderResourcePtr();
+		dk_inline ~RenderResourcePtr()
+		{
+			if (_ptr != nullptr)
+				_ptr->Release();
+		}
 
 		dk_inline RenderResourcePtr(T* ptr)
 			: _ptr(ptr)
@@ -621,6 +629,10 @@ namespace DK
 		}
 
 		dk_inline T* get() noexcept
+		{
+			return _ptr;
+		}
+		dk_inline const T* get() const noexcept
 		{
 			return _ptr;
 		}

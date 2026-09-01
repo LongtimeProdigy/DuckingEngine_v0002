@@ -3,6 +3,7 @@
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
+#include "RaytracingRenderer.h"
 #include "SceneObjectManager.h"
 #include "Camera.h"
 #include "StaticMeshComponent.h"
@@ -30,7 +31,8 @@ namespace DK
 	constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderParameterType::Count)] =
 	{
 		"Buffer",
-		"StructuredBuffer"
+		"StructuredBuffer",
+		"RaytracingAccelerationStructure", 
 	};
 	ShaderParameterType convertStringToEnum2(const char* str)
 	{
@@ -205,6 +207,61 @@ namespace DK
 						{
 							pipelineCreateInfo._computeShaderEntry = pipelineChildNode->Attribute("Entry");
 							pipelineCreateInfo._computeShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "RootConstant")
+						{
+							DKString names = pipelineChildNode->Attribute("Names");
+							DKString registerIndex = pipelineChildNode->Attribute("Register");
+
+							StringSplitter splitter(names, " ");
+
+							RootConstant32BitParameter parameter;
+							parameter._parameters = splitter.getStrings();
+							parameter._register = StringUtil::atoi(registerIndex.c_str());
+							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
+						}
+						else if (pipelineChildNodeName == "Parameter")
+						{
+							DKString name;
+							ShaderParameter shaderParameter;
+							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
+								return false;
+							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
+						}
+						else
+						{
+							DK_ASSERT_LOG(false, "지원하지 ComputePipeline ChildNode입니다. NodeName: %s", pipelineChildNodeName.c_str());
+							return false;
+						}
+					}
+
+					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+				}
+				else if (renderPassChildNodeName == "RaytracingPipeline")
+				{
+					Pipeline::CreateInfo pipelineCreateInfo;
+					DKString pipelineName = renderPassChildNode->Attribute("Name");
+
+					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
+					{
+						if (pipelineChildNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
+							continue;
+
+						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "RaygenShader")
+						{
+							pipelineCreateInfo._raygenEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._raygenShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "MissShader")
+						{
+							pipelineCreateInfo._missEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._missShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "ClosestHitShader")
+						{
+							pipelineCreateInfo._closestEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._closestShaderPath = pipelineChildNode->GetText();
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
@@ -491,7 +548,13 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true);
+#if 0
+		RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
+		raytracingRenderer.updateRaytracingRenderer(renderModule);
+		raytracingRenderer.dispatchRay(renderModule);
+#endif
+
+		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
@@ -637,7 +700,7 @@ namespace DK
 		endRenderPass();
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true);
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true, false);
 		{
 #if 0
 			startPipeline("SkyDomePipeline");
@@ -886,7 +949,7 @@ namespace DK
 		}
 		endRenderPass();
 
-		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false);
+		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false, false);
 		{
 			startPipeline("AtmospherePipeline");
 			{
@@ -905,7 +968,7 @@ namespace DK
 		endRenderPass();
 
 		// GBuffer
-		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false);
+		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false, false);
 		{
 			startPipeline("GBufferPipeline");
 			{

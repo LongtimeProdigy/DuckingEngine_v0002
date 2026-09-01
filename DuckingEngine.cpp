@@ -3,6 +3,7 @@
 
 #include "InputModule.h"
 #include "RenderModule.h"
+#include "RaytracingRenderer.h"
 #include "SceneRenderer.h"
 
 #include "ResourceManager.h"
@@ -23,6 +24,7 @@ namespace DK
 {
 	DuckingEngine* DuckingEngine::_duckingEngine;
 	RenderModule* DuckingEngine::_renderModule = nullptr;
+	RaytracingRenderer* DuckingEngine::_raytracingRenderer = nullptr;
 	SceneRenderer* DuckingEngine::_sceneRenderer = nullptr;
 	ResourceManager* DuckingEngine::_resourceManager = nullptr;
 	SceneManager* DuckingEngine::_sceneManager = nullptr;
@@ -51,6 +53,10 @@ namespace DK
 		// #todo- 어차피 매프레임 업데이트하기 때문에 굳이 이렇게 할 필요는 없음.. PreRender직후 바로 업데이트하기 때문
 		_sceneRenderer = dk_new SceneRenderer;
 		if (_sceneRenderer->initialize() == false) 
+			return false;
+
+		_raytracingRenderer = dk_new RaytracingRenderer;
+		if (_raytracingRenderer->initialize(_renderModule, width, height) == false)
 			return false;
 
 		_resourceManager = dk_new ResourceManager;

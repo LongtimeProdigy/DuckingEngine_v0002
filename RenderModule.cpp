@@ -2,18 +2,6 @@
 #include "RenderModule.h"
 
 #pragma region Lib
-
-#pragma comment(lib, "d3d12.lib")
-#include <d3d12.h>
-#pragma comment(lib, "dxgi.lib")
-#include <dxgi1_6.h>
-#include "d3dx12.h"
-#include <wrl.h>
-#pragma region DXC
-#pragma comment(lib, "lib/dxc_2025_07_14/lib/x64/dxcompiler.lib")
-#include "lib/dxc_2025_07_14/inc/dxcapi.h"
-#pragma endregion
-
 #define USE_WINCODEC
 #ifdef USE_WINCODEC
 #include <wincodec.h>	// Image Process
@@ -110,11 +98,11 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 	}
 }
 #endif
-
 #pragma endregion
 
 #include "DuckingEngine.h"
 #include "ResourceManager.h"
+#include "ShaderCompiler.h"
 
 #include "Camera.h"
 #include "SceneObject.h"
@@ -183,12 +171,6 @@ namespace DK
 #define TEXTUREBINDLESS_SPACE 10
 	static constexpr const D3D12_DESCRIPTOR_HEAP_TYPE gTextureBindlessDescriptorHeapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
-	template<typename T>
-	RenderResourcePtr<T>::~RenderResourcePtr()
-	{
-		if (_ptr != nullptr)
-			_ptr->Release();
-	}
 	RenderModule::~RenderModule()
 	{
 		CloseHandle(_fenceEvent);
@@ -217,32 +199,6 @@ namespace DK
 			pAdapter->Release();
 		}
 	}
-	//bool CheckTearingSupport()
-	//{
-	//	BOOL allowTearing = FALSE;
-	//
-	//	using Microsoft::WRL::ComPtr;
-	//	// Rather than create the DXGI 1.5 factory interface directly, we create the
-	//	// DXGI 1.4 interface and query for the 1.5 interface. This is to enable the 
-	//	// graphics debugging tools which will not support the 1.5 factory interface 
-	//	// until a future update.
-	//	ComPtr<IDXGIFactory4> factory4;
-	//	if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory4))))
-	//	{
-	//		ComPtr<IDXGIFactory5> factory5;
-	//		if (SUCCEEDED(factory4.As(&factory5)))
-	//		{
-	//			if (FAILED(factory5->CheckFeatureSupport(
-	//				DXGI_FEATURE_PRESENT_ALLOW_TEARING,
-	//				&allowTearing, sizeof(allowTearing))))
-	//			{
-	//				allowTearing = FALSE;
-	//			}
-	//		}
-	//	}
-	//
-	//	return allowTearing == TRUE;
-	//}
 	bool RenderModule::initialize(const HWND hwnd, const uint32 width, const uint32 height)
 	{
 		kWidth = width;
@@ -270,17 +226,15 @@ namespace DK
 	}
 	bool CheckTearingSupport()
 	{
-		Microsoft::WRL::ComPtr<IDXGIFactory4> factory4;
+		IDXGIFactory4* factory4;
 		HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory4));
 		BOOL allowTearing = FALSE;
 		if (SUCCEEDED(hr))
 		{
-			Microsoft::WRL::ComPtr<IDXGIFactory5> factory5;
-			hr = factory4.As(&factory5);
+			IDXGIFactory5* factory5;
+			hr = factory4->QueryInterface(IID_PPV_ARGS(&factory5));
 			if (SUCCEEDED(hr))
-			{
 				hr = factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing));
-			}
 		}
 		return SUCCEEDED(hr) && allowTearing;
 	}
@@ -352,13 +306,10 @@ namespace DK
 		{
 			// 2. 에러(Error) 발생 시 중단점 활성화
 			pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
-
 			// 3. 데이터 손상(Corruption) 발생 시 중단점 활성화
 			pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-
 			// (선택 사항) 경고 발생 시에도 멈추고 싶다면 아래 줄 주석 해제
 			pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
-
 			// 4. 수동으로 가져온 인터페이스이므로 사용 후 Release 호출
 			pInfoQueue->Release();
 		}
@@ -486,7 +437,7 @@ namespace DK
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture_");
 				dsvTextureName.append(indexString.c_str());
-				depthStencilResourceArr[i]->SetName(StringUtil::ConverCtoWC(dsvTextureName.c_str()).c_str());
+				depthStencilResourceArr[i]->SetName(StringUtil::convertCtoWC(dsvTextureName.c_str()).c_str());
 #endif
 
 				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
@@ -545,7 +496,7 @@ namespace DK
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
 				rtvTextureName.append(indexString.c_str());
-				renderTargetResourceArr[i]->SetName(StringUtil::ConverCtoWC(rtvTextureName.c_str()).c_str());
+				renderTargetResourceArr[i]->SetName(StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
 #endif
 
 				_device->CreateRenderTargetView(renderTargetResourceArr[i].get(), nullptr, rtvHandle);
@@ -597,7 +548,7 @@ namespace DK
 				ScopeString<DK_MAX_BUFFER> indexString;
 				StringUtil::itoa(i, indexString.data(), indexString.capacity());
 				ScopeStringW<DK_MAX_BUFFER> resourceName(L"BackBufferResource_");
-				resourceName.append(StringUtil::ConverCtoWC(indexString.c_str()).c_str());
+				resourceName.append(StringUtil::convertCtoWC(indexString.c_str()).c_str());
 				_backBufferResourceArr[i]->SetName(resourceName.c_str());
 #endif
 			}
@@ -668,7 +619,7 @@ namespace DK
 		HRESULT hr;
 
 		RenderResourcePtr<ID3D12CommandAllocator> outCommandAllocator[RenderModule::kFrameCount] = { nullptr, };
-		RenderResourcePtr<ID3D12GraphicsCommandList> outCommandList = nullptr;
+		RenderResourcePtr<ID3D12GraphicsCommandList4> outCommandList = nullptr;
 		for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
 		{
 			hr = _device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(outCommandAllocator[i].getAddress()));
@@ -715,45 +666,39 @@ namespace DK
 		uint32 rootParameterIndex = 0;
 
 		// Bindless Texture 2D Table
-		{
-			// For SRV
-			{
-				D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
-				texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-				texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
-				texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
-				texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
-				texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0;
-				D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
-				texture2DTableDescriptorTable.NumDescriptorRanges = DK_COUNT_OF(texture2DTableDescriptorRange);
-				texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
+		// For SRV
+		D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange1[1];
+		texture2DTableDescriptorRange1[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		texture2DTableDescriptorRange1[0].NumDescriptors = kMaxTextureSRVCount;// TEXTUREBINDLESS_MAX_COUNT;
+		texture2DTableDescriptorRange1[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+		texture2DTableDescriptorRange1[0].BaseShaderRegister = 0;
+		texture2DTableDescriptorRange1[0].OffsetInDescriptorsFromTableStart = 0;
+		D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable1;
+		texture2DTableDescriptorTable1.NumDescriptorRanges = DK_COUNT_OF(texture2DTableDescriptorRange1);
+		texture2DTableDescriptorTable1.pDescriptorRanges = &texture2DTableDescriptorRange1[0];
 
-				rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-				rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
-				rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-				++rootParameterIndex;
-			}
+		rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable1;
+		rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		++rootParameterIndex;
 
-			// For UAV
-			{
-				D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange[1];
-				texture2DTableDescriptorRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-				texture2DTableDescriptorRange[0].NumDescriptors = TEXTUREBINDLESS_MAX_COUNT;
-				texture2DTableDescriptorRange[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
-				texture2DTableDescriptorRange[0].BaseShaderRegister = 0;
-				texture2DTableDescriptorRange[0].OffsetInDescriptorsFromTableStart = 0;
-				D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable;
-				texture2DTableDescriptorTable.NumDescriptorRanges = DK_COUNT_OF(texture2DTableDescriptorRange);
-				texture2DTableDescriptorTable.pDescriptorRanges = &texture2DTableDescriptorRange[0];
+		// For UAV
+		D3D12_DESCRIPTOR_RANGE  texture2DTableDescriptorRange2[1];
+		texture2DTableDescriptorRange2[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		texture2DTableDescriptorRange2[0].NumDescriptors = kMaxTextureUAVCount;// TEXTUREBINDLESS_MAX_COUNT;
+		texture2DTableDescriptorRange2[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+		texture2DTableDescriptorRange2[0].BaseShaderRegister = 0;
+		texture2DTableDescriptorRange2[0].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount;
+		D3D12_ROOT_DESCRIPTOR_TABLE texture2DTableDescriptorTable2;
+		texture2DTableDescriptorTable2.NumDescriptorRanges = DK_COUNT_OF(texture2DTableDescriptorRange2);
+		texture2DTableDescriptorTable2.pDescriptorRanges = &texture2DTableDescriptorRange2[0];
 
-				rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-				rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable;
-				rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-				++rootParameterIndex;
+		rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParameters[rootParameterIndex].DescriptorTable = texture2DTableDescriptorTable2;
+		rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		++rootParameterIndex;
 
-			}
-		}
-
+		// 32bit rootconstant parameter
 		inoutPipeline._rootConstant32BitParameterBuffer.reserve(rootConstant32BitParameters.size());
 		inoutPipeline._rootConstant32BitParameterMap.reserve(rootConstant32BitParameters.size());
 		for(const RootConstant32BitParameter& renderPassShaderParameter : rootConstant32BitParameters)
@@ -781,13 +726,27 @@ namespace DK
 			++rootParameterIndex;
 		}
 
+		auto convertShaderParameterTypeToDX = [](ShaderParameterType type)->D3D12_ROOT_PARAMETER_TYPE
+			{
+				switch (type)
+				{
+				case ShaderParameterType::Buffer: return D3D12_ROOT_PARAMETER_TYPE_CBV;
+				case ShaderParameterType::StructuredBuffer: return D3D12_ROOT_PARAMETER_TYPE_SRV;
+				case ShaderParameterType::RaytracingAccelerationStructure: return D3D12_ROOT_PARAMETER_TYPE_SRV;
+				case ShaderParameterType::Count:
+				default:
+					DK_ASSERT_LOG(false, "올바르지 않은 ShaderParameter Type 지정.");
+					return D3D12_ROOT_PARAMETER_TYPE_SRV;
+				}
+			};
+
 		for(DKPair<const DKString, ShaderParameter>& renderPassShaderParameter : renderPass._shaderParameterMap)
 		{
 			D3D12_ROOT_DESCRIPTOR constantBufferDescriptor = {};
 			constantBufferDescriptor.RegisterSpace = 0;		// 현재 DuckingEngine은 0번 Space만 사용합니다.
 			constantBufferDescriptor.ShaderRegister = renderPassShaderParameter.second._register;
 
-			rootParameters[rootParameterIndex].ParameterType = renderPassShaderParameter.second._type == ShaderParameterType::StructuredBuffer ? D3D12_ROOT_PARAMETER_TYPE_SRV : D3D12_ROOT_PARAMETER_TYPE_CBV;
+			rootParameters[rootParameterIndex].ParameterType = convertShaderParameterTypeToDX(renderPassShaderParameter.second._type);
 			rootParameters[rootParameterIndex].Descriptor = constantBufferDescriptor;
 			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -802,7 +761,7 @@ namespace DK
 			constantBufferDescriptor.RegisterSpace = 0;		// 현재 DuckingEngine은 0번 Space만 사용합니다.
 			constantBufferDescriptor.ShaderRegister = shaderParameter.second._register;
 
-			rootParameters[rootParameterIndex].ParameterType = shaderParameter.second._type == ShaderParameterType::StructuredBuffer ? D3D12_ROOT_PARAMETER_TYPE_SRV : D3D12_ROOT_PARAMETER_TYPE_CBV;
+			rootParameters[rootParameterIndex].ParameterType = convertShaderParameterTypeToDX(shaderParameter.second._type);
 			rootParameters[rootParameterIndex].Descriptor = constantBufferDescriptor;
 			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -864,221 +823,13 @@ namespace DK
 			return false;
 		}
 
-		hr = _device->CreateRootSignature(
-			0,
-			signature->GetBufferPointer(), static_cast<uint32>(signature->GetBufferSize()),
-#if 0
-			__uuidof(ID3D12RootSignature), &inoutPipeline._rootSignature
-#else
-			IID_PPV_ARGS(inoutPipeline._rootSignature.getAddress())
-#endif
-		);
-		if (SUCCEEDED(hr) == false) return false;
+		hr = _device->CreateRootSignature(0, signature->GetBufferPointer(), static_cast<uint32>(signature->GetBufferSize()), IID_PPV_ARGS(inoutPipeline._rootSignature.getAddress()));
+		if (SUCCEEDED(hr) == false)
+			return false;
 
 		return true;
 	}
-	const wchar_t* charTowChar(const char* c)
-	{
-		const size_t cSize = strlen(c) + 1;
-		wchar_t* wc = dk_new wchar_t[cSize];
-#pragma warning(push)
-#pragma warning(disable:4996)
-		mbstowcs(wc, c, cSize);
-#pragma warning(pop)
-
-		return wc;
-	}
-	enum class ShaderType : uint8
-	{
-		VertexShader,
-		PixelShader,
-		ComputeShader,
-		COUNT
-	};
-	bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader)
-	{
-		RenderResourcePtr<IDxcUtils> utils(nullptr);
-		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.getAddress()));
-		if (FAILED(hr) == true)
-		{
-			DK_ASSERT_LOG(false, "");
-			return false;
-		}
-
-		RenderResourcePtr<IDxcCompiler3> compiler3(nullptr);
-		hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(compiler3.getAddress()));
-		if (FAILED(hr) == true)
-		{
-			DK_ASSERT_LOG(false, "");
-			return false;
-		}
-
-		ScopeString<DK_MAX_PATH> shaderFullPath = GlobalPath::makeResourceFullPath(shaderPath);
-
-		Ptr<const wchar_t> shaderPathW(charTowChar(shaderFullPath.c_str()));
-		Ptr<const wchar_t> shaderEntryW(charTowChar(entry));
-
-		RenderResourcePtr<IDxcBlobEncoding> sourceBlob(nullptr);
-		hr = utils->LoadFile(shaderPathW.get(), nullptr, sourceBlob.getAddress());
-		if (FAILED(hr) == true)
-		{
-			DK_ASSERT_LOG(false, "");
-			return false;
-		}
-
-		// 참고: https://simoncoenen.com/blog/programming/graphics/DxcCompiling
-		DKVector<LPCWSTR> arguments;
-		//-E for the entry point (eg. PSMain)
-		arguments.push_back(L"-E");
-		arguments.push_back(shaderEntryW.get());
-
-		//-T for the target profile (eg. ps_6_2)
-		arguments.push_back(L"-T");
-		switch (shaderType)
-		{
-			case ShaderType::VertexShader:
-				arguments.push_back(L"vs_6_2");
-				break;
-			case ShaderType::PixelShader:
-				arguments.push_back(L"ps_6_2");
-				break;
-			case ShaderType::ComputeShader:
-				arguments.push_back(L"cs_6_2");
-				break;
-			default:
-				DK_ASSERT_LOG(false, "지원하지 않는 ShaderType입니다.");
-				return false;
-		}
-
-#ifndef _DK_DEBUG_
-		// HLSL Object파일에 Reflect, PBD파일을 제거하는 옵션
-		// 하지만 IDxcResult에는 여전히 포함하기 때문에 getOutput으로 결과를 가져올 수 있습니다. (DXC_OUT_REFLECTION, DXC_OUT_PDB)
-		//Strip reflection data and pdbs (see later)
-		arguments.push_back(L"-Qstrip_debug");
-		arguments.push_back(L"-Qstrip_reflect");
-#endif
-
-#ifdef _DK_DEBUG_
-		arguments.push_back(DXC_ARG_WARNINGS_ARE_ERRORS); //-WX
-		arguments.push_back(DXC_ARG_DEBUG); //-Zi
-#endif
-		arguments.push_back(DXC_ARG_PACK_MATRIX_ROW_MAJOR); //-Zp
-
-		arguments.push_back(L"-I");
-		ScopeStringW<DK_MAX_PATH> includePath = GlobalPath::makeResourceFullPathW(L"Material");
-		arguments.push_back(includePath.c_str());
-
-		//for (const std::wstring& define : defines)
-		//{
-		//	arguments.push_back(L"-D");
-		//	arguments.push_back(define.c_str());
-		//}
-
-		DxcBuffer sourceBuffer{};
-		sourceBuffer.Ptr = sourceBlob->GetBufferPointer();
-		sourceBuffer.Size = sourceBlob->GetBufferSize();
-		sourceBuffer.Encoding = DXC_CP_ACP;
-
-		RenderResourcePtr<IDxcIncludeHandler> defaultIncludeHandler;
-		hr = utils->CreateDefaultIncludeHandler(defaultIncludeHandler.getAddress());
-		if (FAILED(hr))
-		{
-			DK_ASSERT_LOG(false, "IncludeHandler 생성에 실패했습니다. Shader Compiler을 하지 않습니다.");
-			return false;
-		}
-
-		RenderResourcePtr<IDxcResult> result(nullptr);
-		hr = compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(result.getAddress()));
-		if (FAILED(hr))
-		{
-			// DXC_OUT_OBJECT
-			// DXC_OUT_ERRORS
-			// DXC_OUT_PDB
-			// DXC_OUT_SHADER_HASH
-			// DXC_OUT_DISASSEMBLY
-			// DXC_OUT_HLSL
-			// DXC_OUT_TEXT
-			// DXC_OUT_REFLECTION
-			// DXC_OUT_ROOT_SIGNATURE
-			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
-			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(errors.getAddress()), nullptr);
-			if (SUCCEEDED(hr))
-				DK_ASSERT_LOG(false, "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
-
-			return false;
-		}
-
-		HRESULT status(S_OK);
-		hr = result->GetStatus(&status);
-		if (FAILED(hr) || FAILED(status))
-		{
-			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
-			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(errors.getAddress()), nullptr);
-			const char* test = errors->GetStringPointer();
-			DK_ASSERT_LOG(FAILED(hr), "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, test);
-
-			return false;
-		}
-
-#ifdef _DK_DEBUG_
-		//{
-		//	RenderResourcePtr<IDxcBlob> debugData;
-		//	RenderResourcePtr<IDxcBlobUtf16> debugDataPath;
-		//	hr = result->GetOutput(DXC_OUT_PDB, IID_PPV_ARGS(debugData.getAddress()), debugDataPath.getAddress());
-		//	if (FAILED(hr))
-		//	{
-		//		DK_ASSERT_LOG(false, "DebugData 가져오기 실패!");
-		//		return false;
-		//	}
-		//	{
-		//		DK_ASSERT_LOG(false, "DebugData(%d): %s", debugData->GetBufferSize(), debugData->GetBufferPointer());
-		//		DxcBuffer dataBuffer;
-		//		dataBuffer.Ptr = debugData->GetBufferPointer();
-		//		dataBuffer.Size = debugData->GetBufferSize();
-		//	}
-		//	{
-		//		DK_ASSERT_LOG(false, "DebugDataPath(%d): %s", debugDataPath->GetBufferSize(), debugDataPath->GetBufferPointer());
-		//		DxcBuffer dataBuffer;
-		//		dataBuffer.Ptr = debugDataPath->GetBufferPointer();
-		//		dataBuffer.Size = debugDataPath->GetBufferSize();
-		//	}
-		//}
-
-		RenderResourcePtr<IDxcBlob> reflectionData;
-		result->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(reflectionData.getAddress()), nullptr);
-		DxcBuffer reflectionBuffer;
-		reflectionBuffer.Ptr = reflectionData->GetBufferPointer();
-		reflectionBuffer.Size = reflectionData->GetBufferSize();
-		reflectionBuffer.Encoding = 0;
-		RenderResourcePtr<ID3D12ShaderReflection> shaderReflection;
-		utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(shaderReflection.getAddress()));
-
-		D3D12_SHADER_DESC shaderDesc;
-		shaderReflection->GetDesc(&shaderDesc);
-		const uint32 cBufferCount = shaderDesc.ConstantBuffers;
-		for (uint32 i = 0; i < cBufferCount; ++i)
-		{
-			ID3D12ShaderReflectionConstantBuffer* cbReflection = nullptr;
-			cbReflection = shaderReflection->GetConstantBufferByIndex(i);
-			D3D12_SHADER_BUFFER_DESC shaderBufferDesc;
-			cbReflection->GetDesc(&shaderBufferDesc);
-			DKString shaderBufferName = shaderBufferDesc.Name;
-		}
-#endif
-
-		RenderResourcePtr<IDxcBlobUtf16> shaderName = nullptr;
-		hr = result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shader), shaderName.getAddress());
-		if (FAILED(hr))
-		{
-			DK_ASSERT_LOG(false, "");
-			return false;
-		}
-
-		outShader.BytecodeLength = shader->GetBufferSize();
-		outShader.pShaderBytecode = shader->GetBufferPointer();
-
-		return true;
-	}
+	
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE convertPrimitiveTopologyType(const char* value)
 	{
 		static const char* primitiveTopologyTypeStr[] =
@@ -1089,7 +840,6 @@ namespace DK
 			"Triangle",
 			"Patch"
 		};
-
 		const uint32 strCount = DK_COUNT_OF(primitiveTopologyTypeStr);
 		for (uint32 i = 0; i < strCount; ++i)
 		{
@@ -1102,7 +852,9 @@ namespace DK
 	}
 	bool RenderModule::createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
 	{
-		if (pipelineCreateInfo._computeShaderPath.empty())
+		DKVector<DKString> emptyDefines;
+
+		if (pipelineCreateInfo._vertexShaderPath.empty() == false)
 		{
 			inoutPipeline._type = Pipeline::Type::GRAPHIC;
 
@@ -1114,12 +866,12 @@ namespace DK
 
 			D3D12_SHADER_BYTECODE vertexShaderView = {};
 			RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
-			bool success = compileShader(pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(), ShaderType::VertexShader, vertexShader.get(), vertexShaderView);
+			bool success = ShaderCompiler::compileShader(pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(), ShaderType::VertexShader, emptyDefines, vertexShader.get(), vertexShaderView);
 			if (success == false)
 				return false;
 			D3D12_SHADER_BYTECODE pixelShaderView = {};
 			RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
-			success = compileShader(pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(), ShaderType::PixelShader, pixelShader.get(), pixelShaderView);
+			success = ShaderCompiler::compileShader(pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(), ShaderType::PixelShader, emptyDefines, pixelShader.get(), pixelShaderView);
 			if (success == false)
 				return false;
 
@@ -1218,18 +970,18 @@ namespace DK
 			}
 
 			ScopeStringW<DK_MAX_BUFFER> tempString;
-			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._vertexShaderPath.c_str()).c_str());
+			tempString.append(StringUtil::convertCtoWC(pipelineCreateInfo._vertexShaderPath.c_str()).c_str());
 			tempString.append(L"_");
-			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._pixelShaderPath.c_str()).c_str());
+			tempString.append(StringUtil::convertCtoWC(pipelineCreateInfo._pixelShaderPath.c_str()).c_str());
 			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
 		}
-		else
+		else if(pipelineCreateInfo._computeShaderPath.empty() == false)
 		{
 			inoutPipeline._type = Pipeline::Type::COMPUTE;
 
 			D3D12_SHADER_BYTECODE computeShaderView = {};
 			RenderResourcePtr<IDxcBlob> computeShader = nullptr;
-			bool success = compileShader(pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(), ShaderType::ComputeShader, computeShader.get(), computeShaderView);
+			bool success = ShaderCompiler::compileShader(pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(), ShaderType::ComputeShader, emptyDefines, computeShader.get(), computeShaderView);
 			if (success == false)
 				return false;
 
@@ -1246,8 +998,163 @@ namespace DK
 			}
 
 			ScopeStringW<DK_MAX_BUFFER> tempString;
-			tempString.append(StringUtil::ConverCtoWC(pipelineCreateInfo._computeShaderPath.c_str()).c_str());
+			tempString.append(StringUtil::convertCtoWC(pipelineCreateInfo._computeShaderPath.c_str()).c_str());
 			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
+		}
+		else if (pipelineCreateInfo._raygenShaderPath.empty() == false)
+		{
+			inoutPipeline._type = Pipeline::Type::RAYTRACING;
+
+			DKVector<D3D12_DXIL_LIBRARY_DESC> libraryDesc;
+			DKVector<DKVector<D3D12_EXPORT_DESC>> exportDesc;
+			{
+				D3D12_SHADER_BYTECODE raygenShaderView = {};
+				RenderResourcePtr<IDxcBlob> raygenShaderBlob = nullptr;
+				const bool success = ShaderCompiler::compileShader(pipelineCreateInfo._raygenShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, raygenShaderBlob.get(), raygenShaderView);
+				if (success == false)
+					return false;
+
+				libraryDesc.push_back(D3D12_DXIL_LIBRARY_DESC());
+				exportDesc.push_back(DKVector<D3D12_EXPORT_DESC>());
+
+				libraryDesc[0].DXILLibrary.pShaderBytecode = raygenShaderView.pShaderBytecode;
+				libraryDesc[0].DXILLibrary.BytecodeLength = raygenShaderView.BytecodeLength;
+				libraryDesc[0].pExports += 1;
+
+				D3D12_EXPORT_DESC desc;
+				desc.Name = StringUtil::convertCtoWC(pipelineCreateInfo._raygenEntry.c_str()).c_str();
+				desc.Flags = D3D12_EXPORT_FLAG_NONE;
+				exportDesc[0].push_back(desc);
+			}
+
+			if (pipelineCreateInfo._missShaderPath == pipelineCreateInfo._raygenShaderPath)
+			{
+				libraryDesc[0].pExports += 1;
+
+				D3D12_EXPORT_DESC desc;
+				desc.Name = StringUtil::convertCtoWC(pipelineCreateInfo._missEntry.c_str()).c_str();
+				desc.Flags = D3D12_EXPORT_FLAG_NONE;
+				exportDesc[0].push_back(desc);
+			}
+			else
+			{
+				D3D12_SHADER_BYTECODE missShaderView = {};
+				RenderResourcePtr<IDxcBlob> missShaderBlob = nullptr;
+				const bool success = ShaderCompiler::compileShader(pipelineCreateInfo._missShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, missShaderBlob.get(), missShaderView);
+				if (success == false)
+					return false;
+
+				libraryDesc.push_back(D3D12_DXIL_LIBRARY_DESC());
+				exportDesc.push_back(DKVector<D3D12_EXPORT_DESC>());
+
+				libraryDesc[1].DXILLibrary.pShaderBytecode = missShaderView.pShaderBytecode;
+				libraryDesc[1].DXILLibrary.BytecodeLength = missShaderView.BytecodeLength;
+				libraryDesc[1].pExports += 1;
+
+				D3D12_EXPORT_DESC desc;
+				desc.Name = StringUtil::convertCtoWC(pipelineCreateInfo._missEntry.c_str()).c_str();
+				desc.Flags = D3D12_EXPORT_FLAG_NONE;
+				exportDesc[1].push_back(desc);
+			}
+
+			if (pipelineCreateInfo._closestShaderPath == pipelineCreateInfo._raygenShaderPath)
+			{
+				libraryDesc[0].pExports += 1;
+
+				D3D12_EXPORT_DESC desc;
+				desc.Name = StringUtil::convertCtoWC(pipelineCreateInfo._closestEntry.c_str()).c_str();
+				desc.Flags = D3D12_EXPORT_FLAG_NONE;
+				exportDesc[0].push_back(desc);
+			}
+			else if (pipelineCreateInfo._closestShaderPath == pipelineCreateInfo._missShaderPath)
+			{
+				libraryDesc[1].pExports += 1;
+
+				D3D12_EXPORT_DESC desc;
+				desc.Name = StringUtil::convertCtoWC(pipelineCreateInfo._closestEntry.c_str()).c_str();
+				desc.Flags = D3D12_EXPORT_FLAG_NONE;
+				exportDesc[1].push_back(desc);
+			}
+			else
+			{
+				D3D12_SHADER_BYTECODE cloesetShaderView = {};
+				RenderResourcePtr<IDxcBlob> cloesetShaderBlob = nullptr;
+				const bool success = ShaderCompiler::compileShader(pipelineCreateInfo._closestShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, cloesetShaderBlob.get(), cloesetShaderView);
+				if (success == false)
+					return false;
+
+				libraryDesc.push_back(D3D12_DXIL_LIBRARY_DESC());
+				exportDesc.push_back(DKVector<D3D12_EXPORT_DESC>());
+
+				libraryDesc[2].DXILLibrary.pShaderBytecode = cloesetShaderView.pShaderBytecode;
+				libraryDesc[2].DXILLibrary.BytecodeLength = cloesetShaderView.BytecodeLength;
+				libraryDesc[2].pExports += 1;
+
+				D3D12_EXPORT_DESC desc;
+				desc.Name = StringUtil::convertCtoWC(pipelineCreateInfo._closestEntry.c_str()).c_str();
+				desc.Flags = D3D12_EXPORT_FLAG_NONE;
+				exportDesc[2].push_back(desc);
+			}
+
+			DK_ASSERT_LOG(libraryDesc.size() == exportDesc.size(), "");
+
+			// HitGroup
+			D3D12_HIT_GROUP_DESC hitGroup = {};
+			hitGroup.HitGroupExport = L"HitGroup";
+			hitGroup.ClosestHitShaderImport = L"ClosestHit";
+			hitGroup.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
+
+			// ShaderConfig
+			D3D12_RAYTRACING_SHADER_CONFIG shaderConfig = {};
+			shaderConfig.MaxPayloadSizeInBytes = sizeof(float) * 4;
+			shaderConfig.MaxAttributeSizeInBytes = sizeof(float) * 2;
+
+			// PipelineConfig
+			D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = {};
+			pipelineConfig.MaxTraceRecursionDepth = 1;
+
+			// Rootsignature
+			D3D12_GLOBAL_ROOT_SIGNATURE globalRoot = {};
+			globalRoot.pGlobalRootSignature = inoutPipeline._rootSignature.get();
+
+			// Subobjects
+			DKVector<D3D12_STATE_SUBOBJECT> subobjects;
+			const uint32 libCount = libraryDesc.size();
+			subobjects.resize(libCount + 4);
+			for (uint32 i = 0; i < libCount; ++i)
+			{
+				subobjects[i].Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+				subobjects[i].pDesc = libraryDesc.data();
+			}
+			subobjects[libCount + 0].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+			subobjects[libCount + 0].pDesc = &hitGroup;
+			subobjects[libCount + 1].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
+			subobjects[libCount + 1].pDesc = &shaderConfig;
+			subobjects[libCount + 2].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
+			subobjects[libCount + 2].pDesc = &pipelineConfig;
+			subobjects[libCount + 3].Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
+			subobjects[libCount + 3].pDesc = &globalRoot;
+
+			// StateObject
+			D3D12_STATE_OBJECT_DESC stateObjectDesc = {};
+			stateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
+			stateObjectDesc.NumSubobjects = subobjects.size();
+			stateObjectDesc.pSubobjects = subobjects.data();
+			HRESULT hr = _device->CreateStateObject(&stateObjectDesc, IID_PPV_ARGS(inoutPipeline._rtStateObject.getAddress()));
+			if (FAILED(hr))
+				return false;
+
+			// StateObject Properties
+			hr = inoutPipeline._rtStateObject->QueryInterface(IID_PPV_ARGS(inoutPipeline._rtStateObjectProperties.getAddress()));
+			if (FAILED(hr))
+				return false;
+
+			return true;
+		}
+		else
+		{
+			DK_ASSERT_LOG(false, "올바르지 않은 Pipeline Type 지정");
+			return false;
 		}
 
 #if defined(_DK_DEBUG_)
@@ -1514,10 +1421,10 @@ namespace DK
 		else
 		{
 			index = _currentTextureUAV++;
-			index += kMaxTextureSRVCount;
+			//index += kMaxTextureSRVCount;
 		}
 
-		DK_ASSERT_LOG(index >= kMaxTextureSRVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
+		DK_ASSERT_LOG(index < kMaxTextureUAVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 
 		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -1563,7 +1470,7 @@ namespace DK
 				return false;
 		}
 
-		const DKStringW wTexturePath = StringUtil::ConverCtoWC(fileName);
+		const DKStringW wTexturePath = StringUtil::convertCtoWC(fileName);
 		hr = wicFactory->CreateDecoderFromFilename(
 			wTexturePath.c_str(),            // Image we want to load in
 			NULL,                            // This is a vendor ID, we do not prefer a specific one so set to null
@@ -1669,7 +1576,7 @@ namespace DK
 		}
 #if defined(_DK_DEBUG_)
 		ScopeStringW<DK_MAX_PATH> debugName(L"Texture(");
-		debugName.append(StringUtil::ConverCtoWC(debugString.c_str()).c_str());
+		debugName.append(StringUtil::convertCtoWC(debugString.c_str()).c_str());
 		debugName.append(L")");
 		defaultBuffer->SetName(debugName.c_str());
 #endif
@@ -1702,7 +1609,7 @@ namespace DK
 			}
 #if defined(_DK_DEBUG_)
 			ScopeStringW<DK_MAX_PATH> debugName(L"UploadTexture(");
-			debugName.append(StringUtil::ConverCtoWC(debugString.c_str()).c_str());
+			debugName.append(StringUtil::convertCtoWC(debugString.c_str()).c_str());
 			debugName.append(L")");
 			defaultBuffer->SetName(debugName.c_str());
 #endif
@@ -1805,10 +1712,7 @@ namespace DK
 
 	void RenderModule::bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget)
 	{
-		const uint32 rtvIndex = kCurrentFrameIndex * kFrameCount + rtvSlot;
-
-		const bool isDeffered1 = rtvReadSlot == 0xFFFFFFFF && rtvSlot == 0;
-		const bool isDeffered2 = rtvReadSlot == 0xFFFFFFFE && rtvSlot == 0;
+		const bool isDeffered = rtvReadSlot == 0xFFFFFFFF && rtvSlot == 0;
 		const bool isPostProcess = rtvReadSlot == 0 && rtvSlot == 1;
 		const bool isGBuffer = rtvReadSlot == 1 && rtvSlot == 2;
 		const bool isBackBuffer = rtvSlot == 2;
@@ -1831,17 +1735,19 @@ namespace DK
 			}
 		}
 
-		// Deffered1인 경우 현재프레임의 rtv를 다시 RenderTarget으로 변경
+		// Deffered인 경우 현재프레임의 rtv를 다시 RenderTarget으로 변경
 		// PostProcess, GBUffer인 경우 현재프레임의 BackBuffer 또는 RenderTarget을 Shader에서 쓸 수 있게 RenderTarget으로 변경
-		if (isDeffered1 || isPostProcess || isGBuffer)
+		if (isDeffered || isPostProcess || isGBuffer)
 		{
+			const uint32 rtvIndex = kCurrentFrameIndex * kFrameCount + rtvSlot;
+
 			// 현재 Pass에 해당하는 Texture를 renderTarget으로 변경
 			ID3D12Resource* resource = isBackBuffer ? _backBufferResourceArr[kCurrentFrameIndex].get() : _renderTargetTextureArr[rtvIndex].get()->getTextureBuffer();
 			D3D12_RESOURCE_STATES beforeState = isBackBuffer ? D3D12_RESOURCE_STATE_PRESENT : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 			resourceBarrierTransition(resource, beforeState, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 			// Deffered 최초 한번 시에 렌더타겟과 뎁스스텐실을 동시에 바인딩해야해서 따로 처리
-			if (isDeffered1)
+			if (isDeffered)
 			{
 				const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
@@ -1895,42 +1801,52 @@ namespace DK
 			return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 		}
 	}
-	bool RenderModule::bindPipeline(Pipeline& pipeline, const bool isCompute)
+	bool RenderModule::bindPipeline(Pipeline& pipeline, const Pipeline::Type type)
 	{
-		_commandList->_commandList->SetPipelineState(pipeline._pipelineStateObject.get());
-		_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());	// TODO 비싼 함수니까 initialize쪽으로 옮기자. 어차피 bindless인데..
-		if (isCompute)
+		if (type == Pipeline::Type::RAYTRACING)
 		{
+			_commandList->_commandList->SetPipelineState1(pipeline._rtStateObject.get());
+			_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());	// TODO 비싼 함수니까 initialize쪽으로 옮기자. 어차피 bindless인데..
 			_commandList->_commandList->SetComputeRootSignature(pipeline._rootSignature.get());
 			_commandList->_commandList->SetComputeRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-			_commandList->_commandList->SetComputeRootDescriptorTable(1, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		}
 		else
 		{
-			_commandList->_commandList->SetGraphicsRootSignature(pipeline._rootSignature.get());
-			_commandList->_commandList->SetGraphicsRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-			_commandList->_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
+			_commandList->_commandList->SetPipelineState(pipeline._pipelineStateObject.get());
+			_commandList->_commandList->SetDescriptorHeaps(1, _textureDescriptorHeap.getAddress());	// TODO 비싼 함수니까 initialize쪽으로 옮기자. 어차피 bindless인데..
+			if (type == Pipeline::Type::COMPUTE)
+			{
+				_commandList->_commandList->SetComputeRootSignature(pipeline._rootSignature.get());
+				_commandList->_commandList->SetComputeRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+				_commandList->_commandList->SetComputeRootDescriptorTable(1, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			}
+			else
+			{
+				_commandList->_commandList->SetGraphicsRootSignature(pipeline._rootSignature.get());
+				_commandList->_commandList->SetGraphicsRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+				_commandList->_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
+			}
 		}
 
 		return true;
 	}
-	void RenderModule::setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const bool isCompute)
+	void RenderModule::setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const Pipeline::Type type)
 	{
-		if (isCompute)
+		if (type != Pipeline::Type::GRAPHIC)
 			_commandList->_commandList->SetComputeRoot32BitConstants(rootParameterIndex, count, data, offset / 4);
 		else
 			_commandList->_commandList->SetGraphicsRoot32BitConstants(rootParameterIndex, count, data, offset / 4);
 	}
-	void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute)
+	void RenderModule::bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const Pipeline::Type type)
 	{
-		if (isCompute)
+		if (type != Pipeline::Type::GRAPHIC)
 			_commandList->_commandList->SetComputeRootConstantBufferView(rootParameterIndex, gpuAdress);
 		else
 			_commandList->_commandList->SetGraphicsRootConstantBufferView(rootParameterIndex, gpuAdress);
 	}
-	void RenderModule::bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute)
+	void RenderModule::bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const Pipeline::Type type)
 	{
-		if (isCompute)
+		if (type != Pipeline::Type::GRAPHIC)
 			_commandList->_commandList->SetComputeRootShaderResourceView(rootParameterIndex, gpuAdress);
 		else
 			_commandList->_commandList->SetGraphicsRootShaderResourceView(rootParameterIndex, gpuAdress);

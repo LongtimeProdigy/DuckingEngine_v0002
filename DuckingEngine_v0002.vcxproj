@@ -53,8 +53,10 @@
     </ClCompile>
     <ClCompile Include="MeshUtil.cpp" />
     <ClCompile Include="ModelProperty.cpp" />
+    <ClCompile Include="RaytracingRenderer.cpp" />
     <ClCompile Include="RenderableComponent.cpp" />
     <ClCompile Include="SceneManager.cpp" />
+    <ClCompile Include="ShaderCompiler.cpp" />
     <ClCompile Include="StaticMeshComponent.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="SceneObject.cpp" />
@@ -128,8 +130,10 @@
     <ClInclude Include="lib\tinyXML\tinyxml.h" />
     <ClInclude Include="MeshUtil.h" />
     <ClInclude Include="ModelProperty.h" />
+    <ClInclude Include="RaytracingRenderer.h" />
     <ClInclude Include="RenderableComponent.h" />
     <ClInclude Include="SceneManager.h" />
+    <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="StaticMeshComponent.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="SceneObject.h" />

@@ -1,4 +1,19 @@
+<!-- SamplerState pointSampler : register(s0); -->
+<!-- SamplerState bilinearRepeatSampler : register(s1); -->
+<!-- Texture2D<float4> gBindlessTextureSRVArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE); -->
+<!-- RWTexture2D<float4> gBindlessTextureUAVArray[] : register(u0, BINDLESSTEXTUREARRAY_SPACE); -->
+
 <RenderPassGroup>
+	<RenderPass Name="PathTracing">
+		<RaytracingPipeline Name="BruteForce">
+			<RootConstant Names="_targetUAV" Register="0"/>
+			<Parameter Name="gTLAS" Type="RaytracingAccelerationStructure" Register="0"/>
+			<RaygenShader Entry="RayGen">Shader/Raytracing/PathTracingBruteForce.hlsl</RaygenShader>
+			<MissShader Entry="Miss">Shader/Raytracing/PathTracingBruteForce.hlsl</MissShader>
+			<ClosestHitShader Entry="ClosestHit">Shader/Raytracing/PathTracingBruteForce.hlsl</ClosestHitShader>
+		</RaytracingPipeline>
+	</RenderPass>
+
 	<RenderPass Name="OceanRenderPass">
 		<ComputePipeline Name="InitialSpectrum">
 			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>

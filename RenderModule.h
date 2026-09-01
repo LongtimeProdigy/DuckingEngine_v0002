@@ -5,7 +5,7 @@ struct ID3D12RootSignature;
 struct ID3D12PipelineState;
 struct ID3D12Resource;
 struct ID3D12CommandAllocator;
-struct ID3D12GraphicsCommandList;
+struct ID3D12GraphicsCommandList4;
 enum D3D12_RESOURCE_STATES;
 enum D3D12_RESOURCE_BARRIER_TYPE;
 enum D3D12_HEAP_TYPE;
@@ -19,8 +19,6 @@ typedef UINT64 D3D12_GPU_VIRTUAL_ADDRESS;
 struct IDXGISwapChain4;
 struct D3D12Resource;
 enum D3D12_PRIMITIVE_TOPOLOGY_TYPE;
-
-struct IDxcBlob;
 
 namespace DK
 {
@@ -49,6 +47,7 @@ namespace DK
 	{
 		Buffer,
 		StructuredBuffer,
+		RaytracingAccelerationStructure, 
 		Count
 	};
 
@@ -102,8 +101,16 @@ namespace DK
 			DKString _vertexShaderEntry;
 			DKString _pixelShaderPath;
 			DKString _pixelShaderEntry;
+
 			DKString _computeShaderPath;
 			DKString _computeShaderEntry;
+
+			DKString _raygenShaderPath;
+			DKString _raygenEntry;
+			DKString _missShaderPath;
+			DKString _missEntry;
+			DKString _closestShaderPath;
+			DKString _closestEntry;
 
 			DKVector<LayoutInfo> _layout;
 			DKVector<RootConstant32BitParameter> _rootConstant32BitParameter;
@@ -113,6 +120,7 @@ namespace DK
 		{
 			COMPUTE,
 			GRAPHIC,
+			RAYTRACING, 
 			COUNT
 		};
 
@@ -124,6 +132,9 @@ namespace DK
 
 		RenderResourcePtr<ID3D12RootSignature> _rootSignature;
 		RenderResourcePtr<ID3D12PipelineState> _pipelineStateObject;
+		//Raytraincg
+		RenderResourcePtr<ID3D12StateObject> _rtStateObject;
+		RenderResourcePtr<ID3D12StateObjectProperties> _rtStateObjectProperties;
 
 		D3D12_PRIMITIVE_TOPOLOGY_TYPE _primitiveTopologyType;
 		DKVector<DKVector<char>> _rootConstant32BitParameterBuffer;
@@ -213,14 +224,15 @@ if (object == nullptr) \
 #define RENDERING_VERIFY(object)
 #endif
 
-#define startRenderPass(renderModule, renderPassName, rtvPrevSlot, rtvSlot, bindDSV, clearTarget) \
+#define startRenderPass(renderModule, renderPassName, rtvPrevSlot, rtvSlot, bindDSV, clearTarget, isRaytracing) \
 do{ \
 	RenderModule& currentRenderModule = renderModule; \
 	RENDERING_ALREADY_BIND(currentRenderPass, renderPassName); \
 	static RenderPass* findRenderPass = currentRenderModule.getRenderPass(renderPassName); \
 	currentRenderPass = findRenderPass; \
 	RENDERING_VERIFY(currentRenderPass, renderPassName); \
-	currentRenderModule.bindRenderPass(rtvPrevSlot, rtvSlot, bindDSV, clearTarget)
+	if(isRaytracing == false) \
+		currentRenderModule.bindRenderPass(rtvPrevSlot, rtvSlot, bindDSV, clearTarget)
 
 #define endRenderPass() \
 	currentRenderPass = nullptr; \
@@ -232,7 +244,7 @@ do{ \
 	static Pipeline* findPipeline = currentRenderPass->getPipeline(pipelineName); \
 	currentPipeline = findPipeline; \
 	RENDERING_VERIFY(currentPipeline, pipelineName); \
-	currentRenderModule.bindPipeline(*currentPipeline, currentPipeline->_type == Pipeline::Type::COMPUTE)
+	currentRenderModule.bindPipeline(*currentPipeline, currentPipeline->_type)
 
 #define endPipeline() \
 	currentPipeline = nullptr; \
@@ -244,24 +256,28 @@ do{ \
 	static RootConstant32BitParameterBindingInfo* bindingInfo = currentPipeline->getRootConstantParameter(name); \
 	RENDERING_VERIFY(bindingInfo, name); \
 	DK::memcpy(((uint8*)bindingInfo->_buffer + bindingInfo->_offset), &value, 4); \
-	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, currentPipeline->_type == Pipeline::Type::COMPUTE); \
+	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, currentPipeline->_type); \
 }
 
 #define setConstantBuffer(name, address) \
 { \
 	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
 	RENDERING_VERIFY(shaderParameter, name); \
-	currentRenderModule.bindConstantBuffer(shaderParameter->_rootParameterIndex, address, currentPipeline->_type == Pipeline::Type::COMPUTE); \
+	currentRenderModule.bindConstantBuffer(shaderParameter->_rootParameterIndex, address, currentPipeline->_type); \
 }
 #define setShaderResourceView(name, address) \
 { \
 	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
 	RENDERING_VERIFY(shaderParameter, name); \
-	currentRenderModule.bindShaderResourceView(shaderParameter->_rootParameterIndex, address, currentPipeline->_type == Pipeline::Type::COMPUTE); \
+	currentRenderModule.bindShaderResourceView(shaderParameter->_rootParameterIndex, address, currentPipeline->_type); \
 }
+
+	class RaytracingRenderer;
 
 	class RenderModule
 	{
+		friend RaytracingRenderer;
+
 	public:
 		static constexpr uint32 kFrameCount = 2;
 		static uint32 kCurrentFrameIndex;
@@ -289,10 +305,10 @@ do{ \
 
 		void preRender();			// RenderTaget 등을 설정하는데.. 이건 RenderPass Set으로 옮겨야할듯. 지금은 RenderTarget이 하나니 하나로 빼둠
 		void bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget);
-		bool bindPipeline(Pipeline& pipeline, const bool isCompute);
-		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const bool isCompute);
-		void bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute);
-		void bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const bool isCompute);
+		bool bindPipeline(Pipeline& pipeline, const Pipeline::Type type);
+		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const Pipeline::Type type);
+		void bindConstantBuffer(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const Pipeline::Type type);
+		void bindShaderResourceView(const uint32 rootParameterIndex, const D3D12_GPU_VIRTUAL_ADDRESS& gpuAdress, const Pipeline::Type type);
 		void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
 		void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
 		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
@@ -368,6 +384,7 @@ do{ \
 
 		// Texture
 		static constexpr const uint32 kMaxTextureSRVCount = 1024;
+		static constexpr const uint32 kMaxTextureUAVCount = 1024;
 		uint32 _currentTextureSRV = 0;
 		uint32 _currentTextureUAV = 0;
 		DKVector<TextureResourceViewType> _deletedTextureSRVArr;
@@ -458,7 +475,7 @@ do{ \
 
 	struct DKCommandList
 	{
-		dk_inline DKCommandList(RenderResourcePtr<ID3D12CommandAllocator> commandAllocators[RenderModule::kFrameCount], RenderResourcePtr<ID3D12GraphicsCommandList>& commandList)
+		dk_inline DKCommandList(RenderResourcePtr<ID3D12CommandAllocator> commandAllocators[RenderModule::kFrameCount], RenderResourcePtr<ID3D12GraphicsCommandList4>& commandList)
 			: _commandList(commandList)
 		{
 			for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
@@ -468,7 +485,7 @@ do{ \
 		bool reset();
 
 		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[RenderModule::kFrameCount];
-		RenderResourcePtr<ID3D12GraphicsCommandList> _commandList;
+		RenderResourcePtr<ID3D12GraphicsCommandList4> _commandList;
 		uint32 _lastResetIndex = 0;
 	};
 }
