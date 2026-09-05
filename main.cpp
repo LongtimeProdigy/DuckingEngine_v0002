@@ -123,7 +123,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 	}
 	catch (const std::exception& exo)
 	{
-		DK_ASSERT_LOG(false, exo.what());
+		DK_ASSERT_LOG(false, "%s", exo.what());
 		return -1;
 	}
 

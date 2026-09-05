@@ -60,12 +60,11 @@ namespace DK
 #define BLOCK(category)
 
 #define MAX_LOG_BUFFER_LENGTH 32768
-#define DK_LOG(text, ...)												\
-{																		\
-	char buffer[MAX_LOG_BUFFER_LENGTH];									\
-	sprintf_s(buffer, MAX_LOG_BUFFER_LENGTH, text, __VA_ARGS__);		\
-	strcat_s(buffer, MAX_LOG_BUFFER_LENGTH, "\n");						\
-	OutputDebugStringA(buffer);											\
+#define DK_LOG(text, ...)																			\
+{																									\
+	char buffer[MAX_LOG_BUFFER_LENGTH];																\
+	sprintf_s(buffer, MAX_LOG_BUFFER_LENGTH, "%s(%d): " text "\n", __FILE__, __LINE__, __VA_ARGS__);\
+	OutputDebugStringA(buffer);																		\
 }
 
 #define DK_WLOG(text, ...)												\
