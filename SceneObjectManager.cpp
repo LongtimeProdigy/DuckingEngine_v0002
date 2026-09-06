@@ -668,13 +668,15 @@ namespace DK
 				CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> cpuPrimitive = ConvertPrimitive(gltfModel, primitive, meshIndex, primitiveIndex);
 				//result.model.primitives.push_back();
 
+				RenderResourcePtr<ID3D12Resource> vertexBuffer;
 				VertexBufferViewRef vertexBufferView;
-				const bool vertexBufferSuccess = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBufferView, L"GLTF_VertexBuffer");
+				const bool vertexBufferSuccess = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBuffer, vertexBufferView, L"GLTF_VertexBuffer");
 				if (vertexBufferSuccess == false)
 					return nullptr;
 
+				RenderResourcePtr<ID3D12Resource> indexBuffer;
 				IndexBufferViewRef indexBufferView;
-				const bool indexBufferSuccess = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBufferView, L"GLTF_IndexBuffer");
+				const bool indexBufferSuccess = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBuffer, indexBufferView, L"GLTF_IndexBuffer");
 				if (indexBufferSuccess == false)
 					return nullptr;
 
@@ -684,6 +686,7 @@ namespace DK
 
 				StaticMeshModel::SubMeshType subMesh(
 					DK::move(cpuPrimitive.vertices), DK::move(cpuPrimitive.indices),
+					DK::move(vertexBuffer), DK::move(indexBuffer),
 					DK::move(vertexBufferView), DK::move(indexBufferView),
 					newMaterial
 				);

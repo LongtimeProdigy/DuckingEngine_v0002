@@ -44,8 +44,12 @@ namespace DK
 		int _atmosphereRadius = 6390000;			// 대기 반지름 (1unit = 1m >> 30000  = 30km) [10km 대류권, 50km 성층권, 80km 중간권, 600km 열권], 지구 대기의 99%는 30km내에 존재
 	};
 
+	class RaytracingRenderer;
+
 	class SceneRenderer
 	{
+		friend class RaytracingRenderer;
+
 	public:
 		// Initialize
 		bool initialize();

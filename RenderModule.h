@@ -296,8 +296,8 @@ do{ \
 #endif
 		// #todo- Container 이용해도될듯?
 		IBuffer* createUploadBuffer(const uint32 size, const DKStringW& debugName);
-		const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const DKStringW& debugName);
-		const bool createIndexBuffer(const void* data, const uint32 bufferSize, IndexBufferViewRef& outView, const DKStringW& debugName);
+		const bool createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, RenderResourcePtr<ID3D12Resource>& outBuffer, VertexBufferViewRef& outView, const DKStringW& debugName);
+		const bool createIndexBuffer(const void* data, const uint32 bufferSize, RenderResourcePtr<ID3D12Resource>& outBuffer, IndexBufferViewRef& outView, const DKStringW& debugName);
 
 		// SceneRenderer 전용 함수
 		void resourceBarrierTransition(const ITextureRef& texture, const D3D12_RESOURCE_STATES beforeState, const D3D12_RESOURCE_STATES afterState);
@@ -339,7 +339,7 @@ do{ \
 		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
 		DKCommandList* createCommandList();
 		bool initialize_createFence();
-		bool createRootSignature(RenderPass& renderPass, const DKVector<RootConstant32BitParameter>& rootConstant32BitParameters, Pipeline& inoutPipeline);
+		bool createRootSignature(RenderPass& renderPass, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		const bool allocateTextureSRV(ITexture* texture);
@@ -407,6 +407,8 @@ do{ \
 
 		void upload(const void* data);
 		void uploadImmediately(const void* data);
+
+		ID3D12Resource* getBuffer();
 		D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress();
 
 	private:

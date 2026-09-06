@@ -468,16 +468,11 @@ namespace DK
 		bool isReload = false;
 #endif
 #if defined(USE_IMGUI)
-		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
+		ImGui_ImplDX12_NewFrame();
 		ImGui::NewFrame();
 
-		//static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 		{
-			static float f = 0.0f;
-			static int counter = 0;
-			static char buf[200] = {};
-
 			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
 #if defined(_DK_DEBUG_)
@@ -527,6 +522,7 @@ namespace DK
 			ImGui::InputInt("Planet R: ", &_atmosphereConstantBufferData._planetRadius);
 			ImGui::InputInt("AtmosRadius: ", &_atmosphereConstantBufferData._atmosphereRadius);
 			ImGui::InputFloat("OceanHeightScale: ", &gHeightScale);
+
 			ImGui::End();
 		}
 
@@ -548,12 +544,13 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-#if 0
+#if 1
 		RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
 		raytracingRenderer.updateRaytracingRenderer(renderModule);
 		raytracingRenderer.dispatchRay(renderModule);
 #endif
 
+#if 0
 		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
@@ -966,6 +963,7 @@ namespace DK
 			endPipeline();
 		}
 		endRenderPass();
+#endif
 
 		// GBuffer
 		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false, false);

@@ -58,7 +58,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 {
 	try
 	{
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        //SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+#ifdef USE_IMGUI
+        ImGui_ImplWin32_EnableDpiAwareness();
+#endif
 
         DK::gMainThreadID = GetCurrentThreadId();
 

@@ -7,6 +7,7 @@
 #include "StaticMeshComponent.h"
 #include "Model.h"
 #include "Material.h"
+#include "SceneRenderer.h"
 
 namespace DK
 {
@@ -76,7 +77,7 @@ namespace DK
 		return true;
 	}
 
-    BLAS createBlas(ID3D12Device8* device, ID3D12GraphicsCommandList4* commandList, const StaticMeshModel::SubMeshType& subMesh)
+    BLAS createBlas(ID3D12Device8* device, ID3D12GraphicsCommandList4* commandList, const uint32 heapOffset, RenderResourcePtr<ID3D12DescriptorHeap>& materialDescriptorHeap, const uint32 materialIndex, /*const*/ StaticMeshModel::SubMeshType& subMesh)
 	{
         D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
         geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
@@ -145,7 +146,45 @@ namespace DK
         barrier.UAV.pResource = blas;
         commandList->ResourceBarrier(1, &barrier);
 
-        return BLAS(blas, scratch);
+        // SRV
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+            srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Buffer.FirstElement = 0;
+
+            UINT descriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            // Vertex
+            {
+                srvDesc.Buffer.NumElements = subMesh._vertices.size();
+                srvDesc.Buffer.StructureByteStride = sizeof(subMesh._vertices[0]);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+                cpuHandle.ptr += static_cast<SIZE_T>(materialIndex + heapOffset) * descriptorSize;
+                device->CreateShaderResourceView(subMesh._vertexBuffer.get(), &srvDesc, cpuHandle);
+            }
+            //Index
+            {
+                srvDesc.Buffer.NumElements = subMesh._indices.size();
+                srvDesc.Buffer.StructureByteStride = sizeof(uint32);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+                cpuHandle.ptr += static_cast<SIZE_T>(materialIndex + heapOffset + RaytracingRenderer::kRaytracingDescriptorCount) * descriptorSize;
+                device->CreateShaderResourceView(subMesh._indexBuffer.get(), &srvDesc, cpuHandle);
+            }
+            //Material
+            {
+                srvDesc.Buffer.NumElements = 1;
+                srvDesc.Buffer.StructureByteStride = subMesh._material->_parameterBufferForCPU.size();
+
+                D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+                cpuHandle.ptr += static_cast<SIZE_T>(materialIndex + heapOffset + RaytracingRenderer::kRaytracingDescriptorCount * 2) * descriptorSize;
+                device->CreateShaderResourceView(subMesh._material->_parameterBufferForGPU->getBuffer(), &srvDesc, cpuHandle);
+            }
+        }
+
+        return BLAS(blas, scratch, materialIndex);
 	}
     TLAS createTLAS(ID3D12Device8* device, ID3D12GraphicsCommandList4* commandList, DKVector<BLAS>&& blases)
     {
@@ -182,10 +221,11 @@ namespace DK
             BLAS& blas = blases[i];
 
             D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instanceDesces[i];
-            instanceDesc.InstanceID = i;
+            instanceDesc.InstanceID = blas._materialIndex;
             instanceDesc.InstanceContributionToHitGroupIndex = 0;       // TODO: Raytracing PipelineObject의 HitGroup내에 있는 HitShader 이름 Index이다. Material이 연결되면 작업해야할듯?
             instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
             instanceDesc.AccelerationStructure = blas._blas->GetGPUVirtualAddress();
+            instanceDesc.InstanceMask = 0xFF;
 
             instanceDesc.Transform[0][0] = 1.0f;
             instanceDesc.Transform[0][1] = 0.0f;
@@ -203,7 +243,7 @@ namespace DK
             instanceDesc.Transform[2][3] = 0.0f;
         }
 
-        memcpy(mappedData, instanceDesces.data(), sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+        memcpy(mappedData, instanceDesces.data(), sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * blasCount);
         instanceBuffer->Unmap(0, nullptr);
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -274,23 +314,23 @@ namespace DK
 
         DKVector<BLAS> blases;
 
-		const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects();
-		for (DKHashMap<const uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
+		for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 		{
-            const SceneObject& sceneObject = iter->second;
+            SceneObject& sceneObject = iter->second;
             uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
             for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
             {
                 // #todo- component 완전 개편 필요해보임.
                 // for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
                 // 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-                const StaticMeshComponent* staticMeshComponent = static_cast<const StaticMeshComponent*>(sceneObject._components[componentIndex].get());
-                const DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_model()->get_subMeshArr();
+                StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
+                DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
                 blases.reserve(blases.size() + subMeshes.size());
                 for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
                 {
-                    const StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
-                    BLAS blas = createBlas(device, commandList, subMesh);
+                    StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+                    BLAS blas = createBlas(device, commandList, RenderModule::kMaxTextureSRVCount + RenderModule::kMaxTextureUAVCount, renderModule._textureDescriptorHeap, blases.size(), subMesh);
                     if (blas.isValid() == false)
                         continue;
 
@@ -307,10 +347,12 @@ namespace DK
 	}
     void RaytracingRenderer::dispatchRay(RenderModule& renderModule)
     {
-        startRenderPass(renderModule, "PathTracing", 0xFFFFFFFF, 0, false, false, true);
+        startRenderPass(renderModule, "PathTracing", 0xFFFFFFFF, 0, true, true, true);
         {
             startPipeline("BruteForce");
             {
+                setConstantBuffer("SceneConstantBuffer", DuckingEngine::getInstance().getSceneRenderWritable()._sceneConstantBuffer->getGPUVirtualAddress());
+
                 setRootConstantParameter("_targetUAV", _outputTexture->getUAV());
                 setShaderResourceView("gTLAS", _tlas._tlas->GetGPUVirtualAddress());
 
@@ -338,49 +380,28 @@ namespace DK
         // ============================================================
         // Output UAV → COPY_SOURCE
         // ============================================================
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = _outputTexture->getTextureBuffer();
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        renderModule._commandList->_commandList->ResourceBarrier(1, &barrier);
+        renderModule.resourceBarrierTransition(_outputTexture->getTextureBuffer(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
 
         // ============================================================
         // BackBuffer → COPY_DEST
         // ============================================================
-        barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = renderModule._backBufferResourceArr[renderModule.kCurrentFrameIndex].get();
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        renderModule._commandList->_commandList->ResourceBarrier(1, &barrier);
+        const uint32 rtvIndex = RenderModule::kCurrentFrameIndex * RenderModule::kFrameCount + 1;
+        ID3D12Resource* renderTarget = renderModule._renderTargetTextureArr[rtvIndex]->getTextureBuffer();
+        renderModule.resourceBarrierTransition(renderTarget, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 
         // ============================================================
         // Copy
         // ============================================================
-        renderModule._commandList->_commandList->CopyResource(renderModule._backBufferResourceArr[renderModule.kCurrentFrameIndex].get(), _outputTexture->getTextureBuffer());
+        renderModule._commandList->_commandList->CopyResource(renderTarget, _outputTexture->getTextureBuffer());
 
         // ============================================================
         // BackBuffer → PRESENT
         // ============================================================
-        barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = renderModule._backBufferResourceArr[renderModule.kCurrentFrameIndex].get();
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        renderModule._commandList->_commandList->ResourceBarrier(1, &barrier);
+        renderModule.resourceBarrierTransition(renderTarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
         // ============================================================
-        // Output UAV → UAV
+        // Output COPY_SOURCE → UAV
         // ============================================================
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = _outputTexture->getTextureBuffer();
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        renderModule._commandList->_commandList->ResourceBarrier(1, &barrier);
+        renderModule.resourceBarrierTransition(_outputTexture->getTextureBuffer(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
 }

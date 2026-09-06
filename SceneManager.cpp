@@ -28,15 +28,17 @@ namespace DK
 		const bool success = MeshUtil::createSphere(tessellationX, tessellationY, radius, positionArr, normalArr, uvArr, indexArr);
 		DK_ASSERT_LOG(success, "");
 
-		VertexBufferViewRef vertexBufferView;
-		IndexBufferViewRef indexBufferView;
-		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(positionArr.data(), sizeof(decltype(positionArr[0])), static_cast<uint32>(positionArr.size()), vertexBufferView, L"SkyeDome_VertexBuffer");
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"SkyDome_IndexBuffer");
+		//RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		//RenderResourcePtr<ID3D12Resource> indexBuffer;
+		//VertexBufferViewRef vertexBufferView;
+		//IndexBufferViewRef indexBufferView;
+		//RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		//const bool vertexBufferSuccess = renderModule.createVertexBuffer(positionArr.data(), sizeof(decltype(positionArr[0])), static_cast<uint32>(positionArr.size()), vertexBuffer, vertexBufferView, L"SkyeDome_VertexBuffer");
+		//const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"SkyDome_IndexBuffer");
 
-		/*_skyDome._mesh._vertexBufferView = vertexBufferView;
-		_skyDome._mesh._indexBufferView = indexBufferView;
-		_skyDome._mesh._indexCount = indexArr.size();*/
+		//_skyDome._mesh._vertexBufferView = vertexBufferView;
+		//_skyDome._mesh._indexBufferView = indexBufferView;
+		//_skyDome._mesh._indexCount = indexArr.size();
 	}
 
 	static const bool createSquareMesh(const uint32 resolution, const float2 resolutionScale, DKVector<float2>& vertexArr, DKVector<uint32>& indexArr)
@@ -70,14 +72,14 @@ namespace DK
 
 		return true;
 	}
-	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
+	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, RenderResourcePtr<ID3D12Resource>& vertexBuffer, RenderResourcePtr<ID3D12Resource>& indexBuffer, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"TerrainMesh_VertexBuffer");
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBuffer, vertexBufferView, L"TerrainMesh_VertexBuffer");
 		if (vertexBufferSuccess == false)
 			return false;
 
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"TerrainMesh_IndexBuffer");
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"TerrainMesh_IndexBuffer");
 		if (indexBufferSuccess == false)
 			return false;
 
@@ -90,10 +92,12 @@ namespace DK
 		DKVector<uint32> indexArr;
 		createSquareMesh(Ocean::OCEAN_LENGTH, static_cast<float>(Ocean::OCEAN_N) / static_cast<float>(Ocean::OCEAN_LENGTH), vertexArr, indexArr);
 
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		const bool success = createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		_ocean._mesh = SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
+		const bool success = createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		_ocean._mesh = SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 
 		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(Ocean::OceanParams), L"_initialSpectrumConstantBuffer");
 
@@ -218,10 +222,12 @@ namespace DK
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, indexArr.size());
 	}
 	static SceneManager::Mesh loadLevel_ClipMap_Tile(const uint32 tileResolution)
 	{
@@ -229,10 +235,12 @@ namespace DK
 		DKVector<uint32> indexArr;
 		createSquareMesh(tileResolution, float2::Identity, vertexArr, indexArr);
 
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::Mesh(vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
+		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 	}
 	static SceneManager::Mesh loadLevel_ClipMap_Filter(const uint32 patchVertexResolution, const uint32 tileResolution)
 	{
@@ -297,10 +305,12 @@ namespace DK
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, indexArr.size());
 	}
 	static SceneManager::Mesh loadLevel_ClipMap_Trim()
 	{
@@ -361,10 +371,12 @@ namespace DK
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, indexArr.size());
 	}
 	static SceneManager::Mesh loadLevel_ClipMap_Seam()
 	{
@@ -391,10 +403,12 @@ namespace DK
 		indexArr[indexArr.size() - 1] = 0;
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		createPrimitiveBuffer(vertexArr, indexArr, vertexBufferView, indexBufferView);
-		return SceneManager::Mesh(vertexBufferView, indexBufferView, indexArr.size());
+		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, indexArr.size());
 	}
 	void SceneManager::loadLevel()
 	{
@@ -448,11 +462,15 @@ namespace DK
 		const DKVector<uint32> indexArr = getScreenPlaneIndexBufferData();
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"PostProcess_VertexBuffer");
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"PostProcess_IndexBuffer");
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBuffer, vertexBufferView, L"PostProcess_VertexBuffer");
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"PostProcess_IndexBuffer");
 
+		_postProcess._mesh._vertexBuffer = vertexBuffer;
+		_postProcess._mesh._indexBuffer = indexBuffer;
 		_postProcess._mesh._vertexBufferView = vertexBufferView;
 		_postProcess._mesh._indexBufferView = indexBufferView;
 		_postProcess._mesh._indexCount = indexArr.size();
@@ -463,11 +481,15 @@ namespace DK
 		const DKVector<uint32> indexArr = getScreenPlaneIndexBufferData();
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		RenderResourcePtr<ID3D12Resource> vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"PostProcess_VertexBuffer");
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"PostProcess_IndexBuffer");
+		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBuffer, vertexBufferView, L"PostProcess_VertexBuffer");
+		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"PostProcess_IndexBuffer");
 
+		_gBuffer._mesh._vertexBuffer = vertexBuffer;
+		_gBuffer._mesh._indexBuffer = indexBuffer;
 		_gBuffer._mesh._vertexBufferView = vertexBufferView;
 		_gBuffer._mesh._indexBufferView = indexBufferView;
 		_gBuffer._mesh._indexCount = indexArr.size();

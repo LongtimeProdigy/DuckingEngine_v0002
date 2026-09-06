@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 namespace DK
 {
@@ -29,11 +29,14 @@ namespace DK
 
 	public:
 		SubMesh(
-			const DKVector<VertexType>&& vertices, const DKVector<uint32>&& indices, 
+			const DKVector<VertexType>&& vertices, const DKVector<uint32>&& indices,
+			RenderResourcePtr<ID3D12Resource>&& vertexBuffer, RenderResourcePtr<ID3D12Resource>&& indexBuffer,
 			const VertexBufferViewRef&& vertexBufferView, const IndexBufferViewRef&& indexBufferView, 
 			Material* material)
 			: _vertices(DK::move(vertices))
 			, _indices(DK::move(indices))
+			, _vertexBuffer(DK::move(vertexBuffer))
+			, _indexBuffer(DK::move(indexBuffer))
 			, _vertexBufferView(DK::move(vertexBufferView))
 			, _indexBufferView(DK::move(indexBufferView))
 			, _material(material)
@@ -41,6 +44,8 @@ namespace DK
 		SubMesh(SubMesh&& rhs)
 			: _vertices(DK::move(rhs._vertices))
 			, _indices(DK::move(rhs._indices))
+			, _vertexBuffer(DK::move(rhs._vertexBuffer))
+			, _indexBuffer(DK::move(rhs._indexBuffer))
 			, _vertexBufferView(DK::move(rhs._vertexBufferView))
 			, _indexBufferView(DK::move(rhs._indexBufferView))
 			, _material(rhs._material.relocate())
@@ -49,6 +54,8 @@ namespace DK
 	public:
 		const DKVector<VertexType> _vertices;
 		const DKVector<uint32> _indices;
+		RenderResourcePtr<ID3D12Resource> _vertexBuffer;
+		RenderResourcePtr<ID3D12Resource> _indexBuffer;
 		const VertexBufferViewRef _vertexBufferView;
 		const IndexBufferViewRef _indexBufferView;
 		Ptr<Material> _material;

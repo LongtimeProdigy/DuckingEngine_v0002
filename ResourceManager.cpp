@@ -419,26 +419,28 @@ namespace DK
 			DK::memcpy(&indexCount, &buffer[bufferOffset], 4);
 			bufferOffset += 4;
 			// indexBuffer
-			DKVector<uint32> indexBuffer;
-			indexBuffer.resize(indexCount);
-			DK::memcpy(indexBuffer.data(), &buffer[bufferOffset], indexCount * 4);
+			DKVector<uint32> indexBufferData;
+			indexBufferData.resize(indexCount);
+			DK::memcpy(indexBufferData.data(), &buffer[bufferOffset], indexCount * 4);
 			bufferOffset += indexCount * 4;
 
 			uint32 vertexCount = 0;
 			DK::memcpy(&vertexCount, &buffer[bufferOffset], 4);
 			bufferOffset += 4;
-			DKVector<StaticMeshModel::SubMeshType::VertexType> vertexBuffer;
-			vertexBuffer.resize(vertexCount);
-			DK::memcpy(vertexBuffer.data(), &buffer[bufferOffset], vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType));
+			DKVector<StaticMeshModel::SubMeshType::VertexType> vertexBufferData;
+			vertexBufferData.resize(vertexCount);
+			DK::memcpy(vertexBufferData.data(), &buffer[bufferOffset], vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType));
 			bufferOffset += vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType);
 
+			RenderResourcePtr<ID3D12Resource> vertexBuffer;
 			VertexBufferViewRef vertexBufferView;
-			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBuffer.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"StaticMesh_VertexBuffer");
+			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBuffer, vertexBufferView, L"StaticMesh_VertexBuffer");
 			if (vertexBufferSuccess == false)
 				return nullptr;
 
+			RenderResourcePtr<ID3D12Resource> indexBuffer;
 			IndexBufferViewRef indexBufferView;
-			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBuffer.data(), indexCount, indexBufferView, L"StaticMesh_IndexBuffer");
+			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBuffer, indexBufferView, L"StaticMesh_IndexBuffer");
 			if (indexBufferSuccess == false)
 				return nullptr;
 
@@ -447,7 +449,8 @@ namespace DK
 				return nullptr;
 
 			StaticMeshModel::SubMeshType subMesh(
-				DK::move(vertexBuffer), DK::move(indexBuffer), 
+				DK::move(vertexBufferData), DK::move(indexBufferData), 
+				DK::move(vertexBuffer), DK::move(indexBuffer),
 				DK::move(vertexBufferView), DK::move(indexBufferView), 
 				newMaterial
 			);
@@ -512,21 +515,21 @@ namespace DK
 			uint32 indexCount = 0;
 			DK::memcpy(&indexCount, &buffer[bufferOffset], sizeof(uint32));
 			bufferOffset += 4;
-			DKVector<uint32> indexBuffer;
-			indexBuffer.resize(indexCount);
-			DK::memcpy(indexBuffer.data(), &buffer[bufferOffset], indexCount * sizeof(uint32));
+			DKVector<uint32> indexBufferData;
+			indexBufferData.resize(indexCount);
+			DK::memcpy(indexBufferData.data(), &buffer[bufferOffset], indexCount * sizeof(uint32));
 			bufferOffset += indexCount * sizeof(uint32);
 
 			uint32 vertexCount = 0;
 			DK::memcpy(&vertexCount, &buffer[bufferOffset], sizeof(uint32));
 			bufferOffset += 4;
-			DKVector<SkinnedMeshModel::SubMeshType::VertexType> vertexBuffer;
-			vertexBuffer.resize(vertexCount);
-			DK::memcpy(vertexBuffer.data(), &buffer[bufferOffset], vertexCount * sizeof(SkinnedMeshModel::SubMeshType::VertexType));
+			DKVector<SkinnedMeshModel::SubMeshType::VertexType> vertexBufferData;
+			vertexBufferData.resize(vertexCount);
+			DK::memcpy(vertexBufferData.data(), &buffer[bufferOffset], vertexCount * sizeof(SkinnedMeshModel::SubMeshType::VertexType));
 			bufferOffset += vertexCount * sizeof(SkinnedMeshModel::SubMeshType::VertexType);
 
 #ifdef _DK_DEBUG_
-			for (auto vertex : vertexBuffer)
+			for (auto vertex : vertexBufferData)
 			{
 				float sumWeight = 0.0f;
 				for (uint32 i = 0; i < MAX_SKINNING_COUNT; ++i)
@@ -541,13 +544,15 @@ namespace DK
 			}
 #endif
 
+			RenderResourcePtr<ID3D12Resource> vertexBuffer;
 			VertexBufferViewRef vertexBufferView;
-			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBuffer.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"SkinnedMesh_VertexBuffer");
+			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBuffer, vertexBufferView, L"SkinnedMesh_VertexBuffer");
 			if (vertexBufferSuccess == false)
 				return nullptr;
 
+			RenderResourcePtr<ID3D12Resource> indexBuffer;
 			IndexBufferViewRef indexBufferView;
-			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBuffer.data(), indexCount, indexBufferView, L"SkinnedMesh_IndexBuffer");
+			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBuffer, indexBufferView, L"SkinnedMesh_IndexBuffer");
 			if (indexBufferSuccess == false)
 				return nullptr;
 
@@ -556,6 +561,7 @@ namespace DK
 				return nullptr;
 
 			SkinnedMeshModel::SubMeshType subMesh(
+				DK::move(vertexBufferData), DK::move(indexBufferData),
 				DK::move(vertexBuffer), DK::move(indexBuffer),
 				DK::move(vertexBufferView), DK::move(indexBufferView),
 				newMaterial

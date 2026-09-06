@@ -10,19 +10,23 @@ namespace DK
     {
         RenderResourcePtr<ID3D12Resource> _blas = nullptr;
         RenderResourcePtr<ID3D12Resource> _scratch = nullptr;
+        uint32 _materialIndex = 0xFFFFFFFF;
 
         BLAS()
         {}
-        BLAS(ID3D12Resource* blas, ID3D12Resource* scratch)
+        BLAS(ID3D12Resource* blas, ID3D12Resource* scratch, const uint32 materialIndex)
             : _blas(blas)
             , _scratch(scratch)
+            , _materialIndex(materialIndex)
         {}
         BLAS(BLAS&& rhs)
             : _blas(DK::move(rhs._blas))
             , _scratch(DK::move(rhs._scratch))
+            , _materialIndex(rhs._materialIndex)
         {
             rhs._blas = nullptr;
             rhs._scratch = nullptr;
+            rhs._materialIndex = 0xFFFFFFFF;
         }
 
         const bool isValid() const
@@ -82,6 +86,11 @@ namespace DK
 	class RaytracingRenderer
 	{
 	public:
+        constexpr static const uint32 kRaytracingDescriptorCount = 1024;
+        constexpr static const uint32 kVertexBufferSpace = 20;
+        constexpr static const uint32 kIndexBufferSpace = 21;
+        constexpr static const uint32 kMaterialSpace = 22;
+
 		const bool initialize(RenderModule* renderModule, const uint32 width, const uint32 height);
 
 		void updateRaytracingRenderer(RenderModule& renderModule);

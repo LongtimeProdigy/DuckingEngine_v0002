@@ -24,13 +24,17 @@ namespace DK
 		{
 			Mesh()
 			{}
-			Mesh(const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
-				: _vertexBufferView(vertexBufferView)
+			Mesh(RenderResourcePtr<ID3D12Resource>&& vertexBuffer, RenderResourcePtr<ID3D12Resource>&& indexBuffer, const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
+				: _vertexBuffer(DK::move(vertexBuffer))
+				, _indexBuffer(DK::move(indexBuffer))
+				, _vertexBufferView(vertexBufferView)
 				, _indexBufferView(indexBufferView)
 				, _indexCount(indexCount)
 			{}
 
 		public:
+			RenderResourcePtr<ID3D12Resource> _vertexBuffer;
+			RenderResourcePtr<ID3D12Resource> _indexBuffer;
 			VertexBufferViewRef _vertexBufferView = nullptr;
 			IndexBufferViewRef _indexBufferView = nullptr;
 			uint32 _indexCount = 0;
