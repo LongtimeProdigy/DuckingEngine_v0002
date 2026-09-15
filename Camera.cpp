@@ -35,10 +35,14 @@ namespace DK
 			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_Q));
 
 		float yaw = mouseDelta.x; // + rJoystick.x
-		float pitch = mouseDelta.y; //+ rJoystick.y 
+		float pitch = mouseDelta.y; //+ rJoystick.y
 
-		yaw *= 0.2f;
-		pitch *= 0.2f;
+		_yaw += (mouseDelta.x + rJoystick.x) * 0.2f;
+		_pitch += (mouseDelta.y + rJoystick.y) * 0.2f;
+		_pitch = Math::clamp(_pitch, -Math::Half_PI + 0.0001f, Math::Half_PI - 0.0001f);
+		
+		// Rotate
+		Quaternion finalQuaternion(0.0f, _pitch, _yaw);
 
 		// Translation
 		float3 moveOffset(moveRight, moveUp, moveForward);
@@ -50,24 +54,8 @@ namespace DK
 		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_SHIFT) == true)
 			moveOffset *= 30;
 
-		float3 rotatedMoveOffset = moveOffset * get_worldTransform().get_rotation();
+		float3 rotatedMoveOffset = moveOffset * finalQuaternion;
 		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();
-
-#if 0
-#endif
-		
-#if 1
-		// Rotate
-		const Quaternion& originRotation = get_worldTransform().get_rotation();
-		float3 originEuler;
-		originRotation.toEuler(originEuler);
-		float3 rotateOffset(pitch, yaw, 0);
-		float3 finalRotate = rotateOffset + originEuler;
-		finalRotate.x = Math::clamp(finalRotate.x, -Math::Half_PI - 0.0001f, Math::Half_PI - 0.0001f);
-		Quaternion finalQuaternion(finalRotate.z, finalRotate.x, finalRotate.y);
-#else
-		Quaternion finalQuaternion(0, pitch, yaw);
-#endif
 
 		Transform setTransform(finalMoveOffset, finalQuaternion, float3::Identity);
 
