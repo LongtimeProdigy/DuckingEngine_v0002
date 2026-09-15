@@ -24,6 +24,7 @@ namespace DK
 {
 	struct IBuffer;
 	struct DKCommandList;
+	class ShaderCompiler;
 
 	using TextureResourceViewType = uint32;
 
@@ -340,7 +341,7 @@ do{ \
 		DKCommandList* createCommandList();
 		bool initialize_createFence();
 		bool createRootSignature(RenderPass& renderPass, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
-		bool createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
+		bool createPipelineObjectState(const ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		const bool allocateTextureSRV(ITexture* texture);
 		const bool allocateTextureUAV(ITexture* texture);

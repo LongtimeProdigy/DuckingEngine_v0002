@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 struct IDxcBlob;
+struct IDxcUtils;
+struct IDxcCompiler3;
 
 namespace DK
 {
@@ -16,6 +18,13 @@ namespace DK
 	class ShaderCompiler
 	{
 	public:
-		static const bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader);
+		ShaderCompiler();
+
+		const bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader) const;
+
+	private:
+		bool _initialized = false;
+		RenderResourcePtr<IDxcUtils> _utils = nullptr;
+		RenderResourcePtr<IDxcCompiler3> _compiler3 = nullptr;
 	};
 }

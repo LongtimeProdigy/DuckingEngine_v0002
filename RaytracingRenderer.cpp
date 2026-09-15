@@ -124,7 +124,7 @@ namespace DK
 
         D3D12_RESOURCE_DESC scratchDesc =CD3DX12_RESOURCE_DESC::Buffer(prebuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
         CD3DX12_HEAP_PROPERTIES scratchProperty(D3D12_HEAP_TYPE_DEFAULT);
-        hr = device->CreateCommittedResource(&scratchProperty, D3D12_HEAP_FLAG_NONE, &scratchDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&scratch));
+        hr = device->CreateCommittedResource(&scratchProperty, D3D12_HEAP_FLAG_NONE, &scratchDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
         if (FAILED(hr))
         {
             DK_ASSERT_LOG(false, "failed craeteblas scratch");
@@ -133,6 +133,14 @@ namespace DK
             scratch = nullptr;
             return BLAS();
         }
+
+        D3D12_RESOURCE_BARRIER scratchBarrier{};
+        scratchBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        scratchBarrier.Transition.pResource = scratch;
+        scratchBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        scratchBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        scratchBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        commandList->ResourceBarrier(1, &scratchBarrier);
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc = {};
         buildDesc.Inputs = inputs;
@@ -277,7 +285,7 @@ namespace DK
         }
 
         D3D12_RESOURCE_DESC scratchDesc = CD3DX12_RESOURCE_DESC::Buffer(prebuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-        hr = device->CreateCommittedResource( &defaultHeap, D3D12_HEAP_FLAG_NONE, &scratchDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&scratch));
+        hr = device->CreateCommittedResource( &defaultHeap, D3D12_HEAP_FLAG_NONE, &scratchDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
         if (FAILED(hr))
         {
             tlas->Release();
@@ -286,6 +294,14 @@ namespace DK
             instanceBuffer = nullptr;
             return TLAS();
         }
+
+        D3D12_RESOURCE_BARRIER scratchBarrier{};
+        scratchBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        scratchBarrier.Transition.pResource = scratch;
+        scratchBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        scratchBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        scratchBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        commandList->ResourceBarrier(1, &scratchBarrier);
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc = {};
         buildDesc.Inputs = inputs;

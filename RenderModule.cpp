@@ -881,7 +881,7 @@ namespace DK
 		DK_ASSERT_LOG(false, "Ptimitive정보가 올바르지 않습니다. pipeline이 작동되지 않을테니 반드시 확인이 필요합니다.");
 		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
 	}
-	bool RenderModule::createPipelineObjectState(const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
+	bool RenderModule::createPipelineObjectState(const ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
 	{
 		DKVector<DKString> emptyDefines;
 
@@ -897,12 +897,12 @@ namespace DK
 
 			D3D12_SHADER_BYTECODE vertexShaderView = {};
 			RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
-			bool success = ShaderCompiler::compileShader(pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(), ShaderType::VertexShader, emptyDefines, vertexShader.get(), vertexShaderView);
+			bool success = shaderCompiler.compileShader(pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(), ShaderType::VertexShader, emptyDefines, vertexShader.get(), vertexShaderView);
 			if (success == false)
 				return false;
 			D3D12_SHADER_BYTECODE pixelShaderView = {};
 			RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
-			success = ShaderCompiler::compileShader(pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(), ShaderType::PixelShader, emptyDefines, pixelShader.get(), pixelShaderView);
+			success = shaderCompiler.compileShader(pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(), ShaderType::PixelShader, emptyDefines, pixelShader.get(), pixelShaderView);
 			if (success == false)
 				return false;
 
@@ -1012,7 +1012,7 @@ namespace DK
 
 			D3D12_SHADER_BYTECODE computeShaderView = {};
 			RenderResourcePtr<IDxcBlob> computeShader = nullptr;
-			bool success = ShaderCompiler::compileShader(pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(), ShaderType::ComputeShader, emptyDefines, computeShader.get(), computeShaderView);
+			bool success = shaderCompiler.compileShader(pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(), ShaderType::ComputeShader, emptyDefines, computeShader.get(), computeShaderView);
 			if (success == false)
 				return false;
 
@@ -1046,7 +1046,7 @@ namespace DK
 			{
 				D3D12_SHADER_BYTECODE raygenShaderView = {};
 				RenderResourcePtr<IDxcBlob> raygenShaderBlob = nullptr;
-				const bool success = ShaderCompiler::compileShader(pipelineCreateInfo._raygenShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, raygenShaderBlob.get(), raygenShaderView);
+				const bool success = shaderCompiler.compileShader(pipelineCreateInfo._raygenShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, raygenShaderBlob.get(), raygenShaderView);
 				if (success == false)
 					return false;
 
@@ -1078,7 +1078,7 @@ namespace DK
 			{
 				D3D12_SHADER_BYTECODE missShaderView = {};
 				RenderResourcePtr<IDxcBlob> missShaderBlob = nullptr;
-				const bool success = ShaderCompiler::compileShader(pipelineCreateInfo._missShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, missShaderBlob.get(), missShaderView);
+				const bool success = shaderCompiler.compileShader(pipelineCreateInfo._missShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, missShaderBlob.get(), missShaderView);
 				if (success == false)
 					return false;
 
@@ -1120,7 +1120,7 @@ namespace DK
 			{
 				D3D12_SHADER_BYTECODE cloesetShaderView = {};
 				RenderResourcePtr<IDxcBlob> cloesetShaderBlob = nullptr;
-				const bool success = ShaderCompiler::compileShader(pipelineCreateInfo._closestShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, cloesetShaderBlob.get(), cloesetShaderView);
+				const bool success = shaderCompiler.compileShader(pipelineCreateInfo._closestShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, cloesetShaderBlob.get(), cloesetShaderView);
 				if (success == false)
 					return false;
 
@@ -1224,6 +1224,8 @@ namespace DK
 			return false;
 		}
 
+		ShaderCompiler shaderCompiler;
+
 		using PipelineCreateInfoIter = DKVector<DKPair<DKString, Pipeline::CreateInfo>>;
 		RenderPass& renderPass = insertResult.first->second;
 		renderPass._shaderParameterMap.swap(renderPassCreateInfo._shaderParameterMap);
@@ -1247,7 +1249,7 @@ namespace DK
 			newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
 			if (createRootSignature(renderPass, pipelineCreateInfo, newPipeline) == false)
 				return false;
-			if (createPipelineObjectState(pipelineCreateInfo, newPipeline) == false)
+			if (createPipelineObjectState(shaderCompiler, pipelineCreateInfo, newPipeline) == false)
 				return false;
 
 			renderPass._pipelineMap.insert(DKPair<DKString, Pipeline>(pipelineName, DK::move(newPipeline)));
@@ -1260,11 +1262,13 @@ namespace DK
 #if defined(_DK_DEBUG_)
 	const bool RenderModule::reloadShader()
 	{
+		ShaderCompiler shaderCompiler;
+
 		for (DKHashMap<DKString, RenderPass>::iterator iter = _renderPassMap.begin(); iter != _renderPassMap.end(); ++iter)
 		{
 			for (DKHashMap<DKString, Pipeline>::iterator pipelineIter = iter->second._pipelineMap.begin(); pipelineIter != iter->second._pipelineMap.end(); ++pipelineIter)
 			{
-				if (createPipelineObjectState(pipelineIter->second._createInfo, pipelineIter->second) == false)
+				if (createPipelineObjectState(shaderCompiler, pipelineIter->second._createInfo, pipelineIter->second) == false)
 					return false;
 			}
 		}

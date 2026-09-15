@@ -4,27 +4,25 @@
 
 namespace DK
 {
-	const bool ShaderCompiler::compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader)
+	ShaderCompiler::ShaderCompiler()
 	{
-		RenderResourcePtr<IDxcUtils> utils(nullptr);
-		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.getAddress()));
+		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(_utils.getAddress()));
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "");
-			return false;
+			return;
 		}
 
-		RenderResourcePtr<IDxcCompiler3> compiler3(nullptr);
-		hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(compiler3.getAddress()));
+		hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(_compiler3.getAddress()));
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "");
-			return false;
+			return;
 		}
 
 #ifdef _DK_DEBUG_
 		IDxcVersionInfo* versionInfo = nullptr;
-		hr = compiler3->QueryInterface(IID_PPV_ARGS(&versionInfo));
+		hr = _compiler3->QueryInterface(IID_PPV_ARGS(&versionInfo));
 		if (SUCCEEDED(hr))
 		{
 			UINT major = 0;
@@ -35,13 +33,16 @@ namespace DK
 		}
 #endif
 
+		_initialized = true;
+	}
+	const bool ShaderCompiler::compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader) const
+	{
 		const ScopeString<DK_MAX_PATH> shaderFullPath = GlobalPath::makeResourceFullPath(shaderPath);
-
 		const DKStringW shaderPathW = StringUtil::convertCtoWC(shaderFullPath.c_str());
 		const DKStringW shaderEntryW = StringUtil::convertCtoWC(entry);
 
 		RenderResourcePtr<IDxcBlobEncoding> sourceBlob(nullptr);
-		hr = utils->LoadFile(shaderPathW.c_str(), nullptr, sourceBlob.getAddress());
+		HRESULT hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->LoadFile(shaderPathW.c_str(), nullptr, sourceBlob.getAddress());
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "");
@@ -117,7 +118,7 @@ namespace DK
 		sourceBuffer.Encoding = DXC_CP_ACP;
 
 		RenderResourcePtr<IDxcIncludeHandler> defaultIncludeHandler;
-		hr = utils->CreateDefaultIncludeHandler(defaultIncludeHandler.getAddress());
+		hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->CreateDefaultIncludeHandler(defaultIncludeHandler.getAddress());
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "IncludeHandler 생성에 실패했습니다. Shader Compiler을 하지 않습니다.");
@@ -125,7 +126,7 @@ namespace DK
 		}
 
 		RenderResourcePtr<IDxcResult> result(nullptr);
-		hr = compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(result.getAddress()));
+		hr = const_cast<RenderResourcePtr<IDxcCompiler3>&>(_compiler3)->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(result.getAddress()));
 		if (FAILED(hr))
 		{
 			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
