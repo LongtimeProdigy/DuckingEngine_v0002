@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "GameModule.h"
 
 #include "DuckingEngine.h"
@@ -14,11 +14,14 @@ namespace DK
 	bool GameModule::initialize()
 	{
 		// Test Terrain
+		DuckingEngine::getInstance().getSceneManagerWritable().loadOcean();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadGbuffer();
 
+		SceneObject* sponza = DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadGLTF("Resource/Object/Sponza/glTF/Sponza.gltf");
+		sponza->set_worldTransform(Transform(float3(0, 0, 0), Quaternion::Identity, float3(0.05f, 0.05f, 0.05f)));
 
 		// Test Object
 		SceneObject* testObjectSceneObject = SceneObjectManager::createSceneObject(

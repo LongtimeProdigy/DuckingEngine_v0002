@@ -3,6 +3,7 @@
 
 #include "DuckingEngine.h"
 #include "RenderModule.h"
+#include "RaytracingRenderer.h"
 #include "SceneObjectManager.h"
 #include "Camera.h"
 #include "StaticMeshComponent.h"
@@ -30,7 +31,8 @@ namespace DK
 	constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderParameterType::Count)] =
 	{
 		"Buffer",
-		"StructuredBuffer"
+		"StructuredBuffer",
+		"RaytracingAccelerationStructure", 
 	};
 	ShaderParameterType convertStringToEnum2(const char* str)
 	{
@@ -160,6 +162,18 @@ namespace DK
 							pipelineCreateInfo._pixelShaderEntry = pipelineChildNode->Attribute("Entry");
 							pipelineCreateInfo._pixelShaderPath = pipelineChildNode->GetText();
 						}
+						else if (pipelineChildNodeName == "RootConstant")
+						{
+							DKString names = pipelineChildNode->Attribute("Names");
+							DKString registerIndex = pipelineChildNode->Attribute("Register");
+
+							StringSplitter splitter(names, " ");
+
+							RootConstant32BitParameter parameter;
+							parameter._parameters = splitter.getStrings();
+							parameter._register = StringUtil::atoi(registerIndex.c_str());
+							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
+						}
 						else if (pipelineChildNodeName == "Parameter")
 						{
 							DKString name;
@@ -193,6 +207,73 @@ namespace DK
 						{
 							pipelineCreateInfo._computeShaderEntry = pipelineChildNode->Attribute("Entry");
 							pipelineCreateInfo._computeShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "RootConstant")
+						{
+							DKString names = pipelineChildNode->Attribute("Names");
+							DKString registerIndex = pipelineChildNode->Attribute("Register");
+
+							StringSplitter splitter(names, " ");
+
+							RootConstant32BitParameter parameter;
+							parameter._parameters = splitter.getStrings();
+							parameter._register = StringUtil::atoi(registerIndex.c_str());
+							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
+						}
+						else if (pipelineChildNodeName == "Parameter")
+						{
+							DKString name;
+							ShaderParameter shaderParameter;
+							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
+								return false;
+							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
+						}
+						else
+						{
+							DK_ASSERT_LOG(false, "지원하지 ComputePipeline ChildNode입니다. NodeName: %s", pipelineChildNodeName.c_str());
+							return false;
+						}
+					}
+
+					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+				}
+				else if (renderPassChildNodeName == "RaytracingPipeline")
+				{
+					Pipeline::CreateInfo pipelineCreateInfo;
+					DKString pipelineName = renderPassChildNode->Attribute("Name");
+
+					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
+					{
+						if (pipelineChildNode->Type() == 2)	//NODETYPE::TINYXML_COMMENT
+							continue;
+
+						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "RaygenShader")
+						{
+							pipelineCreateInfo._raygenEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._raygenShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "MissShader")
+						{
+							pipelineCreateInfo._missEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._missShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "ClosestHitShader")
+						{
+							pipelineCreateInfo._closestEntry = pipelineChildNode->Attribute("Entry");
+							pipelineCreateInfo._closestShaderPath = pipelineChildNode->GetText();
+						}
+						else if (pipelineChildNodeName == "RootConstant")
+						{
+							DKString names = pipelineChildNode->Attribute("Names");
+							DKString registerIndex = pipelineChildNode->Attribute("Register");
+
+							StringSplitter splitter(names, " ");
+
+							RootConstant32BitParameter parameter;
+							parameter._parameters = splitter.getStrings();
+							parameter._register = StringUtil::atoi(registerIndex.c_str());
+							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
 						}
 						else if (pipelineChildNodeName == "Parameter")
 						{
@@ -379,20 +460,24 @@ namespace DK
 			}
 		}
 	}
+
+	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
 	void SceneRenderer::preRender() const noexcept
 	{
+#if defined(_DK_DEBUG_)
+		bool isReload = false;
+#endif
 #if defined(USE_IMGUI)
-		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
+		ImGui_ImplDX12_NewFrame();
 		ImGui::NewFrame();
 
-		//static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 		{
-			static float f = 0.0f;
-			static int counter = 0;
-			static char buf[200] = {};
-
 			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+#if defined(_DK_DEBUG_)
+			ImGui::Checkbox("Shader Reload", &isReload);
+#endif
 
 #define MAX_BUFFER_LENGTH 200
 			ImGui::Text("MainCameraPosition");
@@ -436,6 +521,8 @@ namespace DK
 			ImGui::InputInt3("Planet C: ", _atmosphereConstantBufferData._planetCentre);
 			ImGui::InputInt("Planet R: ", &_atmosphereConstantBufferData._planetRadius);
 			ImGui::InputInt("AtmosRadius: ", &_atmosphereConstantBufferData._atmosphereRadius);
+			ImGui::InputFloat("OceanHeightScale: ", &gHeightScale);
+
 			ImGui::End();
 		}
 
@@ -444,15 +531,175 @@ namespace DK
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		renderModule.preRender();
+
+#if defined(_DK_DEBUG_)
+		if (isReload)
+		{
+			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+			renderModule.reloadShader();
+		}
+#endif
 	}
 	void SceneRenderer::updateRender() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true);
+#if 1
+		RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
+		raytracingRenderer.updateRaytracingRenderer(renderModule);
+		raytracingRenderer.dispatchRay(renderModule);
+#endif
+
+#if 0
+		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
-#if (0)
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
+
+			/*
+				A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
+				L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
+				N       = FFT 해상도						// 256 표준, 512 고품질
+				Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
+				WindDir = 바람 방향 + 세기
+			*/
+			// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
+			static float2 windDir = float2(20, 20);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
+			static float waveEnergy = 0.0005f;
+			static float g = 9.81f;
+			const float windLength = windDir.length();
+			const float time = _sceneConstantBufferData._time;
+			const uint32 length = SceneManager::Ocean::OCEAN_LENGTH;
+			const float A = waveEnergy;
+			const float L = windLength * windLength / g;
+			const uint32 N = SceneManager::Ocean::OCEAN_N;
+
+			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount];
+			ITextureRef targetTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount + 1];
+
+			SceneManager::Ocean::OceanParams params(
+				time, g, 0, gHeightScale, windDir, length, A, L, N,
+				ocean._h0[0]->getSRV(), ocean._h0[0]->getUAV(),
+				sourceTexture->getSRV(), sourceTexture->getUAV(),
+				ocean._height[ocean._currentReadTextureIndex]->getSRV(), ocean._height[ocean._currentReadTextureIndex]->getUAV(), 
+				ocean._normal[ocean._currentReadTextureIndex]->getSRV(), ocean._normal[ocean._currentReadTextureIndex]->getUAV()
+			);
+			ocean._initialSpectrumConstantBuffer->upload(&params);
+
+			static bool initial = false;
+			if (initial == false)
+			{
+				startPipeline("InitialSpectrum");
+				{
+					renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+				}
+				endPipeline();
+
+				renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+				initial = true;
+			}
+
+			startPipeline("UpdateSpectrum");
+			{
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+
+			renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			const uint32 stages = static_cast<uint32>(log2(static_cast<float>(ocean.OCEAN_N)));
+
+			startPipeline("FFTButterflyHorizontal");
+			{
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				for (UINT stage = 0; stage < stages; ++stage)
+				{
+					setRootConstantParameter("_stage", stage);
+					setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
+					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
+
+					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+					renderModule.resourceBarrier(targetTexture->getTextureBuffer(), D3D12_RESOURCE_BARRIER_TYPE_UAV);
+
+					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+					ITextureRef tempTexture = sourceTexture;
+					sourceTexture = targetTexture;
+					targetTexture = tempTexture;
+				}
+			}
+			endPipeline();
+			startPipeline("FFTButterflyVertical");
+			{
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				for (UINT stage = 0; stage < stages; ++stage)
+				{
+					setRootConstantParameter("_stage", stage);
+					setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
+					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
+
+					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+					renderModule.resourceBarrier(targetTexture->getTextureBuffer(), D3D12_RESOURCE_BARRIER_TYPE_UAV);
+
+					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+					ITextureRef tempTexture = sourceTexture;
+					sourceTexture = targetTexture;
+					targetTexture = tempTexture;
+				}
+			}
+			endPipeline();
+
+			renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			startPipeline("Finalize");
+			{
+				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+
+			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			startPipeline("ComputeOceanNormal");
+			{
+				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+			}
+			endPipeline();
+
+			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+			startPipeline("RenderOcean");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+
+				renderModule.setVertexBuffers(0, 1, ocean._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(ocean._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(ocean._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
+
+			ocean._currentReadTextureIndex = (ocean._currentReadTextureIndex + 1) % DK_COUNT_OF(ocean._h0);
+		}
+		endRenderPass();
+
+		// MainRender
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true, false);
+		{
+#if 0
 			startPipeline("SkyDomePipeline");
 			{
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
@@ -467,6 +714,7 @@ namespace DK
 			endPipeline();
 #endif
 
+#if 0
 			startPipeline("TerrainClipmapPipeline");
 			{
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
@@ -486,7 +734,6 @@ namespace DK
 				// Draw Cross
 				{
 					float tileScale = vertexScale;
-					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
 					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
 
 					TerrainMeshConstantBuffer meshCBuffer;
@@ -501,10 +748,10 @@ namespace DK
 					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
 				}
 
-				for (uint32 i = 0; i < SceneManager::NUM_CLIPMAP_LEVELS; ++i)
+				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
 				{
 					float tileScale = (1 << i) * vertexScale;
-					float gridScale = static_cast<float>(SceneManager::TILE_RESOLUTION * tileScale);
+					float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION * tileScale);
 					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
 
 					float2 base = snappedCameraPos - gridScale * 2;
@@ -551,7 +798,7 @@ namespace DK
 					float nextGridScale = gridScale * 1;
 					float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
 					// Draw Seam
-					if (i != SceneManager::NUM_CLIPMAP_LEVELS)
+					if (i != SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
 					{
 						float2 next_base = nextSnappedPos - nextGridScale * 2;
 
@@ -589,6 +836,7 @@ namespace DK
 				}
 			}
 			endPipeline();
+#endif
 
 			startPipeline("StaticMeshStandardPipeline");
 			{
@@ -698,36 +946,41 @@ namespace DK
 		}
 		endRenderPass();
 
-		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false);
-		startPipeline("AtmospherePipeline");
+		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false, false);
 		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
+			startPipeline("AtmospherePipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
 
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
 
-			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
-			renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+				renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
 		}
-		endPipeline();
 		endRenderPass();
+#endif
 
 		// GBuffer
-		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false);
-		startPipeline("GBufferPipeline");
+		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false, false);
 		{
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+			startPipeline("GBufferPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
 
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();
 
-			renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
-			renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
+				renderModule.setVertexBuffers(0, 1, gBuffer._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(gBuffer._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(gBuffer._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
 		}
-		endPipeline();
 		endRenderPass();
 	}
 

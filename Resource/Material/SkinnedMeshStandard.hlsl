@@ -71,8 +71,8 @@ VS_OUTPUT VSMain(VS_INPUT input)
 
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
-    Texture2D diffuseTexture = gBindlessTextureArray[_diffuseTexture];
-    return diffuseTexture.Sample(normalSampler, input.uv0);
+    Texture2D<float4> diffuseTexture = getTexture(_diffuseTexture);
+    return diffuseTexture.Sample(bilinearRepeatSampler, input.uv0);
 }
 
 #endif

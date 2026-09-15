@@ -8,10 +8,14 @@ namespace DK
 {
 	EditorDebugDrawManager* EditorDebugDrawManager::_this = nullptr;
 
+	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBuffer = nullptr;
+	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBuffer = nullptr;
 	VertexBufferViewRef EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView = nullptr;
 	IndexBufferViewRef EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView = nullptr;
 	uint32 EditorDebugDrawManager::SpherePrimitiveInfo::indexCount = 0;
 
+	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::LinePrimitiveInfo::kVertexBuffer = nullptr;
+	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::LinePrimitiveInfo::kIndexBuffer = nullptr;
 	VertexBufferViewRef EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView = nullptr;
 	IndexBufferViewRef EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView = nullptr;
 	uint32 EditorDebugDrawManager::LinePrimitiveInfo::indexCount = 0;
@@ -24,11 +28,11 @@ namespace DK
 		return false;
 	}
 
-	bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView, Ptr<IBuffer>& primitiveInfoBuffer, const DKStringW& vertexDebugName, const DKStringW& indexDebugName, const DKStringW& cbufferDebugName)
+	bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, RenderResourcePtr<ID3D12Resource>& vertexBuffer, VertexBufferViewRef& vertexBufferView, RenderResourcePtr<ID3D12Resource>& indexBuffer, IndexBufferViewRef& indexBufferView, Ptr<IBuffer>& primitiveInfoBuffer, const DKStringW& vertexDebugName, const DKStringW& indexDebugName, const DKStringW& cbufferDebugName)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBufferView, vertexDebugName);
-		renderModule.createIndexBuffer(indices, indexCount, indexBufferView, indexDebugName);
+		renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBuffer, vertexBufferView, vertexDebugName);
+		renderModule.createIndexBuffer(indices, indexCount, indexBuffer, indexBufferView, indexDebugName);
 		outIndexCount = indexCount;
 
 		uint32 elementCount = MAX_ELEMENT_COUNT;
@@ -63,8 +67,10 @@ namespace DK
 		initialize_Common(
 			vertices, sizeof(decltype(vertices[0])), ARRAYSIZE(vertices),
 			indices, ARRAYSIZE(indices),
-			SpherePrimitiveInfo::indexCount, SpherePrimitiveInfo::kVertexBufferView,
-			SpherePrimitiveInfo::kIndexBufferView, _primitiveInfoSphereBuffer, 
+			SpherePrimitiveInfo::indexCount,
+			SpherePrimitiveInfo::kVertexBuffer, SpherePrimitiveInfo::kVertexBufferView,
+			SpherePrimitiveInfo::kIndexBuffer, SpherePrimitiveInfo::kIndexBufferView,
+			_primitiveInfoSphereBuffer, 
 			L"DebugDrawElement_Sphere_VertexBuffer", L"DebugDrawElement_Sphere_IndexBuffer", L"DebugDrawElement_Sphere_PrimitiveBuffer"
 		);
 
@@ -86,8 +92,10 @@ namespace DK
 		initialize_Common(
 			vertices, sizeof(decltype(vertices[0])), ARRAYSIZE(vertices),
 			indices, ARRAYSIZE(indices),
-			LinePrimitiveInfo::indexCount, LinePrimitiveInfo::kVertexBufferView,
-			LinePrimitiveInfo::kIndexBufferView, _primitiveInfoLineBuffer, 
+			LinePrimitiveInfo::indexCount,
+			LinePrimitiveInfo::kVertexBuffer, LinePrimitiveInfo::kVertexBufferView,
+			LinePrimitiveInfo::kIndexBuffer, LinePrimitiveInfo::kIndexBufferView,
+			_primitiveInfoLineBuffer,
 			L"DebugDrawElement_Line_VertexBuffer", L"DebugDrawElement_Line_IndexBuffer", L"DebugDrawElement_Line_PrimitiveBuffer"
 		);
 

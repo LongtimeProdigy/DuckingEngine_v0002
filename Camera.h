@@ -79,5 +79,12 @@ namespace DK
 
 		float _nearPlaneDistance = 0.1f;
 		float _farPlaneDistance = 1000.0f;
+
+		/*	Component의 Transform을 직접 쓰지 않는 이유
+		*	- Transform.get_rotation으로 얻어온 quaternion이 pitch가 90도 근처에 있을 때, toEuler를 하는 순간 짐벌락같이 Yaw, Roll이 특정하기 어려운 순간이 온다.
+		*	- 따라서 카메라의 경우 yaw, pitch를 직접 관리하여 clamp등에 사용하기 용이하도록 한다
+		*/
+		float _yaw = 0.0f;
+		float _pitch = 0.0f;
 	};
 }

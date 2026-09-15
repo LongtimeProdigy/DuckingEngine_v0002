@@ -1,22 +1,70 @@
+<!-- SamplerState pointSampler : register(s0); -->
+<!-- SamplerState bilinearRepeatSampler : register(s1); -->
+<!-- Texture2D<float4> gBindlessTextureSRVArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE); -->
+<!-- RWTexture2D<float4> gBindlessTextureUAVArray[] : register(u0, BINDLESSTEXTUREARRAY_SPACE); -->
+
 <RenderPassGroup>
-	<RenderPass Name="OceanComputeH0">
-		<ComputePipeline Name="ComputeH0">
-			<Parameter Name="OceanComputeConstantBuffer" Type="Buffer" Register="0"/>
-			<Shader Entry="ComputeH0">Shader/Ocean.hlsl</Shader>
+	<RenderPass Name="PathTracing">
+		<RaytracingPipeline Name="BruteForce">
+			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<RootConstant Names="_targetUAV" Register="1"/>
+			<Parameter Name="gTLAS" Type="RaytracingAccelerationStructure" Register="0"/>
+			<RaygenShader Entry="RayGen">Shader/Raytracing/PathTracingBruteForce.hlsl</RaygenShader>
+			<MissShader Entry="Miss">Shader/Raytracing/PathTracingBruteForce.hlsl</MissShader>
+			<ClosestHitShader Entry="ClosestHit">Shader/Raytracing/PathTracingBruteForce.hlsl</ClosestHitShader>
+		</RaytracingPipeline>
+	</RenderPass>
+
+	<RenderPass Name="OceanRenderPass">
+		<ComputePipeline Name="InitialSpectrum">
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
 		</ComputePipeline>
+		<ComputePipeline Name="UpdateSpectrum">
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/SpectrumUpdateCS.hlsl</Shader>
+		</ComputePipeline>
+		<ComputePipeline Name="FFTButterflyHorizontal">
+			<RootConstant Names="_stage _sourceSRV _targetUAV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="mainHorizontal">Material/Ocean/FFTButterflyCS.hlsl</Shader>
+		</ComputePipeline>
+		<ComputePipeline Name="FFTButterflyVertical">
+			<RootConstant Names="_stage _sourceSRV _targetUAV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="mainVertical">Material/Ocean/FFTButterflyCS.hlsl</Shader>
+		</ComputePipeline>
+		<ComputePipeline Name="Finalize">
+			<RootConstant Names="_sourceSRV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/FinalizeCS.hlsl</Shader>
+		</ComputePipeline>
+		<ComputePipeline Name="ComputeOceanNormal">
+			<RootConstant Names="_sourceSRV" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+			<Shader Entry="main">Material/Ocean/ComputeOceanNormal.hlsl</Shader>
+		</ComputePipeline>
+		<Pipeline Name="RenderOcean" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material/Ocean/RenderOcean.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material/Ocean/RenderOcean.hlsl</PixelShader>
+			<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
+			<Parameter Name="OceanParams" Type="Buffer" Register="1"/>
+		</Pipeline>
 	</RenderPass>
 
 	<RenderPass Name="MainRenderPass">
 		<Parameter Name="SceneConstantBuffer" Type="Buffer" Register="0"/>
 		
-		<Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Front">
+		<!-- <Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Front">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material/SkyDome.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material/SkyDome.hlsl</PixelShader>
-		</Pipeline>
-
+		</Pipeline> -->
 		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>

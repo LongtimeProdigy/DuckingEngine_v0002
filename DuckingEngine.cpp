@@ -3,6 +3,7 @@
 
 #include "InputModule.h"
 #include "RenderModule.h"
+#include "RaytracingRenderer.h"
 #include "SceneRenderer.h"
 
 #include "ResourceManager.h"
@@ -23,6 +24,7 @@ namespace DK
 {
 	DuckingEngine* DuckingEngine::_duckingEngine;
 	RenderModule* DuckingEngine::_renderModule = nullptr;
+	RaytracingRenderer* DuckingEngine::_raytracingRenderer = nullptr;
 	SceneRenderer* DuckingEngine::_sceneRenderer = nullptr;
 	ResourceManager* DuckingEngine::_resourceManager = nullptr;
 	SceneManager* DuckingEngine::_sceneManager = nullptr;
@@ -53,6 +55,10 @@ namespace DK
 		if (_sceneRenderer->initialize() == false) 
 			return false;
 
+		_raytracingRenderer = dk_new RaytracingRenderer;
+		if (_raytracingRenderer->initialize(_renderModule, width, height) == false)
+			return false;
+
 		_resourceManager = dk_new ResourceManager;
 
 		_sceneManager = dk_new SceneManager;
@@ -64,6 +70,8 @@ namespace DK
 
 		_gameModule = dk_new GameModule;
 		if (_gameModule->initialize() == false) return false;
+
+		_renderModule->postInitialize();
 
 		return true;
 	}

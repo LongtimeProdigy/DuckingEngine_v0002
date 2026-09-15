@@ -1,3 +1,7 @@
+#ifndef __DEFINE_TEXTURESTANDARD_HLSL__
+#define __DEFINE_TEXTURESTANDARD_HLSL__
+
+#include "TextureCommon.hlsl"
 
 struct VS_INPUT
 {
@@ -11,11 +15,6 @@ struct VS_OUTPUT
     float2 uv0 : TEXCOORD0;
     float4 color : TEXCOORD1;
 };
-
-#define TextureParameter uint
-#define BINDLESSTEXTUREARRAY_SPACE space10
-Texture2D gBindlessTextureArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE);
-SamplerState normalSampler : register(s0);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
@@ -32,7 +31,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 {
     VS_OUTPUT output = (VS_OUTPUT)0;
 
-    Texture2D heightTexture = gBindlessTextureArray[_heightTexture];
+    Texture2D<float4> heightTexture = getTexture(_heightTexture);
 #if 1
     uint t_width = 0, t_height = 0;
     heightTexture.GetDimensions(t_width, t_height);
@@ -55,3 +54,5 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
     return input.color;
 }
+
+#endif

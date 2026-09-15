@@ -79,7 +79,7 @@ namespace DK
 		DK_LOG("Window Initialize - Success");
 
 		UINT dpi = GetDpiForWindow(_hwnd);
-		DK_LOG("Window DPI = %u\n", dpi);
+		DK_LOG("Window DPI = %u", dpi);
 
 		if (DuckingEngine::getInstance().Initialize(_hwnd, data._width, data._height) == false)
 		{
@@ -150,6 +150,10 @@ namespace DK
 		MSG msg;
 		ZeroMemory(&msg, sizeof(MSG));
 
+		LARGE_INTEGER tTime;
+		QueryPerformanceCounter(&tTime);
+		g_tTime = tTime;
+
 		// #todo- running을 합칠 수 있을까?
 		while (true)
 		{
@@ -161,23 +165,21 @@ namespace DK
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
-			else {
-				updateFrame();
-				renderFrame();
-			}
+
+			LARGE_INTEGER tTime;
+			QueryPerformanceCounter(&tTime);
+			g_fDeltaTime = (tTime.QuadPart - g_tTime.QuadPart) / (float)g_tSecond.QuadPart;
+
+			updateFrame();
+			renderFrame();
+
+			g_tTime = tTime;
 		}
 	}
 
 	void Application::updateFrame()
 	{
-		LARGE_INTEGER tTime;
-		QueryPerformanceCounter(&tTime);
-
-		g_fDeltaTime = (tTime.QuadPart - g_tTime.QuadPart) / (float)g_tSecond.QuadPart;
-
 		DuckingEngine::getInstance().Update(g_fDeltaTime);
-
-		g_tTime = tTime;
 	}
 
 	void Application::renderFrame()

@@ -60,12 +60,11 @@ namespace DK
 #define BLOCK(category)
 
 #define MAX_LOG_BUFFER_LENGTH 32768
-#define DK_LOG(text, ...)												\
-{																		\
-	char buffer[MAX_LOG_BUFFER_LENGTH];									\
-	sprintf_s(buffer, MAX_LOG_BUFFER_LENGTH, text, __VA_ARGS__);		\
-	strcat_s(buffer, MAX_LOG_BUFFER_LENGTH, "\n");						\
-	OutputDebugStringA(buffer);											\
+#define DK_LOG(text, ...)																			\
+{																									\
+	char buffer[MAX_LOG_BUFFER_LENGTH];																\
+	sprintf_s(buffer, MAX_LOG_BUFFER_LENGTH, "%s(%d): " text "\n", __FILE__, __LINE__, __VA_ARGS__);\
+	OutputDebugStringA(buffer);																		\
 }
 
 #define DK_WLOG(text, ...)												\
@@ -129,6 +128,10 @@ namespace DK
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
 #include "d3dx12.h"
+#pragma region DXC
+#pragma comment(lib, "lib/dxc_2025_07_14/lib/x64/dxcompiler.lib")
+#include "lib/dxc_2025_07_14/inc/dxcapi.h"
+#pragma endregion
 #endif
 
 #include <vector>
@@ -205,6 +208,7 @@ namespace DK
 /*
 * String 함수
 */
+#include <filesystem>
 #include <wchar.h>
 #include <stdlib.h>
 namespace DK
@@ -287,6 +291,19 @@ namespace DK
 #pragma warning(pop)
 		}
 
+		static DKString extension(const DKString& source)
+		{
+			std::filesystem::path p = source;
+			return p.extension().string();
+		}
+
+		static void lower(DKString& inoutString)
+		{
+			std::transform(inoutString.begin(), inoutString.end(), inoutString.begin(), [](unsigned char c) {
+				return std::tolower(c);
+				});
+		}
+
 		//wchar_t 에서 char 로의 형변환 함수
 		static DKString convertWCtoC(const wchar_t* str)
 		{
@@ -299,7 +316,7 @@ namespace DK
 
 		///////////////////////////////////////////////////////////////////////
 		//char 에서 wchar_t 로의 형변환 함수
-		static DKStringW ConverCtoWC(const char* str)
+		static DKStringW convertCtoWC(const char* str)
 		{
 			DKVector<wchar_t> pStr;
 			int strSize = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, NULL);
@@ -329,6 +346,12 @@ namespace DK
 		{
 			return _container[index];
 		}
+
+		const uint32 size() const { return _container.size(); }
+
+#if defined(_DK_DEBUG_)
+		const DKVector<DKString>& getStrings() const { return _container; }
+#endif
 
 	private:
 		DKVector<DKString> _container;
@@ -365,7 +388,7 @@ namespace DK
 		}
 
 	private:
-		T _string[SIZE];
+		T _string[SIZE] = { 0, };
 	};
 	template <uint32 SIZE> using ScopeString = ScopeStringBase<char, SIZE>;
 	template <uint32 SIZE> using ScopeStringW = ScopeStringBase<wchar_t, SIZE>;
@@ -399,7 +422,7 @@ namespace DK
 		static void setResourcePath(const DKString& resourcePath)
 		{
 			kResourcePathA = resourcePath;
-			kResourcePathW = StringUtil::ConverCtoWC(kResourcePathA.c_str());
+			kResourcePathW = StringUtil::convertCtoWC(kResourcePathA.c_str());
 		}
 
 	private:
@@ -562,7 +585,11 @@ namespace DK
 		{
 			_ptr = nullptr;
 		}
-		dk_inline ~RenderResourcePtr();
+		dk_inline ~RenderResourcePtr()
+		{
+			if (_ptr != nullptr)
+				_ptr->Release();
+		}
 
 		dk_inline RenderResourcePtr(T* ptr)
 			: _ptr(ptr)
@@ -601,6 +628,10 @@ namespace DK
 		}
 
 		dk_inline T* get() noexcept
+		{
+			return _ptr;
+		}
+		dk_inline const T* get() const noexcept
 		{
 			return _ptr;
 		}
@@ -658,6 +689,9 @@ namespace DK
 		{
 			return float2(x / rhs, y / rhs);
 		}
+
+		dk_inline const float length() const;
+		dk_inline const float lengthSq() const;
 
 	public:
 		union
@@ -1258,6 +1292,15 @@ namespace DK
 #endif
 		};
 	};
+
+	const float float2::length() const
+	{
+		return Math::sqrt(x * x + y * y);
+	}
+	const float float2::lengthSq() const
+	{
+		return x * x + y * y;
+	}
 
 	static float3 operator*(const float3& lhs, const Quaternion& rhs)
 	{

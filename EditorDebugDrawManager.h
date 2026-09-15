@@ -10,6 +10,8 @@ namespace DK
 	public:
 		struct SpherePrimitiveInfo
 		{
+			static RenderResourcePtr<ID3D12Resource> kVertexBuffer;
+			static RenderResourcePtr<ID3D12Resource> kIndexBuffer;
 			static VertexBufferViewRef kVertexBufferView;
 			static IndexBufferViewRef kIndexBufferView;
 			static uint32 indexCount;
@@ -27,6 +29,8 @@ namespace DK
 		};
 		struct LinePrimitiveInfo
 		{
+			static RenderResourcePtr<ID3D12Resource> kVertexBuffer;
+			static RenderResourcePtr<ID3D12Resource> kIndexBuffer;
 			static VertexBufferViewRef kVertexBufferView;
 			static IndexBufferViewRef kIndexBufferView;
 			static uint32 indexCount;

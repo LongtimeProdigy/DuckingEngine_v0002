@@ -110,9 +110,9 @@ namespace DK
 
 		void setParameterValue(const T& value) noexcept;
 
+		T _value;				// ITexture의 RefCount 관리를 위해서 들고 있어야합니다.
 	private:
 		const T _defaultValue;
-		T _value;				// ITexture의 RefCount 관리를 위해서 들고 있어야합니다.
 	};
 
 	using MaterialParameterFloat = MaterialParameterTemplate<float>;
@@ -123,6 +123,7 @@ namespace DK
 	class Material
 	{
 	public:
+		static Material* createMaterial(const DKString& materialName);
 		static Material* createMaterial(const MaterialDefinition& modelProperty);
 
 	public:
@@ -138,14 +139,15 @@ namespace DK
 	public:
 		bool setModelProperty(const MaterialDefinition& modelProperty);
 
-		void setParameterValue(const DKString& name, void* value);
+		Material* clone() const;
 
-	private:
+		// TODO: private 로 내릴것
 		DK_REFLECTION_PROPERTY(DKString, _materialName);
 		DKVector<Ptr<MaterialParameter>> _parameterArr;
-
 		DKVector<char> _parameterBufferForCPU;
 		DK_REFLECTION_PTR_PROPERTY_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);
+	private:
+
 	};
 #pragma endregion
 }

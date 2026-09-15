@@ -26,7 +26,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
-    const Texture2D renderTexture = getRenderTargetTexture(_frameIndex.x, 1);
+    const Texture2D<float4> renderTexture = getRenderTargetTexture(_frameIndex.x, 1);
     const float4 originalCol = renderTexture.Load(uint3(input.uv * _resolution, 0));
     return originalCol;
 }

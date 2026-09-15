@@ -4,6 +4,7 @@ namespace DK
 {
 	class InputModule;
 	class RenderModule;
+	class RaytracingRenderer;
 	class SceneRenderer;
 	class ResourceManager;
 	class SceneObjectManager;
@@ -39,6 +40,8 @@ namespace DK
 
 		dk_inline const RenderModule& GetRenderModule() const noexcept { return *_renderModule; }
 		dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule; }
+		dk_inline const RaytracingRenderer& GetRaytracingRenderer() const noexcept { return *_raytracingRenderer; }
+		dk_inline RaytracingRenderer& GetRaytracingRendererWritable() noexcept { return *_raytracingRenderer; }
 		dk_inline const SceneRenderer& getSceneRender() const noexcept { return *_sceneRenderer; }
 		dk_inline SceneRenderer& getSceneRenderWritable() noexcept { return *_sceneRenderer; }
 		dk_inline const ResourceManager& GetResourceManager() const noexcept { return *_resourceManager; }
@@ -51,6 +54,7 @@ namespace DK
 	private:
 #pragma region System Modules
 		static RenderModule* _renderModule;
+		static RaytracingRenderer* _raytracingRenderer;
 		static SceneRenderer* _sceneRenderer;
 #pragma endregion
 

@@ -115,6 +115,10 @@
     <ClCompile Include="MeshUtil.cpp">
       <Filter>0. Common</Filter>
     </ClCompile>
+    <ClCompile Include="RaytracingRenderer.cpp" />
+    <ClCompile Include="ShaderCompiler.cpp">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
@@ -229,6 +233,12 @@
     </ClInclude>
     <ClInclude Include="MeshUtil.h">
       <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RaytracingRenderer.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderCompiler.h">
+      <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
