@@ -1206,7 +1206,7 @@ namespace DK
 
 		return true;
 	}
-	bool RenderModule::createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
+	bool RenderModule::createRenderPass(const ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
 	{
 		using FindResult = DKHashMap<DKString, RenderPass>::iterator;
 		FindResult find = _renderPassMap.find(renderPassName);
@@ -1223,8 +1223,6 @@ namespace DK
 			DK_ASSERT_LOG(false, "HashMap Insert에 실패!");
 			return false;
 		}
-
-		ShaderCompiler shaderCompiler;
 
 		using PipelineCreateInfoIter = DKVector<DKPair<DKString, Pipeline::CreateInfo>>;
 		RenderPass& renderPass = insertResult.first->second;
@@ -1272,6 +1270,8 @@ namespace DK
 					return false;
 			}
 		}
+
+		DuckingEngine::getInstance().GetRaytracingRendererWritable().createShaderBindingTable(this);
 
 		return true;
 	}
@@ -1727,9 +1727,10 @@ namespace DK
 		const size_t insertResult = _textureContainer.erase(texture->getPath());
 		DK_ASSERT_LOG(texture->_inContainer == false || insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", texture->getPath().c_str());
 
-		if (texture->getSRV() != ITexture::kErrorTextureResourceViewIndex)
+		// 이 곳에서 getSRV(), getUAV()를 사용하면 할당되지 않은 경우 내부 어썰트가 발생해서, 여기서만 예외적으로 SRV멤버변수를 직접 접근한다.
+		if (texture->_textureSRVIndex != ITexture::kErrorTextureResourceViewIndex)
 			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureSRV(texture->getSRV());
-		if (texture->getUAV() != ITexture::kErrorTextureResourceViewIndex)
+		if (texture->_textureUAVIndex != ITexture::kErrorTextureResourceViewIndex)
 			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureUAV(texture->getUAV());
 	}
 
@@ -1737,14 +1738,12 @@ namespace DK
 	{
 		EnsureMainThread();
 		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
-		//DK_ASSERT_LOG(index < _deletedTextureSRVArr.size(), "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureSRVArr.push_back(index);
 	}
 	void RenderModule::deallocateTextureUAV(const TextureResourceViewType index)
 	{
 		EnsureMainThread();
-		DK_ASSERT_LOG(index >= kMaxTextureSRVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
-		DK_ASSERT_LOG(index < _deletedTextureUAVArr.size(), "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
+		DK_ASSERT_LOG(index < kMaxTextureUAVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 		_deletedTextureUAVArr.push_back(index);
 	}
 

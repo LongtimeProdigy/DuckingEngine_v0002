@@ -92,6 +92,7 @@ namespace DK
         constexpr static const uint32 kMaterialSpace = 22;
 
 		const bool initialize(RenderModule* renderModule, const uint32 width, const uint32 height);
+        const bool createShaderBindingTable(RenderModule* renderModule);
 
 		void updateRaytracingRenderer(RenderModule& renderModule);
         void dispatchRay(RenderModule& renderModule);

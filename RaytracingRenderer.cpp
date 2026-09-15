@@ -13,10 +13,8 @@ namespace DK
 {
 	const bool RaytracingRenderer::initialize(RenderModule* renderModule, const uint32 width, const uint32 height)
 	{
-		HRESULT hr;
-
 		D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5{};
-		hr = renderModule->_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
+        HRESULT hr = renderModule->_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "DXR is not supported by this device.");
@@ -43,39 +41,43 @@ namespace DK
         _renderPassName = "PathTracing";
         _pipelineName = "BruteForce";
 
-        // SBT
-        {
-            Pipeline* pipeline = renderModule->getRenderPass(_renderPassName)->getPipeline(_pipelineName);
-
-            //UINT64 rayGenSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-            //UINT64 missSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-            //UINT64 hitGroupSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-            UINT64 sbtSize = 192;
-            CD3DX12_HEAP_PROPERTIES uploadHeap(D3D12_HEAP_TYPE_UPLOAD);
-            D3D12_RESOURCE_DESC sbtDesc = CD3DX12_RESOURCE_DESC::Buffer(sbtSize);
-            hr = renderModule->_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &sbtDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_SBT.getAddress()));
-            if (FAILED(hr))
-                return false;
-
-            void* rayGenIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"RayGen");
-            void* missIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"Miss");
-            void* hitGroupIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"HitGroup");
-
-            void* mapped = nullptr;
-            D3D12_RANGE range = {};
-            _SBT->Map(0, &range, &mapped);
-            memset(mapped, 0, sbtSize);
-            memcpy(static_cast<uint8_t*>(mapped) + rayGenOffset, rayGenIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-            memcpy(static_cast<uint8_t*>(mapped) + missOffset, missIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-            memcpy(static_cast<uint8_t*>(mapped) + hitGroupOffset, hitGroupIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-            _SBT->Unmap(0, nullptr);
-        }
-
         _width = width;
         _height = height;
 
+        createShaderBindingTable(renderModule);
+
 		return true;
 	}
+
+    const bool RaytracingRenderer::createShaderBindingTable(RenderModule* renderModule)
+    {
+        Pipeline* pipeline = renderModule->getRenderPass(_renderPassName)->getPipeline(_pipelineName);
+
+        //UINT64 rayGenSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+        //UINT64 missSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+        //UINT64 hitGroupSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+        UINT64 sbtSize = 192;
+        CD3DX12_HEAP_PROPERTIES uploadHeap(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC sbtDesc = CD3DX12_RESOURCE_DESC::Buffer(sbtSize);
+        HRESULT hr = renderModule->_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &sbtDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_SBT.getAddress()));
+        if (FAILED(hr))
+            return false;
+
+        void* rayGenIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"RayGen");
+        void* missIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"Miss");
+        void* hitGroupIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"HitGroup");
+
+        void* mapped = nullptr;
+        D3D12_RANGE range = {};
+        _SBT->Map(0, &range, &mapped);
+        memset(mapped, 0, sbtSize);
+        memcpy(static_cast<uint8_t*>(mapped) + rayGenOffset, rayGenIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        memcpy(static_cast<uint8_t*>(mapped) + missOffset, missIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        memcpy(static_cast<uint8_t*>(mapped) + hitGroupOffset, hitGroupIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        _SBT->Unmap(0, nullptr);
+
+        return true;
+    }
 
     BLAS createBlas(ID3D12Device8* device, ID3D12GraphicsCommandList4* commandList, const uint32 heapOffset, RenderResourcePtr<ID3D12DescriptorHeap>& materialDescriptorHeap, const uint32 materialIndex, /*const*/ StaticMeshModel::SubMeshType& subMesh)
 	{

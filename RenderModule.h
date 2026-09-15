@@ -291,7 +291,7 @@ do{ \
 		bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
 		bool postInitialize();
 
-		bool createRenderPass(const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
+		bool createRenderPass(const ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
 #if defined(_DK_DEBUG_)
 		const bool reloadShader();
 #endif
@@ -457,7 +457,7 @@ do{ \
 		}
 		dk_inline const TextureResourceViewType& getUAV() const noexcept
 		{
-			//DK_ASSERT_LOG(_textureUAVIndex != kErrorTextureResourceViewIndex, "유효하지 않은 TextureSRV입니다. Path: %s", _path.c_str());
+			DK_ASSERT_LOG(_textureUAVIndex != kErrorTextureResourceViewIndex, "유효하지 않은 TextureSRV입니다. Path: %s", _path.c_str());
 			return _textureUAVIndex;
 		}
 

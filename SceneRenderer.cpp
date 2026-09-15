@@ -13,6 +13,7 @@
 #include "Material.h"
 #include "EditorDebugDrawManager.h"
 #include "SceneManager.h"
+#include "ShaderCompiler.h"
 
 namespace DK
 {
@@ -79,6 +80,7 @@ namespace DK
 		TiXmlElement* rootNode = doc.FirstChildElement("RenderPassGroup");
 		if (rootNode == nullptr) return false;
 
+		ShaderCompiler shaderCompiler;
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		for (TiXmlElement* renderPassNode = rootNode->FirstChildElement(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSiblingElement())
 		{
@@ -299,7 +301,7 @@ namespace DK
 				}
 			}
 
-			if (renderModule.createRenderPass(renderPassName, DK::move(renderPassCreateInfo)) == false)
+			if (renderModule.createRenderPass(shaderCompiler, renderPassName, DK::move(renderPassCreateInfo)) == false)
 				return false;
 		}
 
@@ -461,12 +463,23 @@ namespace DK
 		}
 	}
 
+	static bool gIsReload = false;
 	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
 	void SceneRenderer::preRender() const noexcept
 	{
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		renderModule.preRender();
+
 #if defined(_DK_DEBUG_)
-		bool isReload = false;
+		if (gIsReload)
+		{
+			Sleep(5000);
+			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+			renderModule.reloadShader();
+			gIsReload = false;
+		}
 #endif
+
 #if defined(USE_IMGUI)
 		ImGui_ImplWin32_NewFrame();
 		ImGui_ImplDX12_NewFrame();
@@ -476,7 +489,7 @@ namespace DK
 			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
 #if defined(_DK_DEBUG_)
-			ImGui::Checkbox("Shader Reload", &isReload);
+			ImGui::Checkbox("Shader Reload", &gIsReload);
 #endif
 
 #define MAX_BUFFER_LENGTH 200
@@ -527,17 +540,6 @@ namespace DK
 		}
 
 		ImGui::Render();
-#endif
-
-		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		renderModule.preRender();
-
-#if defined(_DK_DEBUG_)
-		if (isReload)
-		{
-			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-			renderModule.reloadShader();
-		}
 #endif
 	}
 	void SceneRenderer::updateRender() noexcept
