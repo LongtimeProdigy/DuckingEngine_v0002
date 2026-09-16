@@ -9,6 +9,9 @@
 [numthreads(8,8,1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
+    if (id.x >= _N || id.y >= _N || id.z != 0)
+        return;
+        
     const int N = (int)_N;
     const int x = (int)id.x;
     const int y = (int)id.y;

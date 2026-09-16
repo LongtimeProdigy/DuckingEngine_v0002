@@ -2,6 +2,8 @@
 #include "ShaderCompiler.h"
 #include "RenderModule.h"
 
+#include <d3d12shader.h>
+
 namespace DK
 {
 	ShaderCompiler::ShaderCompiler()
@@ -35,8 +37,15 @@ namespace DK
 
 		_initialized = true;
 	}
-	const bool ShaderCompiler::compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, IDxcBlob* shader, D3D12_SHADER_BYTECODE& outShader) const
+	const bool ShaderCompiler::compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, RenderResourcePtr<IDxcBlob>& shader, D3D12_SHADER_BYTECODE& outShader, DKVector<ShaderResourceReflection>& outResources, uint32* outThreadGroupSize) const
 	{
+		if (outThreadGroupSize != nullptr)
+		{
+			outThreadGroupSize[0] = 0;
+			outThreadGroupSize[1] = 0;
+			outThreadGroupSize[2] = 0;
+		}
+
 		const ScopeString<DK_MAX_PATH> shaderFullPath = GlobalPath::makeResourceFullPath(shaderPath);
 		const DKStringW shaderPathW = StringUtil::convertCtoWC(shaderFullPath.c_str());
 		const DKStringW shaderEntryW = StringUtil::convertCtoWC(entry);
@@ -92,7 +101,7 @@ namespace DK
 		// 하지만 IDxcResult에는 여전히 포함하기 때문에 getOutput으로 결과를 가져올 수 있습니다. (DXC_OUT_REFLECTION, DXC_OUT_PDB)
 		//Strip reflection data and pdbs (see later)
 		arguments.push_back(L"-Qstrip_debug");
-		arguments.push_back(L"-Qstrip_reflect");
+		//arguments.push_back(L"-Qstrip_reflect");
 #endif
 
 #ifdef _DK_DEBUG_
@@ -174,31 +183,143 @@ namespace DK
 		//}
 #endif
 
-#ifdef _DK_DEBUG_	//Reflection
-		//RenderResourcePtr<IDxcBlob> reflectionData;
-		//result->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(reflectionData.getAddress()), nullptr);
-		//DxcBuffer reflectionBuffer;
-		//reflectionBuffer.Ptr = reflectionData->GetBufferPointer();
-		//reflectionBuffer.Size = reflectionData->GetBufferSize();
-		//reflectionBuffer.Encoding = 0;
-		//RenderResourcePtr<ID3D12ShaderReflection> shaderReflection;
-		//utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(shaderReflection.getAddress()));
+		RenderResourcePtr<IDxcBlob> reflectionData;
+		hr = result->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(reflectionData.getAddress()), nullptr);
 
-		//D3D12_SHADER_DESC shaderDesc;
-		//shaderReflection->GetDesc(&shaderDesc);
-		//const uint32 cBufferCount = shaderDesc.ConstantBuffers;
-		//for (uint32 i = 0; i < cBufferCount; ++i)
-		//{
-		//	ID3D12ShaderReflectionConstantBuffer* cbReflection = nullptr;
-		//	cbReflection = shaderReflection->GetConstantBufferByIndex(i);
-		//	D3D12_SHADER_BUFFER_DESC shaderBufferDesc;
-		//	cbReflection->GetDesc(&shaderBufferDesc);
-		//	DKString shaderBufferName = shaderBufferDesc.Name;
-		//}
-#endif
+		if (FAILED(hr) || reflectionData.get() == nullptr)
+			return false;
+
+		DxcBuffer reflectionBuffer{};
+		reflectionBuffer.Ptr = reflectionData->GetBufferPointer();
+		reflectionBuffer.Size = reflectionData->GetBufferSize();
+		reflectionBuffer.Encoding = 0;
+
+		// ID3D12ShaderReflection과 ID3D12FunctionReflection 공통 처리
+		auto collectResources = [&](auto* reflection, uint32 resourceCount) -> bool
+		{
+			for (uint32 i = 0; i < resourceCount; ++i)
+			{
+				D3D12_SHADER_INPUT_BIND_DESC desc{};
+				if (FAILED(reflection->GetResourceBindingDesc(i, &desc)))
+					return false;
+
+				ShaderResourceReflection resource;
+				resource._name = desc.Name;
+				resource._type = desc.Type;
+				resource._dimension = desc.Dimension;
+				resource._register = desc.BindPoint;
+				resource._space = desc.Space;
+				resource._bindCount = desc.BindCount;
+
+				bool isDuplicate = false;
+				for (const ShaderResourceReflection& prevReflection : outResources)
+				{
+					if (prevReflection._name == resource._name)
+					{
+						isDuplicate = true;
+						break;
+					}
+				}
+				if (isDuplicate)
+					continue;
+
+				if (desc.Type == D3D_SIT_CBUFFER)
+				{
+					ID3D12ShaderReflectionConstantBuffer* cb = reflection->GetConstantBufferByName(desc.Name);
+					D3D12_SHADER_BUFFER_DESC cbDesc{};
+					if (cb == nullptr || FAILED(cb->GetDesc(&cbDesc)))
+						return false;
+
+					resource._constantBufferSize = cbDesc.Size;
+
+					for (uint32 j = 0; j < cbDesc.Variables; ++j)
+					{
+						ID3D12ShaderReflectionVariable* variable = cb->GetVariableByIndex(j);
+
+						D3D12_SHADER_VARIABLE_DESC variableDesc{};
+						if (variable == nullptr || FAILED(variable->GetDesc(&variableDesc)))
+							return false;
+
+						ShaderVariableReflection value;
+						value._name = variableDesc.Name;
+						value._offset = variableDesc.StartOffset;
+						value._size = variableDesc.Size;
+
+						resource._variables.push_back(DK::move(value));
+					}
+				}
+
+				outResources.push_back(DK::move(resource));
+			}
+
+			return true;
+		};
+
+		RenderResourcePtr<IDxcUtils>& utils = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils);
+
+		if (shaderType == ShaderType::Raytracing)
+		{
+			RenderResourcePtr<ID3D12LibraryReflection> reflection;
+
+			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(reflection.getAddress()));
+			if (FAILED(hr))
+				return false;
+
+			D3D12_LIBRARY_DESC libraryDesc{};
+			if (FAILED(reflection->GetDesc(&libraryDesc)))
+				return false;
+
+			for (uint32 i = 0; i < libraryDesc.FunctionCount; ++i)
+			{
+				ID3D12FunctionReflection* function = reflection->GetFunctionByIndex(i);
+				D3D12_FUNCTION_DESC functionDesc{};
+				if (function == nullptr || FAILED(function->GetDesc(&functionDesc)))
+					return false;
+
+				if (!collectResources(function, functionDesc.BoundResources))
+					return false;
+			}
+		}
+		else
+		{
+			RenderResourcePtr<ID3D12ShaderReflection> reflection;
+			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(reflection.getAddress()));
+			if (FAILED(hr))
+				return false;
+
+			D3D12_SHADER_DESC shaderDesc{};
+			if (FAILED(reflection->GetDesc(&shaderDesc)))
+				return false;
+
+			if (shaderType == ShaderType::ComputeShader)
+			{
+				uint32 sizeX = 0;
+				uint32 sizeY = 0;
+				uint32 sizeZ = 0;
+
+				reflection->GetThreadGroupSize(&sizeX, &sizeY, &sizeZ);
+
+				if (sizeX == 0 || sizeY == 0 || sizeZ == 0)
+				{
+					DK_ASSERT_LOG(false,
+						"Compute thread group size is invalid: %s", shaderPath);
+					return false;
+				}
+
+				if (outThreadGroupSize != nullptr)
+				{
+					outThreadGroupSize[0] = sizeX;
+					outThreadGroupSize[1] = sizeY;
+					outThreadGroupSize[2] = sizeZ;
+				}
+			}
+
+			if (!collectResources(reflection.get(), shaderDesc.BoundResources))
+				return false;
+		}
 
 		RenderResourcePtr<IDxcBlobUtf16> shaderName = nullptr;
-		hr = result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shader), shaderName.getAddress());
+		hr = result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(shader.getAddress()), shaderName.getAddress());
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "");

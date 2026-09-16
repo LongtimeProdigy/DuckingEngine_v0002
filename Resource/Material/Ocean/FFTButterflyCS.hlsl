@@ -16,6 +16,9 @@ cbuffer FFTCB : register(b0)
 [numthreads(8,8,1)]
 void mainHorizontal(uint3 id : SV_DispatchThreadID)
 {
+    if (id.x >= _N || id.y >= _N || id.z != 0)
+        return;
+
     const uint x = id.x;
     const uint y = id.y;
 
@@ -63,6 +66,9 @@ void mainHorizontal(uint3 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void mainVertical(uint3 id : SV_DispatchThreadID)
 {
+    if (id.x >= _N || id.y >= _N || id.z != 0)
+        return;
+        
     const uint x = id.x;
     const uint y = id.y;
 

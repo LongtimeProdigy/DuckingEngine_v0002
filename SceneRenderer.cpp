@@ -29,48 +29,6 @@ namespace DK
 		return true;
 	}
 
-	constexpr static const char* ShaderVariableTypeString[static_cast<uint32>(ShaderParameterType::Count)] =
-	{
-		"Buffer",
-		"StructuredBuffer",
-		"RaytracingAccelerationStructure", 
-	};
-	ShaderParameterType convertStringToEnum2(const char* str)
-	{
-		for (uint32 i = 0; i < static_cast<uint32>(ShaderParameterType::Count); ++i)
-		{
-			if (strcmp(str, ShaderVariableTypeString[i]) == 0)
-			{
-				return static_cast<ShaderParameterType>(i);
-			}
-		}
-
-		return ShaderParameterType::Count;
-	};
-	bool parseShaderParameter(const TiXmlElement* variableNode, DKString& outName, ShaderParameter& outShaderParameter)
-	{
-		const char* parameterNameStr = variableNode->ToElement()->Attribute("Name");
-		const char* parameterTypeStr = variableNode->ToElement()->Attribute("Type");
-		const char* parameterRegisterStr = variableNode->ToElement()->Attribute("Register");
-
-		DK_ASSERT_LOG(parameterNameStr != nullptr && parameterTypeStr != nullptr && parameterRegisterStr != nullptr, "RenderPass의 Parameter가 비정상인 상황. 엔진이 비정상 작동할 수 있습니다.");
-
-		const ShaderParameterType variableType = convertStringToEnum2(parameterTypeStr);
-		DK_ASSERT_LOG(variableType != ShaderParameterType::Count, "RenderPass의 ParameterType이 정확하지 않습니다.\nType: %s", parameterTypeStr);
-		const uint32 variableRegister = atoi(parameterRegisterStr);
-
-		if (variableType == ShaderParameterType::Count)
-		{
-			DK_ASSERT_LOG(false, "현재 지원하지 않는 MaterialType을 사용하였습니다. ParameterName: %s, ParameterType: %d", parameterNameStr, variableType);
-			return false;
-		}
-
-		outName = parameterNameStr;
-		outShaderParameter._type = variableType;
-		outShaderParameter._register = variableRegister;
-
-		return true;
-	}
 	bool SceneRenderer::initialize_createRenderPass()
 	{
 		ScopeString<DK_MAX_PATH> renderPassGroupPath = GlobalPath::makeResourceFullPath("RenderPass/RenderPassGroup.xml");
@@ -90,16 +48,7 @@ namespace DK
 			for (TiXmlElement* renderPassChildNode = renderPassNode->FirstChildElement(); renderPassChildNode != nullptr; renderPassChildNode = renderPassChildNode->NextSiblingElement())
 			{
 				DKString renderPassChildNodeName = renderPassChildNode->Value();
-				if (renderPassChildNodeName == "Parameter")
-				{
-					DKString name;
-					ShaderParameter shaderParameter;
-					if (parseShaderParameter(renderPassChildNode, name, shaderParameter) == false)
-						return false;
-
-					renderPassCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
-				}
-				else if (renderPassChildNodeName == "Pipeline")
+				if (renderPassChildNodeName == "Pipeline")
 				{
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
@@ -166,24 +115,17 @@ namespace DK
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
-							DKString names = pipelineChildNode->Attribute("Names");
-							DKString registerIndex = pipelineChildNode->Attribute("Register");
-
-							StringSplitter splitter(names, " ");
+							const char* bufferName = pipelineChildNode->Attribute("Buffer");
+							if (bufferName == nullptr || bufferName[0] == '\0')
+							{
+								DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
+								return false;
+							}
 
 							RootConstant32BitParameter parameter;
-							parameter._parameters = splitter.getStrings();
-							parameter._register = StringUtil::atoi(registerIndex.c_str());
-							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
-						}
-						else if (pipelineChildNodeName == "Parameter")
-						{
-							DKString name;
-							ShaderParameter shaderParameter;
-							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
-								return false;
+							parameter._bufferName = bufferName;
 
-							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
+							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
 						}
 						else
 						{
@@ -212,23 +154,17 @@ namespace DK
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
-							DKString names = pipelineChildNode->Attribute("Names");
-							DKString registerIndex = pipelineChildNode->Attribute("Register");
-
-							StringSplitter splitter(names, " ");
+							const char* bufferName = pipelineChildNode->Attribute("Buffer");
+							if (bufferName == nullptr || bufferName[0] == '\0')
+							{
+								DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
+								return false;
+							}
 
 							RootConstant32BitParameter parameter;
-							parameter._parameters = splitter.getStrings();
-							parameter._register = StringUtil::atoi(registerIndex.c_str());
+							parameter._bufferName = bufferName;
+
 							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
-						}
-						else if (pipelineChildNodeName == "Parameter")
-						{
-							DKString name;
-							ShaderParameter shaderParameter;
-							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
-								return false;
-							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
 						}
 						else
 						{
@@ -267,23 +203,17 @@ namespace DK
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
-							DKString names = pipelineChildNode->Attribute("Names");
-							DKString registerIndex = pipelineChildNode->Attribute("Register");
-
-							StringSplitter splitter(names, " ");
+							const char* bufferName = pipelineChildNode->Attribute("Buffer");
+							if (bufferName == nullptr || bufferName[0] == '\0')
+							{
+								DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
+								return false;
+							}
 
 							RootConstant32BitParameter parameter;
-							parameter._parameters = splitter.getStrings();
-							parameter._register = StringUtil::atoi(registerIndex.c_str());
+							parameter._bufferName = bufferName;
+
 							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
-						}
-						else if (pipelineChildNodeName == "Parameter")
-						{
-							DKString name;
-							ShaderParameter shaderParameter;
-							if (parseShaderParameter(pipelineChildNode, name, shaderParameter) == false)
-								return false;
-							pipelineCreateInfo._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(name, DK::move(shaderParameter)));
 						}
 						else
 						{
@@ -473,7 +403,6 @@ namespace DK
 #if defined(_DK_DEBUG_)
 		if (gIsReload)
 		{
-			Sleep(5000);
 			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 			renderModule.reloadShader();
 			gIsReload = false;
@@ -546,13 +475,13 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-#if 1
+#if 0
 		RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
 		raytracingRenderer.updateRaytracingRenderer(renderModule);
 		raytracingRenderer.dispatchRay(renderModule);
 #endif
 
-#if 0
+#if 1
 		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
@@ -595,7 +524,7 @@ namespace DK
 				{
 					renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 					setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
-					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 				}
 				endPipeline();
 
@@ -609,7 +538,7 @@ namespace DK
 				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
 				renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
 
@@ -625,7 +554,7 @@ namespace DK
 					setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
 					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
 
-					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 					renderModule.resourceBarrier(targetTexture->getTextureBuffer(), D3D12_RESOURCE_BARRIER_TYPE_UAV);
 
 					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -646,7 +575,7 @@ namespace DK
 					setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
 					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
 
-					renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 					renderModule.resourceBarrier(targetTexture->getTextureBuffer(), D3D12_RESOURCE_BARRIER_TYPE_UAV);
 
 					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -666,7 +595,7 @@ namespace DK
 			{
 				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
 				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
-				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
 
@@ -676,7 +605,7 @@ namespace DK
 			{
 				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
 				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
-				renderModule.dispatch(ocean.OCEAN_N / 8, ocean.OCEAN_N / 8, 1);
+				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
 

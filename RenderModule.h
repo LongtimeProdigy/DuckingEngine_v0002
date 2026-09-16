@@ -25,16 +25,13 @@ namespace DK
 	struct IBuffer;
 	struct DKCommandList;
 	class ShaderCompiler;
+	struct ShaderResourceReflection;
 
 	using TextureResourceViewType = uint32;
 
 	struct RootConstant32BitParameter
 	{
-		DKVector<DKString> _parameters;
-		uint32 _register = -1;
-
-		uint32 _offset;
-		uint32 _rootParameterIndex = -1;		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
+		DKString _bufferName;
 	};
 
 	struct RootConstant32BitParameterBindingInfo
@@ -56,7 +53,9 @@ namespace DK
 	{
 		ShaderParameterType _type = ShaderParameterType::Count;
 		uint32 _register = -1;
-		uint32 _rootParameterIndex = -1;		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
+		uint32 _space = 0;
+
+		uint32 _rootParameterIndex = uint32 (-1);		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
 	};
 
 	struct Pipeline
@@ -115,7 +114,6 @@ namespace DK
 
 			DKVector<LayoutInfo> _layout;
 			DKVector<RootConstant32BitParameter> _rootConstant32BitParameter;
-			DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 		};
 		enum class Type : uint8
 		{
@@ -131,9 +129,13 @@ namespace DK
 
 		Type _type = Type::COUNT;
 
+		// common
 		RenderResourcePtr<ID3D12RootSignature> _rootSignature;
+		// graphics/compute
 		RenderResourcePtr<ID3D12PipelineState> _pipelineStateObject;
-		//Raytraincg
+		// compute
+		uint32 _threadGroupSize[3] = { 0, 0, 0 };
+		// Raytraincg
 		RenderResourcePtr<ID3D12StateObject> _rtStateObject;
 		RenderResourcePtr<ID3D12StateObjectProperties> _rtStateObjectProperties;
 
@@ -172,25 +174,11 @@ namespace DK
 	{
 		struct CreateInfo
 		{
-			DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 			DKVector<DKPair<DKString, Pipeline::CreateInfo>> _pipelineArr;
 		};
 
-		DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 		DKHashMap<DKString, Pipeline> _pipelineMap;
 
-		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
-		{
-			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
-			// RenderPass에서 없다면 Pipeline에서 찾아야함
-			//DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "존재하지 않는 ShaderParameter을 찾습니다.\nShaderParameterName: %s", name.c_str());
-#ifdef _DK_DEBUG_
-			if (iter == _shaderParameterMap.end())
-				return nullptr;
-#endif
-
-			return &iter->second;
-		}
 		dk_inline Pipeline* getPipeline(const DKString& pipelineName)
 		{
 			DKHashMap<DKString, Pipeline>::iterator iter = _pipelineMap.find(pipelineName);
@@ -204,8 +192,8 @@ namespace DK
 		}
 	};
 
-	static RenderPass* currentRenderPass = nullptr;
-	static Pipeline* currentPipeline = nullptr;
+	extern RenderPass* gCurrentBindedRenderPass;
+	extern Pipeline* gCurrentBindedPipeline;
 
 #ifdef _DK_DEBUG_
 #define RENDERING_ALREADY_BIND(object, name) \
@@ -228,49 +216,49 @@ if (object == nullptr) \
 #define startRenderPass(renderModule, renderPassName, rtvPrevSlot, rtvSlot, bindDSV, clearTarget, isRaytracing) \
 do{ \
 	RenderModule& currentRenderModule = renderModule; \
-	RENDERING_ALREADY_BIND(currentRenderPass, renderPassName); \
+	RENDERING_ALREADY_BIND(gCurrentBindedRenderPass, renderPassName); \
 	static RenderPass* findRenderPass = currentRenderModule.getRenderPass(renderPassName); \
-	currentRenderPass = findRenderPass; \
-	RENDERING_VERIFY(currentRenderPass, renderPassName); \
+	gCurrentBindedRenderPass = findRenderPass; \
+	RENDERING_VERIFY(gCurrentBindedRenderPass, renderPassName); \
 	if(isRaytracing == false) \
 		currentRenderModule.bindRenderPass(rtvPrevSlot, rtvSlot, bindDSV, clearTarget)
 
 #define endRenderPass() \
-	currentRenderPass = nullptr; \
+	gCurrentBindedRenderPass = nullptr; \
 }while(false)
 
 #define startPipeline(pipelineName) \
 do{ \
-	RENDERING_ALREADY_BIND(currentPipeline, pipelineName); \
-	static Pipeline* findPipeline = currentRenderPass->getPipeline(pipelineName); \
-	currentPipeline = findPipeline; \
-	RENDERING_VERIFY(currentPipeline, pipelineName); \
-	currentRenderModule.bindPipeline(*currentPipeline, currentPipeline->_type)
+	RENDERING_ALREADY_BIND(gCurrentBindedPipeline, pipelineName); \
+	static Pipeline* findPipeline = gCurrentBindedRenderPass->getPipeline(pipelineName); \
+	gCurrentBindedPipeline = findPipeline; \
+	RENDERING_VERIFY(gCurrentBindedPipeline, pipelineName); \
+	currentRenderModule.bindPipeline(*gCurrentBindedPipeline, gCurrentBindedPipeline->_type)
 
 #define endPipeline() \
-	currentPipeline = nullptr; \
+	gCurrentBindedPipeline = nullptr; \
 }while(false)
 
 #define setRootConstantParameter(name, value) \
 { \
-	DK_ASSERT_LOG(sizeof(value), "현재 RootConstant는 4byte만 지원합니다.\nName: %s", name); \
-	static RootConstant32BitParameterBindingInfo* bindingInfo = currentPipeline->getRootConstantParameter(name); \
+	static_assert(sizeof(value) == 4, "Root constant value must be 4 bytes."); \
+	static RootConstant32BitParameterBindingInfo* bindingInfo = gCurrentBindedPipeline->getRootConstantParameter(name); \
 	RENDERING_VERIFY(bindingInfo, name); \
-	DK::memcpy(((uint8*)bindingInfo->_buffer + bindingInfo->_offset), &value, 4); \
-	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, currentPipeline->_type); \
+	DK::memcpy((static_cast<uint8*>(bindingInfo->_buffer) + bindingInfo->_offset), &value, 4); \
+	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, gCurrentBindedPipeline->_type); \
 }
 
 #define setConstantBuffer(name, address) \
 { \
-	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
+	static const ShaderParameter* shaderParameter = gCurrentBindedPipeline->getShaderParameter(name); \
 	RENDERING_VERIFY(shaderParameter, name); \
-	currentRenderModule.bindConstantBuffer(shaderParameter->_rootParameterIndex, address, currentPipeline->_type); \
+	currentRenderModule.bindConstantBuffer(shaderParameter->_rootParameterIndex, address, gCurrentBindedPipeline->_type); \
 }
 #define setShaderResourceView(name, address) \
 { \
-	static const ShaderParameter* shaderParameter = currentRenderPass->getShaderParameter(name) != nullptr ? currentRenderPass->getShaderParameter(name) : currentPipeline->getShaderParameter(name); \
+	static const ShaderParameter* shaderParameter = gCurrentBindedPipeline->getShaderParameter(name); \
 	RENDERING_VERIFY(shaderParameter, name); \
-	currentRenderModule.bindShaderResourceView(shaderParameter->_rootParameterIndex, address, currentPipeline->_type); \
+	currentRenderModule.bindShaderResourceView(shaderParameter->_rootParameterIndex, address, gCurrentBindedPipeline->_type); \
 }
 
 	class RaytracingRenderer;
@@ -340,7 +328,7 @@ do{ \
 		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
 		DKCommandList* createCommandList();
 		bool initialize_createFence();
-		bool createRootSignature(RenderPass& renderPass, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
+		bool createRootSignature(const Pipeline::CreateInfo& createInfo, const DKVector<ShaderResourceReflection>& resources, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(const ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		const bool allocateTextureSRV(ITexture* texture);
@@ -426,11 +414,12 @@ do{ \
 		static constexpr TextureResourceViewType kErrorTextureResourceViewIndex = 0xffffffff;
 
 	public:
-		ITexture(const DKString& path, const uint8 mipLevelCount, RenderResourcePtr<ID3D12Resource>& textureBuffer, const DXGI_FORMAT format)
+		ITexture(const DKString& path, const uint8 mipLevelCount, RenderResourcePtr<ID3D12Resource>& textureBuffer, const DXGI_FORMAT format, const D3D12_RESOURCE_STATES state)
 			: _path(path)
 			, _mipLevelCount(mipLevelCount)
 			, _textureBuffer(textureBuffer)
 			, _format(format)
+			, _currentState(state)
 		{}
 		~ITexture();
 
@@ -474,6 +463,9 @@ do{ \
 
 		TextureResourceViewType _textureSRVIndex = kErrorTextureResourceViewIndex;
 		TextureResourceViewType _textureUAVIndex = kErrorTextureResourceViewIndex;
+
+	private:
+		D3D12_RESOURCE_STATES _currentState;
 	};
 
 	struct DKCommandList

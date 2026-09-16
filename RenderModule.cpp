@@ -120,6 +120,9 @@ namespace DK
 	static constexpr const bool gSerializeRender = false;
 #endif
 
+	RenderPass* gCurrentBindedRenderPass = nullptr;
+	Pipeline* gCurrentBindedPipeline = nullptr;
+
 	static const float4 gClearRenderTargetViewColor(1, 0, 0, 1);
 
 	uint32 RenderModule::kCurrentFrameIndex = 0;
@@ -448,7 +451,7 @@ namespace DK
 				_device->CreateDepthStencilView(depthStencilResourceArr[i].get(), &depthStencilViewDesc, dsvHandle);
 				dsvHandle.ptr += dsvHandleSize;
 
-				ITexture* depthStencilTexture = dk_new ITexture(DKString(dsvTextureName.c_str()), 1, depthStencilResourceArr[i], GetDepthSRVFormat(gDepthStencilFormat));
+				ITexture* depthStencilTexture = dk_new ITexture(DKString(dsvTextureName.c_str()), 1, depthStencilResourceArr[i], GetDepthSRVFormat(gDepthStencilFormat), kResourceState);
 				allocateTextureSRV(depthStencilTexture);
 
 				_depthStencilTextureArr[i] = ITextureRef(depthStencilTexture);
@@ -503,7 +506,7 @@ namespace DK
 				_device->CreateRenderTargetView(renderTargetResourceArr[i].get(), nullptr, rtvHandle);
 				rtvHandle.ptr += rtvDescriptorSize;
 
-				ITexture* renderTargetTexture = dk_new ITexture(DKString(rtvTextureName.c_str()), 1, renderTargetResourceArr[i], renderTargetFormat);
+				ITexture* renderTargetTexture = dk_new ITexture(DKString(rtvTextureName.c_str()), 1, renderTargetResourceArr[i], renderTargetFormat, kResourceState);
 				allocateTextureSRV(renderTargetTexture);
 				_renderTargetTextureArr[i] = ITextureRef(renderTargetTexture);
 				if (_renderTargetTextureArr[i] == nullptr)
@@ -664,13 +667,13 @@ namespace DK
 		return true;
 	}
 
-	bool RenderModule::createRootSignature(RenderPass& renderPass, const Pipeline::CreateInfo& createInfo, Pipeline& inoutPipeline)
+	bool RenderModule::createRootSignature(const Pipeline::CreateInfo& createInfo, const DKVector<ShaderResourceReflection>& resources, Pipeline& inoutPipeline)
 	{
 		const bool isRaytracing = createInfo._raygenShaderPath.empty() == false;
 
-		const uint32 parameterCount = static_cast<uint32>(renderPass._shaderParameterMap.size() + createInfo._rootConstant32BitParameter.size() + inoutPipeline._shaderParameterMap.size()) + 2;	// Texture, Raytracing Bindless 전용 +2
 		DKVector<D3D12_ROOT_PARAMETER> rootParameters;
-		rootParameters.resize(parameterCount);
+		rootParameters.resize(2); // 기존 bindless SRV/UAV table
+
 		uint32 rootParameterIndex = 0;
 
 		// Bindless Texture 2D Table
@@ -729,75 +732,121 @@ namespace DK
 		rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		++rootParameterIndex;
 
-		// 32bit rootconstant parameter
-		inoutPipeline._rootConstant32BitParameterBuffer.reserve(createInfo._rootConstant32BitParameter.size());
-		inoutPipeline._rootConstant32BitParameterMap.reserve(createInfo._rootConstant32BitParameter.size());
-		for(const RootConstant32BitParameter& renderPassShaderParameter : createInfo._rootConstant32BitParameter)
+		for(const ShaderResourceReflection& resource : resources)
 		{
-			CD3DX12_ROOT_PARAMETER param;
-			param.InitAsConstants(renderPassShaderParameter._parameters.size(), renderPassShaderParameter._register);
-			rootParameters[rootParameterIndex] = param;
-
-			DKVector<char> dataBuffer;
-			dataBuffer.resize(renderPassShaderParameter._parameters.size() * 4, 0);
-			inoutPipeline._rootConstant32BitParameterBuffer.push_back(DK::move(dataBuffer));
-
-			uint32 offset = 0;
-			for (const DKString& name : renderPassShaderParameter._parameters)
+			auto checkBindlessOrSamplerResource = [](const DKString& name)->const bool
 			{
-				RootConstant32BitParameterBindingInfo bindingInfo;
-				bindingInfo._rootParameterIndex = rootParameterIndex;
-				bindingInfo._buffer = inoutPipeline._rootConstant32BitParameterBuffer[inoutPipeline._rootConstant32BitParameterBuffer.size() - 1].data();
-				bindingInfo._offset = offset;
-				inoutPipeline._rootConstant32BitParameterMap.insert(DKPair<DKString, RootConstant32BitParameterBindingInfo>(name, DK::move(bindingInfo)));
+				static DKString kBindlessOrSamplerName[] = {
+					"gBindlessTextureSRVArray", "gBindlessTextureUAVArray",
+					"gVertices", "gIndices", "gMaterials",
+					"pointSampler", "bilinearRepeatSampler",
+				};
 
-				offset += 4;
+				for (uint32 i = 0; i < DK_COUNT_OF(kBindlessOrSamplerName); ++i)
+				{
+					if (name == kBindlessOrSamplerName[i])
+						return true;
+				}
+
+				return false;
+			};
+			if (checkBindlessOrSamplerResource(resource._name))
+				continue;
+
+			bool useRootConstants = false;
+			for (const RootConstant32BitParameter& setting : createInfo._rootConstant32BitParameter)
+			{
+				if (setting._bufferName == resource._name)
+				{
+					useRootConstants = true;
+					break;
+				}
 			}
 
-			++rootParameterIndex;
-		}
-
-		// RenderPass Parameters
-		auto convertShaderParameterTypeToDX = [](ShaderParameterType type)->D3D12_ROOT_PARAMETER_TYPE
+			if (useRootConstants)
 			{
-				switch (type)
+				const uint32 rootIndex = static_cast<uint32>(rootParameters.size());
+				const uint32 dwordCount = (resource._constantBufferSize + 3) / 4;
+				CD3DX12_ROOT_PARAMETER root;
+				root.InitAsConstants(dwordCount, resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
+				rootParameters.push_back(root);
+
+				DKVector<char> buffer;
+				buffer.resize(dwordCount * 4, 0);
+
+				inoutPipeline._rootConstant32BitParameterBuffer.push_back(DK::move(buffer));
+				void* storage = inoutPipeline._rootConstant32BitParameterBuffer.back().data();
+				for (const auto& variable : resource._variables)
 				{
-				case ShaderParameterType::Buffer: return D3D12_ROOT_PARAMETER_TYPE_CBV;
-				case ShaderParameterType::StructuredBuffer: return D3D12_ROOT_PARAMETER_TYPE_SRV;
-				case ShaderParameterType::RaytracingAccelerationStructure: return D3D12_ROOT_PARAMETER_TYPE_SRV;
-				case ShaderParameterType::Count:
-				default:
-					DK_ASSERT_LOG(false, "올바르지 않은 ShaderParameter Type 지정.");
-					return D3D12_ROOT_PARAMETER_TYPE_SRV;
+					RootConstant32BitParameterBindingInfo info;
+					info._rootParameterIndex = rootIndex;
+					info._offset = variable._offset;
+					info._buffer = storage;
+
+					inoutPipeline._rootConstant32BitParameterMap.insert(DKPair<DKString, RootConstant32BitParameterBindingInfo>(variable._name, DK::move(info)));
 				}
-			};
-		for(DKPair<const DKString, ShaderParameter>& renderPassShaderParameter : renderPass._shaderParameterMap)
-		{
-			D3D12_ROOT_DESCRIPTOR constantBufferDescriptor = {};
-			constantBufferDescriptor.RegisterSpace = 0;		// 현재 DuckingEngine은 0번 Space만 사용합니다.
-			constantBufferDescriptor.ShaderRegister = renderPassShaderParameter.second._register;
+			}
+			else
+			{
+				//typedef enum _D3D_SHADER_INPUT_TYPE {
+				//	D3D_SIT_CBUFFER = 0,
+				//	D3D_SIT_TBUFFER,
+				//	D3D_SIT_TEXTURE,
+				//	D3D_SIT_SAMPLER,
+				//	D3D_SIT_UAV_RWTYPED,
+				//	D3D_SIT_STRUCTURED,
+				//	D3D_SIT_UAV_RWSTRUCTURED,
+				//	D3D_SIT_BYTEADDRESS,
+				//	D3D_SIT_UAV_RWBYTEADDRESS,
+				//	D3D_SIT_UAV_APPEND_STRUCTURED,
+				//	D3D_SIT_UAV_CONSUME_STRUCTURED,
+				//	D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER,
+				//	D3D_SIT_RTACCELERATIONSTRUCTURE,
+				//	D3D_SIT_UAV_FEEDBACKTEXTURE,
+				//	D3D10_SIT_CBUFFER,
+				//	D3D10_SIT_TBUFFER,
+				//	D3D10_SIT_TEXTURE,
+				//	D3D10_SIT_SAMPLER,
+				//	D3D11_SIT_UAV_RWTYPED,
+				//	D3D11_SIT_STRUCTURED,
+				//	D3D11_SIT_UAV_RWSTRUCTURED,
+				//	D3D11_SIT_BYTEADDRESS,
+				//	D3D11_SIT_UAV_RWBYTEADDRESS,
+				//	D3D11_SIT_UAV_APPEND_STRUCTURED,
+				//	D3D11_SIT_UAV_CONSUME_STRUCTURED,
+				//	D3D11_SIT_UAV_RWSTRUCTURED_WITH_COUNTER
+				//} D3D_SHADER_INPUT_TYPE;
+				switch (resource._type)
+				{
+				case D3D_SIT_CBUFFER:
+				case D3D_SIT_STRUCTURED:
+				case D3D_SIT_RTACCELERATIONSTRUCTURE:
+				{
+					const uint32 rootIndex = static_cast<uint32>(rootParameters.size());
 
-			rootParameters[rootParameterIndex].ParameterType = convertShaderParameterTypeToDX(renderPassShaderParameter.second._type);
-			rootParameters[rootParameterIndex].Descriptor = constantBufferDescriptor;
-			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+					CD3DX12_ROOT_PARAMETER root;
+					if (resource._type != D3D_SIT_CBUFFER)
+						root.InitAsShaderResourceView(resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
+					else
+						root.InitAsConstantBufferView(resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
+					rootParameters.push_back(root);
 
-			renderPassShaderParameter.second._rootParameterIndex = rootParameterIndex;
-			++rootParameterIndex;
-		}
+					ShaderParameter parameter;
+					parameter._type = ShaderParameterType::Buffer;
+					parameter._register = resource._register;
+					parameter._space = resource._space;
+					parameter._rootParameterIndex = rootIndex;
 
-		// Pipeline Paramters
-		for (DKPair<const DKString, ShaderParameter>& shaderParameter : inoutPipeline._shaderParameterMap)
-		{
-			D3D12_ROOT_DESCRIPTOR constantBufferDescriptor = {};
-			constantBufferDescriptor.RegisterSpace = 0;		// 현재 DuckingEngine은 0번 Space만 사용합니다.
-			constantBufferDescriptor.ShaderRegister = shaderParameter.second._register;
-
-			rootParameters[rootParameterIndex].ParameterType = convertShaderParameterTypeToDX(shaderParameter.second._type);
-			rootParameters[rootParameterIndex].Descriptor = constantBufferDescriptor;
-			rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-
-			shaderParameter.second._rootParameterIndex = rootParameterIndex;
-			++rootParameterIndex;
+					inoutPipeline._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(resource._name, DK::move(parameter)));
+				}
+				break;
+				default:
+				{
+					DK_ASSERT_LOG(false, "");
+					return false;
+				}
+				}
+			}
 		}
 
 		D3D12_STATIC_SAMPLER_DESC sampler = {};
@@ -884,6 +933,7 @@ namespace DK
 	bool RenderModule::createPipelineObjectState(const ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
 	{
 		DKVector<DKString> emptyDefines;
+		DKVector<ShaderResourceReflection> pipelineResources;
 
 		if (pipelineCreateInfo._vertexShaderPath.empty() == false)
 		{
@@ -897,13 +947,24 @@ namespace DK
 
 			D3D12_SHADER_BYTECODE vertexShaderView = {};
 			RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
-			bool success = shaderCompiler.compileShader(pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(), ShaderType::VertexShader, emptyDefines, vertexShader.get(), vertexShaderView);
+			bool success = shaderCompiler.compileShader(
+				pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(),
+				ShaderType::VertexShader, emptyDefines,
+				vertexShader, vertexShaderView, pipelineResources
+			);
 			if (success == false)
 				return false;
 			D3D12_SHADER_BYTECODE pixelShaderView = {};
 			RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
-			success = shaderCompiler.compileShader(pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(), ShaderType::PixelShader, emptyDefines, pixelShader.get(), pixelShaderView);
+			success = shaderCompiler.compileShader(
+				pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(),
+				ShaderType::PixelShader, emptyDefines,
+				pixelShader, pixelShaderView, pipelineResources
+			);
 			if (success == false)
+				return false;
+
+			if (createRootSignature(pipelineCreateInfo, pipelineResources, inoutPipeline) == false)
 				return false;
 
 			DKVector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
@@ -1012,8 +1073,17 @@ namespace DK
 
 			D3D12_SHADER_BYTECODE computeShaderView = {};
 			RenderResourcePtr<IDxcBlob> computeShader = nullptr;
-			bool success = shaderCompiler.compileShader(pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(), ShaderType::ComputeShader, emptyDefines, computeShader.get(), computeShaderView);
+			uint32 threadGroupSize[3] = {};
+
+			bool success = shaderCompiler.compileShader(
+				pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(),
+				ShaderType::ComputeShader, emptyDefines,
+				computeShader, computeShaderView, pipelineResources, threadGroupSize
+			);
 			if (success == false)
+				return false;
+
+			if (createRootSignature(pipelineCreateInfo, pipelineResources, inoutPipeline) == false)
 				return false;
 
 			D3D12_COMPUTE_PIPELINE_STATE_DESC cpsoDesc = {};
@@ -1028,6 +1098,9 @@ namespace DK
 				return false;
 			}
 
+			for (uint32 i = 0; i < 3; ++i)
+				inoutPipeline._threadGroupSize[i] = threadGroupSize[i];
+
 			ScopeStringW<DK_MAX_BUFFER> tempString;
 			tempString.append(StringUtil::convertCtoWC(pipelineCreateInfo._computeShaderPath.c_str()).c_str());
 			inoutPipeline._pipelineStateObject->SetName(tempString.c_str());
@@ -1037,6 +1110,9 @@ namespace DK
 			inoutPipeline._type = Pipeline::Type::RAYTRACING;
 
 			// 이 Scope Stack내(CreateStateObject호출까지) 유지되어야 해서 이 곳에서 Stack에 할당함
+			RenderResourcePtr<IDxcBlob> raygenShaderBlob;
+			RenderResourcePtr<IDxcBlob> missShaderBlob;
+			RenderResourcePtr<IDxcBlob> cloesetShaderBlob;
 			const DKStringW raygenEntry = StringUtil::convertCtoWC(pipelineCreateInfo._raygenEntry.c_str()).c_str();
 			const DKStringW missEntry = StringUtil::convertCtoWC(pipelineCreateInfo._missEntry.c_str()).c_str();
 			const DKStringW closestEntry = StringUtil::convertCtoWC(pipelineCreateInfo._closestEntry.c_str()).c_str();
@@ -1045,8 +1121,11 @@ namespace DK
 			DKVector<DKVector<D3D12_EXPORT_DESC>> exportDesc;
 			{
 				D3D12_SHADER_BYTECODE raygenShaderView = {};
-				RenderResourcePtr<IDxcBlob> raygenShaderBlob = nullptr;
-				const bool success = shaderCompiler.compileShader(pipelineCreateInfo._raygenShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, raygenShaderBlob.get(), raygenShaderView);
+				const bool success = shaderCompiler.compileShader(
+					pipelineCreateInfo._raygenShaderPath.c_str(), "",
+					ShaderType::Raytracing, emptyDefines,
+					raygenShaderBlob, raygenShaderView, pipelineResources
+				);
 				if (success == false)
 					return false;
 
@@ -1077,8 +1156,11 @@ namespace DK
 			else
 			{
 				D3D12_SHADER_BYTECODE missShaderView = {};
-				RenderResourcePtr<IDxcBlob> missShaderBlob = nullptr;
-				const bool success = shaderCompiler.compileShader(pipelineCreateInfo._missShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, missShaderBlob.get(), missShaderView);
+				const bool success = shaderCompiler.compileShader(
+					pipelineCreateInfo._missShaderPath.c_str(), "",
+					ShaderType::Raytracing, emptyDefines,
+					missShaderBlob, missShaderView, pipelineResources
+				);
 				if (success == false)
 					return false;
 
@@ -1119,8 +1201,11 @@ namespace DK
 			else
 			{
 				D3D12_SHADER_BYTECODE cloesetShaderView = {};
-				RenderResourcePtr<IDxcBlob> cloesetShaderBlob = nullptr;
-				const bool success = shaderCompiler.compileShader(pipelineCreateInfo._closestShaderPath.c_str(), "", ShaderType::Raytracing, emptyDefines, cloesetShaderBlob.get(), cloesetShaderView);
+				const bool success = shaderCompiler.compileShader(
+					pipelineCreateInfo._closestShaderPath.c_str(), "",
+					ShaderType::Raytracing, emptyDefines,
+					cloesetShaderBlob, cloesetShaderView, pipelineResources
+				);
 				if (success == false)
 					return false;
 
@@ -1143,6 +1228,9 @@ namespace DK
 			const uint32 libCount = libraryDesc.size();
 			for (uint32 i = 0; i < libCount; ++i)
 				libraryDesc[i].pExports = exportDesc[i].data();
+
+			if (createRootSignature(pipelineCreateInfo, pipelineResources, inoutPipeline) == false)
+				return false;
 
 			// HitGroup
 			D3D12_HIT_GROUP_DESC hitGroup = {};
@@ -1169,7 +1257,7 @@ namespace DK
 			for (uint32 i = 0; i < libCount; ++i)
 			{
 				subobjects[i].Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
-				subobjects[i].pDesc = libraryDesc.data();
+				subobjects[i].pDesc = &libraryDesc[i];
 			}
 			subobjects[libCount + 0].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
 			subobjects[libCount + 0].pDesc = &hitGroup;
@@ -1226,7 +1314,6 @@ namespace DK
 
 		using PipelineCreateInfoIter = DKVector<DKPair<DKString, Pipeline::CreateInfo>>;
 		RenderPass& renderPass = insertResult.first->second;
-		renderPass._shaderParameterMap.swap(renderPassCreateInfo._shaderParameterMap);
 
 		const uint32 pipelineCount = static_cast<uint32>(renderPassCreateInfo._pipelineArr.size());
 		for (uint32 i = 0; i < pipelineCount; ++i)
@@ -1244,9 +1331,6 @@ namespace DK
 			Pipeline::CreateInfo& pipelineCreateInfo = renderPassCreateInfo._pipelineArr[i].second;
 
 			Pipeline newPipeline;
-			newPipeline._shaderParameterMap.swap(pipelineCreateInfo._shaderParameterMap);
-			if (createRootSignature(renderPass, pipelineCreateInfo, newPipeline) == false)
-				return false;
 			if (createPipelineObjectState(shaderCompiler, pipelineCreateInfo, newPipeline) == false)
 				return false;
 
@@ -1624,7 +1708,7 @@ namespace DK
 			// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 		}
 #if defined(_DK_DEBUG_)
-		ScopeStringW<DK_MAX_PATH> debugName(L"Texture(");
+		ScopeStringW<DK_MAX_PATH> debugName(L"Texture");
 		debugName.append(StringUtil::convertCtoWC(debugString.c_str()).c_str());
 		debugName.append(L")");
 		defaultBuffer->SetName(debugName.c_str());
@@ -1657,7 +1741,7 @@ namespace DK
 				// #todo- Null RefPtr을 static하게 만들고 그거 반환해야함
 			}
 #if defined(_DK_DEBUG_)
-			ScopeStringW<DK_MAX_PATH> debugName(L"UploadTexture(");
+			ScopeStringW<DK_MAX_PATH> debugName(L"UploadTexture");
 			debugName.append(StringUtil::convertCtoWC(debugString.c_str()).c_str());
 			debugName.append(L")");
 			defaultBuffer->SetName(debugName.c_str());
@@ -1679,7 +1763,7 @@ namespace DK
 			execute();
 		}
 
-		ITexture* texture = dk_new ITexture(debugString, mipLevelCount, defaultBuffer, format);
+		ITexture* texture = dk_new ITexture(debugString, mipLevelCount, defaultBuffer, format, state);
 		if (createSRV)
 			allocateTextureSRV(texture);
 		if (createUAV)
@@ -1915,7 +1999,39 @@ namespace DK
 
 	void RenderModule::dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ)
 	{
-		_commandList->_commandList->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+		if (threadGroupCountX == 0 || threadGroupCountY == 0 || threadGroupCountZ == 0)
+			return;
+
+		if (gCurrentBindedPipeline->_type != Pipeline::Type::COMPUTE)
+		{
+			DK_ASSERT_LOG(false, "dispatchThreads requires a compute pipeline.");
+			return;
+		}
+
+		const uint32* size = gCurrentBindedPipeline->_threadGroupSize;
+		if (size[0] == 0 || size[1] == 0 || size[2] == 0)
+		{
+			DK_ASSERT_LOG(false, "Compute thread group size is not initialized.");
+			return;
+		}
+
+		// 덧셈 overflow 없이 올림 나눗셈
+		auto divideRoundUp = [](uint32 count, uint32 groupSize) -> uint32
+		{
+			return count / groupSize + (count % groupSize != 0);
+		};
+
+		const uint32 groupsX = divideRoundUp(threadGroupCountX, size[0]);
+		const uint32 groupsY = divideRoundUp(threadGroupCountY, size[1]);
+		const uint32 groupsZ = divideRoundUp(threadGroupCountZ, size[2]);
+
+		if (groupsX > D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION || groupsY > D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION || groupsZ > D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION)
+		{
+			DK_ASSERT_LOG(false, "Compute dispatch group count exceeds the limit.");
+			return;
+		}
+
+		_commandList->_commandList->Dispatch(groupsX, groupsY, groupsZ);
 	}
 
 	void RenderModule::endRender()

@@ -12,6 +12,9 @@ cbuffer FinalizeCB : register(b0)
 [numthreads(8,8,1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
+    if (id.x >= _N || id.y >= _N || id.z != 0)
+        return;
+        
     Texture2D<float4> FFTResult = getTexture(_sourceSRV);
     const float2 h = FFTResult[id.xy].xy;
 
