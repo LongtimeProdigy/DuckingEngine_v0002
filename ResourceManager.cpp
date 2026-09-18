@@ -432,16 +432,14 @@ namespace DK
 			DK::memcpy(vertexBufferData.data(), &buffer[bufferOffset], vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType));
 			bufferOffset += vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType);
 
-			RenderResourcePtr<ID3D12Resource> vertexBuffer;
 			VertexBufferViewRef vertexBufferView;
-			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBuffer, vertexBufferView, L"StaticMesh_VertexBuffer");
-			if (vertexBufferSuccess == false)
+			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"StaticMesh_VertexBuffer");
+			if (vertexBuffer == nullptr)
 				return nullptr;
 
-			RenderResourcePtr<ID3D12Resource> indexBuffer;
 			IndexBufferViewRef indexBufferView;
-			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBuffer, indexBufferView, L"StaticMesh_IndexBuffer");
-			if (indexBufferSuccess == false)
+			IBufferRef indexBuffer = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBufferView, L"StaticMesh_IndexBuffer");
+			if (indexBuffer == nullptr)
 				return nullptr;
 
 			Material* newMaterial = Material::createMaterial(materialDefinitionArr[i]);
@@ -544,16 +542,14 @@ namespace DK
 			}
 #endif
 
-			RenderResourcePtr<ID3D12Resource> vertexBuffer;
 			VertexBufferViewRef vertexBufferView;
-			const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBuffer, vertexBufferView, L"SkinnedMesh_VertexBuffer");
-			if (vertexBufferSuccess == false)
+			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"SkinnedMesh_VertexBuffer");
+			if (vertexBuffer == nullptr)
 				return nullptr;
 
-			RenderResourcePtr<ID3D12Resource> indexBuffer;
 			IndexBufferViewRef indexBufferView;
-			const bool indexBufferSuccess = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBuffer, indexBufferView, L"SkinnedMesh_IndexBuffer");
-			if (indexBufferSuccess == false)
+			IBufferRef indexBuffer = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBufferView, L"SkinnedMesh_IndexBuffer");
+			if (indexBuffer == nullptr)
 				return nullptr;
 
 			Material* newMaterial = Material::createMaterial(materialDefinitionArr[i]);

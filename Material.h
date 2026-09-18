@@ -3,6 +3,7 @@
 namespace DK
 {
 	struct IBuffer;
+	using IBufferRef = std::shared_ptr<IBuffer>;
 }
 
 namespace DK
@@ -145,7 +146,7 @@ namespace DK
 		DK_REFLECTION_PROPERTY(DKString, _materialName);
 		DKVector<Ptr<MaterialParameter>> _parameterArr;
 		DKVector<char> _parameterBufferForCPU;
-		DK_REFLECTION_PTR_PROPERTY_FLAG(IBuffer, _parameterBufferForGPU, ReflectionFlag::NoSave);
+		DK_REFLECTION_PROPERTY_FLAG(IBufferRef, _parameterBufferForGPU, ReflectionFlag::NoSave);
 	private:
 
 	};

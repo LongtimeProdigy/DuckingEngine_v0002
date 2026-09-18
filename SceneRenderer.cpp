@@ -29,6 +29,22 @@ namespace DK
 		return true;
 	}
 
+	const bool parseRootConstant32BitParameter(TiXmlElement* pipelineChildNode, const ScopeString<DK_MAX_PATH>& renderPassGroupPath, Pipeline::CreateInfo& pipelineCreateInfo)
+	{
+		const char* bufferName = pipelineChildNode->Attribute("Buffer");
+		if (bufferName == nullptr || bufferName[0] == '\0')
+		{
+			DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
+			return false;
+		}
+
+		RootConstant32BitParameter parameter;
+		parameter._bufferName = bufferName;
+		pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
+
+		return true;
+	}
+
 	bool SceneRenderer::initialize_createRenderPass()
 	{
 		ScopeString<DK_MAX_PATH> renderPassGroupPath = GlobalPath::makeResourceFullPath("RenderPass/RenderPassGroup.xml");
@@ -36,7 +52,11 @@ namespace DK
 		TiXmlDocument doc;
 		doc.LoadFile(renderPassGroupPath.c_str());
 		TiXmlElement* rootNode = doc.FirstChildElement("RenderPassGroup");
-		if (rootNode == nullptr) return false;
+		if (rootNode == nullptr)
+		{
+			DK_ASSERT_LOG(false, "");
+			return false;
+		}
 
 		ShaderCompiler shaderCompiler;
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
@@ -101,6 +121,11 @@ namespace DK
 									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT3, layoutElementName });
 								else if (layoutElementType == "float4")
 									pipelineCreateInfo._layout.push_back({ Pipeline::CreateInfo::LayoutInfo::Type::FLOAT4, layoutElementName });
+								else
+								{
+									DK_ASSERT_LOG(false, "");
+									return false;
+								}
 							}
 						}
 						else if (pipelineChildNodeName == "VertexShader")
@@ -115,17 +140,10 @@ namespace DK
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
-							const char* bufferName = pipelineChildNode->Attribute("Buffer");
-							if (bufferName == nullptr || bufferName[0] == '\0')
+							if (parseRootConstant32BitParameter(pipelineChildNode, renderPassGroupPath, pipelineCreateInfo) == false)
 							{
-								DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
 								return false;
 							}
-
-							RootConstant32BitParameter parameter;
-							parameter._bufferName = bufferName;
-
-							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
 						}
 						else
 						{
@@ -154,17 +172,10 @@ namespace DK
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
-							const char* bufferName = pipelineChildNode->Attribute("Buffer");
-							if (bufferName == nullptr || bufferName[0] == '\0')
+							if (parseRootConstant32BitParameter(pipelineChildNode, renderPassGroupPath, pipelineCreateInfo) == false)
 							{
-								DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
 								return false;
 							}
-
-							RootConstant32BitParameter parameter;
-							parameter._bufferName = bufferName;
-
-							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
 						}
 						else
 						{
@@ -203,17 +214,10 @@ namespace DK
 						}
 						else if (pipelineChildNodeName == "RootConstant")
 						{
-							const char* bufferName = pipelineChildNode->Attribute("Buffer");
-							if (bufferName == nullptr || bufferName[0] == '\0')
+							if (parseRootConstant32BitParameter(pipelineChildNode, renderPassGroupPath, pipelineCreateInfo) == false)
 							{
-								DK_ASSERT_LOG(false, "RootConstant항목에는 반드시 Buffer Attribute가 존재해야합니다.\nFile: %s", renderPassGroupPath.c_str());
 								return false;
 							}
-
-							RootConstant32BitParameter parameter;
-							parameter._bufferName = bufferName;
-
-							pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
 						}
 						else
 						{
@@ -319,7 +323,6 @@ namespace DK
 	{
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
-		// ��� UpdateRender�Լ����� _sceneConstantBuffer�� Upload�ϱ� ������ ���⼭ Camera�� �ʿ����� ���� �� ����
 		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
 		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
 
@@ -386,7 +389,7 @@ namespace DK
 				const DKVector<float4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->get_currentCharacterSpaceBoneAnimation();
 				if (currentCharacterSpaceBoneAnimation.empty() == false)
 				{
-					Ptr<IBuffer>& skeletonBuffer = skinnedMeshComponent->get_skeletonConstantBufferWritable();
+					IBufferRef& skeletonBuffer = skinnedMeshComponent->get_currentAnimationBufferCSWritable();
 					skeletonBuffer->upload(currentCharacterSpaceBoneAnimation.data());
 				}
 			}
@@ -482,6 +485,7 @@ namespace DK
 #endif
 
 #if 1
+#if 0
 		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
@@ -523,7 +527,7 @@ namespace DK
 				startPipeline("InitialSpectrum");
 				{
 					renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-					setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+					setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 				}
 				endPipeline();
@@ -535,7 +539,7 @@ namespace DK
 
 			startPipeline("UpdateSpectrum");
 			{
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 				renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
@@ -547,7 +551,7 @@ namespace DK
 
 			startPipeline("FFTButterflyHorizontal");
 			{
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 				for (UINT stage = 0; stage < stages; ++stage)
 				{
 					setRootConstantParameter("_stage", stage);
@@ -555,8 +559,6 @@ namespace DK
 					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
 
 					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
-					renderModule.resourceBarrier(targetTexture->getTextureBuffer(), D3D12_RESOURCE_BARRIER_TYPE_UAV);
-
 					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -568,7 +570,7 @@ namespace DK
 			endPipeline();
 			startPipeline("FFTButterflyVertical");
 			{
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 				for (UINT stage = 0; stage < stages; ++stage)
 				{
 					setRootConstantParameter("_stage", stage);
@@ -576,8 +578,6 @@ namespace DK
 					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
 
 					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
-					renderModule.resourceBarrier(targetTexture->getTextureBuffer(), D3D12_RESOURCE_BARRIER_TYPE_UAV);
-
 					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -594,7 +594,7 @@ namespace DK
 			startPipeline("Finalize");
 			{
 				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
@@ -604,7 +604,7 @@ namespace DK
 			startPipeline("ComputeOceanNormal");
 			{
 				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
@@ -614,8 +614,8 @@ namespace DK
 
 			startPipeline("RenderOcean");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
 
 				renderModule.setVertexBuffers(0, 1, ocean._mesh._vertexBufferView.get());
 				renderModule.setIndexBuffer(ocean._mesh._indexBufferView.get());
@@ -626,6 +626,7 @@ namespace DK
 			ocean._currentReadTextureIndex = (ocean._currentReadTextureIndex + 1) % DK_COUNT_OF(ocean._h0);
 		}
 		endRenderPass();
+#endif
 
 		// MainRender
 		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true, false);
@@ -633,7 +634,7 @@ namespace DK
 #if 0
 			startPipeline("SkyDomePipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->GetGPUVirtualAddress());
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
@@ -648,12 +649,12 @@ namespace DK
 #if 0
 			startPipeline("TerrainClipmapPipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->GetGPUVirtualAddress());
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 				Material* material = terrain._material.get();
-				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->GetGPUVirtualAddress());
 
 				const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
 				float2 cameraPos = float2::Zero;
@@ -670,9 +671,9 @@ namespace DK
 					TerrainMeshConstantBuffer meshCBuffer;
 					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
 					meshCBuffer._type = 0;
-					Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 					terrainConstantBuffer->upload(&meshCBuffer);
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
 
 					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
 					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
@@ -701,9 +702,9 @@ namespace DK
 							TerrainMeshConstantBuffer meshCBuffer;
 							meshCBuffer._baseXY_scale_rotate = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
 							meshCBuffer._type = 1;
-							Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 							terrainConstantBuffer->upload(&meshCBuffer);
-							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
 
 							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
 							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
@@ -716,9 +717,9 @@ namespace DK
 						TerrainMeshConstantBuffer meshCBuffer;
 						meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
 						meshCBuffer._type = 2;
-						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 						terrainConstantBuffer->upload(&meshCBuffer);
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
 
 						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
 						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
@@ -736,9 +737,9 @@ namespace DK
 						TerrainMeshConstantBuffer meshCBuffer;
 						meshCBuffer._baseXY_scale_rotate = float4(next_base.x, next_base.y, tileScale, 0.0f);
 						meshCBuffer._type = 3;
-						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 						terrainConstantBuffer->upload(&meshCBuffer);
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
 
 						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
 						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
@@ -756,9 +757,9 @@ namespace DK
 						TerrainMeshConstantBuffer meshCBuffer;
 						meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos + tileScale * 0.5f, tileScale, r);
 						meshCBuffer._type = 4;
-						Ptr<IBuffer>& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 						terrainConstantBuffer->upload(&meshCBuffer);
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->getGPUVirtualAddress());
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
 
 						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
 						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
@@ -771,13 +772,13 @@ namespace DK
 
 			startPipeline("StaticMeshStandardPipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 
 				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
 				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 				{
 					SceneObject& sceneObject = iter->second;
-					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
+					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
 
 					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
@@ -793,7 +794,7 @@ namespace DK
 							StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
 							Material* material = subMesh._material.get();
-							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
 
 							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
 							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
@@ -806,13 +807,13 @@ namespace DK
 
 			startPipeline("SkinnedMeshStandardPipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 
 				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
 				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 				{
 					SceneObject& sceneObject = iter->second;
-					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer->getGPUVirtualAddress());
+					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
 
 					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
 					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
@@ -822,7 +823,7 @@ namespace DK
 						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
 						SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
 
-						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_skeletonConstantBufferWritable()->getGPUVirtualAddress());
+						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_currentAnimationBufferCS());
 
 						DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
 						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
@@ -830,7 +831,7 @@ namespace DK
 							SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
 							Material* material = subMesh._material.get();
-							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->getGPUVirtualAddress());
+							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
 
 							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
 							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
@@ -850,8 +851,8 @@ namespace DK
 			{
 				startPipeline("SpherePipeline");
 				{
-					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-					setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBufferWritable()->getGPUVirtualAddress());
+					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+					setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBuffer());
 					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
 					renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
 					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), sphereInstanceCount, 0, 0, 0);
@@ -864,8 +865,8 @@ namespace DK
 			{
 				startPipeline("LinePipeline");
 				{
-					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-					setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBufferWritable()->getGPUVirtualAddress());
+					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+					setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBuffer());
 					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView.get());
 					renderModule.setIndexBuffer(EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView.get());
 					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), lineInstanceCount, 0, 0, 0);
@@ -881,8 +882,8 @@ namespace DK
 		{
 			startPipeline("AtmospherePipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
-				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
@@ -901,7 +902,7 @@ namespace DK
 		{
 			startPipeline("GBufferPipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->getGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::GBuffer& gBuffer = sceneManager.getGBufferWritable();

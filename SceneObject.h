@@ -1,9 +1,10 @@
-#pragma once
+﻿#pragma once
 #include "Object.h"
 
 namespace DK
 {
 	struct IBuffer;
+	using IBufferRef = std::shared_ptr<IBuffer>;
 }
 
 namespace DK
@@ -14,6 +15,6 @@ namespace DK
 		virtual void update(float deltaTime) override final {}
 
 	public:
-		Ptr<IBuffer> _sceneObjectConstantBuffer;
+		IBufferRef _sceneObjectConstantBuffer;
 	};
 }

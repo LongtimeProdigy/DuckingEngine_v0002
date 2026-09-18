@@ -72,9 +72,9 @@ namespace DK
 		DKHashMap<DKString, MaterialDefinition> _materialDefinitionMap;
 
 		SceneConstantBuffer _sceneConstantBufferData;
-		Ptr<IBuffer> _sceneConstantBuffer = nullptr;
+		IBufferRef _sceneConstantBuffer = nullptr;
 
 		mutable AtmosphereConstantBuffer _atmosphereConstantBufferData;	// TODO: 지금은 ingui때문에 preRender에서 set하기때문에 mutable붙었는데.. UI시스템 구성되면 지워야한다.
-		Ptr<IBuffer> _atmosphereConstantBuffer = nullptr;
+		IBufferRef _atmosphereConstantBuffer = nullptr;
 	};
 }

@@ -40,8 +40,8 @@ namespace DK
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		_skeletonConstantBuffer = renderModule.createUploadBuffer(sizeof(decltype(animationMatrices[0])) * static_cast<uint32>(animationMatrices.size()), L"SkinnedMesh_Skeleton_Cbuffer");
-		if (_skeletonConstantBuffer.get() == nullptr)
+		_currentAnimationBufferCS = renderModule.createUploadBuffer(sizeof(decltype(animationMatrices[0])) * static_cast<uint32>(animationMatrices.size()), L"SkinnedMesh_Skeleton_Cbuffer");
+		if (_currentAnimationBufferCS == nullptr)
 			return false;
 
 		return true;

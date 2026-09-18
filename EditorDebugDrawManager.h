@@ -4,14 +4,15 @@ namespace DK
 {
 #ifdef _DK_DEBUG_
 	struct IBuffer;
+	using IBufferRef = std::shared_ptr<IBuffer>;
 
 	class EditorDebugDrawManager
 	{
 	public:
 		struct SpherePrimitiveInfo
 		{
-			static RenderResourcePtr<ID3D12Resource> kVertexBuffer;
-			static RenderResourcePtr<ID3D12Resource> kIndexBuffer;
+			static IBufferRef kVertexBuffer;
+			static IBufferRef kIndexBuffer;
 			static VertexBufferViewRef kVertexBufferView;
 			static IndexBufferViewRef kIndexBufferView;
 			static uint32 indexCount;
@@ -29,8 +30,8 @@ namespace DK
 		};
 		struct LinePrimitiveInfo
 		{
-			static RenderResourcePtr<ID3D12Resource> kVertexBuffer;
-			static RenderResourcePtr<ID3D12Resource> kIndexBuffer;
+			static IBufferRef kVertexBuffer;
+			static IBufferRef kIndexBuffer;
 			static VertexBufferViewRef kVertexBufferView;
 			static IndexBufferViewRef kIndexBufferView;
 			static uint32 indexCount;
@@ -109,7 +110,7 @@ namespace DK
 
 #define DEFINE_ELEMENT_TYPE(primitiveName) \
 	DK_REFLECTION_PROPERTY(DKVector<##primitiveName##PrimitiveInfo>, _primitiveInfo##primitiveName##Arr); \
-	DK_REFLECTION_PTR_PROPERTY(IBuffer, _primitiveInfo##primitiveName##Buffer);
+	DK_REFLECTION_PROPERTY(IBufferRef, _primitiveInfo##primitiveName##Buffer);
 
 		DEFINE_ELEMENT_TYPE(Sphere);
 		DEFINE_ELEMENT_TYPE(Line);

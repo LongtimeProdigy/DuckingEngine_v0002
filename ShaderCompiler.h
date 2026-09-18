@@ -45,7 +45,7 @@ namespace DK
 	public:
 		ShaderCompiler();
 
-		const bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, RenderResourcePtr<IDxcBlob>& shader, D3D12_SHADER_BYTECODE& outShader, DKVector<ShaderResourceReflection>& outResources, uint32* outThreadGroupSize = nullptr) const;
+		const bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, RenderResourcePtr<IDxcBlob>& shader, D3D12_SHADER_BYTECODE& outShader, DKVector<ShaderResourceReflection>& outResources, uint32* outThreadGroupSize = nullptr);
 
 	private:
 		bool _initialized = false;

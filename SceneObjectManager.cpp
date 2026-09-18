@@ -32,7 +32,7 @@ namespace DK
 		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 		sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
 		sceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData), L"SceneObject_Cbuffer");
-		if (sceneObject._sceneObjectConstantBuffer.get() == nullptr)
+		if (sceneObject._sceneObjectConstantBuffer == nullptr)
 		{
 			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
 			return false;
@@ -144,7 +144,7 @@ namespace DK
 				break;
 			}
 
-			textures[i] = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), 1, format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
+			textures[i] = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
 		}
 
 		//// Texture 추출
@@ -668,16 +668,14 @@ namespace DK
 				CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> cpuPrimitive = ConvertPrimitive(gltfModel, primitive, meshIndex, primitiveIndex);
 				//result.model.primitives.push_back();
 
-				RenderResourcePtr<ID3D12Resource> vertexBuffer;
 				VertexBufferViewRef vertexBufferView;
-				const bool vertexBufferSuccess = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBuffer, vertexBufferView, L"GLTF_VertexBuffer");
-				if (vertexBufferSuccess == false)
+				IBufferRef vertexBuffer = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBufferView, L"GLTF_VertexBuffer");
+				if (vertexBuffer == nullptr)
 					return nullptr;
 
-				RenderResourcePtr<ID3D12Resource> indexBuffer;
 				IndexBufferViewRef indexBufferView;
-				const bool indexBufferSuccess = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBuffer, indexBufferView, L"GLTF_IndexBuffer");
-				if (indexBufferSuccess == false)
+				IBufferRef indexBuffer = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBufferView, L"GLTF_IndexBuffer");
+				if (indexBuffer == nullptr)
 					return nullptr;
 
 				Material* newMaterial = materials[cpuPrimitive.materialIndex]->clone();

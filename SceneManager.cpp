@@ -72,15 +72,15 @@ namespace DK
 
 		return true;
 	}
-	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, RenderResourcePtr<ID3D12Resource>& vertexBuffer, RenderResourcePtr<ID3D12Resource>& indexBuffer, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
+	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, IBufferRef& vertexBuffer, IBufferRef& indexBuffer, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBuffer, vertexBufferView, L"TerrainMesh_VertexBuffer");
-		if (vertexBufferSuccess == false)
+		vertexBuffer = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"TerrainMesh_VertexBuffer");
+		if (vertexBuffer == nullptr)
 			return false;
 
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"TerrainMesh_IndexBuffer");
-		if (indexBufferSuccess == false)
+		indexBuffer = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"TerrainMesh_IndexBuffer");
+		if (indexBuffer == nullptr)
 			return false;
 
 		return true;
@@ -92,8 +92,8 @@ namespace DK
 		DKVector<uint32> indexArr;
 		createSquareMesh(Ocean::OCEAN_LENGTH, static_cast<float>(Ocean::OCEAN_N) / static_cast<float>(Ocean::OCEAN_LENGTH), vertexArr, indexArr);
 
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		const bool success = createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
@@ -222,8 +222,8 @@ namespace DK
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
@@ -235,8 +235,8 @@ namespace DK
 		DKVector<uint32> indexArr;
 		createSquareMesh(tileResolution, float2::Identity, vertexArr, indexArr);
 
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
@@ -305,8 +305,8 @@ namespace DK
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
@@ -371,8 +371,8 @@ namespace DK
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
@@ -403,8 +403,8 @@ namespace DK
 		indexArr[indexArr.size() - 1] = 0;
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
 
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
@@ -433,7 +433,7 @@ namespace DK
 		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
 		for (uint32 i = 0; i < tileCountPerClipMap; ++i)
 		{
-			IBuffer* buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(TerrainMeshConstantBuffer), L"TerrainMesh_CBuffer");
+			IBufferRef buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(TerrainMeshConstantBuffer), L"TerrainMesh_CBuffer");
 			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
 		}
 	}
@@ -462,12 +462,13 @@ namespace DK
 		const DKVector<uint32> indexArr = getScreenPlaneIndexBufferData();
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBuffer, vertexBufferView, L"PostProcess_VertexBuffer");
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"PostProcess_IndexBuffer");
+		if (createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView) == false)
+			return;
 
 		_postProcess._mesh._vertexBuffer = vertexBuffer;
 		_postProcess._mesh._indexBuffer = indexBuffer;
@@ -481,12 +482,12 @@ namespace DK
 		const DKVector<uint32> indexArr = getScreenPlaneIndexBufferData();
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		RenderResourcePtr<ID3D12Resource> vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> indexBuffer;
+		IBufferRef vertexBuffer;
+		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		const bool vertexBufferSuccess = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBuffer, vertexBufferView, L"PostProcess_VertexBuffer");
-		const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"PostProcess_IndexBuffer");
+		if (createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView) == false)
+			return;
 
 		_gBuffer._mesh._vertexBuffer = vertexBuffer;
 		_gBuffer._mesh._indexBuffer = indexBuffer;

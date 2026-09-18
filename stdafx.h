@@ -452,6 +452,13 @@ public: \
 	dk_inline type& get##name##Writable() noexcept { return name; } \
 	dk_inline void set##name(const type& value) noexcept { name = value; }
 
+#define DK_REFLECTION_PROPERTY_FLAG(type, name, flag) \
+	type name; \
+public: \
+	dk_inline const type& get##name() const noexcept { return name; } \
+	dk_inline type& get##name##Writable() noexcept { return name; } \
+	dk_inline void set##name(const type& value) noexcept { name = value; }
+
 #define DK_REFLECTION_PTR_PROPERTY(type, name) \
 	Ptr<type> name; \
 public: \
@@ -601,6 +608,11 @@ namespace DK
 		RenderResourcePtr(RenderResourcePtr&& rhs) : _ptr(rhs._ptr)
 		{
 			rhs._ptr = nullptr;
+		}
+
+		dk_inline operator T*()
+		{
+			return _ptr;
 		}
 
 		dk_inline const RenderResourcePtr& operator=(RenderResourcePtr& rhs)

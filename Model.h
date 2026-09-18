@@ -3,6 +3,8 @@
 namespace DK
 {
 	class Material;
+	struct IBuffer;
+	using IBufferRef = std::shared_ptr<IBuffer>;
 
 	struct StaticMeshVertex
 	{
@@ -30,7 +32,7 @@ namespace DK
 	public:
 		SubMesh(
 			const DKVector<VertexType>&& vertices, const DKVector<uint32>&& indices,
-			RenderResourcePtr<ID3D12Resource>&& vertexBuffer, RenderResourcePtr<ID3D12Resource>&& indexBuffer,
+			IBufferRef&& vertexBuffer, IBufferRef&& indexBuffer,
 			const VertexBufferViewRef&& vertexBufferView, const IndexBufferViewRef&& indexBufferView, 
 			Material* material)
 			: _vertices(DK::move(vertices))
@@ -54,8 +56,8 @@ namespace DK
 	public:
 		const DKVector<VertexType> _vertices;
 		const DKVector<uint32> _indices;
-		RenderResourcePtr<ID3D12Resource> _vertexBuffer;
-		RenderResourcePtr<ID3D12Resource> _indexBuffer;
+		IBufferRef _vertexBuffer;
+		IBufferRef _indexBuffer;
 		const VertexBufferViewRef _vertexBufferView;
 		const IndexBufferViewRef _indexBufferView;
 		Ptr<Material> _material;

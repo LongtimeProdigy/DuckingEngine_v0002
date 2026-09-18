@@ -24,7 +24,7 @@ namespace DK
 		{
 			Mesh()
 			{}
-			Mesh(RenderResourcePtr<ID3D12Resource>&& vertexBuffer, RenderResourcePtr<ID3D12Resource>&& indexBuffer, const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
+			Mesh(IBufferRef&& vertexBuffer, IBufferRef&& indexBuffer, const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
 				: _vertexBuffer(DK::move(vertexBuffer))
 				, _indexBuffer(DK::move(indexBuffer))
 				, _vertexBufferView(vertexBufferView)
@@ -33,8 +33,8 @@ namespace DK
 			{}
 
 		public:
-			RenderResourcePtr<ID3D12Resource> _vertexBuffer;
-			RenderResourcePtr<ID3D12Resource> _indexBuffer;
+			IBufferRef _vertexBuffer;
+			IBufferRef _indexBuffer;
 			VertexBufferViewRef _vertexBufferView = nullptr;
 			IndexBufferViewRef _indexBufferView = nullptr;
 			uint32 _indexCount = 0;
@@ -101,7 +101,7 @@ namespace DK
 				const TextureResourceViewType _heightUAV;
 				const TextureResourceViewType _normalUAV;
 			};
-			Ptr<IBuffer> _initialSpectrumConstantBuffer;
+			IBufferRef _initialSpectrumConstantBuffer;
 			ITextureRef _h0[RenderModule::kFrameCount];
 			ITextureRef _ht[RenderModule::kFrameCount * 2]; // *2 for Ping-pong
 			ITextureRef _height[RenderModule::kFrameCount];
@@ -132,7 +132,7 @@ namespace DK
 			Mesh _seam;
 
 			Ptr<Material> _material;
-			DKVector<Ptr<IBuffer>> _terrainConstantBuffer;
+			DKVector<IBufferRef> _terrainConstantBuffer;
 		};
 		struct GBuffer
 		{

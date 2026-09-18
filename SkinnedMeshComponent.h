@@ -1,9 +1,10 @@
-#pragma once
+﻿#pragma once
 #include "RenderableComponent.h"
 
 namespace DK
 {
 	struct IBuffer;
+	using IBufferRef = std::shared_ptr<IBuffer>;
 }
 
 namespace DK
@@ -24,6 +25,6 @@ namespace DK
 		AnimationRef _animation;
 
 		DK_REFLECTION_VECTOR_PROPERTY(float4x4, _currentCharacterSpaceBoneAnimation);
-		DK_REFLECTION_PTR_PROPERTY(IBuffer, _skeletonConstantBuffer);
+		DK_REFLECTION_PROPERTY(IBufferRef, _currentAnimationBufferCS);
 	};
 }

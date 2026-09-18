@@ -8,14 +8,14 @@ namespace DK
 {
 	EditorDebugDrawManager* EditorDebugDrawManager::_this = nullptr;
 
-	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBuffer = nullptr;
-	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBuffer = nullptr;
+	IBufferRef EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBuffer = nullptr;
+	IBufferRef EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBuffer = nullptr;
 	VertexBufferViewRef EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView = nullptr;
 	IndexBufferViewRef EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView = nullptr;
 	uint32 EditorDebugDrawManager::SpherePrimitiveInfo::indexCount = 0;
 
-	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::LinePrimitiveInfo::kVertexBuffer = nullptr;
-	RenderResourcePtr<ID3D12Resource> EditorDebugDrawManager::LinePrimitiveInfo::kIndexBuffer = nullptr;
+	IBufferRef EditorDebugDrawManager::LinePrimitiveInfo::kVertexBuffer = nullptr;
+	IBufferRef EditorDebugDrawManager::LinePrimitiveInfo::kIndexBuffer = nullptr;
 	VertexBufferViewRef EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView = nullptr;
 	IndexBufferViewRef EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView = nullptr;
 	uint32 EditorDebugDrawManager::LinePrimitiveInfo::indexCount = 0;
@@ -28,15 +28,19 @@ namespace DK
 		return false;
 	}
 
-	bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, RenderResourcePtr<ID3D12Resource>& vertexBuffer, VertexBufferViewRef& vertexBufferView, RenderResourcePtr<ID3D12Resource>& indexBuffer, IndexBufferViewRef& indexBufferView, Ptr<IBuffer>& primitiveInfoBuffer, const DKStringW& vertexDebugName, const DKStringW& indexDebugName, const DKStringW& cbufferDebugName)
+	const bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, IBufferRef& vertexBuffer, VertexBufferViewRef& vertexBufferView, IBufferRef& indexBuffer, IndexBufferViewRef& indexBufferView, IBufferRef& primitiveInfoBuffer, const DKStringW& vertexDebugName, const DKStringW& indexDebugName, const DKStringW& cbufferDebugName)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBuffer, vertexBufferView, vertexDebugName);
-		renderModule.createIndexBuffer(indices, indexCount, indexBuffer, indexBufferView, indexDebugName);
+		vertexBuffer = renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBufferView, vertexDebugName.c_str());
+		if (vertexBuffer == nullptr)
+			return false;
+		indexBuffer = renderModule.createIndexBuffer(indices, indexCount, indexBufferView, indexDebugName.c_str());
+		if (indexBuffer == nullptr)
+			return false;
 		outIndexCount = indexCount;
 
 		uint32 elementCount = MAX_ELEMENT_COUNT;
-		primitiveInfoBuffer = renderModule.createUploadBuffer(strideSize * elementCount, cbufferDebugName);
+		primitiveInfoBuffer = renderModule.createUploadBuffer(strideSize * elementCount, cbufferDebugName.c_str());
 
 		return true;
 	}

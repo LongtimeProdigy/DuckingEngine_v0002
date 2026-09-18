@@ -23,8 +23,8 @@ namespace DK
 		}
 
 #ifdef _DK_DEBUG_
-		IDxcVersionInfo* versionInfo = nullptr;
-		hr = _compiler3->QueryInterface(IID_PPV_ARGS(&versionInfo));
+		RenderResourcePtr<IDxcVersionInfo> versionInfo = nullptr;
+		hr = _compiler3->QueryInterface(IID_PPV_ARGS(versionInfo.getAddress()));
 		if (SUCCEEDED(hr))
 		{
 			UINT major = 0;
@@ -37,7 +37,7 @@ namespace DK
 
 		_initialized = true;
 	}
-	const bool ShaderCompiler::compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, RenderResourcePtr<IDxcBlob>& shader, D3D12_SHADER_BYTECODE& outShader, DKVector<ShaderResourceReflection>& outResources, uint32* outThreadGroupSize) const
+	const bool ShaderCompiler::compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, RenderResourcePtr<IDxcBlob>& shader, D3D12_SHADER_BYTECODE& outShader, DKVector<ShaderResourceReflection>& outResources, uint32* outThreadGroupSize)
 	{
 		if (outThreadGroupSize != nullptr)
 		{
@@ -135,7 +135,7 @@ namespace DK
 		}
 
 		RenderResourcePtr<IDxcResult> result(nullptr);
-		hr = const_cast<RenderResourcePtr<IDxcCompiler3>&>(_compiler3)->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(result.getAddress()));
+		hr = _compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(result.getAddress()));
 		if (FAILED(hr))
 		{
 			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
@@ -201,7 +201,10 @@ namespace DK
 			{
 				D3D12_SHADER_INPUT_BIND_DESC desc{};
 				if (FAILED(reflection->GetResourceBindingDesc(i, &desc)))
+				{
+					DK_ASSERT_LOG(false, "Shader Reflection 실패");
 					return false;
+				}
 
 				ShaderResourceReflection resource;
 				resource._name = desc.Name;
@@ -228,7 +231,10 @@ namespace DK
 					ID3D12ShaderReflectionConstantBuffer* cb = reflection->GetConstantBufferByName(desc.Name);
 					D3D12_SHADER_BUFFER_DESC cbDesc{};
 					if (cb == nullptr || FAILED(cb->GetDesc(&cbDesc)))
+					{
+						DK_ASSERT_LOG(false, "Shader Reflection 실패");
 						return false;
+					}
 
 					resource._constantBufferSize = cbDesc.Size;
 
@@ -238,7 +244,10 @@ namespace DK
 
 						D3D12_SHADER_VARIABLE_DESC variableDesc{};
 						if (variable == nullptr || FAILED(variable->GetDesc(&variableDesc)))
+						{
+							DK_ASSERT_LOG(false, "Shader Reflection 실패");
 							return false;
+						}
 
 						ShaderVariableReflection value;
 						value._name = variableDesc.Name;
@@ -274,9 +283,12 @@ namespace DK
 				ID3D12FunctionReflection* function = reflection->GetFunctionByIndex(i);
 				D3D12_FUNCTION_DESC functionDesc{};
 				if (function == nullptr || FAILED(function->GetDesc(&functionDesc)))
+				{
+					DK_ASSERT_LOG(false, "Shader Reflection 실패");
 					return false;
+				}
 
-				if (!collectResources(function, functionDesc.BoundResources))
+				if (collectResources(function, functionDesc.BoundResources) == false)
 					return false;
 			}
 		}
@@ -285,11 +297,17 @@ namespace DK
 			RenderResourcePtr<ID3D12ShaderReflection> reflection;
 			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(reflection.getAddress()));
 			if (FAILED(hr))
+			{
+				DK_ASSERT_LOG(false, "Shader Reflection 실패");
 				return false;
+			}
 
 			D3D12_SHADER_DESC shaderDesc{};
 			if (FAILED(reflection->GetDesc(&shaderDesc)))
+			{
+				DK_ASSERT_LOG(false, "Shader Reflection 실패");
 				return false;
+			}
 
 			if (shaderType == ShaderType::ComputeShader)
 			{
@@ -301,8 +319,7 @@ namespace DK
 
 				if (sizeX == 0 || sizeY == 0 || sizeZ == 0)
 				{
-					DK_ASSERT_LOG(false,
-						"Compute thread group size is invalid: %s", shaderPath);
+					DK_ASSERT_LOG(false, "Compute thread group size is invalid: %s", shaderPath);
 					return false;
 				}
 
@@ -314,7 +331,7 @@ namespace DK
 				}
 			}
 
-			if (!collectResources(reflection.get(), shaderDesc.BoundResources))
+			if (collectResources(reflection.get(), shaderDesc.BoundResources) == false)
 				return false;
 		}
 
