@@ -12,6 +12,10 @@ namespace DK
 	class SceneObject : public Object
 	{
 	public:
+		SceneObject() = default;
+		SceneObject(SceneObject&& rhs) = default;
+		SceneObject& operator=(SceneObject&&) noexcept = default;
+
 		virtual void update(float deltaTime) override final {}
 
 	public:

@@ -14,55 +14,45 @@ namespace DK
 	class DuckingEngine
 	{
 	private:
-		static DuckingEngine* _duckingEngine;
+		static Ptr<DuckingEngine> _duckingEngine;
 	public:
-		static DuckingEngine& getInstance()
-		{
-			if (_duckingEngine == nullptr)
-				_duckingEngine = dk_new DuckingEngine;
-
-			return *_duckingEngine;
-		}
+		static DuckingEngine& getInstance();
+		void destroy();
 
 	public:
-		DuckingEngine()
-		{
-			if (_duckingEngine != nullptr)
-			{
-				DK_ASSERT_LOG(false, "Engine을 2개 생성을 시도하고 있습니다. 반드시 검토 바랍니다.");
-			}
-		}
+		DuckingEngine();
+		~DuckingEngine();
 
 		bool Initialize(HWND hwnd, int width, int height);
 
-		void Update(const float deltaTime) const;
-		void Render(const float deltaTime) const;
+		void Update(const float deltaTime);
+		void Render(const float deltaTime);
 
-		dk_inline const RenderModule& GetRenderModule() const noexcept { return *_renderModule; }
-		dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule; }
-		dk_inline const RaytracingRenderer& GetRaytracingRenderer() const noexcept { return *_raytracingRenderer; }
-		dk_inline RaytracingRenderer& GetRaytracingRendererWritable() noexcept { return *_raytracingRenderer; }
-		dk_inline const SceneRenderer& getSceneRender() const noexcept { return *_sceneRenderer; }
-		dk_inline SceneRenderer& getSceneRenderWritable() noexcept { return *_sceneRenderer; }
-		dk_inline const ResourceManager& GetResourceManager() const noexcept { return *_resourceManager; }
-		dk_inline ResourceManager& GetResourceManagerWritable() noexcept { return *_resourceManager; }
-		dk_inline const SceneManager& getSceneManager() const noexcept { return *_sceneManager; }
-		dk_inline SceneManager& getSceneManagerWritable() noexcept { return *_sceneManager; }
-		dk_inline const SceneObjectManager& GetSceneObjectManager() const noexcept { return *_sceneObjectManager; }
-		dk_inline SceneObjectManager& GetSceneObjectManagerWritable() noexcept { return *_sceneObjectManager; }
+		dk_inline const RenderModule& GetRenderModule() const noexcept { return *_renderModule.get(); }
+		dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule.get(); }
+		dk_inline const RaytracingRenderer& GetRaytracingRenderer() const noexcept { return *_raytracingRenderer.get(); }
+		dk_inline RaytracingRenderer& GetRaytracingRendererWritable() noexcept { return *_raytracingRenderer.get(); }
+		dk_inline const SceneRenderer& getSceneRender() const noexcept { return *_sceneRenderer.get(); }
+		dk_inline SceneRenderer& getSceneRenderWritable() noexcept { return *_sceneRenderer.get(); }
+		dk_inline const ResourceManager& GetResourceManager() const noexcept { return *_resourceManager.get(); }
+		dk_inline ResourceManager& GetResourceManagerWritable() noexcept { return *_resourceManager.get(); }
+		dk_inline const SceneManager& getSceneManager() const noexcept { return *_sceneManager.get(); }
+		dk_inline SceneManager& getSceneManagerWritable() noexcept { return *_sceneManager.get(); }
+		dk_inline const SceneObjectManager& GetSceneObjectManager() const noexcept { return *_sceneObjectManager.get(); }
+		dk_inline SceneObjectManager& GetSceneObjectManagerWritable() noexcept { return *_sceneObjectManager.get(); }
 
 	private:
 #pragma region System Modules
-		static RenderModule* _renderModule;
-		static RaytracingRenderer* _raytracingRenderer;
-		static SceneRenderer* _sceneRenderer;
+		Ptr<RenderModule> _renderModule;
+		Ptr<RaytracingRenderer> _raytracingRenderer;
+		Ptr<SceneRenderer> _sceneRenderer;
 #pragma endregion
 
 #pragma region Editor&Game Modules
-		static ResourceManager* _resourceManager;
-		static SceneManager* _sceneManager;
-		static SceneObjectManager* _sceneObjectManager;
-		static GameModule* _gameModule;
+		Ptr<ResourceManager> _resourceManager;
+		Ptr<SceneManager> _sceneManager;
+		Ptr<SceneObjectManager> _sceneObjectManager;
+		Ptr<GameModule> _gameModule;
 #pragma endregion
 	};
 }

@@ -6,28 +6,35 @@
 #define USE_WINCODEC
 #ifdef USE_WINCODEC
 #include <wincodec.h>	// Image Process
-DXGI_FORMAT GetDXGIFormatFromWICFormat(WICPixelFormatGUID& wicFormatGUID)
+DXGI_FORMAT GetDXGIFormatFromWICFormat(const WICPixelFormatGUID& format)
 {
-	if (wicFormatGUID == GUID_WICPixelFormat128bppRGBAFloat) return DXGI_FORMAT_R32G32B32A32_FLOAT;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBAHalf) return DXGI_FORMAT_R16G16B16A16_FLOAT;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBA) return DXGI_FORMAT_R16G16B16A16_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBA) return DXGI_FORMAT_R8G8B8A8_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppBGRA) return DXGI_FORMAT_B8G8R8A8_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppBGR) return DXGI_FORMAT_B8G8R8X8_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBA1010102XR) return DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM;
+	if (format == GUID_WICPixelFormat128bppRGBAFloat)      return DXGI_FORMAT_R32G32B32A32_FLOAT;
+	if (format == GUID_WICPixelFormat64bppRGBAHalf)        return DXGI_FORMAT_R16G16B16A16_FLOAT;
+	if (format == GUID_WICPixelFormat64bppRGBA)            return DXGI_FORMAT_R16G16B16A16_UNORM;
 
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBA1010102) return DXGI_FORMAT_R10G10B10A2_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat16bppBGRA5551) return DXGI_FORMAT_B5G5R5A1_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat16bppBGR565) return DXGI_FORMAT_B5G6R5_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppGrayFloat) return DXGI_FORMAT_R32_FLOAT;
-	else if (wicFormatGUID == GUID_WICPixelFormat16bppGrayHalf) return DXGI_FORMAT_R16_FLOAT;
-	else if (wicFormatGUID == GUID_WICPixelFormat16bppGray) return DXGI_FORMAT_R16_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat8bppGray) return DXGI_FORMAT_R8_UNORM;
-	else if (wicFormatGUID == GUID_WICPixelFormat8bppAlpha) return DXGI_FORMAT_A8_UNORM;
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
+	if (format == GUID_WICPixelFormat96bppRGBFloat)        return DXGI_FORMAT_R32G32B32_FLOAT;
+#endif
 
-	else return DXGI_FORMAT_UNKNOWN;
+	if (format == GUID_WICPixelFormat32bppRGBA)            return DXGI_FORMAT_R8G8B8A8_UNORM;
+	if (format == GUID_WICPixelFormat32bppBGRA)            return DXGI_FORMAT_B8G8R8A8_UNORM;
+	if (format == GUID_WICPixelFormat32bppBGR)             return DXGI_FORMAT_B8G8R8X8_UNORM;
+
+	if (format == GUID_WICPixelFormat32bppRGBA1010102XR)   return DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM;
+	if (format == GUID_WICPixelFormat32bppRGBA1010102)     return DXGI_FORMAT_R10G10B10A2_UNORM;
+
+	if (format == GUID_WICPixelFormat16bppBGRA5551)        return DXGI_FORMAT_B5G5R5A1_UNORM;
+	if (format == GUID_WICPixelFormat16bppBGR565)          return DXGI_FORMAT_B5G6R5_UNORM;
+
+	if (format == GUID_WICPixelFormat32bppGrayFloat)       return DXGI_FORMAT_R32_FLOAT;
+	if (format == GUID_WICPixelFormat16bppGrayHalf)        return DXGI_FORMAT_R16_FLOAT;
+	if (format == GUID_WICPixelFormat16bppGray)            return DXGI_FORMAT_R16_UNORM;
+	if (format == GUID_WICPixelFormat8bppGray)             return DXGI_FORMAT_R8_UNORM;
+	if (format == GUID_WICPixelFormat8bppAlpha)            return DXGI_FORMAT_A8_UNORM;
+
+	return DXGI_FORMAT_UNKNOWN;
 }
-WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID)
+WICPixelFormatGUID GetConvertToWICFormat(const WICPixelFormatGUID& wicFormatGUID)
 {
 	if (wicFormatGUID == GUID_WICPixelFormatBlackWhite) return GUID_WICPixelFormat8bppGray;
 	else if (wicFormatGUID == GUID_WICPixelFormat1bppIndexed) return GUID_WICPixelFormat32bppRGBA;
@@ -99,6 +106,11 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 	}
 }
 #endif
+
+#if defined(_DK_DEBUG_)
+#include <dxgidebug.h>
+#pragma comment(lib, "dxguid.lib")
+#endif
 #pragma endregion
 
 #include "DuckingEngine.h"
@@ -127,6 +139,7 @@ namespace DK
 	static const float4 gClearRenderTargetViewColor(1, 0, 0, 1);
 
 	uint32 RenderModule::kCurrentFrameIndex = 0;
+	uint32 RenderModule::kCurrentBackBufferIndex = 0;
 	uint32 RenderModule::kWidth = 0;
 	uint32 RenderModule::kHeight = 0;
 	static constexpr const DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -173,12 +186,11 @@ namespace DK
 	}
 
 #define TEXTUREBINDLESS_MAX_COUNT 8192
-#define TEXTUREBINDLESS_SPACE 10
+#define BINDLESSTEXTUREARRAY_SPACE 10
 	static constexpr const D3D12_DESCRIPTOR_HEAP_TYPE gTextureBindlessDescriptorHeapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
 	RenderModule::~RenderModule()
 	{
-		CloseHandle(_fenceEvent);
 	}
 
 #pragma region Initialize
@@ -215,28 +227,58 @@ namespace DK
 		if(createCommandList(_commandList) == false)
 			return false;
 
-		_commandList->Close();
-
 		if (initialize_createFence() == false) 
 			return false;
 
+		execute();
+		waitFenceAndResetCommandList();
+
 		return true;
 	}
-	bool RenderModule::postInitialize()
+
+	void RenderModule::destroy()
 	{
-		if(gSerializeRender)
-			waitFenceAndResetCommandList();
-		return true;
+		_renderPassMap.clear();
+		_textureDescriptorHeap.release();
+		DK_ASSERT_LOG(_textureContainer.empty(), "");
+
+#if defined(USE_IMGUI)
+		_pd3dSrvDescHeap.release();
+#endif
+
+		for (uint32 i = 0; i < DK_COUNT_OF(_depthStencilTextureArr); ++i)
+			_depthStencilTextureArr[i].reset();
+		_depthStencilDescriptorHeap.release();
+
+		for (uint32 i = 0; i < DK_COUNT_OF(_backBufferResourceArr); ++i)
+			_backBufferResourceArr[i] = IBuffer();
+
+		for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetTextureArr); ++i)
+			_renderTargetTextureArr[i].reset();
+		_renderTargetViewHeap.release();
+
+		_swapChain.release();
+		_scissorRect.release();
+		_viewport.release();
+
+		CloseHandle(_fenceEvent);
+		for (uint32 i = 0; i < DK_COUNT_OF(_fences); ++i)
+			_fences[i].release();
+
+		_commandList = DKCommandList();
+		_commandQueue.release();
+
+		ReportLiveObjects();
+		_device.release();
 	}
-	bool CheckTearingSupport()
+
+	bool CheckTearingSupport(RenderResourcePtr<IDXGIFactory4>& factory)
 	{
-		IDXGIFactory4* factory4;
-		HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory4));
+		HRESULT hr;
 		BOOL allowTearing = FALSE;
-		if (SUCCEEDED(hr))
 		{
-			IDXGIFactory5* factory5;
-			hr = factory4->QueryInterface(IID_PPV_ARGS(&factory5));
+			RenderResourcePtr<IDXGIFactory5> factory5;
+			hr = factory->QueryInterface(IID_PPV_ARGS(factory5.getAddress()));
 			if (SUCCEEDED(hr))
 				hr = factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing));
 		}
@@ -276,9 +318,8 @@ namespace DK
 #ifdef _DK_DEBUG_
 			// CreateDevice이전에 실행해야합니다. Device생성 이후에 호출하면 Device Remove가 발생함.
 			// Enable the D3D12 debug layer.
-			RenderResourcePtr<ID3D12Debug> debugController;
-			if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(debugController.getAddress()))))
-				debugController->EnableDebugLayer();
+			if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(_debugController.getAddress()))))
+				_debugController->EnableDebugLayer();
 #endif
 		}
 
@@ -302,6 +343,8 @@ namespace DK
 		}
 
 #if defined(_DK_DEBUG_)
+		_device->SetName(L"Duckingengine D3D12 Device");
+
 		// 1. 디바이스 생성 후 Info Queue 인터페이스를 가져옵니다.
 		RenderResourcePtr<ID3D12InfoQueue> pInfoQueue = nullptr;
 		hr = _device->QueryInterface(IID_PPV_ARGS(pInfoQueue.getAddress()));
@@ -353,6 +396,9 @@ namespace DK
 			cqDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 			if (FAILED(_device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(_commandQueue.getAddress()))))
 				return false;
+#if defined(_DK_DEBUG_)
+			_commandQueue->SetName(L"DuckingEngine CommandQueue");
+#endif
 		}
 
 		// Create Bindless Texture DescriptorHeap
@@ -390,6 +436,10 @@ namespace DK
 			hr = _device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(_depthStencilDescriptorHeap.getAddress()));
 			if (FAILED(hr) == true)
 				return false;
+
+#if defined(_DK_DEBUG_)
+			_depthStencilDescriptorHeap->SetName(L"DSV DescriptorHeap");
+#endif
 
 			_depthStencilViewSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -483,12 +533,13 @@ namespace DK
 			swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 			swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 			// It is recommended to always allow tearing if tearing support is available.
-			swapChainDesc.Flags = CheckTearingSupport() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+			swapChainDesc.Flags = CheckTearingSupport(factory) ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 			swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 			hr = factory->CreateSwapChainForHwnd(_commandQueue.get(), hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(_swapChain.getAddress()));
 			if (FAILED(hr) == true)
 				return false;
-			kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
+			kCurrentFrameIndex = 0;
+			kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
 
 			for (uint32 i = 0; i < kFrameCount; ++i)
 			{
@@ -618,8 +669,6 @@ namespace DK
 			HRESULT hr = _device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(_fences[i].getAddress()));
 			if (FAILED(hr))
 				return false;
-
-			_fences[i]->Signal(_fenceValues[i]);
 		}
 
 		_fenceEvent = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
@@ -643,7 +692,7 @@ namespace DK
 		srvDescriptorTableRanges.resize(isRaytracing ? 4 : 1);
 		srvDescriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		srvDescriptorTableRanges[0].NumDescriptors = kMaxTextureSRVCount;// TEXTUREBINDLESS_MAX_COUNT;
-		srvDescriptorTableRanges[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+		srvDescriptorTableRanges[0].RegisterSpace = BINDLESSTEXTUREARRAY_SPACE;
 		srvDescriptorTableRanges[0].BaseShaderRegister = 0;
 		srvDescriptorTableRanges[0].OffsetInDescriptorsFromTableStart = 0;
 
@@ -651,19 +700,19 @@ namespace DK
 		{
 			srvDescriptorTableRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 			srvDescriptorTableRanges[1].NumDescriptors = RaytracingRenderer::kRaytracingDescriptorCount;
-			srvDescriptorTableRanges[1].RegisterSpace = RaytracingRenderer::kVertexBufferSpace;
+			srvDescriptorTableRanges[1].RegisterSpace = RaytracingRenderer::BINDLESSVERTEXARRAY_SPACE;
 			srvDescriptorTableRanges[1].BaseShaderRegister = 0;
 			srvDescriptorTableRanges[1].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount + kMaxTextureUAVCount;
 
 			srvDescriptorTableRanges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 			srvDescriptorTableRanges[2].NumDescriptors = RaytracingRenderer::kRaytracingDescriptorCount;
-			srvDescriptorTableRanges[2].RegisterSpace = RaytracingRenderer::kIndexBufferSpace;
+			srvDescriptorTableRanges[2].RegisterSpace = RaytracingRenderer::BINDLESSINDEXARRAY_SPACE;
 			srvDescriptorTableRanges[2].BaseShaderRegister = 0;
 			srvDescriptorTableRanges[2].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount + kMaxTextureUAVCount + RaytracingRenderer::kRaytracingDescriptorCount; //D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 
 			srvDescriptorTableRanges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 			srvDescriptorTableRanges[3].NumDescriptors = RaytracingRenderer::kRaytracingDescriptorCount;
-			srvDescriptorTableRanges[3].RegisterSpace = RaytracingRenderer::kMaterialSpace;
+			srvDescriptorTableRanges[3].RegisterSpace = RaytracingRenderer::BINDLESSMATERIALARRAY_SPACE;
 			srvDescriptorTableRanges[3].BaseShaderRegister = 0;
 			srvDescriptorTableRanges[3].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount + kMaxTextureUAVCount + RaytracingRenderer::kRaytracingDescriptorCount * 2; //D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 		}
@@ -681,7 +730,7 @@ namespace DK
 		D3D12_DESCRIPTOR_RANGE  uavDescriptorTableRanges[1];
 		uavDescriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		uavDescriptorTableRanges[0].NumDescriptors = kMaxTextureUAVCount;// TEXTUREBINDLESS_MAX_COUNT;
-		uavDescriptorTableRanges[0].RegisterSpace = TEXTUREBINDLESS_SPACE;
+		uavDescriptorTableRanges[0].RegisterSpace = BINDLESSTEXTUREARRAY_SPACE;
 		uavDescriptorTableRanges[0].BaseShaderRegister = 0;
 		uavDescriptorTableRanges[0].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount;
 		D3D12_ROOT_DESCRIPTOR_TABLE uavDescriptorTable;
@@ -695,23 +744,9 @@ namespace DK
 
 		for(const ShaderResourceReflection& resource : resources)
 		{
-			auto checkBindlessOrSamplerResource = [](const DKString& name)->const bool
-			{
-				static DKString kBindlessOrSamplerName[] = {
-					"gBindlessTextureSRVArray", "gBindlessTextureUAVArray",
-					"gVertices", "gIndices", "gMaterials",
-					"pointSampler", "bilinearRepeatSampler",
-				};
-
-				for (uint32 i = 0; i < DK_COUNT_OF(kBindlessOrSamplerName); ++i)
-				{
-					if (name == kBindlessOrSamplerName[i])
-						return true;
-				}
-
-				return false;
-			};
-			if (checkBindlessOrSamplerResource(resource._name))
+			// check bindless
+			if (resource._bindCount == 0 && (resource._space == BINDLESSTEXTUREARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSVERTEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSINDEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSMATERIALARRAY_SPACE)
+				|| resource._type == D3D_SIT_SAMPLER)
 				continue;
 
 			bool useRootConstants = false;
@@ -895,7 +930,7 @@ namespace DK
 		DK_ASSERT_LOG(false, "Ptimitive정보가 올바르지 않습니다. pipeline이 작동되지 않을테니 반드시 확인이 필요합니다.");
 		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
 	}
-	bool RenderModule::createPipelineObjectState(const ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
+	bool RenderModule::createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
 	{
 		DKVector<DKString> emptyDefines;
 		DKVector<ShaderResourceReflection> pipelineResources;
@@ -1265,7 +1300,7 @@ namespace DK
 
 		return true;
 	}
-	bool RenderModule::createRenderPass(const ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
+	bool RenderModule::createRenderPass(ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
 	{
 		using FindResult = DKHashMap<DKString, RenderPass>::iterator;
 		FindResult find = _renderPassMap.find(renderPassName);
@@ -1330,55 +1365,130 @@ namespace DK
 
 		return true;
 	}
+
+	void RenderModule::ReportLiveObjects() const
+	{
+		// D3D12 objects
+		//if (_device.get())
+		//{
+		//	ID3D12DebugDevice* debugDevice = nullptr;
+		//	if (SUCCEEDED(const_cast<RenderResourcePtr<ID3D12Device8>&>(_device)->QueryInterface(IID_PPV_ARGS(&debugDevice))))
+		//	{
+		//		debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL);
+		//		debugDevice->Release();
+		//	}
+		//}
+
+		// DXGI objects
+		IDXGIDebug1* dxgiDebug = nullptr;
+		if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))))
+		{
+			dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_SUMMARY | DXGI_DEBUG_RLO_DETAIL | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
+			dxgiDebug->Release();
+		}
+	}
 #endif
 
-	void RenderModule::waitFenceAndResetCommandList()
+	bool isExecuted = false;
+	void RenderModule::waitAllGPU()
 	{
-		kCurrentFrameIndex = _swapChain->GetCurrentBackBufferIndex();
+		//if (gSerializeRender)
+		//{
+		//	_commandList->Close();
 
-		if (static_cast<uint32>(_fences[kCurrentFrameIndex]->GetCompletedValue()) < _fenceValues[kCurrentFrameIndex])
+		//	DKVector<ID3D12CommandList*> commandLists;
+		//	commandLists.push_back(_commandList._commandList.get());
+		//	_commandQueue->ExecuteCommandLists(static_cast<uint32>(commandLists.size()), commandLists.data());
+
+		//	++_fenceValues[kCurrentFrameIndex];
+		//	HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
+		//	assert(SUCCEEDED(hr));
+		//}
+		//else
+		//{
+		//	++_fenceValues[kCurrentFrameIndex];
+		//	HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
+		//	assert(SUCCEEDED(hr));
+		//}
+
+		for (uint32 i = 0; i < kFrameCount; ++i)
 		{
-			_fences[kCurrentFrameIndex]->SetEventOnCompletion(_fenceValues[kCurrentFrameIndex], _fenceEvent);
-			WaitForSingleObject(_fenceEvent, INFINITE);
+			if (static_cast<uint32>(_fences[i]->GetCompletedValue()) < _fenceValues[i])
+			{
+				_fences[i]->SetEventOnCompletion(_fenceValues[i], _fenceEvent);
+				WaitForSingleObject(_fenceEvent, INFINITE);
+			}
 		}
-
-		++_fenceValues[kCurrentFrameIndex];
-
-		_commandList._commandAllocators[kCurrentFrameIndex]->Reset();
-		_commandList->Reset(_commandList._commandAllocators[kCurrentFrameIndex].get(), nullptr);
 	}
-	void RenderModule::execute()
+
+	void RenderModule::execute(const bool isPresent)
 	{
 		_commandList->Close();
 
 		DKVector<ID3D12CommandList*> commandLists;
 		commandLists.push_back(_commandList._commandList.get());
 		_commandQueue->ExecuteCommandLists(static_cast<uint32>(commandLists.size()), commandLists.data());
-		_commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
+
+		if (isPresent)
+		{
+			UINT syncInterval = 0; //gVSync ? 1 : 0;
+			UINT presentFlags = 0; // CheckTearingSupport() && !gVSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
+			HRESULT hr = _swapChain->Present(syncInterval, presentFlags);
+			DK_ASSERT_LOG(SUCCEEDED(hr), "Present 실패!");
+			kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
+		}
+
+		++_fenceValues[kCurrentFrameIndex];
+		HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
+		assert(SUCCEEDED(hr));
+
+		isExecuted = true;
+	}
+	void RenderModule::waitFenceAndResetCommandList()
+	{
+		if (isExecuted == false)
+			return;
+		isExecuted = false;
+
+		kCurrentFrameIndex = 0;
+
+		const uint32 completeFenceValue = static_cast<uint32>(_fences[kCurrentFrameIndex]->GetCompletedValue());
+		if (completeFenceValue < _fenceValues[kCurrentFrameIndex])
+		{
+			HRESULT hr = _fences[kCurrentFrameIndex]->SetEventOnCompletion(_fenceValues[kCurrentFrameIndex], _fenceEvent);
+			assert(SUCCEEDED(hr));
+			WaitForSingleObject(_fenceEvent, INFINITE);
+		}
+
+		_commandList._commandAllocators[kCurrentFrameIndex]->Reset();
+		_commandList->Reset(_commandList._commandAllocators[kCurrentFrameIndex].get(), nullptr);
 	}
 
-	void RenderModule::resourceBarrierTransition(const IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState)
+	void RenderModule::resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState)
 	{
 		if (buffer == nullptr)
 			return;
 
 		resourceBarrierTransition(*buffer.get(), afterState);
 	}
-	void RenderModule::resourceBarrierTransition(const IBuffer& buffer, const D3D12_RESOURCE_STATES afterState)
+	void RenderModule::resourceBarrierTransition(IBuffer& buffer, const D3D12_RESOURCE_STATES afterState)
 	{
 		if (buffer._currentState == afterState)
 			return;
 
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(const_cast<ID3D12Resource*>(buffer._buffer.get()), buffer._currentState, afterState);
 		_commandList->ResourceBarrier(1, &barrier);
+
+		buffer._currentState = afterState;
 	}
-	void RenderModule::copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer)
+	void RenderModule::copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer, const D3D12_RESOURCE_STATES afterState)
 	{
 		DK_ASSERT_LOG(_blockCopy == false, "");
 		DK_ASSERT_LOG(targetBuffer->_type == IBuffer::Type::DEFAULT, "Destination Buffer는 반드시 Default여야합니다.");
 		DKCommandList::CopyResourcePendingData pendingData;
 		pendingData._source = sourceBuffer;
 		pendingData._target = targetBuffer;
+		pendingData._afterState = afterState;
 		_commandList._copyResourcePendingArray.push_back(DK::move(pendingData));
 	}
 
@@ -1416,10 +1526,17 @@ namespace DK
 
 		return IBufferRef(dk_new IBuffer(DK::move(textureResource), width, height, 8 * 4, mipLevelCount, state));
 	}
-	IBufferRef RenderModule::createUploadBuffer(const uint32 size, const wchar_t* debugName)
+
+	IBufferRef RenderModule::createConstantBuffer(const uint32 size, const wchar_t* debugName)
 	{
 		const uint32 alignedSize = (size + 255) & ~255;
 		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
+		return IBufferRef(dk_new IBuffer(IBuffer::Type::UPLOAD, DK::move(buffer), size, D3D12_RESOURCE_STATE_GENERIC_READ));
+	}
+
+	IBufferRef RenderModule::createUploadBuffer(const uint32 size, const wchar_t* debugName)
+	{
+		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
 		return IBufferRef(dk_new IBuffer(IBuffer::Type::UPLOAD, DK::move(buffer), size, D3D12_RESOURCE_STATE_GENERIC_READ));
 	}
 
@@ -1439,7 +1556,7 @@ namespace DK
 				return nullptr;
 
 			uploadBuffer->upload(data);
-			copyResource(defaultBuffer, uploadBuffer);
+			copyResource(defaultBuffer, uploadBuffer, state);
 		}
 
 		return DK::move(defaultBuffer);
@@ -1645,14 +1762,189 @@ namespace DK
 
 		return true;
 	}
+	UINT BitsPerPixel(DXGI_FORMAT format)
+	{
+		switch (format)
+		{
+		case DXGI_FORMAT_R32G32B32A32_TYPELESS:
+		case DXGI_FORMAT_R32G32B32A32_FLOAT:
+		case DXGI_FORMAT_R32G32B32A32_UINT:
+		case DXGI_FORMAT_R32G32B32A32_SINT:
+			return 128;
+
+		case DXGI_FORMAT_R32G32B32_TYPELESS:
+		case DXGI_FORMAT_R32G32B32_FLOAT:
+		case DXGI_FORMAT_R32G32B32_UINT:
+		case DXGI_FORMAT_R32G32B32_SINT:
+			return 96;
+
+		case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+		case DXGI_FORMAT_R16G16B16A16_FLOAT:
+		case DXGI_FORMAT_R16G16B16A16_UNORM:
+		case DXGI_FORMAT_R16G16B16A16_UINT:
+		case DXGI_FORMAT_R16G16B16A16_SNORM:
+		case DXGI_FORMAT_R16G16B16A16_SINT:
+		case DXGI_FORMAT_R32G32_TYPELESS:
+		case DXGI_FORMAT_R32G32_FLOAT:
+		case DXGI_FORMAT_R32G32_UINT:
+		case DXGI_FORMAT_R32G32_SINT:
+			return 64;
+
+		case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+		case DXGI_FORMAT_R10G10B10A2_UNORM:
+		case DXGI_FORMAT_R10G10B10A2_UINT:
+		case DXGI_FORMAT_R11G11B10_FLOAT:
+		case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+		case DXGI_FORMAT_R8G8B8A8_UNORM:
+		case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+		case DXGI_FORMAT_R8G8B8A8_UINT:
+		case DXGI_FORMAT_R8G8B8A8_SNORM:
+		case DXGI_FORMAT_R8G8B8A8_SINT:
+		case DXGI_FORMAT_B8G8R8A8_UNORM:
+		case DXGI_FORMAT_B8G8R8X8_UNORM:
+		case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+		case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+		case DXGI_FORMAT_B8G8R8X8_TYPELESS:
+		case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+		case DXGI_FORMAT_R32_TYPELESS:
+		case DXGI_FORMAT_D32_FLOAT:
+		case DXGI_FORMAT_R32_FLOAT:
+		case DXGI_FORMAT_R32_UINT:
+		case DXGI_FORMAT_R32_SINT:
+		case DXGI_FORMAT_R24G8_TYPELESS:
+		case DXGI_FORMAT_D24_UNORM_S8_UINT:
+		case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+		case DXGI_FORMAT_X24_TYPELESS_G8_UINT:
+		case DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM:
+			return 32;
+
+		case DXGI_FORMAT_R8G8_TYPELESS:
+		case DXGI_FORMAT_R8G8_UNORM:
+		case DXGI_FORMAT_R8G8_UINT:
+		case DXGI_FORMAT_R8G8_SNORM:
+		case DXGI_FORMAT_R8G8_SINT:
+		case DXGI_FORMAT_R16_TYPELESS:
+		case DXGI_FORMAT_R16_FLOAT:
+		case DXGI_FORMAT_D16_UNORM:
+		case DXGI_FORMAT_R16_UNORM:
+		case DXGI_FORMAT_R16_UINT:
+		case DXGI_FORMAT_R16_SNORM:
+		case DXGI_FORMAT_R16_SINT:
+		case DXGI_FORMAT_B5G6R5_UNORM:
+		case DXGI_FORMAT_B5G5R5A1_UNORM:
+		case DXGI_FORMAT_B4G4R4A4_UNORM:
+			return 16;
+
+		case DXGI_FORMAT_R8_TYPELESS:
+		case DXGI_FORMAT_R8_UNORM:
+		case DXGI_FORMAT_R8_UINT:
+		case DXGI_FORMAT_R8_SNORM:
+		case DXGI_FORMAT_R8_SINT:
+		case DXGI_FORMAT_A8_UNORM:
+			return 8;
+
+			// 4 bits / pixel average.
+		case DXGI_FORMAT_BC1_TYPELESS:
+		case DXGI_FORMAT_BC1_UNORM:
+		case DXGI_FORMAT_BC1_UNORM_SRGB:
+		case DXGI_FORMAT_BC4_TYPELESS:
+		case DXGI_FORMAT_BC4_UNORM:
+		case DXGI_FORMAT_BC4_SNORM:
+			return 4;
+
+			// 8 bits / pixel average.
+		case DXGI_FORMAT_BC2_TYPELESS:
+		case DXGI_FORMAT_BC2_UNORM:
+		case DXGI_FORMAT_BC2_UNORM_SRGB:
+		case DXGI_FORMAT_BC3_TYPELESS:
+		case DXGI_FORMAT_BC3_UNORM:
+		case DXGI_FORMAT_BC3_UNORM_SRGB:
+		case DXGI_FORMAT_BC5_TYPELESS:
+		case DXGI_FORMAT_BC5_UNORM:
+		case DXGI_FORMAT_BC5_SNORM:
+		case DXGI_FORMAT_BC6H_TYPELESS:
+		case DXGI_FORMAT_BC6H_UF16:
+		case DXGI_FORMAT_BC6H_SF16:
+		case DXGI_FORMAT_BC7_TYPELESS:
+		case DXGI_FORMAT_BC7_UNORM:
+		case DXGI_FORMAT_BC7_UNORM_SRGB:
+			return 8;
+
+		default:
+			return 0;
+		}
+	}
+	void GetSurfaceInfo(UINT width, UINT height, DXGI_FORMAT format, UINT64& outRowPitch, UINT64& outSlicePitch, UINT& outRowCount)
+	{
+		switch (format)
+		{
+		case DXGI_FORMAT_BC1_TYPELESS:
+		case DXGI_FORMAT_BC1_UNORM:
+		case DXGI_FORMAT_BC1_UNORM_SRGB:
+		case DXGI_FORMAT_BC4_TYPELESS:
+		case DXGI_FORMAT_BC4_UNORM:
+		case DXGI_FORMAT_BC4_SNORM:
+		{
+			const UINT64 blocksWide = std::max<UINT64>(1, (width + 3) / 4);
+			const UINT64 blocksHigh = std::max<UINT64>(1, (height + 3) / 4);
+
+			outRowPitch = blocksWide * 8;
+			outRowCount = static_cast<UINT>(blocksHigh);
+			outSlicePitch = outRowPitch * blocksHigh;
+			return;
+		}
+
+		case DXGI_FORMAT_BC2_TYPELESS:
+		case DXGI_FORMAT_BC2_UNORM:
+		case DXGI_FORMAT_BC2_UNORM_SRGB:
+		case DXGI_FORMAT_BC3_TYPELESS:
+		case DXGI_FORMAT_BC3_UNORM:
+		case DXGI_FORMAT_BC3_UNORM_SRGB:
+		case DXGI_FORMAT_BC5_TYPELESS:
+		case DXGI_FORMAT_BC5_UNORM:
+		case DXGI_FORMAT_BC5_SNORM:
+		case DXGI_FORMAT_BC6H_TYPELESS:
+		case DXGI_FORMAT_BC6H_UF16:
+		case DXGI_FORMAT_BC6H_SF16:
+		case DXGI_FORMAT_BC7_TYPELESS:
+		case DXGI_FORMAT_BC7_UNORM:
+		case DXGI_FORMAT_BC7_UNORM_SRGB:
+		{
+			const UINT64 blocksWide = std::max<UINT64>(1, (width + 3) / 4);
+			const UINT64 blocksHigh = std::max<UINT64>(1, (height + 3) / 4);
+
+			outRowPitch = blocksWide * 16;
+			outRowCount = static_cast<UINT>(blocksHigh);
+			outSlicePitch = outRowPitch * blocksHigh;
+			return;
+		}
+
+		default:
+		{
+			const UINT bpp = BitsPerPixel(format);
+			DK_ASSERT_LOG(bpp != 0, "Unsupported DXGI format");
+
+			outRowPitch = (static_cast<UINT64>(width) * bpp + 7) / 8;
+			outRowCount = height;
+			outSlicePitch = outRowPitch * height;
+			return;
+		}
+		}
+	}
 	ITextureRef RenderModule::createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
 	{
 		if(data != nullptr)
 		{
+			UINT64 rowPitch;
+			UINT64 slicePitch;
+			UINT rowCount;
+
+			GetSurfaceInfo(width, height, format, rowPitch, slicePitch, rowCount);
+
 			D3D12_SUBRESOURCE_DATA mipData = {};
 			mipData.pData = data;
-			mipData.RowPitch = static_cast<LONG_PTR>(width) * 4/*textureRaw._bitsPerPixel / 8*/;
-			mipData.SlicePitch = mipData.RowPitch * height;
+			mipData.RowPitch = static_cast<LONG_PTR>(rowPitch);
+			mipData.SlicePitch = static_cast<LONG_PTR>(slicePitch);
 
 			return createTexture(path, width, height, &mipData, 1, format, flags, state, createSRV, createUAV);
 		}
@@ -1799,9 +2091,11 @@ namespace DK
 	}
 	ITextureRef RenderModule::loadAndCreateTexture(const DKString& path)
 	{
-		DKHashMap<DKString, ITextureRef>::iterator findResult = _textureContainer.find(path);
+		DKHashMap<DKString, ITexture*>::iterator findResult = _textureContainer.find(path);
 		if (findResult != _textureContainer.end())
-			return findResult->second;
+		{
+			return findResult->second->shared_from_this();
+		}
 
 		ScopeString<DK_MAX_PATH> textureFullPath = GlobalPath::makeResourceFullPath(path);
 		TextureRaw textureRaw;
@@ -1814,7 +2108,7 @@ namespace DK
 
 		// TODO : Miplevel이 생기면 1말고 Resource에서 가져올 수 있도록하자
 		ITextureRef newTexture = createTexture(
-			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
+			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format, 
 			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			true, false);
 
@@ -1822,26 +2116,26 @@ namespace DK
 		newTexture->_inContainer = true;
 #endif
 
-		DKPair<DKHashMap<DKString, ITextureRef>::iterator, bool> insertResult = _textureContainer.insert(DKPair<DKString, ITextureRef>(newTexture->getPath(), newTexture));
-		if (insertResult.second == false)
+		auto [iter, inserted] = _textureContainer.try_emplace(newTexture->getPath(), newTexture.get());
+		if (inserted == false)
 		{
 			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
 			return nullptr;
 		}
 
-		return insertResult.first->second;
+		return newTexture;
 	}
 
 	void RenderModule::deleteTexture(ITexture* texture)
 	{
-		const size_t insertResult = _textureContainer.erase(texture->getPath());
-		DK_ASSERT_LOG(texture->_inContainer == false || insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", texture->getPath().c_str());
-
 		// 이 곳에서 getSRV(), getUAV()를 사용하면 할당되지 않은 경우 내부 어썰트가 발생해서, 여기서만 예외적으로 SRV멤버변수를 직접 접근한다.
 		if (texture->_textureSRVIndex != ITexture::kErrorTextureResourceViewIndex)
-			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureSRV(texture->getSRV());
+			deallocateTextureSRV(texture->getSRV());
 		if (texture->_textureUAVIndex != ITexture::kErrorTextureResourceViewIndex)
-			DuckingEngine::getInstance().GetRenderModuleWritable().deallocateTextureUAV(texture->getUAV());
+			deallocateTextureUAV(texture->getUAV());
+
+		const size_t insertResult = _textureContainer.erase(texture->getPath());
+		DK_ASSERT_LOG(texture->_inContainer == false || insertResult == 1, "TextureContainer에 없는 TextureSRV를 해제 시도합니다.\nPath: %s", texture->getPath().c_str());
 	}
 
 	void RenderModule::deallocateTextureSRV(const TextureResourceViewType index)
@@ -1862,6 +2156,9 @@ namespace DK
 		if(gSerializeRender == false)
 			waitFenceAndResetCommandList();
 
+		_commandList._prevUploadResourcePendingArray.clear();
+		_commandList._prevCopyResourcePendingArray.clear();
+
 #if defined(_DK_DEBUG_)
 		_blockUpload = true;
 		_blockCopy = true;
@@ -1869,6 +2166,9 @@ namespace DK
 
 		for (const DKCommandList::UploadResourcePendingData& pending : _commandList._uploadResourcePendingArray)
 		{
+			if (pending._target.get() == nullptr)
+				continue;
+
 			DK_ASSERT_LOG(pending.getData() != nullptr, "nullptr인 data를 upload요청하려고합니다.");
 			DK_ASSERT_LOG(pending._target->_type == IBuffer::Type::UPLOAD && pending._target->isValid(), "Upload버퍼에 대해서만 호출 가능합니다.");
 
@@ -1878,12 +2178,17 @@ namespace DK
 			memcpy(address, pending.getData(), pending._target->_bufferSize);
 			pending._target.get()->_buffer->Unmap(0, nullptr);
 		}
+
 		for (const DKCommandList::CopyResourcePendingData& pending : _commandList._copyResourcePendingArray)
 		{
 			resourceBarrierTransition(*pending._source.get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
 			resourceBarrierTransition(*pending._target.get(), D3D12_RESOURCE_STATE_COPY_DEST);
 			_commandList->CopyResource(pending._target->_buffer.get(), pending._source->_buffer.get());
+			if(pending._afterState != static_cast<D3D12_RESOURCE_STATES>(DKCommandList::CopyResourcePendingData::INVALID_AFTER_STATE))
+				resourceBarrierTransition(*pending._target.get(), pending._afterState);
 		}
+		_commandList._prevUploadResourcePendingArray.swap(_commandList._uploadResourcePendingArray);
+		_commandList._prevCopyResourcePendingArray.swap(_commandList._copyResourcePendingArray);
 	}
 
 	void RenderModule::bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget)
@@ -1900,13 +2205,13 @@ namespace DK
 		// 이전 renderTarget의 Shader에서 쓸 수 있게 Read로 변경
 		if(isPostProcess || isGBuffer)
 		{
-			const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
+			const uint32 rtvPrevIndex = 0 * kFrameCount + rtvReadSlot;
 			resourceBarrierTransition(_renderTargetTextureArr[rtvPrevIndex]->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 			// PostProcessing이면 DepthStencil도 Shader에서 쓸 수 있게 Read로 변경
 			if (isPostProcess)
 			{
-				const uint32 rtvPrevIndex = kCurrentFrameIndex * kFrameCount + rtvReadSlot;
+				const uint32 rtvPrevIndex = 0 * kFrameCount + rtvReadSlot;
 				resourceBarrierTransition(_depthStencilTextureArr[rtvPrevIndex]->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			}
 		}
@@ -1915,10 +2220,10 @@ namespace DK
 		// PostProcess, GBUffer인 경우 현재프레임의 BackBuffer 또는 RenderTarget을 Shader에서 쓸 수 있게 RenderTarget으로 변경
 		if (isDeffered || isPostProcess || isGBuffer)
 		{
-			const uint32 rtvIndex = kCurrentFrameIndex * kFrameCount + rtvSlot;
+			const uint32 rtvIndex = 0 * kFrameCount + rtvSlot;
 
 			// 현재 Pass에 해당하는 Texture를 renderTarget으로 변경
-			const IBuffer& renderTargetBuffer = isBackBuffer ? _backBufferResourceArr[kCurrentFrameIndex] : _renderTargetTextureArr[rtvIndex]->getTextureBuffer();
+			IBuffer& renderTargetBuffer = isBackBuffer ? _backBufferResourceArr[kCurrentBackBufferIndex] : _renderTargetTextureArr[rtvIndex]->getTextureBuffer();
 			resourceBarrierTransition(renderTargetBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 			// Deffered 최초 한번 시에 렌더타겟과 뎁스스텐실을 동시에 바인딩해야해서 따로 처리
@@ -1942,7 +2247,7 @@ namespace DK
 			{
 				const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
-				rtvHandle.ptr += isBackBuffer ? rtvDescriptorSize * (4 + kCurrentFrameIndex) : rtvDescriptorSize * rtvIndex;
+				rtvHandle.ptr += isBackBuffer ? rtvDescriptorSize * (4 + kCurrentBackBufferIndex) : rtvDescriptorSize * rtvIndex;
 
 				_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 				if (clearTarget)
@@ -2081,14 +2386,9 @@ namespace DK
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _commandList._commandList.get());
 #endif // USE_IMGUI
 
-		resourceBarrierTransition(_backBufferResourceArr[kCurrentFrameIndex], D3D12_RESOURCE_STATE_PRESENT);
+		resourceBarrierTransition(_backBufferResourceArr[kCurrentBackBufferIndex], D3D12_RESOURCE_STATE_PRESENT);
 
-		execute();
-
-		UINT syncInterval = 0; //gVSync ? 1 : 0;
-		UINT presentFlags = 0; // CheckTearingSupport() && !gVSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
-		HRESULT hr = _swapChain->Present(syncInterval, presentFlags);
-		DK_ASSERT_LOG(SUCCEEDED(hr), "Present 실패!");
+		execute(true);
 
 		if(gSerializeRender)
 			waitFenceAndResetCommandList();
@@ -2114,7 +2414,7 @@ namespace DK
 		DKCommandList& cl = rm._commandList;
 
 		DKCommandList::UploadResourcePendingData pending;
-		pending._target = IBufferRef(this);
+		pending._target = shared_from_this();
 		pending._data.resize(_bufferSize);
 		DK::memcpy(pending._data.data(), data, _bufferSize);
 		cl._uploadResourcePendingArray.push_back(DK::move(pending));
@@ -2122,6 +2422,13 @@ namespace DK
 
 	ITexture::~ITexture()
 	{
+#if defined(_DK_DEBUG_)
+		if (DuckingEngine::getInstance().GetRenderModule()._isDestroyed)
+		{
+			DK_ASSERT_LOG(false, "Muse called before rendermodule destroy!!!\nPath: %s", _path.c_str());
+			return;
+		}
+#endif
 		DuckingEngine::getInstance().GetRenderModuleWritable().deleteTexture(this);
 	}
 

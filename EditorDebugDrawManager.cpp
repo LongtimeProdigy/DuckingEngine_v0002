@@ -40,7 +40,7 @@ namespace DK
 		outIndexCount = indexCount;
 
 		uint32 elementCount = MAX_ELEMENT_COUNT;
-		primitiveInfoBuffer = renderModule.createUploadBuffer(strideSize * elementCount, cbufferDebugName.c_str());
+		primitiveInfoBuffer = renderModule.createConstantBuffer(strideSize * elementCount, cbufferDebugName.c_str());
 
 		return true;
 	}

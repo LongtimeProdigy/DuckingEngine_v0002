@@ -16,7 +16,7 @@ namespace DK
 		}
 
 		hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(_compiler3.getAddress()));
-		if (FAILED(hr) == true)
+		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "");
 			return;
@@ -31,7 +31,6 @@ namespace DK
 			UINT minor = 0;
 			versionInfo->GetVersion(&major, &minor);
 			DK_LOG("DXC Version: %u.%u", major, minor);
-			versionInfo->Release();
 		}
 #endif
 

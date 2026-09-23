@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Component.h"
 
@@ -12,13 +12,15 @@ namespace DK
 	class Object
 	{
 	public:
-		virtual ~Object() {}
+		Object() = default;
+		Object(Object&&) = default;
+		Object(const Object& rhs) = delete;
 
 		virtual void update(float deltaTime) = 0;
 
 		void addComponent(Component* component) noexcept
 		{
-			_components.push_back(component);
+			_components.push_back(Ptr<Component>(component));
 		}
 
 	public:

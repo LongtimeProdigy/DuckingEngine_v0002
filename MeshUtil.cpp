@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "MeshUtil.h"
 
 namespace DK
@@ -11,7 +11,7 @@ namespace DK
 			const float degreeX = (360.0f / tessellationX) * DK::Math::kToRadian;
 
 			// Vertex
-			positionArr.resize((tessellationY - 1) * tessellationX + 2);	// ¸Ç À§, ¸Ç ¾Æ·¡ Á¡ 2°³´Â µû·Î +·Î Ãß°¡s
+			positionArr.resize((tessellationY - 1) * tessellationX + 2);	// ï¿½ï¿½ ï¿½ï¿½, ï¿½ï¿½ ï¿½Æ·ï¿½ ï¿½ï¿½ 2ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ +ï¿½ï¿½ ï¿½ß°ï¿½s
 			uint32 n = 0;
 			positionArr[n++] = float3(0, radius, 0);
 			for (uint32 i = 1; i < tessellationY; ++i)
@@ -27,10 +27,10 @@ namespace DK
 				}
 			}
 			positionArr[n++] = float3(0, -radius, 0);
-			DK_ASSERT_LOG(n == positionArr.size(), "Sphere VertexCount°¡ ¿Ã¹Ù¸£Áö ¾ÊÀ½");
+			DK_ASSERT_LOG(n == positionArr.size(), "Sphere VertexCountï¿½ï¿½ ï¿½Ã¹Ù¸ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
 
 			// Index
-			// ¸ÇÀ§ »ï°¢Çü + Áß°£¶óÀÎ + ¸Ç ¸¶Áö¸· Á¡
+			// ï¿½ï¿½ï¿½ï¿½ ï¿½ï°¢ï¿½ï¿½ + ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
 			const uint32 indexCount = (tessellationX * 3) + (tessellationX * 6) * (tessellationY - 2) + (tessellationX * 3);
 			indexArr.resize(indexCount);
 			n = 0;
@@ -58,7 +58,7 @@ namespace DK
 					}
 				}
 			}
-			DK_ASSERT_LOG(n == indexArr.size(), "Sphere IndexCount°¡ ¿Ã¹Ù¸£Áö ¾ÊÀ½");
+			DK_ASSERT_LOG(n == indexArr.size(), "Sphere IndexCountï¿½ï¿½ ï¿½Ã¹Ù¸ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
 
 			return true;
 		}
@@ -68,7 +68,7 @@ namespace DK
 			const uint32 vertexCount = m * n;
             const uint32 faceCount = (m - 1) * (n - 1) * 2;
             
-            // Á¤Á¡ À§Ä¡ °è»ê
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ä¡ ï¿½ï¿½ï¿½
             const float halfWidth = 0.5f * width;
             const float halfDepth = 0.5f * depth;
             
@@ -89,19 +89,19 @@ namespace DK
                     float x = -halfWidth + j * dx;
             
                     positionArr[i * n + j] = float3(x, 0.0f, z);
-                    normalArr[i * n + j] = float3(0.0f, 1.0f, 0.0f); // ÃÊ±â ³ë¸ÖÀº À§ÂÊ ¹æÇâ
+                    normalArr[i * n + j] = float3(0.0f, 1.0f, 0.0f); // ï¿½Ê±ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
                     uvArr[i * n + j] = float2(j * du, i * dv);
                 }
             }
             
-            // ÀÎµ¦½º °è»ê
-            indexArr.resize(faceCount * 3); // »ï°¢Çü ÇÏ³ª´ç 3°³ÀÇ ÀÎµ¦½º
+            // ï¿½Îµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
+            indexArr.resize(faceCount * 3); // ï¿½ï°¢ï¿½ï¿½ ï¿½Ï³ï¿½ï¿½ï¿½ 3ï¿½ï¿½ï¿½ï¿½ ï¿½Îµï¿½ï¿½ï¿½
             uint32_t k = 0;
             for (uint32_t i = 0; i < m - 1; ++i)
             {
                 for (uint32_t j = 0; j < n - 1; ++j)
                 {
-                    // DirectX´Â ±âº»ÀûÀ¸·Î ½Ã°è ¹æÇâ(CW)À» ÄÃ¸µÇÏÁö ¾ÊÀ¸¹Ç·Î, ÀÎµ¦½º¸¦ CW ¼ø¼­·Î Ãß°¡ÇÕ´Ï´Ù.
+                    // DirectXï¿½ï¿½ ï¿½âº»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ã°ï¿½ ï¿½ï¿½ï¿½ï¿½(CW)ï¿½ï¿½ ï¿½Ã¸ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½, ï¿½Îµï¿½ï¿½ï¿½ï¿½ï¿½ CW ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½ï¿½Õ´Ï´ï¿½.
                     indexArr[k] = i * n + j;
                     indexArr[k + 1] = i * n + j + 1;
                     indexArr[k + 2] = (i + 1) * n + j;
@@ -110,7 +110,7 @@ namespace DK
                     indexArr[k + 4] = i * n + j + 1;
                     indexArr[k + 5] = (i + 1) * n + j + 1;
             
-                    k += 6; // 2°³ÀÇ »ï°¢Çü(»ç°¢Çü ÇÏ³ª) Ãß°¡
+                    k += 6; // 2ï¿½ï¿½ï¿½ï¿½ ï¿½ï°¢ï¿½ï¿½(ï¿½ç°¢ï¿½ï¿½ ï¿½Ï³ï¿½) ï¿½ß°ï¿½
                 }
             }
 

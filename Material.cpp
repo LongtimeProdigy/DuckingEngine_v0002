@@ -88,7 +88,7 @@ namespace DK
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		outMaterial->_parameterBufferForGPU = renderModule.createUploadBuffer(parameterBufferSize, L"Material_CBuffer");
+		outMaterial->_parameterBufferForGPU = renderModule.createConstantBuffer(parameterBufferSize, L"Material_CBuffer");
 
 		return outMaterial;
 	}

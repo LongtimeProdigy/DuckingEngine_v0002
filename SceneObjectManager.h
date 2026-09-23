@@ -42,8 +42,8 @@ namespace DK
 	public:
 		SceneObject* loadGLTF(const char* path);
 
-		static SceneObject* createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
-		static SceneObject* createCharacter(const char* appearancePath);
+		SceneObject* createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
+		SceneObject* createCharacter(const char* appearancePath);
 
 		void update(float deltaTime);
 

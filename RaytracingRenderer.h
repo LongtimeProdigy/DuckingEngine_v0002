@@ -60,8 +60,8 @@ namespace DK
         const TLAS& operator=(TLAS&& rhs)
         {
             _blases.swap(rhs._blases);
-            _tlas = rhs._tlas;
-            _scratch = rhs._scratch;
+            _tlas = DK::move(rhs._tlas);
+            _scratch = DK::move(rhs._scratch);
 
             rhs._blases.clear();
             rhs._tlas = nullptr;
@@ -87,9 +87,9 @@ namespace DK
 	{
 	public:
         constexpr static const uint32 kRaytracingDescriptorCount = 1024;
-        constexpr static const uint32 kVertexBufferSpace = 20;
-        constexpr static const uint32 kIndexBufferSpace = 21;
-        constexpr static const uint32 kMaterialSpace = 22;
+        constexpr static const uint32 BINDLESSVERTEXARRAY_SPACE = 11;
+        constexpr static const uint32 BINDLESSINDEXARRAY_SPACE = 12;
+        constexpr static const uint32 BINDLESSMATERIALARRAY_SPACE = 13;
 
 		const bool initialize(RenderModule* renderModule, const uint32 width, const uint32 height);
         const bool createShaderBindingTable(RenderModule* renderModule);

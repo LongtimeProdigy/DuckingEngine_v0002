@@ -505,39 +505,30 @@ namespace DK
 	class Ptr
 	{
 	public:
-		Ptr()
-		{
-			_ptr = nullptr;
-		}
 		~Ptr()
 		{
 			release();
 		}
-
+		Ptr()
+			: _ptr(nullptr)
+		{}
 		Ptr(T* ptr)
 			: _ptr(ptr)
 		{}
-
-		Ptr(Ptr& rhs) : _ptr(rhs._ptr)
-		{
-			rhs._ptr = nullptr;
-		}
 		Ptr(Ptr&& rhs) : _ptr(rhs._ptr)
 		{
 			rhs._ptr = nullptr;
 		}
 
-		dk_inline const Ptr& operator=(Ptr& rhs)
-		{
-			_ptr = rhs._ptr;
-			rhs._ptr = nullptr;
-
-			return *this;
-		}
 		dk_inline const Ptr& operator=(Ptr&& rhs)
 		{
-			_ptr = rhs._ptr;
-			rhs._ptr = nullptr;
+			if (this != &rhs)
+			{
+				release();
+
+				_ptr = rhs._ptr;
+				rhs._ptr = nullptr;
+			}
 
 			return *this;
 		}
@@ -552,8 +543,11 @@ namespace DK
 
 		dk_inline void assign(T* ptr) noexcept
 		{
-			release();
-			_ptr = ptr;
+			if (_ptr != ptr)
+			{
+				release();
+				_ptr = ptr;
+			}
 		}
 		dk_inline T* relocate() noexcept
 		{
@@ -563,7 +557,13 @@ namespace DK
 		}
 		dk_inline void release() noexcept
 		{
-			dk_delete _ptr;
+			//DK_LOG("Ptr Delete: Owner=%p Object=%p", this, _ptr);
+
+			T* ptr = _ptr;
+			_ptr = nullptr;
+
+			if (ptr)
+				dk_delete ptr;
 		}
 		dk_inline T* get() noexcept
 		{
@@ -588,46 +588,39 @@ namespace DK
 	class RenderResourcePtr
 	{
 	public:
-		dk_inline RenderResourcePtr()
-		{
-			_ptr = nullptr;
-		}
 		dk_inline ~RenderResourcePtr()
 		{
-			if (_ptr != nullptr)
-				_ptr->Release();
+			release();
 		}
-
+		dk_inline RenderResourcePtr()
+		{}
 		dk_inline RenderResourcePtr(T* ptr)
 			: _ptr(ptr)
 		{}
-		RenderResourcePtr(RenderResourcePtr& rhs) : _ptr(rhs._ptr)
+		RenderResourcePtr(RenderResourcePtr&& rhs)
 		{
-			rhs._ptr = nullptr;
+			release();
+			operator=(DK::move(rhs));
 		}
-		RenderResourcePtr(RenderResourcePtr&& rhs) : _ptr(rhs._ptr)
+		dk_inline const RenderResourcePtr& operator=(RenderResourcePtr&& rhs)
 		{
+			release();
+			_ptr = rhs._ptr;
 			rhs._ptr = nullptr;
+
+			return *this;
+		}
+
+		void release()
+		{
+			if (_ptr != nullptr)
+				_ptr->Release();
+			_ptr = nullptr;
 		}
 
 		dk_inline operator T*()
 		{
 			return _ptr;
-		}
-
-		dk_inline const RenderResourcePtr& operator=(RenderResourcePtr& rhs)
-		{
-			_ptr = rhs._ptr;
-			rhs._ptr = nullptr;
-
-			return *this;
-		}
-		dk_inline const RenderResourcePtr& operator=(RenderResourcePtr&& rhs)
-		{
-			_ptr = rhs._ptr;
-			rhs._ptr = nullptr;
-
-			return *this;
 		}
 
 		dk_inline T* operator->() noexcept
@@ -653,7 +646,7 @@ namespace DK
 		}
 
 	private:
-		T* _ptr;
+		T* _ptr = nullptr;
 	};
 }
 

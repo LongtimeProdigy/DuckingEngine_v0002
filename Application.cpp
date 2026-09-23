@@ -50,6 +50,8 @@ namespace DK
 				case VK_ESCAPE:	// ESC 누를 시 프로그램 종료
 					if (MessageBox(0, L"Are you sure you want to exit?", L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
 					{
+						DuckingEngine::getInstance().destroy();
+
 						DestroyWindow(hwnd);
 						exit(0);
 					}

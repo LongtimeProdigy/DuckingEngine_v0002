@@ -4,10 +4,9 @@
 #include "CommonTexture.hlsl"
 #include "CommonRendering.hlsl"
 
-//#define kMaxMaterialCount 4096
-#define kVertexBufferSpace space20
-#define kIndexBufferSpace space21
-#define kMaterialSpace space22
+#define BINDLESSVERTEXARRAY_SPACE space11
+#define BINDLESSINDEXARRAY_SPACE space12
+#define BINDLESSMATERIALARRAY_SPACE space13
 
 cbuffer RaytracingConstants : register(b1)
 {
@@ -22,15 +21,14 @@ struct VS_INPUT
     float3 normal : NORMAL;
     float2 uv0 : TEXCOORD0;
 };
-StructuredBuffer<VS_INPUT> gVertices[] : register(t0, kVertexBufferSpace);
-StructuredBuffer<uint> gIndices[]  : register(t0, kIndexBufferSpace);
-
+StructuredBuffer<VS_INPUT> gVertices[] : register(t0, BINDLESSVERTEXARRAY_SPACE);
+StructuredBuffer<uint> gIndices[]  : register(t0, BINDLESSINDEXARRAY_SPACE);
 struct Material
 {
     TextureParameter _diffuseTexture;
     float _opacity;
 };
-StructuredBuffer<Material> gMaterials[] : register(t0, kMaterialSpace);
+StructuredBuffer<Material> gMaterials[] : register(t0, BINDLESSMATERIALARRAY_SPACE);
 
 struct RayPayload
 {

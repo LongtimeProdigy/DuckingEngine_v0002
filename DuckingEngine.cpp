@@ -22,14 +22,58 @@
 
 namespace DK
 {
-	DuckingEngine* DuckingEngine::_duckingEngine;
-	RenderModule* DuckingEngine::_renderModule = nullptr;
-	RaytracingRenderer* DuckingEngine::_raytracingRenderer = nullptr;
-	SceneRenderer* DuckingEngine::_sceneRenderer = nullptr;
-	ResourceManager* DuckingEngine::_resourceManager = nullptr;
-	SceneManager* DuckingEngine::_sceneManager = nullptr;
-	SceneObjectManager* DuckingEngine::_sceneObjectManager = nullptr;
-	GameModule* DuckingEngine::_gameModule = nullptr;
+	Ptr<DuckingEngine> DuckingEngine::_duckingEngine = nullptr;
+
+	DuckingEngine& DuckingEngine::getInstance()
+	{
+		if (_duckingEngine.get() == nullptr)
+			_duckingEngine = dk_new DuckingEngine;
+
+		return *_duckingEngine.get();
+	}
+
+	void DuckingEngine::destroy()
+	{
+		_renderModule->waitAllGPU();
+
+		ImGui_ImplDX12_Shutdown();
+		ImGui_ImplWin32_Shutdown();
+		ImGui::DestroyContext();
+
+#if defined(_DK_DEBUG_)
+		EditorDebugDrawManager::getSingleton().get_primitiveInfoSphereArrWritable().clear();
+		EditorDebugDrawManager::getSingleton().get_primitiveInfoSphereBufferWritable().reset();
+		EditorDebugDrawManager::getSingleton().get_primitiveInfoLineArrWritable().clear();
+		EditorDebugDrawManager::getSingleton().get_primitiveInfoLineBufferWritable().reset();
+		EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBuffer.reset();
+		EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBuffer.reset();
+		EditorDebugDrawManager::LinePrimitiveInfo::kVertexBuffer.reset();
+		EditorDebugDrawManager::LinePrimitiveInfo::kIndexBuffer.reset();
+#endif
+
+		_gameModule.release();
+		_sceneObjectManager.release();
+		_sceneManager.release();
+		_resourceManager.release();
+		_sceneRenderer.release();
+		_raytracingRenderer.release();
+		_renderModule->destroy();
+		_renderModule.release();
+
+		_duckingEngine.release();
+	}
+
+	DuckingEngine::DuckingEngine()
+	{
+		if (_duckingEngine.get() != nullptr)
+		{
+			DK_ASSERT_LOG(false, "Engine을 2개 생성을 시도하고 있습니다. 반드시 검토 바랍니다.");
+		}
+	}
+
+	DuckingEngine::~DuckingEngine()
+	{
+	}
 
 	bool DuckingEngine::Initialize(HWND hwnd, int width, int height)
 	{
@@ -56,7 +100,7 @@ namespace DK
 			return false;
 
 		_raytracingRenderer = dk_new RaytracingRenderer;
-		if (_raytracingRenderer->initialize(_renderModule, width, height) == false)
+		if (_raytracingRenderer->initialize(_renderModule.get(), width, height) == false)
 			return false;
 
 		_resourceManager = dk_new ResourceManager;
@@ -69,26 +113,24 @@ namespace DK
 #endif
 
 		_gameModule = dk_new GameModule;
-		if (_gameModule->initialize() == false) return false;
-
-		_renderModule->postInitialize();
+		if (_gameModule->initialize() == false)
+			return false;
 
 		return true;
 	}
 
-	void DuckingEngine::Update(const float deltaTime) const
+	void DuckingEngine::Update(const float deltaTime)
 	{
 		InputModule::Update();
 		Camera::gMainCamera->update(deltaTime);
 		_sceneObjectManager->update(deltaTime);
 	}
 
-	void DuckingEngine::Render(const float deltaTime) const
+	void DuckingEngine::Render(const float deltaTime)
 	{
-		_sceneRenderer->preRender();
-
 		_sceneRenderer->prepareShaderData(deltaTime);
 
+		_sceneRenderer->preRender();
 		_sceneRenderer->updateRender();
 		_sceneRenderer->endRender();
 	}

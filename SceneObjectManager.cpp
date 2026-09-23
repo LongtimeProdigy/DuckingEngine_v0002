@@ -31,7 +31,7 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 		sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
-		sceneObject._sceneObjectConstantBuffer = renderModule.createUploadBuffer(sizeof(sceneObjectConstantBufferData), L"SceneObject_Cbuffer");
+		sceneObject._sceneObjectConstantBuffer = renderModule.createConstantBuffer(sizeof(sceneObjectConstantBufferData), L"SceneObject_Cbuffer");
 		if (sceneObject._sceneObjectConstantBuffer == nullptr)
 		{
 			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
@@ -110,7 +110,7 @@ namespace DK
 		//	DK_LOG("Image[%d] : %s / %s / %dx%d component=%d", i, image.name.c_str(), image.uri.c_str(), image.width, image.height, image.component);
 		//}
 
-		static DKVector<ITextureRef> textures;
+		DKVector<ITextureRef> textures;
 		textures.resize(gltfModel.textures.size());
 		for (size_t i = 0; i < gltfModel.textures.size(); ++i)
 		{
@@ -215,7 +215,7 @@ namespace DK
 
 			return result;
 		};
-		auto ConvertMaterial = [&MakeTextureBinding](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
+		auto ConvertMaterial = [&MakeTextureBinding, &textures](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
 		{
 			CpuMaterial dst;
 			dst.name = src.name;
@@ -278,9 +278,9 @@ namespace DK
 			}
 
 			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-			outMaterial->_parameterBufferForGPU = renderModule.createUploadBuffer(parameterBufferSize, L"Material_CBuffer");
+			outMaterial->_parameterBufferForGPU = renderModule.createConstantBuffer(parameterBufferSize, L"Material_CBuffer");
 
-			ITextureRef baseColorTexture = textures[dst.baseColorTexture.textureIndex];
+			const ITextureRef& baseColorTexture = textures[dst.baseColorTexture.textureIndex];
 			for (uint32 i = 0; i < parameterCount; ++i)
 			{
 				MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
@@ -656,7 +656,6 @@ namespace DK
 			const tinygltf::Mesh& mesh = gltfModel.meshes[meshIndex];
 
 			StaticMeshComponent* staticMeshComponent = dk_new StaticMeshComponent;
-			newSceneObject.addComponent(staticMeshComponent);
 			staticMeshComponent->set_modelPath(mesh.name);
 			staticMeshComponent->set_modelPropertyPath("GLTF_ModelProeprty");
 
@@ -703,17 +702,19 @@ namespace DK
 			staticMeshComponent->set_model(insertResult.first->second);
 			if (staticMeshComponent->get_model() == nullptr)
 				return nullptr;
+
+			newSceneObject.addComponent(staticMeshComponent);
 		}
 
 		if (createSceneObjectConstantBuffer(newSceneObject) == false)
 			return nullptr;
 
 		const uint32 key = static_cast<uint32>(_sceneObjectContainer.size());
-		auto success = _sceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, DK::move(newSceneObject)));
-		if (success.second == false)
+		auto [iter, inserted] = _sceneObjectContainer.try_emplace(key, DK::move(newSceneObject));
+		if (inserted == false)
 			return nullptr;
 
-		return &success.first->second;
+		return &iter->second;
 	}
 
 	SceneObject* SceneObjectManager::createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath)
@@ -722,11 +723,12 @@ namespace DK
 
 		SceneObject newSceneObject;
 		StaticMeshComponent* staticMeshComponent = dk_new StaticMeshComponent;
-		newSceneObject.addComponent(staticMeshComponent);
 		staticMeshComponent->set_modelPath(modelPath);
 		staticMeshComponent->set_modelPropertyPath(modelPropertyPath);
 		if (staticMeshComponent->loadResource() == false)
-			return nullptr;	
+			return nullptr;
+
+		newSceneObject.addComponent(staticMeshComponent);
 
 		if (createSceneObjectConstantBuffer(newSceneObject) == false)
 			return nullptr;
@@ -794,7 +796,6 @@ namespace DK
 		for (uint32 i = 0; i < skinnedMeshCount; ++i)
 		{
 			SkinnedMeshComponent* skinnedMeshComponent = dk_new SkinnedMeshComponent;
-			newSceneObject.addComponent(skinnedMeshComponent);
 			skinnedMeshComponent->set_modelPath(appearanceData->_modelDataArr[i]._modelPath);
 			skinnedMeshComponent->set_modelPropertyPath(appearanceData->_modelDataArr[i]._modelPropertyPath);
 			if (i == 0)	// MainSkinnedMesh
@@ -804,6 +805,8 @@ namespace DK
 			}
 			if (skinnedMeshComponent->loadResource() == false)
 				return nullptr;
+
+			newSceneObject.addComponent(skinnedMeshComponent);
 		}
 
 		if (createSceneObjectConstantBuffer(newSceneObject) == false)

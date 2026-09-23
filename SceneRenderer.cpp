@@ -323,8 +323,8 @@ namespace DK
 	{
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
-		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
-		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createUploadBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
+		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
+		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
 
 		return true;
 	}
@@ -394,6 +394,11 @@ namespace DK
 				}
 			}
 		}
+
+#ifdef _DK_DEBUG_
+		EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
+		debugDrawManager.prepareShaderData();
+#endif
 	}
 
 	static bool gIsReload = false;
@@ -425,36 +430,19 @@ namespace DK
 #endif
 
 #define MAX_BUFFER_LENGTH 200
-			ImGui::Text("MainCameraPosition");
+			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
+			ImGui::Text("MainCameraPosition");
 			char cameraPosBuffer[MAX_BUFFER_LENGTH];
 			const float3& cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
 			sprintf_s(cameraPosBuffer, MAX_BUFFER_LENGTH, "Position: x: %f, y: %f, z: %f", cameraPosition.x, cameraPosition.y, cameraPosition.z);
 			ImGui::Text(cameraPosBuffer);
-
-			char cameraRotationBuffer[MAX_BUFFER_LENGTH];
-			const Quaternion& cameraRotation = Camera::gMainCamera->get_worldTransform().get_rotation();
-			sprintf_s(cameraRotationBuffer, MAX_BUFFER_LENGTH, "Rotation: x: %f, y: %f, z: %f, w: %f", cameraRotation.x, cameraRotation.y, cameraRotation.z, cameraRotation.w);
-			ImGui::Text(cameraRotationBuffer);
-
 			char cameraRotationEulerBuffer[MAX_BUFFER_LENGTH];
+			const Quaternion& cameraRotation = Camera::gMainCamera->get_worldTransform().get_rotation();
 			float3 eulerRotation;
 			cameraRotation.toEuler(eulerRotation);
 			sprintf_s(cameraRotationEulerBuffer, MAX_BUFFER_LENGTH, "Rotation: roll: %f, yaw: %f, pitch: %f", eulerRotation.x, eulerRotation.y, eulerRotation.z);
 			ImGui::Text(cameraRotationEulerBuffer);
-
-			char cameraRotationMatrixBuffer[MAX_BUFFER_LENGTH];
-			float4x4 transformMatrix;
-			Camera::gMainCamera->getCameraWorldMatrix(transformMatrix);
-			sprintf_s(cameraRotationMatrixBuffer, MAX_BUFFER_LENGTH, "%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f",
-				transformMatrix._11, transformMatrix._12, transformMatrix._13, transformMatrix._14,
-				transformMatrix._21, transformMatrix._22, transformMatrix._23, transformMatrix._24,
-				transformMatrix._31, transformMatrix._32, transformMatrix._33, transformMatrix._34,
-				transformMatrix._41, transformMatrix._42, transformMatrix._43, transformMatrix._44
-			);
-			ImGui::Text(cameraRotationMatrixBuffer);
-
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
 			ImGui::DragInt("scatter point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 10);
 			ImGui::DragInt("optical point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 10);
@@ -629,7 +617,7 @@ namespace DK
 #endif
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true, false);
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
 #if 0
 			startPipeline("SkyDomePipeline");
@@ -844,7 +832,6 @@ namespace DK
 
 #ifdef _DK_DEBUG_
 			EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
-			debugDrawManager.prepareShaderData();
 			const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& spherePrimitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
 			const uint32 sphereInstanceCount = static_cast<uint32>(spherePrimitiveInfo.size());
 			if (sphereInstanceCount)

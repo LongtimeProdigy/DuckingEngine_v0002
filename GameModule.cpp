@@ -20,25 +20,27 @@ namespace DK
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadGbuffer();
 
-		SceneObject* sponza = DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadGLTF("Resource/Object/Sponza/glTF/Sponza.gltf");
-		sponza->set_worldTransform(Transform(float3(0, 0, 0), Quaternion::Identity, float3(0.05f, 0.05f, 0.05f)));
+		_sponza = DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadGLTF("Resource/Object/Sponza/glTF/Sponza.gltf");
+		if (_sponza == nullptr)
+			return false;
+		_sponza->set_worldTransform(Transform(float3(0, 0, 0), Quaternion::Identity, float3(0.05f, 0.05f, 0.05f)));
 
 		// Test Object
-		SceneObject* testObjectSceneObject = SceneObjectManager::createSceneObject(
+		_testObjectSceneObject = DuckingEngine::getInstance().GetSceneObjectManagerWritable().createSceneObject(
 			"Object/Model/StaticMeshStandard.dm", 
 			"Object/ModelProperty/StaticMeshStandard.xml"
 		);
-		if (testObjectSceneObject == nullptr)
+		if (_testObjectSceneObject == nullptr)
 			return false;
-		testObjectSceneObject->set_worldTransform(Transform(float3(0, 0, 5), Quaternion::Identity, float3::Identity));
+		_testObjectSceneObject->set_worldTransform(Transform(float3(0, 0, 5), Quaternion::Identity, float3::Identity));
 
 		// Test Character
-		SceneObject* testCharacterSceneObject = SceneObjectManager::createCharacter(
+		_testCharacterSceneObject = DuckingEngine::getInstance().GetSceneObjectManagerWritable().createCharacter(
 			"Character/Appearance/YBot.xml"
 		);
-		if (testCharacterSceneObject == nullptr) 
+		if (_testCharacterSceneObject == nullptr) 
 			return false;
-		testCharacterSceneObject->set_worldTransform(Transform(float3(0, 0, 5), Quaternion::Identity, float3::Identity));
+		_testCharacterSceneObject->set_worldTransform(Transform(float3(0, 0, 5), Quaternion::Identity, float3::Identity));
 
 		return true;
 	}
