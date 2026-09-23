@@ -8,23 +8,27 @@ namespace DK
 {
 	ShaderCompiler::ShaderCompiler()
 	{
-		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(_utils.getAddress()));
+		IDxcUtils* utils;
+		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&utils));
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "");
 			return;
 		}
+		_utils = utils;
 
-		hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(_compiler3.getAddress()));
+		IDxcCompiler3* compiler;
+		hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "");
 			return;
 		}
+		_compiler3 = compiler;
 
 #ifdef _DK_DEBUG_
-		RenderResourcePtr<IDxcVersionInfo> versionInfo = nullptr;
-		hr = _compiler3->QueryInterface(IID_PPV_ARGS(versionInfo.getAddress()));
+		IDxcVersionInfo* versionInfo = nullptr;
+		hr = _compiler3->QueryInterface(IID_PPV_ARGS(&versionInfo));
 		if (SUCCEEDED(hr))
 		{
 			UINT major = 0;
@@ -32,6 +36,7 @@ namespace DK
 			versionInfo->GetVersion(&major, &minor);
 			DK_LOG("DXC Version: %u.%u", major, minor);
 		}
+		versionInfo->Release();
 #endif
 
 		_initialized = true;
@@ -49,13 +54,14 @@ namespace DK
 		const DKStringW shaderPathW = StringUtil::convertCtoWC(shaderFullPath.c_str());
 		const DKStringW shaderEntryW = StringUtil::convertCtoWC(entry);
 
-		RenderResourcePtr<IDxcBlobEncoding> sourceBlob(nullptr);
-		HRESULT hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->LoadFile(shaderPathW.c_str(), nullptr, sourceBlob.getAddress());
+		IDxcBlobEncoding* blob;
+		HRESULT hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->LoadFile(shaderPathW.c_str(), nullptr, &blob);
 		if (FAILED(hr) == true)
 		{
 			DK_ASSERT_LOG(false, "");
 			return false;
 		}
+		RenderResourcePtr<IDxcBlobEncoding> sourceBlob = blob;
 
 		// 참고: https://simoncoenen.com/blog/programming/graphics/DxcCompiling
 		DKVector<LPCWSTR> arguments;
@@ -125,22 +131,26 @@ namespace DK
 		sourceBuffer.Size = sourceBlob->GetBufferSize();
 		sourceBuffer.Encoding = DXC_CP_ACP;
 
-		RenderResourcePtr<IDxcIncludeHandler> defaultIncludeHandler;
-		hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->CreateDefaultIncludeHandler(defaultIncludeHandler.getAddress());
+		IDxcIncludeHandler* handler;
+		hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->CreateDefaultIncludeHandler(&handler);
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "IncludeHandler 생성에 실패했습니다. Shader Compiler을 하지 않습니다.");
 			return false;
 		}
+		RenderResourcePtr<IDxcIncludeHandler> defaultIncludeHandler = handler;
 
-		RenderResourcePtr<IDxcResult> result(nullptr);
-		hr = _compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(result.getAddress()));
+		IDxcResult* dxcResult;
+		hr = _compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(&dxcResult));
+		RenderResourcePtr<IDxcResult> result = dxcResult;
 		if (FAILED(hr))
 		{
-			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
-			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(errors.getAddress()), nullptr);
+			IDxcBlobUtf8* errors;
+			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
 			if (SUCCEEDED(hr))
 				DK_ASSERT_LOG(false, "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
+
+			errors->Release();
 
 			return false;
 		}
@@ -149,10 +159,12 @@ namespace DK
 		hr = result->GetStatus(&status);
 		if (FAILED(hr) || FAILED(status))
 		{
-			RenderResourcePtr<IDxcBlobUtf8> errors(nullptr);
-			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(errors.getAddress()), nullptr);
+			IDxcBlobUtf8* errors;
+			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
 			const char* test = errors->GetStringPointer();
 			DK_ASSERT_LOG(FAILED(hr), "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, test);
+
+			errors->Release();
 
 			return false;
 		}
@@ -182,9 +194,9 @@ namespace DK
 		//}
 #endif
 
-		RenderResourcePtr<IDxcBlob> reflectionData;
-		hr = result->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(reflectionData.getAddress()), nullptr);
-
+		IDxcBlob* reflectionDataPtr;
+		hr = result->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&reflectionDataPtr), nullptr);
+		RenderResourcePtr<IDxcBlob> reflectionData = reflectionDataPtr;
 		if (FAILED(hr) || reflectionData.get() == nullptr)
 			return false;
 
@@ -267,11 +279,11 @@ namespace DK
 
 		if (shaderType == ShaderType::Raytracing)
 		{
-			RenderResourcePtr<ID3D12LibraryReflection> reflection;
-
-			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(reflection.getAddress()));
+			ID3D12LibraryReflection* reflectionPtr;
+			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(&reflectionPtr));
 			if (FAILED(hr))
 				return false;
+			RenderResourcePtr<ID3D12LibraryReflection> reflection = reflectionPtr;
 
 			D3D12_LIBRARY_DESC libraryDesc{};
 			if (FAILED(reflection->GetDesc(&libraryDesc)))
@@ -293,13 +305,14 @@ namespace DK
 		}
 		else
 		{
-			RenderResourcePtr<ID3D12ShaderReflection> reflection;
-			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(reflection.getAddress()));
+			ID3D12ShaderReflection* reflectionPtr;
+			hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(&reflectionPtr));
 			if (FAILED(hr))
 			{
 				DK_ASSERT_LOG(false, "Shader Reflection 실패");
 				return false;
 			}
+			RenderResourcePtr<ID3D12ShaderReflection> reflection = reflectionPtr;
 
 			D3D12_SHADER_DESC shaderDesc{};
 			if (FAILED(reflection->GetDesc(&shaderDesc)))
@@ -334,13 +347,16 @@ namespace DK
 				return false;
 		}
 
-		RenderResourcePtr<IDxcBlobUtf16> shaderName = nullptr;
-		hr = result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(shader.getAddress()), shaderName.getAddress());
+		IDxcBlobUtf16* shaderNamePtr = nullptr;
+		IDxcBlob* shaderPtr = nullptr;
+		hr = result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderPtr), &shaderNamePtr);
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "");
 			return false;
 		}
+		RenderResourcePtr<IDxcBlobUtf16> shaderName = shaderNamePtr;
+		shader = shaderPtr;
 
 		outShader.BytecodeLength = shader->GetBufferSize();
 		outShader.pShaderBytecode = shader->GetBufferPointer();

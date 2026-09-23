@@ -640,10 +640,6 @@ namespace DK
 		{
 			return _ptr;
 		}
-		dk_inline T** getAddress() noexcept
-		{
-			return &_ptr;
-		}
 
 	private:
 		T* _ptr = nullptr;

@@ -94,6 +94,10 @@ namespace DK
 				COUNT
 			};
 
+#if defined(_DK_DEBUG_)
+			DKString _pipelineName;
+#endif
+
 			DKString _primitiveTopologyType;
 			bool _depthEnable;
 			FillMode _fillMode;
@@ -344,7 +348,7 @@ do{ \
 		dk_inline DKCommandList()
 		{
 		}
-		dk_inline DKCommandList(RenderResourcePtr<ID3D12CommandAllocator>(&& commandAllocators)[2], RenderResourcePtr<ID3D12GraphicsCommandList4>&& commandList)
+		dk_inline DKCommandList(ID3D12CommandAllocator* commandAllocators[2], ID3D12GraphicsCommandList4* commandList)
 			: _commandList(DK::move(commandList))
 		{
 			for (uint32 i = 0; i < 2; ++i)
@@ -483,7 +487,6 @@ do{ \
 #if defined(_DK_DEBUG_)
 	public:
 		bool _isDestroyed = false;
-		RenderResourcePtr<ID3D12Debug> _debugController;
 #endif
 
 	private:
@@ -503,7 +506,7 @@ do{ \
 		uint32 _bindlessViewSize = 0;
 
 		// RenderTarget + BackBuffer
-		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetViewHeap = nullptr;
+		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetDescriptorHeap = nullptr;
 		// RenderTarget
 		static constexpr const uint32 kRenderTargetTextureCount = 4;					// Deffered: 0, 2 / Gbuffer: 1, 3
 		ITextureRef _renderTargetTextureArr[kRenderTargetTextureCount];
@@ -516,7 +519,7 @@ do{ \
 
 		// SwapChain
 #if defined(USE_IMGUI)
-		RenderResourcePtr<ID3D12DescriptorHeap> _pd3dSrvDescHeap;
+		RenderResourcePtr<ID3D12DescriptorHeap> _imguiDescriptorHeap;
 #endif
 
 		// Texture

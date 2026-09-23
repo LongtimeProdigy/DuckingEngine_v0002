@@ -190,6 +190,9 @@ namespace DK
 				{
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
+#if defined(_DK_DBEUG_)
+					pipelineCreateInfo._pipelineName = pipelineName;
+#endif
 
 					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
 					{
