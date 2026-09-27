@@ -343,21 +343,59 @@ namespace DK
 
 		return &findResult->second;
 	}
+	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
 		// Upload Scene ConstantBuffer
-		_sceneConstantBufferData._frameIndex = RenderModule::kCurrentFrameIndex;
-		_sceneConstantBufferData._resolution[0] = RenderModule::kWidth;
-		_sceneConstantBufferData._resolution[1] = RenderModule::kHeight;
-		_sceneConstantBufferData._time += deltaTime;
-		_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
-		_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
-		Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
-		Camera::gMainCamera->getCameraWorldMatrix(_sceneConstantBufferData._cameraWorldMatrixInv);
-		Camera::gMainCamera->getCameraProjectionMatrix(_sceneConstantBufferData._cameraProjectionMatrix);
-		_sceneConstantBuffer->upload(&_sceneConstantBufferData);
+		{
+			_sceneConstantBufferData._frameIndex = RenderModule::kCurrentFrameIndex;
+			_sceneConstantBufferData._resolution[0] = RenderModule::kWidth;
+			_sceneConstantBufferData._resolution[1] = RenderModule::kHeight;
+			_sceneConstantBufferData._time += deltaTime;
+			_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
+			_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
+			Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
+			Camera::gMainCamera->getCameraWorldMatrix(_sceneConstantBufferData._cameraWorldMatrixInv);
+			Camera::gMainCamera->getCameraProjectionMatrix(_sceneConstantBufferData._cameraProjectionMatrix);
+			_sceneConstantBuffer->upload(&_sceneConstantBufferData);
 
-		_atmosphereConstantBuffer->upload(&_atmosphereConstantBufferData);
+			_atmosphereConstantBuffer->upload(&_atmosphereConstantBufferData);
+		}
+
+		// Upload Ocean ConstantBuffer
+		{
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
+
+			/*
+				A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
+				L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
+				N       = FFT 해상도						// 256 표준, 512 고품질
+				Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
+				WindDir = 바람 방향 + 세기
+			*/
+			// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
+			static float2 windDir = float2(20, 20);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
+			static float waveEnergy = 0.0005f;
+			static float g = 9.81f;
+			const float windLength = windDir.length();
+			const float time = _sceneConstantBufferData._time;
+			const uint32 length = SceneManager::Ocean::OCEAN_LENGTH;
+			const float A = waveEnergy;
+			const float L = windLength * windLength / g;
+			const uint32 N = SceneManager::Ocean::OCEAN_N;
+
+			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount];
+
+			SceneManager::Ocean::OceanParams params(
+				time, g, windDir, gHeightScale, length, A, L, N,
+				ocean._h0[0]->getSRV(), ocean._h0[0]->getUAV(),
+				sourceTexture->getUAV(),
+				ocean._height[ocean._currentReadTextureIndex]->getSRV(), ocean._height[ocean._currentReadTextureIndex]->getUAV(),
+				ocean._normal[ocean._currentReadTextureIndex]->getSRV(), ocean._normal[ocean._currentReadTextureIndex]->getUAV()
+			);
+			ocean._initialSpectrumConstantBuffer->upload(&params);
+		}
 
 		// Render StaticMesh SceneObject
 		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
@@ -405,7 +443,6 @@ namespace DK
 	}
 
 	static bool gIsReload = false;
-	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
 	void SceneRenderer::preRender() const noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
@@ -476,73 +513,46 @@ namespace DK
 #endif
 
 #if 1
-#if 0
+#if 1
 		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
 
-			/*
-				A       = 파도 에너지 (amplitude scale)		// 잔잔한 바다: A = 0.0002, 일반 해양: A = 0.0005, 폭풍: A = 0.001
-				L       = 바람 영향 길이 스케일				// V² / g == (length(windDir))^2 / g
-				N       = FFT 해상도						// 256 표준, 512 고품질
-				Length  = 타일 물리 크기 (meters)			// 256 or 512, cascade시엔 64 / 256 / 512로
-				WindDir = 바람 방향 + 세기
-			*/
-			// N과 L의 관계 : grid spacing = Length / N, 위 예제는 1m당 fft grid tile이 하나라는 건가? (AAA에서는 0.5m~2m를 유지)
-			static float2 windDir = float2(20, 20);	//약한 바람	5–10, 일반 바다 10–20, 거친 바다 20–30, 폭풍 30–50
-			static float waveEnergy = 0.0005f;
-			static float g = 9.81f;
-			const float windLength = windDir.length();
-			const float time = _sceneConstantBufferData._time;
-			const uint32 length = SceneManager::Ocean::OCEAN_LENGTH;
-			const float A = waveEnergy;
-			const float L = windLength * windLength / g;
-			const uint32 N = SceneManager::Ocean::OCEAN_N;
-
 			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount];
 			ITextureRef targetTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount + 1];
-
-			SceneManager::Ocean::OceanParams params(
-				time, g, 0, gHeightScale, windDir, length, A, L, N,
-				ocean._h0[0]->getSRV(), ocean._h0[0]->getUAV(),
-				sourceTexture->getSRV(), sourceTexture->getUAV(),
-				ocean._height[ocean._currentReadTextureIndex]->getSRV(), ocean._height[ocean._currentReadTextureIndex]->getUAV(), 
-				ocean._normal[ocean._currentReadTextureIndex]->getSRV(), ocean._normal[ocean._currentReadTextureIndex]->getUAV()
-			);
-			ocean._initialSpectrumConstantBuffer->upload(&params);
 
 			static bool initial = false;
 			if (initial == false)
 			{
 				startPipeline("InitialSpectrum");
 				{
-					renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-					setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
+					renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
 					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 				}
 				endPipeline();
 
-				renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+				renderModule.resourceBarrierTransition(ocean._h0[0], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 				initial = true;
 			}
 
 			startPipeline("UpdateSpectrum");
 			{
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
-				renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-				renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
+				renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
 
-			renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			const uint32 stages = static_cast<uint32>(log2(static_cast<float>(ocean.OCEAN_N)));
 
 			startPipeline("FFTButterflyHorizontal");
 			{
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
 				for (UINT stage = 0; stage < stages; ++stage)
 				{
 					setRootConstantParameter("_stage", stage);
@@ -550,8 +560,8 @@ namespace DK
 					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
 
 					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
-					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 					ITextureRef tempTexture = sourceTexture;
 					sourceTexture = targetTexture;
@@ -561,7 +571,7 @@ namespace DK
 			endPipeline();
 			startPipeline("FFTButterflyVertical");
 			{
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
 				for (UINT stage = 0; stage < stages; ++stage)
 				{
 					setRootConstantParameter("_stage", stage);
@@ -569,8 +579,8 @@ namespace DK
 					setRootConstantParameter("_targetUAV", targetTexture->getUAV());
 
 					renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
-					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+					renderModule.resourceBarrierTransition(sourceTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 					ITextureRef tempTexture = sourceTexture;
 					sourceTexture = targetTexture;
@@ -579,34 +589,34 @@ namespace DK
 			}
 			endPipeline();
 
-			renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			renderModule.resourceBarrierTransition(targetTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			startPipeline("Finalize");
 			{
 				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
 				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
 
-			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			startPipeline("ComputeOceanNormal");
 			{
 				setRootConstantParameter("_sourceSRV", sourceTexture->getSRV());
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
 				renderModule.dispatch(ocean.OCEAN_N, ocean.OCEAN_N, 1);
 			}
 			endPipeline();
 
-			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(ocean._normal[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(ocean._height[ocean._currentReadTextureIndex], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 			startPipeline("RenderOcean");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->GetGPUVirtualAddress());
-				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+				setConstantBuffer("OceanParams", ocean._initialSpectrumConstantBuffer);
 
 				renderModule.setVertexBuffers(0, 1, ocean._mesh._vertexBufferView.get());
 				renderModule.setIndexBuffer(ocean._mesh._indexBufferView.get());
@@ -620,7 +630,7 @@ namespace DK
 #endif
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFF, 0, true, true, false);
+		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true, false);
 		{
 #if 0
 			startPipeline("SkyDomePipeline");

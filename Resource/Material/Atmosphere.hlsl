@@ -310,7 +310,8 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
 #endif
 
 #if defined(APPLY_ADVICE_CHATCPT)
-    const float3 composedHDR = originalCol.xyz * atmosphere.transmittance + atmosphere.inScattering;
+    const float3 surfaceRadiance = depth != 1.0f ? originalCol.xyz : float3(0, 0, 0);
+    const float3 composedHDR = surfaceRadiance * atmosphere.transmittance + atmosphere.inScattering;
     const float3 test = toneMapACES(composedHDR);
 
     return float4(test, originalCol.a);

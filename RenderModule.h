@@ -449,6 +449,8 @@ do{ \
 		void deallocateTextureUAV(const TextureResourceViewType index);
 		void copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer, const D3D12_RESOURCE_STATES afterState);
 
+		void resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState);
+
 		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
 		{
 			using FindResult = DKHashMap<DKString, RenderPass>::iterator;

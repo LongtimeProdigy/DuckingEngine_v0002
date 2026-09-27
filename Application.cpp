@@ -83,7 +83,12 @@ namespace DK
 		UINT dpi = GetDpiForWindow(_hwnd);
 		DK_LOG("Window DPI = %u", dpi);
 
-		if (DuckingEngine::getInstance().Initialize(_hwnd, data._width, data._height) == false)
+		RECT clientRect;
+		GetClientRect(_hwnd, &clientRect);
+
+		const int clientWidth = clientRect.right - clientRect.left;
+		const int clientHeight = clientRect.bottom - clientRect.top;
+		if (DuckingEngine::getInstance().Initialize(_hwnd, clientWidth, clientHeight) == false)
 		{
 			DK_ASSERT_LOG(false, "Engine Initialize - Failed");
 			return false;

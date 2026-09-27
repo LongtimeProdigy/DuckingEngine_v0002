@@ -598,25 +598,19 @@ namespace DK
 
 		// Viewport
 		{
-			RECT clientRect;
-			GetClientRect(hwnd, &clientRect);
-
-			const int clientWidth = clientRect.right - clientRect.left;
-			const int clientHeight = clientRect.bottom - clientRect.top;
-
 			_viewport = dk_new D3D12_VIEWPORT;
 			_viewport->TopLeftX = 0;
 			_viewport->TopLeftY = 0;
-			_viewport->Width = static_cast<FLOAT>(clientWidth);
-			_viewport->Height = static_cast<FLOAT>(clientHeight);
+			_viewport->Width = static_cast<FLOAT>(width);
+			_viewport->Height = static_cast<FLOAT>(height);
 			_viewport->MinDepth = 0.0f;
 			_viewport->MaxDepth = 1.0f;
 
 			_scissorRect = dk_new D3D12_RECT;
 			_scissorRect->left = 0;
 			_scissorRect->top = 0;
-			_scissorRect->right = static_cast<LONG>(clientWidth);
-			_scissorRect->bottom = static_cast<LONG>(clientHeight);
+			_scissorRect->right = static_cast<LONG>(width);
+			_scissorRect->bottom = static_cast<LONG>(height);
 		}
 
 #ifdef USE_IMGUI
@@ -1535,14 +1529,12 @@ namespace DK
 
 	void RenderModule::resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState)
 	{
-		if (buffer == nullptr)
-			return;
-
+		DK_ASSERT_LOG(buffer != nullptr, "");
 		resourceBarrierTransition(*buffer.get(), afterState);
 	}
 	void RenderModule::resourceBarrierTransition(IBuffer& buffer, const D3D12_RESOURCE_STATES afterState)
 	{
-		if (buffer._currentState == afterState)
+		if (buffer._currentState == afterState || (afterState != D3D12_RESOURCE_STATE_COMMON && (buffer._currentState & afterState) == afterState))
 			return;
 
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(const_cast<ID3D12Resource*>(buffer._buffer.get()), buffer._currentState, afterState);
@@ -1559,6 +1551,12 @@ namespace DK
 		pendingData._target = targetBuffer;
 		pendingData._afterState = afterState;
 		_commandList._copyResourcePendingArray.push_back(DK::move(pendingData));
+	}
+
+	void RenderModule::resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState)
+	{
+		DK_ASSERT_LOG(texture != nullptr, "");
+		resourceBarrierTransition(texture->getTextureBuffer(), afterState);
 	}
 
 	RenderResourcePtr<ID3D12Resource> createBufferInternalRaw(RenderResourcePtr<ID3D12Device8>& device, const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const wchar_t* debugName)
@@ -1614,7 +1612,7 @@ namespace DK
 		DK_ASSERT_LOG(data != nullptr, "DefaultBuffer 생성시에는 반드시 Data가 있어야합니다.");
 
 		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, bufferSize, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, debugName);
-		IBufferRef defaultBuffer(dk_new IBuffer(IBuffer::Type::DEFAULT, DK::move(buffer), bufferSize, state));
+		IBufferRef defaultBuffer(dk_new IBuffer(IBuffer::Type::DEFAULT, DK::move(buffer), bufferSize, D3D12_RESOURCE_STATE_COMMON));
 		if (defaultBuffer == nullptr)
 			return nullptr;
 
@@ -2265,62 +2263,40 @@ namespace DK
 		const bool isDeffered = rtvReadSlot == 0xFFFFFFFF && rtvSlot == 0;
 		const bool isPostProcess = rtvReadSlot == 0 && rtvSlot == 1;
 		const bool isGBuffer = rtvReadSlot == 1 && rtvSlot == 2;
-		const bool isBackBuffer = rtvSlot == 2;
 
 		_commandList->RSSetViewports(1, _viewport.get());
 		_commandList->RSSetScissorRects(1, _scissorRect.get());
 		_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		// 이전 renderTarget의 Shader에서 쓸 수 있게 Read로 변경
-		if(isPostProcess || isGBuffer)
-		{
-			const uint32 rtvPrevIndex = 0 * kFrameCount + rtvReadSlot;
-			resourceBarrierTransition(_renderTargetTextureArr[rtvPrevIndex]->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-			// PostProcessing이면 DepthStencil도 Shader에서 쓸 수 있게 Read로 변경
-			if (isPostProcess)
-			{
-				const uint32 rtvPrevIndex = 0 * kFrameCount + rtvReadSlot;
-				resourceBarrierTransition(_depthStencilTextureArr[rtvPrevIndex]->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			}
-		}
-
-		// Deffered인 경우 현재프레임의 rtv를 다시 RenderTarget으로 변경
-		// PostProcess, GBUffer인 경우 현재프레임의 BackBuffer 또는 RenderTarget을 Shader에서 쓸 수 있게 RenderTarget으로 변경
 		if (isDeffered || isPostProcess || isGBuffer)
 		{
-			const uint32 rtvIndex = 0 * kFrameCount + rtvSlot;
+			if (isPostProcess || isGBuffer)
+			{
+				// 이전 RTV/DSV를 Shader에서 쓸 수 있게 Read로 변경
+				const uint32 rtvPrevIndex = 0 * kFrameCount + rtvReadSlot;
+				resourceBarrierTransition(_renderTargetTextureArr[rtvPrevIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				if (isPostProcess)
+					resourceBarrierTransition(_depthStencilTextureArr[rtvPrevIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			}
 
-			// 현재 Pass에 해당하는 Texture를 renderTarget으로 변경
-			IBuffer& renderTargetBuffer = isBackBuffer ? _backBufferResourceArr[kCurrentBackBufferIndex] : _renderTargetTextureArr[rtvIndex]->getTextureBuffer();
+			IBuffer& renderTargetBuffer = isGBuffer ? _backBufferResourceArr[kCurrentBackBufferIndex] : _renderTargetTextureArr[rtvSlot]->getTextureBuffer();
 			resourceBarrierTransition(renderTargetBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-			// Deffered 최초 한번 시에 렌더타겟과 뎁스스텐실을 동시에 바인딩해야해서 따로 처리
-			if (isDeffered)
-			{
-				resourceBarrierTransition(_depthStencilTextureArr[rtvIndex]->getTextureBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+			rtvHandle.ptr += isGBuffer ? _renderTargetViewSize * (4 + kCurrentBackBufferIndex) : _renderTargetViewSize * rtvSlot;
 
-				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				rtvHandle.ptr += _renderTargetViewSize * rtvIndex;
+			if (bindDSV)
+			{
 				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				dsvHandle.ptr += _depthStencilViewSize * rtvIndex;
-				_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
+				resourceBarrierTransition(_depthStencilTextureArr[rtvSlot]->getTextureBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 				if (clearTarget)
-				{
-					_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
 					_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-				}
-			}
-			else if (isPostProcess || isGBuffer)
-			{
-				const UINT rtvDescriptorSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				rtvHandle.ptr += isBackBuffer ? rtvDescriptorSize * (4 + kCurrentBackBufferIndex) : rtvDescriptorSize * rtvIndex;
 
+				_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+			}
+			else
+			{
 				_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-				if (clearTarget)
-					_commandList->ClearRenderTargetView(rtvHandle, gClearRenderTargetViewColor.m, 0, nullptr);
 			}
 		}
 	}
