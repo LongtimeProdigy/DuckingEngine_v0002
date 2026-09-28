@@ -27,11 +27,16 @@ namespace DK
 
 		switch (msg)
 		{
-			//case WM_SIZE:
-			//{
-			//	DK_ASSERT_LOG(false, "현재 resize 기능을 지원하지 않습니다.");
-			//}
-			//break;
+			case WM_SIZE:
+			{
+				if (wParam != SIZE_MINIMIZED && DuckingEngine::getInstance().isInitialized())
+				{
+					const UINT width = LOWORD(lParam);
+					const UINT height = HIWORD(lParam);
+					DuckingEngine::getInstance().GetRenderModuleWritable().resize(width, height);
+				}
+			}
+			break;
 			case WM_KILLFOCUS:
 			{
 				InputModule::setBlock(true);

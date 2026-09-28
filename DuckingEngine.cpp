@@ -116,6 +116,8 @@ namespace DK
 		if (_gameModule->initialize() == false)
 			return false;
 
+		_initialized = true;
+
 		return true;
 	}
 

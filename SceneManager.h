@@ -97,10 +97,10 @@ namespace DK
 				const TextureResourceViewType _normalUAV;
 			};
 			IBufferRef _initialSpectrumConstantBuffer;
-			ITextureRef _h0[RenderModule::kFrameCount];
-			ITextureRef _ht[RenderModule::kFrameCount * 2]; // *2 for Ping-pong
-			ITextureRef _height[RenderModule::kFrameCount];
-			ITextureRef _normal[RenderModule::kFrameCount];
+			ITextureRef _h0[kFrameCount];
+			ITextureRef _ht[kFrameCount * 2]; // *2 for Ping-pong
+			ITextureRef _height[kFrameCount];
+			ITextureRef _normal[kFrameCount];
 
 			uint32 _currentReadTextureIndex = 0;
 		};

@@ -28,6 +28,8 @@ namespace DK
 		void Update(const float deltaTime);
 		void Render(const float deltaTime);
 
+		dk_inline const bool isInitialized() const { return _initialized; }
+
 		dk_inline const RenderModule& GetRenderModule() const noexcept { return *_renderModule.get(); }
 		dk_inline RenderModule& GetRenderModuleWritable() noexcept { return *_renderModule.get(); }
 		dk_inline const RaytracingRenderer& GetRaytracingRenderer() const noexcept { return *_raytracingRenderer.get(); }
@@ -42,6 +44,8 @@ namespace DK
 		dk_inline SceneObjectManager& GetSceneObjectManagerWritable() noexcept { return *_sceneObjectManager.get(); }
 
 	private:
+		bool _initialized = false;
+
 #pragma region System Modules
 		Ptr<RenderModule> _renderModule;
 		Ptr<RaytracingRenderer> _raytracingRenderer;

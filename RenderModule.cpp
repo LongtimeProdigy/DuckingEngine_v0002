@@ -132,13 +132,13 @@ namespace DK
 	RenderPass* gCurrentBindedRenderPass = nullptr;
 	Pipeline* gCurrentBindedPipeline = nullptr;
 
-	static const float4 gClearRenderTargetViewColor(1, 0, 0, 1);
-
 	uint32 RenderModule::kCurrentFrameIndex = 0;
 	uint32 RenderModule::kCurrentBackBufferIndex = 0;
 	uint32 RenderModule::kWidth = 0;
 	uint32 RenderModule::kHeight = 0;
+	static constexpr const DXGI_FORMAT gRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	static constexpr const DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	static constexpr const FLOAT gRenderTargetClearColor[4] = { 0, 0, 0, 1 };
 	DXGI_FORMAT GetDepthResourceFormat(DXGI_FORMAT depthformat)
 	{
 		DXGI_FORMAT resformat;
@@ -226,8 +226,132 @@ namespace DK
 		if (initialize_createFence() == false) 
 			return false;
 
+		if (createRenderTarget(width, height) == false)
+			return false;
+
 		execute();
 		waitFenceAndResetCommandList();
+
+		return true;
+	}
+
+	const bool RenderModule::createRenderTarget(const uint32 width, const uint32 height)
+	{
+		static constexpr const D3D12_RESOURCE_STATES kResourceState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+		// depthstencil
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv = {};
+		depthOptimizedClearValue.Format = gDepthStencilFormat;
+		depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+		depthOptimizedClearValue.DepthStencil.Stencil = 0;
+#if defined(_DK_DEBUG_)
+		ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture");
+#endif
+		IBufferRef buffer = createBuffer2DInternal(width, height, 1, GetDepthResourceFormat(gDepthStencilFormat), D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &depthOptimizedClearValue, StringUtil::convertCtoWC(dsvTextureName.c_str()).c_str());
+		if (buffer == nullptr)
+			return false;
+
+		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+		depthStencilViewDesc.Format = gDepthStencilFormat;
+		depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
+		_device->CreateDepthStencilView(buffer->_buffer, &depthStencilViewDesc, dsvHandle);
+		dsv = dsvHandle;
+		dsvHandle.ptr += _depthStencilViewSize;
+
+		ITexture depthStencilTexture(DKString(dsvTextureName.c_str()), 1, GetDepthSRVFormat(gDepthStencilFormat), DK::move(buffer));
+		if (allocateTextureSRV(depthStencilTexture) == false)
+			return false;
+
+		// rendertarget
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CLEAR_VALUE clearValue;
+		clearValue.Format = gRenderTargetFormat;
+		clearValue.Color[0] = gRenderTargetClearColor[0];
+		clearValue.Color[1] = gRenderTargetClearColor[1];
+		clearValue.Color[2] = gRenderTargetClearColor[2];
+		clearValue.Color[3] = gRenderTargetClearColor[3];
+		ITexture renderTargets[kRenderTargetTextureCount];
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvs[kRenderTargetTextureCount] = { {}, {} };
+		for (uint32 i = 0; i < kRenderTargetTextureCount; ++i)
+		{
+#if defined(_DK_DEBUG_)
+			ScopeString<DK_MAX_BUFFER> indexString;
+			StringUtil::itoa(i, indexString.data(), indexString.capacity());
+			ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
+			rtvTextureName.append(indexString.c_str());
+#endif
+			IBufferRef buffer = createBuffer2DInternal(width, height, 1, gRenderTargetFormat, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
+			if (buffer == nullptr)
+				return false;
+
+			_device->CreateRenderTargetView(buffer->_buffer, nullptr, rtvHandle);
+			rtvs[i] = rtvHandle;
+			rtvHandle.ptr += _renderTargetViewSize;
+
+			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, gRenderTargetFormat, DK::move(buffer));
+			if (allocateTextureSRV(renderTargets[i]) == false)
+				return false;
+		}
+
+		// Create BackBuffer
+		ITexture backBuffers[kBackBufferCount];
+		D3D12_CPU_DESCRIPTOR_HANDLE backbuverViews[kBackBufferCount] = { {}, {} };
+		for (uint32 i = 0; i < kBackBufferCount; ++i)
+		{
+			ID3D12Resource* backBufferRaw;
+			HRESULT hr = _swapChain->GetBuffer(i, IID_PPV_ARGS(&backBufferRaw));
+			if (FAILED(hr) == true)
+				return false;
+
+#if defined(_DK_DEBUG_)
+			ScopeString<DK_MAX_BUFFER> indexString;
+			StringUtil::itoa(i, indexString.data(), indexString.capacity());
+			ScopeStringW<DK_MAX_BUFFER> resourceName(L"BackBufferResource_");
+			resourceName.append(StringUtil::convertCtoWC(indexString.c_str()).c_str());
+			backBufferRaw->SetName(resourceName.c_str());
+#endif
+
+			const D3D12_RESOURCE_DESC desc = backBufferRaw->GetDesc();
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+			UINT64 sizeInBytes = 0;
+			_device->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, nullptr, nullptr, &sizeInBytes);
+
+			IBuffer backBuffer(IBuffer::Type::BACKBUFFER, DK::move(backBufferRaw), sizeInBytes, D3D12_RESOURCE_STATE_PRESENT);
+			_device->CreateRenderTargetView(backBuffer._buffer, nullptr, rtvHandle);
+			backbuverViews[i] = rtvHandle;
+			rtvHandle.ptr += _renderTargetViewSize;
+
+			backBuffers[i] = ITexture(StringUtil::convertWCtoC(resourceName.c_str()).c_str(), 1, gRenderTargetFormat, DK::move(backBuffer));
+		}
+
+		_renderTargetArr[0] = RenderTarget(DK::move(renderTargets[0]), DK::move(depthStencilTexture), rtvs[0], dsv, false, true);
+		_renderTargetArr[1] = RenderTarget(DK::move(renderTargets[1]), rtvs[1]);
+		_renderTargetArr[2] = RenderTarget(DK::move(backBuffers[0]), backbuverViews[0]);
+		_renderTargetArr[3] = RenderTarget(DK::move(backBuffers[1]), backbuverViews[1]);
+
+		return true;
+	}
+
+	const bool RenderModule::resize(const uint32 width, const uint32 height)
+	{
+		waitAllGPU();
+
+		// 0을 넣으면 기존 값을 유지한다는 뜻이므로 0을 넣자
+		HRESULT hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+		if (FAILED(hr))
+		{
+			DK_ASSERT_LOG(false, "Faile Resize");
+			return false;
+		}
+
+		if (createRenderTarget(width, height) == false)
+			return false;
+
+		kWidth = width;
+		kHeight = height;
 
 		return true;
 	}
@@ -242,16 +366,10 @@ namespace DK
 		_imguiDescriptorHeap.release();
 #endif
 
-		for (uint32 i = 0; i < DK_COUNT_OF(_depthStencilTextureArr); ++i)
-			_depthStencilTextureArr[i].reset();
 		_depthStencilDescriptorHeap.release();
-
-		for (uint32 i = 0; i < DK_COUNT_OF(_backBufferResourceArr); ++i)
-			_backBufferResourceArr[i] = IBuffer();
-
-		for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetTextureArr); ++i)
-			_renderTargetTextureArr[i].reset();
 		_renderTargetDescriptorHeap.release();
+		for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetArr); ++i)
+			_renderTargetArr[i] = RenderTarget();
 
 		_swapChain.release();
 		_scissorRect.release();
@@ -424,13 +542,14 @@ namespace DK
 			if (FAILED(hr))
 				return false;
 
+			_bindlessViewSize = _device->GetDescriptorHandleIncrementSize(gTextureBindlessDescriptorHeapType);
+
 #if defined(_DK_DEBUG_)
 			_textureDescriptorHeap = textureDescriptorHeap;
 			_textureDescriptorHeap->SetName(L"BindlessTextureDescriptorHeap");
 #endif
 		}
 
-		static constexpr const D3D12_RESOURCE_STATES kResourceState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 		// Create Depth/Stencil View
 		{
 			/*
@@ -438,13 +557,8 @@ namespace DK
 			* https://stackoverflow.com/questions/38933565/which-format-to-use-for-a-shader-resource-view-into-depth-stencil-buffer-resourc
 			* https://stackoverflow.com/questions/20256815/how-to-check-the-content-of-the-depth-stencil-buffer
 			*/
-			D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-			depthOptimizedClearValue.Format = gDepthStencilFormat;
-			depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
-			depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
 			D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-			dsvHeapDesc.NumDescriptors = DK_COUNT_OF(_renderTargetTextureArr);
+			dsvHeapDesc.NumDescriptors = kFrameCount;
 			dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 			dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 			ID3D12DescriptorHeap* depthStencilDescriptorHeap;
@@ -452,43 +566,17 @@ namespace DK
 			if (FAILED(hr) == true)
 				return false;
 
+			_depthStencilViewSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
 #if defined(_DK_DEBUG_)
 			_depthStencilDescriptorHeap = depthStencilDescriptorHeap;
 			_depthStencilDescriptorHeap->SetName(L"DSV DescriptorHeap");
 #endif
-
-			_depthStencilViewSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-
-			// TODO: 현재 Depth/Stencil 버퍼는 2개만 필요하다.. 근데 4개나 만들고 있다. 다음에 FrameBuffer Instance를 만들어서 관리할 수 있도록 해야겠다
-			for (uint32 i = 0; i < dsvHeapDesc.NumDescriptors; ++i)
-			{
-#if defined(_DK_DEBUG_)
-				ScopeString<DK_MAX_BUFFER> indexString;
-				StringUtil::itoa(i, indexString.data(), indexString.capacity());
-				ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture_");
-				dsvTextureName.append(indexString.c_str());
-#endif
-				IBufferRef buffer = createBuffer2DInternal(width, height, 1, GetDepthResourceFormat(gDepthStencilFormat), D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &depthOptimizedClearValue, StringUtil::convertCtoWC(dsvTextureName.c_str()).c_str());
-				if (buffer == nullptr)
-					return false;
-
-				D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-				depthStencilViewDesc.Format = gDepthStencilFormat;
-				depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-				depthStencilViewDesc.Flags = D3D12_DSV_FLAG_NONE;
-				_device->CreateDepthStencilView(buffer->_buffer, &depthStencilViewDesc, dsvHandle);
-				dsvHandle.ptr += _depthStencilViewSize;
-
-				_depthStencilTextureArr[i] = ITextureRef(dk_new ITexture(DKString(dsvTextureName.c_str()), 1, GetDepthSRVFormat(gDepthStencilFormat), DK::move(buffer)));
-				allocateTextureSRV(_depthStencilTextureArr[i].get());
-			}
 		}
-
 		// Create RTV descriptorHeap
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-			rtvHeapDesc.NumDescriptors = DK_COUNT_OF(_renderTargetTextureArr) + DK_COUNT_OF(_backBufferResourceArr);
+			rtvHeapDesc.NumDescriptors = DK_COUNT_OF(_renderTargetArr);
 			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 			ID3D12DescriptorHeap* rtvHeap;
 			hr = _device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap));
@@ -496,44 +584,11 @@ namespace DK
 				return false;
 
 			_renderTargetViewSize = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-			if (FAILED(hr) == true)
-				return false;
 
 #if defined(_DK_DEBUG_)
 			_renderTargetDescriptorHeap = rtvHeap;
 			_renderTargetDescriptorHeap->SetName(L"RTVDescriptorHeap");
 #endif
-		}
-
-		// Create RTV
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		DXGI_FORMAT renderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-		{
-			D3D12_CLEAR_VALUE clearValue;
-			clearValue.Format = renderTargetFormat;
-			clearValue.Color[0] = gClearRenderTargetViewColor.x;
-			clearValue.Color[1] = gClearRenderTargetViewColor.y;
-			clearValue.Color[2] = gClearRenderTargetViewColor.z;
-			clearValue.Color[3] = gClearRenderTargetViewColor.w;
-
-			for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetTextureArr); ++i)
-			{
-#if defined(_DK_DEBUG_)
-				ScopeString<DK_MAX_BUFFER> indexString;
-				StringUtil::itoa(i, indexString.data(), indexString.capacity());
-				ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
-				rtvTextureName.append(indexString.c_str());
-#endif
-				IBufferRef buffer = createBuffer2DInternal(width, height, 1, renderTargetFormat, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
-				if (buffer == nullptr)
-					return false;
-
-				_device->CreateRenderTargetView(buffer->_buffer, nullptr, rtvHandle);
-				rtvHandle.ptr += _renderTargetViewSize;
-
-				_renderTargetTextureArr[i] = ITextureRef(dk_new ITexture(DKString(rtvTextureName.c_str()), 1, renderTargetFormat, DK::move(buffer)));
-				allocateTextureSRV(_renderTargetTextureArr[i].get());
-			}
 		}
 
 		// Create SwapChain and BackBuffer RTV
@@ -542,11 +597,11 @@ namespace DK
 			DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
 			swapChainDesc.Width = width;
 			swapChainDesc.Height = height;
-			swapChainDesc.Format = renderTargetFormat;
+			swapChainDesc.Format = gRenderTargetFormat;
 			swapChainDesc.Stereo = FALSE;
 			swapChainDesc.SampleDesc = sampleDesc;
 			swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-			swapChainDesc.BufferCount = kFrameCount;
+			swapChainDesc.BufferCount = kBackBufferCount;
 			swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
 			swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 			swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
@@ -561,32 +616,6 @@ namespace DK
 
 			kCurrentFrameIndex = 0;
 			kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
-
-			for (uint32 i = 0; i < kFrameCount; ++i)
-			{
-				ID3D12Resource* backBuffer;
-				hr = _swapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
-				if (FAILED(hr) == true)
-					return false;
-
-#if defined(_DK_DEBUG_)
-				ScopeString<DK_MAX_BUFFER> indexString;
-				StringUtil::itoa(i, indexString.data(), indexString.capacity());
-				ScopeStringW<DK_MAX_BUFFER> resourceName(L"BackBufferResource_");
-				resourceName.append(StringUtil::convertCtoWC(indexString.c_str()).c_str());
-				backBuffer->SetName(resourceName.c_str());
-#endif
-
-				const D3D12_RESOURCE_DESC desc = backBuffer->GetDesc();
-				D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
-				UINT64 sizeInBytes = 0;
-				_device->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, nullptr, nullptr, &sizeInBytes);
-
-				_backBufferResourceArr[i] = IBuffer(IBuffer::Type::BACKBUFFER, DK::move(backBuffer), sizeInBytes, D3D12_RESOURCE_STATE_PRESENT);
-
-				_device->CreateRenderTargetView(_backBufferResourceArr[i]._buffer, nullptr, rtvHandle);
-				rtvHandle.ptr += _renderTargetViewSize;
-			}
 		}
 
 		// CreateSwapChainForHwnd뒤에 호출되어야함
@@ -656,8 +685,8 @@ namespace DK
 		HRESULT hr;
 
 		bool successAllocate = true;
-		ID3D12CommandAllocator* commandAllocator[RenderModule::kFrameCount] = { nullptr, };
-		for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
+		ID3D12CommandAllocator* commandAllocator[kFrameCount] = { nullptr, };
+		for (uint32 i = 0; i < kFrameCount; ++i)
 		{
 			hr = _device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
 			if (FAILED(hr))
@@ -673,7 +702,7 @@ namespace DK
 
 		if (successAllocate == false)
 		{
-			for (uint32 i = 0; i < RenderModule::kFrameCount; ++i)
+			for (uint32 i = 0; i < kFrameCount; ++i)
 			{
 				if(commandAllocator[i] != nullptr)
 					commandAllocator[i]->Release();
@@ -1527,6 +1556,11 @@ namespace DK
 		_commandList->Reset(_commandList._commandAllocators[kCurrentFrameIndex].get(), nullptr);
 	}
 
+	void RenderModule::resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState)
+	{
+		DK_ASSERT_LOG(texture != nullptr, "");
+		resourceBarrierTransition(texture->getTextureBuffer(), afterState);
+	}
 	void RenderModule::resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState)
 	{
 		DK_ASSERT_LOG(buffer != nullptr, "");
@@ -1551,12 +1585,6 @@ namespace DK
 		pendingData._target = targetBuffer;
 		pendingData._afterState = afterState;
 		_commandList._copyResourcePendingArray.push_back(DK::move(pendingData));
-	}
-
-	void RenderModule::resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState)
-	{
-		DK_ASSERT_LOG(texture != nullptr, "");
-		resourceBarrierTransition(texture->getTextureBuffer(), afterState);
 	}
 
 	RenderResourcePtr<ID3D12Resource> createBufferInternalRaw(RenderResourcePtr<ID3D12Device8>& device, const uint32 size, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const wchar_t* debugName)
@@ -1660,7 +1688,7 @@ namespace DK
 		return DK::move(outBuffer);
 	}
 
-	const bool RenderModule::allocateTextureSRV(ITexture* texture)
+	const bool RenderModule::allocateTextureSRV(ITexture& texture)
 	{
 		EnsureMainThread();
 
@@ -1682,20 +1710,20 @@ namespace DK
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = texture->getFormat();
+		srvDesc.Format = texture.getFormat();
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = texture->getMipLevelCount();
-		textureDescriptorHeapHandle.ptr += index * _device->GetDescriptorHandleIncrementSize(gTextureBindlessDescriptorHeapType);
-		_device->CreateShaderResourceView(texture->_textureBuffer._buffer.get(), &srvDesc, textureDescriptorHeapHandle);
+		srvDesc.Texture2D.MipLevels = texture.getMipLevelCount();
+		textureDescriptorHeapHandle.ptr += index * _bindlessViewSize;
+		_device->CreateShaderResourceView(texture._textureBuffer._buffer.get(), &srvDesc, textureDescriptorHeapHandle);
 
-		texture->_textureSRVIndex = index;
+		texture._textureSRVIndex = index;
 
 		return true;
 	}
-	const bool RenderModule::allocateTextureUAV(ITexture* texture)
+	const bool RenderModule::allocateTextureUAV(ITexture& texture)
 	{
 		EnsureMainThread();
-		DK_ASSERT_LOG(texture->getMipLevelCount() == 1, "UAV로 접근할 Texture는 MipLevel이 1개인 경우에만 허용됩니다.");
+		DK_ASSERT_LOG(texture.getMipLevelCount() == 1, "UAV로 접근할 Texture는 MipLevel이 1개인 경우에만 허용됩니다.");
 
 		uint32 index;
 		if (_deletedTextureUAVArr.empty() == false)
@@ -1709,21 +1737,18 @@ namespace DK
 		}
 
 		DK_ASSERT_LOG(index < kMaxTextureUAVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
-		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
-
-		if (_bindlessViewSize == 0)
-			_bindlessViewSize = _device->GetDescriptorHandleIncrementSize(gTextureBindlessDescriptorHeapType);
+		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");			
 
 		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = texture->getFormat();
+		uavDesc.Format = texture.getFormat();
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 		uavDesc.Texture2D.MipSlice = 0; // UAV로 접근할 Mip 레벨 지정
 		textureDescriptorHeapHandle.ptr += (index + kMaxTextureSRVCount) * _bindlessViewSize;
-		_device->CreateUnorderedAccessView(texture->_textureBuffer._buffer.get(), nullptr, &uavDesc, textureDescriptorHeapHandle);
+		_device->CreateUnorderedAccessView(texture._textureBuffer._buffer.get(), nullptr, &uavDesc, textureDescriptorHeapHandle);
 
-		texture->_textureUAVIndex = index;
+		texture._textureUAVIndex = index;
 
 		return true;
 	}
@@ -2150,9 +2175,9 @@ namespace DK
 
 		ITexture* texture = dk_new ITexture(path, mipLevelCount, format, DK::move(textureResource));
 		if (createSRV)
-			allocateTextureSRV(texture);
+			allocateTextureSRV(*texture);
 		if (createUAV)
-			allocateTextureUAV(texture);
+			allocateTextureUAV(*texture);
 
 		return ITextureRef(texture);
 	}
@@ -2258,46 +2283,38 @@ namespace DK
 		_commandList._prevCopyResourcePendingArray.swap(_commandList._copyResourcePendingArray);
 	}
 
-	void RenderModule::bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget)
+	void RenderModule::bindRenderPass(const uint32 rtvSlot)
 	{
-		const bool isDeffered = rtvReadSlot == 0xFFFFFFFF && rtvSlot == 0;
-		const bool isPostProcess = rtvReadSlot == 0 && rtvSlot == 1;
-		const bool isGBuffer = rtvReadSlot == 1 && rtvSlot == 2;
+		if (_currentRenderTargetIndex == rtvSlot)
+			return;
+
+		_currentRenderTargetIndex = rtvSlot;
 
 		_commandList->RSSetViewports(1, _viewport.get());
 		_commandList->RSSetScissorRects(1, _scissorRect.get());
 		_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		if (isDeffered || isPostProcess || isGBuffer)
+		RenderTarget& renderTarget = _renderTargetArr[rtvSlot];
+
+		ITexture& renderTargetTexture = renderTarget._renderTarget;
+		D3D12_CPU_DESCRIPTOR_HANDLE rtv = renderTarget._rtv;
+		resourceBarrierTransition(renderTargetTexture.getTextureBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+		if (renderTarget._clearRenderTarget)
+			_commandList->ClearRenderTargetView(rtv, gRenderTargetClearColor, 0, nullptr);
+
+		if (renderTarget._hasDepthStencil)
 		{
-			if (isPostProcess || isGBuffer)
-			{
-				// 이전 RTV/DSV를 Shader에서 쓸 수 있게 Read로 변경
-				const uint32 rtvPrevIndex = 0 * kFrameCount + rtvReadSlot;
-				resourceBarrierTransition(_renderTargetTextureArr[rtvPrevIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				if (isPostProcess)
-					resourceBarrierTransition(_depthStencilTextureArr[rtvPrevIndex], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			}
+			ITexture& depthStencilTexture = renderTarget._depthStencil;
+			D3D12_CPU_DESCRIPTOR_HANDLE dsv = renderTarget._dsv;
+			resourceBarrierTransition(depthStencilTexture.getTextureBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			if (renderTarget._clearDepthStencil)
+				_commandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-			IBuffer& renderTargetBuffer = isGBuffer ? _backBufferResourceArr[kCurrentBackBufferIndex] : _renderTargetTextureArr[rtvSlot]->getTextureBuffer();
-			resourceBarrierTransition(renderTargetBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-			D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			rtvHandle.ptr += isGBuffer ? _renderTargetViewSize * (4 + kCurrentBackBufferIndex) : _renderTargetViewSize * rtvSlot;
-
-			if (bindDSV)
-			{
-				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _depthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				resourceBarrierTransition(_depthStencilTextureArr[rtvSlot]->getTextureBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-				if (clearTarget)
-					_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-				_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-			}
-			else
-			{
-				_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-			}
+			_commandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+		}
+		else
+		{
+			_commandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 		}
 	}
 	D3D_PRIMITIVE_TOPOLOGY convertPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY_TYPE type)
@@ -2433,7 +2450,7 @@ namespace DK
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _commandList._commandList.get());
 #endif // USE_IMGUI
 
-		resourceBarrierTransition(_backBufferResourceArr[kCurrentBackBufferIndex], D3D12_RESOURCE_STATE_PRESENT);
+		resourceBarrierTransition(_renderTargetArr[kRenderTargetTextureCount + kCurrentBackBufferIndex]._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PRESENT);
 
 		execute(true);
 
@@ -2469,10 +2486,14 @@ namespace DK
 
 	ITexture::~ITexture()
 	{
+		// isValid 체크라고 봐도됨
+		if (getTextureBuffer().isValid() == false)
+			return;
+
 #if defined(_DK_DEBUG_)
 		if (DuckingEngine::getInstance().GetRenderModule()._isDestroyed)
 		{
-			DK_ASSERT_LOG(false, "Muse called before rendermodule destroy!!!\nPath: %s", _path.c_str());
+			DK_ASSERT_LOG(false, "Must called before rendermodule destroy!!!\nPath: %s", _path.c_str());
 			return;
 		}
 #endif

@@ -218,15 +218,14 @@ if (object == nullptr) \
 #define RENDERING_VERIFY(object)
 #endif
 
-#define startRenderPass(renderModule, renderPassName, rtvPrevSlot, rtvSlot, bindDSV, clearTarget, isRaytracing) \
+#define startRenderPass(renderModule, renderPassName, rtvSlot) \
 do{ \
 	RenderModule& currentRenderModule = renderModule; \
 	RENDERING_ALREADY_BIND(gCurrentBindedRenderPass, renderPassName); \
 	static RenderPass* findRenderPass = currentRenderModule.getRenderPass(renderPassName); \
 	gCurrentBindedRenderPass = findRenderPass; \
 	RENDERING_VERIFY(gCurrentBindedRenderPass, renderPassName); \
-	if(isRaytracing == false) \
-		currentRenderModule.bindRenderPass(rtvPrevSlot, rtvSlot, bindDSV, clearTarget)
+	currentRenderModule.bindRenderPass(rtvSlot)
 
 #define endRenderPass() \
 	gCurrentBindedRenderPass = nullptr; \
@@ -278,42 +277,28 @@ do{ \
 		};
 
 	public:
-		IBuffer()
-		{}
-		IBuffer(IBuffer&& rhs)
-		{
-			this->operator=(DK::move(rhs));
-		}
+		IBuffer() = default;
+		IBuffer(IBuffer&& rhs) = default;
 		IBuffer(const Type type, RenderResourcePtr<ID3D12Resource>&& buffer, const uint32 bufferSize, const D3D12_RESOURCE_STATES state)
 			: _type(type)
+			, _buffer(DK::move(buffer))
 			, _bufferSize(bufferSize)
 			, _currentState(state)
-		{
-			_buffer = DK::move(buffer);
-		}
+		{}
 		IBuffer(RenderResourcePtr<ID3D12Resource>&& buffer, const uint32 width, const uint32 height, const uint32 bitPerPixel, const uint32 mipLevelCount, const D3D12_RESOURCE_STATES state)
 			: _type(Type::TEXTURE)
+			, _buffer(DK::move(buffer))
 			, _bufferSize(width* height* bitPerPixel)
 			, _currentState(state)
-		{
-			_buffer = DK::move(buffer);
-		}
+		{}
 
-		IBuffer& operator=(IBuffer&& rhs)
-		{
-			_type = rhs._type;
-			_buffer = DK::move(rhs._buffer);
-			_bufferSize = rhs._bufferSize;
-			_currentState = rhs._currentState;
+		IBuffer& operator=(IBuffer&& rhs) = default;
 
-			return *this;
-		}
-
-		ID3D12Resource* operator->()
-		{
-			DK_ASSERT_LOG(_type != Type::COUNT && isValid(), "");
-			return _buffer.get();
-		}
+		//ID3D12Resource* operator->()
+		//{
+		//	DK_ASSERT_LOG(_type != Type::COUNT && isValid(), "");
+		//	return _buffer.get();
+		//}
 		const ID3D12Resource* operator->() const
 		{
 			DK_ASSERT_LOG(_type != Type::COUNT && isValid(), "");
@@ -322,7 +307,6 @@ do{ \
 
 		const bool isValid() const
 		{
-			DK_ASSERT_LOG(_type != Type::COUNT, "");
 			return _buffer.get() != nullptr;
 		}
 
@@ -330,9 +314,8 @@ do{ \
 
 	private:
 #if defined(_DK_DEBUG_)
-		Type _type = Type::COUNT;
+		/*const*/ Type _type = Type::COUNT;
 #endif
-
 		/*const*/ RenderResourcePtr<ID3D12Resource> _buffer = nullptr;
 		/*const*/ uint32 _bufferSize = 0;
 
@@ -340,217 +323,16 @@ do{ \
 	};
 	using IBufferRef = std::shared_ptr<IBuffer>;
 
-	struct DKCommandList
-	{
-		friend class RenderModule;
-		friend void IBuffer::upload(const void* data);
-
-		dk_inline DKCommandList()
-		{
-		}
-		dk_inline DKCommandList(ID3D12CommandAllocator* commandAllocators[2], ID3D12GraphicsCommandList4* commandList)
-			: _commandList(DK::move(commandList))
-		{
-			for (uint32 i = 0; i < 2; ++i)
-				_commandAllocators[i] = DK::move(commandAllocators[i]);
-		}
-
-	private:
-		ID3D12GraphicsCommandList4* operator->()
-		{
-			return _commandList.get();
-		}
-		const ID3D12GraphicsCommandList4* operator->() const
-		{
-			return _commandList.get();
-		}
-
-		operator ID3D12GraphicsCommandList4* ()
-		{
-			return _commandList.get();
-		}
-
-	private:
-		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[2];
-		RenderResourcePtr<ID3D12GraphicsCommandList4> _commandList;
-		uint32 _lastResetIndex = 0;
-
-		struct UploadResourcePendingData
-		{
-			IBufferRef _target = nullptr;
-			DKVector<uint8> _data;
-			void* _dataPtr = nullptr;
-
-			const void* getData() const { return _dataPtr == nullptr ? _data.data() : _dataPtr; }
-		};
-		DKVector<UploadResourcePendingData> _uploadResourcePendingArray;
-		DKVector<UploadResourcePendingData> _prevUploadResourcePendingArray;
-
-		struct CopyResourcePendingData
-		{
-			static constexpr const uint32 INVALID_AFTER_STATE = 0xFFFFFFFF;
-
-			IBufferRef _source;
-			IBufferRef _target;
-			D3D12_RESOURCE_STATES _afterState = static_cast<D3D12_RESOURCE_STATES>(INVALID_AFTER_STATE);
-		};
-		DKVector<CopyResourcePendingData> _copyResourcePendingArray;
-		DKVector<CopyResourcePendingData> _prevCopyResourcePendingArray;
-	};
-
-	class RenderModule
-	{
-		friend void IBuffer::upload(const void* data);
-
-	public:
-		static constexpr uint32 kFrameCount = 2;
-		static uint32 kCurrentFrameIndex;
-		static uint32 kCurrentBackBufferIndex;
-		static uint32 kWidth;
-		static uint32 kHeight;
-
-	public:
-		~RenderModule();
-
-		bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
-
-		void destroy();
-
-		bool createRenderPass(ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
-#if defined(_DK_DEBUG_)
-		const bool reloadShader();
-		void ReportLiveObjects() const;
-#endif
-
-		// SceneRenderer 전용 함수
-		void preRender();
-		void bindRenderPass(const uint32 rtvReadSlot, const uint32 rtvSlot, const bool bindDSV, const bool clearTarget);
-		bool bindPipeline(Pipeline& pipeline, const Pipeline::Type type);
-		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const Pipeline::Type type);
-		void bindConstantBuffer(const uint32 rootParameterIndex, const IBufferRef& buffer, const Pipeline::Type type);
-		void bindShaderResourceView(const uint32 rootParameterIndex, const IBufferRef& buffer, const Pipeline::Type type);
-		void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
-		void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
-		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
-		void dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ);
-		void dispatchRays(const D3D12_DISPATCH_RAYS_DESC* pDesc);
-		void endRender();
-
-		// helper 함수
-		IBufferRef createConstantBuffer(const uint32 size, const wchar_t* debugName);
-		IBufferRef createUploadBuffer(const uint32 size, const wchar_t* debugName);
-		IBufferRef createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const wchar_t* debugName);
-		IBufferRef createIndexBuffer(const uint32* data, const uint32 indexCount, IndexBufferViewRef& outView, const wchar_t* debugName);
-		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
-		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const D3D12_SUBRESOURCE_DATA* initialData, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
-		ITextureRef loadAndCreateTexture(const DKString& path);
-		void deleteTexture(ITexture* texture);
-		void deallocateTextureSRV(const TextureResourceViewType index);
-		void deallocateTextureUAV(const TextureResourceViewType index);
-		void copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer, const D3D12_RESOURCE_STATES afterState);
-
-		void resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState);
-
-		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
-		{
-			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
-			FindResult find = _renderPassMap.find(renderPassName);
-			DK_ASSERT_LOG(find != _renderPassMap.end(), "Can't not find RenderPass named %s", renderPassName.c_str());
-#ifdef _DK_DEBUG_
-			if (find == _renderPassMap.end())
-				return nullptr;
-#endif
-
-			return &find->second;
-		}
-
-		void waitAllGPU();
-
-	private:
-		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
-		const bool createCommandList(DKCommandList& outCommandList);
-		bool initialize_createFence();
-		bool createRootSignature(const Pipeline::CreateInfo& createInfo, const DKVector<ShaderResourceReflection>& resources, Pipeline& inoutPipeline);
-		bool createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
-
-		const bool allocateTextureSRV(ITexture* texture);
-		const bool allocateTextureUAV(ITexture* texture);
-
-		IBufferRef createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);
-		IBufferRef createDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const wchar_t* debugName);
-
-		void execute(const bool present = false);
-
-		void resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState);
-		void resourceBarrierTransition(IBuffer& buffer, const D3D12_RESOURCE_STATES afterState);
-
-		void waitFenceAndResetCommandList();
-
-#if defined(_DK_DEBUG_)
-	public:
-		bool _isDestroyed = false;
-#endif
-
-	private:
-		bool _useWarpDevice = false;
-		RenderResourcePtr<ID3D12Device8> _device = nullptr;
-		RenderResourcePtr<ID3D12CommandQueue> _commandQueue;
-		DKCommandList _commandList;
-		uint32 _fenceValues[kFrameCount] = { 0, };
-		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
-		HANDLE _fenceEvent;
-		Ptr<D3D12_VIEWPORT> _viewport;
-		Ptr<D3D12_RECT> _scissorRect;
-		RenderResourcePtr<IDXGISwapChain4> _swapChain = nullptr;
-
-		uint32 _renderTargetViewSize = 0;
-		uint32 _depthStencilViewSize = 0;
-		uint32 _bindlessViewSize = 0;
-
-		// RenderTarget + BackBuffer
-		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetDescriptorHeap = nullptr;
-		// RenderTarget
-		static constexpr const uint32 kRenderTargetTextureCount = 4;					// Deffered: 0, 2 / Gbuffer: 1, 3
-		ITextureRef _renderTargetTextureArr[kRenderTargetTextureCount];
-		// BackBuffer
-		IBuffer _backBufferResourceArr[kFrameCount];			// BackBuffer
-
-		// DepthStencil
-		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;	// Deffered: 0, 2 / Gbuffer: 1, 3
-		ITextureRef _depthStencilTextureArr[kRenderTargetTextureCount];
-
-		// SwapChain
-#if defined(USE_IMGUI)
-		RenderResourcePtr<ID3D12DescriptorHeap> _imguiDescriptorHeap;
-#endif
-
-		// Texture
-		static constexpr const uint32 kMaxTextureSRVCount = 1024;
-		static constexpr const uint32 kMaxTextureUAVCount = 1024;
-		uint32 _currentTextureSRV = 0;
-		uint32 _currentTextureUAV = 0;
-		DKVector<TextureResourceViewType> _deletedTextureSRVArr;
-		DKVector<TextureResourceViewType> _deletedTextureUAVArr;
-		DKHashMap<DKString, ITexture*> _textureContainer;
-		RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
-
-		DKHashMap<DKString, RenderPass> _renderPassMap;
-
-#if defined(_DK_DEBUG_)
-	public:
-		bool _blockUpload = false;
-		bool _blockCopy = false;
-#endif
-	};
-
 	class ITexture : public std::enable_shared_from_this<ITexture>
 	{
 		friend class RenderModule;
+		friend struct RenderTarget;
 
 	public:
 		static constexpr TextureResourceViewType kErrorTextureResourceViewIndex = 0xffffffff;
 
 	private:
+		ITexture() = default;
 		ITexture(const DKString& path, const uint8 mipLevelCount, const DXGI_FORMAT format, IBuffer&& textureBuffer)
 			: _path(path)
 			, _mipLevelCount(mipLevelCount)
@@ -565,6 +347,9 @@ do{ \
 		{
 			textureBuffer.reset();
 		}
+		ITexture(ITexture&& rhs) = default;
+
+		ITexture& operator=(ITexture&& rhs) = default;
 
 	public:
 		~ITexture();
@@ -606,15 +391,250 @@ do{ \
 #endif
 
 	private:
-		const DKString _path = "";
-		const uint8 _mipLevelCount = 1;
-		const DXGI_FORMAT _format = DXGI_FORMAT_FORCE_UINT;
+		/*const*/ DKString _path = "";
+		/*const*/ uint8 _mipLevelCount = 1;
+		/*const*/ DXGI_FORMAT _format = DXGI_FORMAT_FORCE_UINT;
 		/*const*/ IBuffer _textureBuffer;
 
 		TextureResourceViewType _textureSRVIndex = kErrorTextureResourceViewIndex;
 		TextureResourceViewType _textureUAVIndex = kErrorTextureResourceViewIndex;
 	};
 
-	//static_assert(DK_COUNT_OF(DKCommandLIst::_commandAllocators) == RenderModule::kFrameCount, "");
-	static_assert(2 == RenderModule::kFrameCount, "");
+	struct RenderTarget
+	{
+		RenderTarget() = default;
+		RenderTarget(ITexture&& renderTarget, ITexture&& depthStencil, D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv, const bool clearRenderTarget = false, const bool clearDepthStencil = false)
+			: _renderTarget(DK::move(renderTarget))
+			, _depthStencil(DK::move(depthStencil))
+			, _rtv(rtv)
+			, _dsv(dsv)
+			, _clearRenderTarget(clearRenderTarget)
+			, _clearDepthStencil(clearDepthStencil)
+			, _hasDepthStencil(true)
+		{}
+		RenderTarget(ITexture&& renderTarget, D3D12_CPU_DESCRIPTOR_HANDLE rtv, const bool clearRenderTarget = false)
+			: _renderTarget(DK::move(renderTarget))
+			, _rtv(rtv)
+			, _clearRenderTarget(clearRenderTarget)
+			, _hasDepthStencil(false)
+		{}
+
+		bool _hasDepthStencil = false;
+
+		bool _clearRenderTarget = false;
+		bool _clearDepthStencil = false;
+
+		ITexture _renderTarget;
+		ITexture _depthStencil;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE _rtv = {};
+		D3D12_CPU_DESCRIPTOR_HANDLE _dsv = {};
+	};
+
+	static constexpr uint32 kFrameCount = 1;
+
+	struct DKCommandList
+	{
+		friend class RenderModule;
+		friend void IBuffer::upload(const void* data);
+
+		dk_inline DKCommandList()
+		{
+		}
+		dk_inline DKCommandList(ID3D12CommandAllocator* commandAllocators[2], ID3D12GraphicsCommandList4* commandList)
+			: _commandList(DK::move(commandList))
+		{
+			for (uint32 i = 0; i < kFrameCount; ++i)
+				_commandAllocators[i] = DK::move(commandAllocators[i]);
+		}
+
+	private:
+		ID3D12GraphicsCommandList4* operator->()
+		{
+			return _commandList.get();
+		}
+		const ID3D12GraphicsCommandList4* operator->() const
+		{
+			return _commandList.get();
+		}
+
+		operator ID3D12GraphicsCommandList4* ()
+		{
+			return _commandList.get();
+		}
+
+	private:
+		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[kFrameCount];
+		RenderResourcePtr<ID3D12GraphicsCommandList4> _commandList;
+		uint32 _lastResetIndex = 0;
+
+		struct UploadResourcePendingData
+		{
+			IBufferRef _target = nullptr;
+			DKVector<uint8> _data;
+			void* _dataPtr = nullptr;
+
+			const void* getData() const { return _dataPtr == nullptr ? _data.data() : _dataPtr; }
+		};
+		DKVector<UploadResourcePendingData> _uploadResourcePendingArray;
+		DKVector<UploadResourcePendingData> _prevUploadResourcePendingArray;
+
+		struct CopyResourcePendingData
+		{
+			static constexpr const uint32 INVALID_AFTER_STATE = 0xFFFFFFFF;
+
+			IBufferRef _source;
+			IBufferRef _target;
+			D3D12_RESOURCE_STATES _afterState = static_cast<D3D12_RESOURCE_STATES>(INVALID_AFTER_STATE);
+		};
+		DKVector<CopyResourcePendingData> _copyResourcePendingArray;
+		DKVector<CopyResourcePendingData> _prevCopyResourcePendingArray;
+	};
+
+	class RenderModule
+	{
+		friend void IBuffer::upload(const void* data);
+
+	public:
+		static constexpr uint32 kBackBufferCount = 2;
+
+		static uint32 kCurrentFrameIndex;
+		static uint32 kCurrentBackBufferIndex;
+		static uint32 kWidth;
+		static uint32 kHeight;
+
+	public:
+		~RenderModule();
+
+		bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
+
+		const bool resize(const uint32 width, const uint32 height);
+
+		void destroy();
+
+		bool createRenderPass(ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo);
+#if defined(_DK_DEBUG_)
+		const bool reloadShader();
+		void ReportLiveObjects() const;
+#endif
+
+		// SceneRenderer 전용 함수
+		void preRender();
+		void bindRenderPass(const uint32 rtvSlot);
+		bool bindPipeline(Pipeline& pipeline, const Pipeline::Type type);
+		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const Pipeline::Type type);
+		void bindConstantBuffer(const uint32 rootParameterIndex, const IBufferRef& buffer, const Pipeline::Type type);
+		void bindShaderResourceView(const uint32 rootParameterIndex, const IBufferRef& buffer, const Pipeline::Type type);
+		void setVertexBuffers(const uint32 startSlot, const uint32 numViews, const D3D12_VERTEX_BUFFER_VIEW* view);
+		void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
+		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
+		void dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ);
+		void dispatchRays(const D3D12_DISPATCH_RAYS_DESC* pDesc);
+		void endRender();
+
+		// helper 함수
+		IBufferRef createConstantBuffer(const uint32 size, const wchar_t* debugName);
+		IBufferRef createUploadBuffer(const uint32 size, const wchar_t* debugName);
+		IBufferRef createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const wchar_t* debugName);
+		IBufferRef createIndexBuffer(const uint32* data, const uint32 indexCount, IndexBufferViewRef& outView, const wchar_t* debugName);
+		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
+		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const D3D12_SUBRESOURCE_DATA* initialData, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
+		ITextureRef loadAndCreateTexture(const DKString& path);
+		void deleteTexture(ITexture* texture);
+		void deallocateTextureSRV(const TextureResourceViewType index);
+		void deallocateTextureUAV(const TextureResourceViewType index);
+		void copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer, const D3D12_RESOURCE_STATES afterState);
+
+		void resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState);
+		void resourceBarrierTransition(IBuffer& buffer, const D3D12_RESOURCE_STATES afterState);
+
+		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
+		{
+			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
+			FindResult find = _renderPassMap.find(renderPassName);
+			DK_ASSERT_LOG(find != _renderPassMap.end(), "Can't not find RenderPass named %s", renderPassName.c_str());
+#ifdef _DK_DEBUG_
+			if (find == _renderPassMap.end())
+				return nullptr;
+#endif
+
+			return &find->second;
+		}
+		dk_inline RenderTarget& getRenderTarget(const uint32 index)
+		{
+			return _renderTargetArr[index];
+		}
+
+		void waitAllGPU();
+
+	private:
+		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
+		const bool createCommandList(DKCommandList& outCommandList);
+		bool initialize_createFence();
+		const bool createRenderTarget(const uint32 width, const uint32 height);
+		bool createRootSignature(const Pipeline::CreateInfo& createInfo, const DKVector<ShaderResourceReflection>& resources, Pipeline& inoutPipeline);
+		bool createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
+
+		const bool allocateTextureSRV(ITexture& texture);
+		const bool allocateTextureUAV(ITexture& texture);
+
+		IBufferRef createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);
+		IBufferRef createDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const wchar_t* debugName);
+
+		void execute(const bool present = false);
+
+		void resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState);
+
+		void waitFenceAndResetCommandList();
+
+#if defined(_DK_DEBUG_)
+	public:
+		bool _isDestroyed = false;
+#endif
+
+	private:
+		bool _useWarpDevice = false;
+		RenderResourcePtr<ID3D12Device8> _device = nullptr;
+		RenderResourcePtr<ID3D12CommandQueue> _commandQueue;
+		DKCommandList _commandList;
+		uint32 _fenceValues[kFrameCount] = { 0, };
+		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
+		HANDLE _fenceEvent;
+		Ptr<D3D12_VIEWPORT> _viewport;
+		Ptr<D3D12_RECT> _scissorRect;
+		RenderResourcePtr<IDXGISwapChain4> _swapChain = nullptr;
+
+		uint32 _renderTargetViewSize = 0;
+		uint32 _depthStencilViewSize = 0;
+		uint32 _bindlessViewSize = 0;
+
+		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetDescriptorHeap = nullptr;
+		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
+#if defined(USE_IMGUI)
+		RenderResourcePtr<ID3D12DescriptorHeap> _imguiDescriptorHeap;
+#endif
+
+		static constexpr const uint32 kRenderTargetTextureCount = 2 * kFrameCount;
+		// RenderTarget + BackBuffer
+		RenderTarget _renderTargetArr[kRenderTargetTextureCount + kBackBufferCount];
+		uint32 _currentRenderTargetIndex = 0xffffffff;
+
+		// Texture
+		static constexpr const uint32 kMaxTextureSRVCount = 1024;
+		static constexpr const uint32 kMaxTextureUAVCount = 1024;
+		uint32 _currentTextureSRV = 0;
+		uint32 _currentTextureUAV = 0;
+		DKVector<TextureResourceViewType> _deletedTextureSRVArr;
+		DKVector<TextureResourceViewType> _deletedTextureUAVArr;
+		DKHashMap<DKString, ITexture*> _textureContainer;
+		RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
+
+		DKHashMap<DKString, RenderPass> _renderPassMap;
+
+#if defined(_DK_DEBUG_)
+	public:
+		bool _blockUpload = false;
+		bool _blockCopy = false;
+#endif
+	};
 }

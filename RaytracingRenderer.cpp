@@ -393,7 +393,7 @@ namespace DK
         //}
         //endRenderPass();
 
-        //const uint32 rtvIndex = RenderModule::kCurrentFrameIndex * RenderModule::kFrameCount + 1;
+        //const uint32 rtvIndex = RenderModule::kCurrentFrameIndex * kFrameCount + 1;
         //renderModule.copyResource(renderModule._renderTargetTextureArr[rtvIndex].get(), _outputTexture.get());
     }
 }

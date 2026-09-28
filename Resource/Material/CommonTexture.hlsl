@@ -15,7 +15,7 @@ Texture2D<float4> getDepthStencilTexture(const uint frameIndex, const uint offse
 }
 Texture2D<float4> getRenderTargetTexture(const uint frameIndex, const uint offset)
 {
-    return gBindlessTextureSRVArray[4 + frameIndex * 2 + offset]; // DepthStencil때문에 +4
+    return gBindlessTextureSRVArray[1 + frameIndex * 2 + offset]; // DepthStencil때문에 +1
 }
 Texture2D<float4> getTexture(const TextureParameter index)
 {

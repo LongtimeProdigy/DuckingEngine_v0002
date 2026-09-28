@@ -385,7 +385,7 @@ namespace DK
 			const float L = windLength * windLength / g;
 			const uint32 N = SceneManager::Ocean::OCEAN_N;
 
-			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount];
+			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * kFrameCount];
 
 			SceneManager::Ocean::OceanParams params(
 				time, g, windDir, gHeightScale, length, A, L, N,
@@ -514,13 +514,13 @@ namespace DK
 
 #if 1
 #if 1
-		startRenderPass(renderModule, "OceanRenderPass", 0xFFFFFFFF, 0, true, true, false);
+		startRenderPass(renderModule, "OceanRenderPass", 0);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
 
-			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount];
-			ITextureRef targetTexture = ocean._ht[ocean._currentReadTextureIndex * RenderModule::kFrameCount + 1];
+			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * kFrameCount];
+			ITextureRef targetTexture = ocean._ht[ocean._currentReadTextureIndex * kFrameCount + 1];
 
 			static bool initial = false;
 			if (initial == false)
@@ -630,7 +630,7 @@ namespace DK
 #endif
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0xFFFFFFFE, 0, true, true, false);
+		startRenderPass(renderModule, "MainRenderPass", 0);
 		{
 #if 0
 			startPipeline("SkyDomePipeline");
@@ -878,10 +878,13 @@ namespace DK
 		}
 		endRenderPass();
 
-		startRenderPass(renderModule, "AtmosphereRenderPass", 0, 1, false, false, false);
+		startRenderPass(renderModule, "AtmosphereRenderPass", 1);
 		{
 			startPipeline("AtmospherePipeline");
 			{
+				RenderTarget& rt = renderModule.getRenderTarget(0);
+				renderModule.resourceBarrierTransition(rt._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				renderModule.resourceBarrierTransition(rt._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 
@@ -898,10 +901,12 @@ namespace DK
 #endif
 
 		// GBuffer
-		startRenderPass(renderModule, "GBufferRenderPass", 1, 2, false, false, false);
+		startRenderPass(renderModule, "GBufferRenderPass", 2 + RenderModule::kCurrentBackBufferIndex);
 		{
 			startPipeline("GBufferPipeline");
 			{
+				RenderTarget& rt = renderModule.getRenderTarget(1);
+				renderModule.resourceBarrierTransition(rt._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
