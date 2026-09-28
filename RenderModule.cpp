@@ -214,9 +214,6 @@ namespace DK
 	}
 	bool RenderModule::initialize(const HWND hwnd, const uint32 width, const uint32 height)
 	{
-		kWidth = width;
-		kHeight = height;
-
 		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) 
 			return false;
 
@@ -262,7 +259,7 @@ namespace DK
 		dsvHandle.ptr += _depthStencilViewSize;
 
 		ITexture depthStencilTexture(DKString(dsvTextureName.c_str()), 1, GetDepthSRVFormat(gDepthStencilFormat), DK::move(buffer));
-		if (allocateTextureSRV(depthStencilTexture) == false)
+		if (allocateTextureSRV(depthStencilTexture, 0) == false)
 			return false;
 
 		// rendertarget
@@ -292,7 +289,7 @@ namespace DK
 			rtvHandle.ptr += _renderTargetViewSize;
 
 			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, gRenderTargetFormat, DK::move(buffer));
-			if (allocateTextureSRV(renderTargets[i]) == false)
+			if (allocateTextureSRV(renderTargets[i], 1 + i) == false)
 				return false;
 		}
 
@@ -332,6 +329,26 @@ namespace DK
 		_renderTargetArr[2] = RenderTarget(DK::move(backBuffers[0]), backbuverViews[0]);
 		_renderTargetArr[3] = RenderTarget(DK::move(backBuffers[1]), backbuverViews[1]);
 
+		// Viewport
+		{
+			_viewport = dk_new D3D12_VIEWPORT;
+			_viewport->TopLeftX = 0;
+			_viewport->TopLeftY = 0;
+			_viewport->Width = static_cast<FLOAT>(width);
+			_viewport->Height = static_cast<FLOAT>(height);
+			_viewport->MinDepth = 0.0f;
+			_viewport->MaxDepth = 1.0f;
+
+			_scissorRect = dk_new D3D12_RECT;
+			_scissorRect->left = 0;
+			_scissorRect->top = 0;
+			_scissorRect->right = static_cast<LONG>(width);
+			_scissorRect->bottom = static_cast<LONG>(height);
+		}
+
+		kWidth = width;
+		kHeight = height;
+
 		return true;
 	}
 
@@ -339,19 +356,24 @@ namespace DK
 	{
 		waitAllGPU();
 
-		// 0을 넣으면 기존 값을 유지한다는 뜻이므로 0을 넣자
-		HRESULT hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+		DXGI_SWAP_CHAIN_DESC1 desc{};
+		HRESULT hr = _swapChain->GetDesc1(&desc);
+		if (FAILED(hr))
+			return false;
+
+		_renderTargetArr[2] = RenderTarget();
+		_renderTargetArr[3] = RenderTarget();
+
+		hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, desc.Flags);
+
 		if (FAILED(hr))
 		{
-			DK_ASSERT_LOG(false, "Faile Resize");
+			DK_LOG("ResizeBuffers failed: 0x%08X", static_cast<unsigned int>(hr));
 			return false;
 		}
 
 		if (createRenderTarget(width, height) == false)
 			return false;
-
-		kWidth = width;
-		kHeight = height;
 
 		return true;
 	}
@@ -624,23 +646,6 @@ namespace DK
 		hr = factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
 		if (SUCCEEDED(hr) == false)
 			return false;
-
-		// Viewport
-		{
-			_viewport = dk_new D3D12_VIEWPORT;
-			_viewport->TopLeftX = 0;
-			_viewport->TopLeftY = 0;
-			_viewport->Width = static_cast<FLOAT>(width);
-			_viewport->Height = static_cast<FLOAT>(height);
-			_viewport->MinDepth = 0.0f;
-			_viewport->MaxDepth = 1.0f;
-
-			_scissorRect = dk_new D3D12_RECT;
-			_scissorRect->left = 0;
-			_scissorRect->top = 0;
-			_scissorRect->right = static_cast<LONG>(width);
-			_scissorRect->bottom = static_cast<LONG>(height);
-		}
 
 #ifdef USE_IMGUI
 		IMGUI_CHECKVERSION();
@@ -1576,6 +1581,7 @@ namespace DK
 
 		buffer._currentState = afterState;
 	}
+	
 	void RenderModule::copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer, const D3D12_RESOURCE_STATES afterState)
 	{
 		DK_ASSERT_LOG(_blockCopy == false, "");
@@ -1701,6 +1707,37 @@ namespace DK
 		else
 		{
 			index = _currentTextureSRV++;
+		}
+
+		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
+		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
+
+		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = texture.getFormat();
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = texture.getMipLevelCount();
+		textureDescriptorHeapHandle.ptr += index * _bindlessViewSize;
+		_device->CreateShaderResourceView(texture._textureBuffer._buffer.get(), &srvDesc, textureDescriptorHeapHandle);
+
+		texture._textureSRVIndex = index;
+
+		return true;
+	}
+	const bool RenderModule::allocateTextureSRV(ITexture& texture, const uint32 index)
+	{
+		EnsureMainThread();
+
+		const uint32 count = _deletedTextureSRVArr.size();
+		for (uint32 i = 0; i < count; ++i)
+		{
+			if (_deletedTextureSRVArr[i] == index)
+			{
+				_deletedTextureSRVArr.erase(_deletedTextureSRVArr.begin() + 1);
+				break;
+			}
 		}
 
 		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");

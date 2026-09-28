@@ -4,6 +4,7 @@
 #include "DuckingEngine.h"
 #include "RenderModule.h"
 #include "InputModule.h"
+#include "Camera.h"
 
 #if defined(USE_IMGUI)
 #include "imgui_impl_win32.h"
@@ -33,7 +34,11 @@ namespace DK
 				{
 					const UINT width = LOWORD(lParam);
 					const UINT height = HIWORD(lParam);
-					DuckingEngine::getInstance().GetRenderModuleWritable().resize(width, height);
+					if (DuckingEngine::getInstance().GetRenderModuleWritable().resize(width, height))
+					{
+						if (Camera::gMainCamera)
+							Camera::gMainCamera->setViewportSize(static_cast<int>(width), static_cast<int>(height));
+					}
 				}
 			}
 			break;

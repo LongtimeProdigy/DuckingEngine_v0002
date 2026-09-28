@@ -576,6 +576,7 @@ do{ \
 		bool createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 
 		const bool allocateTextureSRV(ITexture& texture);
+		const bool allocateTextureSRV(ITexture& texture, const uint32 index);
 		const bool allocateTextureUAV(ITexture& texture);
 
 		IBufferRef createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);

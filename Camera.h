@@ -24,6 +24,15 @@ namespace DK
 
 		virtual void update(float deltaTime) override final;
 
+		void setViewportSize(int width, int height)
+		{
+			if (width <= 0 || height <= 0)
+				return;
+
+			_width = width;
+			_height = height;
+		}
+
 		void getCameraWorldMatrix(float4x4& outMatrix)
 		{
 			Transform invertTransform = get_worldTransform();
