@@ -432,6 +432,7 @@ do{ \
 	};
 
 	static constexpr uint32 kFrameCount = 1;
+	static constexpr uint32 kBackBufferCount = 2;
 
 	struct DKCommandList
 	{
@@ -441,10 +442,10 @@ do{ \
 		dk_inline DKCommandList()
 		{
 		}
-		dk_inline DKCommandList(ID3D12CommandAllocator* commandAllocators[2], ID3D12GraphicsCommandList4* commandList)
+		dk_inline DKCommandList(ID3D12CommandAllocator* commandAllocators[kBackBufferCount], ID3D12GraphicsCommandList4* commandList)
 			: _commandList(DK::move(commandList))
 		{
-			for (uint32 i = 0; i < kFrameCount; ++i)
+			for (uint32 i = 0; i < kBackBufferCount; ++i)
 				_commandAllocators[i] = DK::move(commandAllocators[i]);
 		}
 
@@ -464,7 +465,7 @@ do{ \
 		}
 
 	private:
-		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[kFrameCount];
+		RenderResourcePtr<ID3D12CommandAllocator> _commandAllocators[kBackBufferCount];
 		RenderResourcePtr<ID3D12GraphicsCommandList4> _commandList;
 		uint32 _lastResetIndex = 0;
 
@@ -496,8 +497,6 @@ do{ \
 		friend void IBuffer::upload(const void* data);
 
 	public:
-		static constexpr uint32 kBackBufferCount = 2;
-
 		static uint32 kCurrentFrameIndex;
 		static uint32 kCurrentBackBufferIndex;
 		static uint32 kWidth;

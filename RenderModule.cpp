@@ -228,6 +228,8 @@ namespace DK
 
 		execute();
 		waitFenceAndResetCommandList();
+		_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
+		_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
 
 		return true;
 	}
@@ -690,8 +692,8 @@ namespace DK
 		HRESULT hr;
 
 		bool successAllocate = true;
-		ID3D12CommandAllocator* commandAllocator[kFrameCount] = { nullptr, };
-		for (uint32 i = 0; i < kFrameCount; ++i)
+		ID3D12CommandAllocator* commandAllocator[kBackBufferCount] = { nullptr, };
+		for (uint32 i = 0; i < kBackBufferCount; ++i)
 		{
 			hr = _device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
 			if (FAILED(hr))
@@ -1556,9 +1558,6 @@ namespace DK
 			assert(SUCCEEDED(hr));
 			WaitForSingleObject(_fenceEvent, INFINITE);
 		}
-
-		_commandList._commandAllocators[kCurrentFrameIndex]->Reset();
-		_commandList->Reset(_commandList._commandAllocators[kCurrentFrameIndex].get(), nullptr);
 	}
 
 	void RenderModule::resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState)
@@ -2210,6 +2209,8 @@ namespace DK
 
 			execute();
 			waitFenceAndResetCommandList();
+			_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
+			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
 		}
 
 		ITexture* texture = dk_new ITexture(path, mipLevelCount, format, DK::move(textureResource));
@@ -2284,9 +2285,6 @@ namespace DK
 
 	void RenderModule::preRender()
 	{
-		if(gSerializeRender == false)
-			waitFenceAndResetCommandList();
-
 		_commandList._prevUploadResourcePendingArray.clear();
 		_commandList._prevCopyResourcePendingArray.clear();
 
@@ -2295,19 +2293,10 @@ namespace DK
 		_blockCopy = true;
 #endif
 
-		for (const DKCommandList::UploadResourcePendingData& pending : _commandList._uploadResourcePendingArray)
+		if (gSerializeRender == false && isExecuted)
 		{
-			if (pending._target.get() == nullptr)
-				continue;
-
-			DK_ASSERT_LOG(pending.getData() != nullptr, "nullptr인 data를 upload요청하려고합니다.");
-			DK_ASSERT_LOG(pending._target->_type == IBuffer::Type::UPLOAD && pending._target->isValid(), "Upload버퍼에 대해서만 호출 가능합니다.");
-
-			void* address = nullptr;
-			HRESULT hr = pending._target.get()->_buffer->Map(0, nullptr, &address);
-			DK_ASSERT_LOG(SUCCEEDED(hr), "Map에 실패하였습니다.");
-			memcpy(address, pending.getData(), pending._target->_bufferSize);
-			pending._target.get()->_buffer->Unmap(0, nullptr);
+			_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
+			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
 		}
 
 		for (const DKCommandList::CopyResourcePendingData& pending : _commandList._copyResourcePendingArray)
@@ -2318,7 +2307,6 @@ namespace DK
 			if(pending._afterState != static_cast<D3D12_RESOURCE_STATES>(DKCommandList::CopyResourcePendingData::INVALID_AFTER_STATE))
 				resourceBarrierTransition(*pending._target.get(), pending._afterState);
 		}
-		_commandList._prevUploadResourcePendingArray.swap(_commandList._uploadResourcePendingArray);
 		_commandList._prevCopyResourcePendingArray.swap(_commandList._copyResourcePendingArray);
 	}
 
@@ -2491,10 +2479,33 @@ namespace DK
 
 		resourceBarrierTransition(_renderTargetArr[kRenderTargetTextureCount + kCurrentBackBufferIndex]._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PRESENT);
 
+		for (const DKCommandList::UploadResourcePendingData& pending : _commandList._uploadResourcePendingArray)
+		{
+			if (pending._target.get() == nullptr)
+				continue;
+
+			DK_ASSERT_LOG(pending.getData() != nullptr, "nullptr인 data를 upload요청하려고합니다.");
+			DK_ASSERT_LOG(pending._target->_type == IBuffer::Type::UPLOAD && pending._target->isValid(), "Upload버퍼에 대해서만 호출 가능합니다.");
+
+			void* address = nullptr;
+			HRESULT hr = pending._target.get()->_buffer->Map(0, nullptr, &address);
+			DK_ASSERT_LOG(SUCCEEDED(hr), "Map에 실패하였습니다.");
+			memcpy(address, pending.getData(), pending._target->_bufferSize);
+			pending._target.get()->_buffer->Unmap(0, nullptr);
+		}
+		_commandList._prevUploadResourcePendingArray.swap(_commandList._uploadResourcePendingArray);
+
+		if (gSerializeRender == false)
+			waitFenceAndResetCommandList();
+
 		execute(true);
 
-		if(gSerializeRender)
+		if (gSerializeRender)
+		{
 			waitFenceAndResetCommandList();
+			_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
+			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
+		}
 
 #if defined(_DK_DEBUG_)
 		_blockUpload = false;
