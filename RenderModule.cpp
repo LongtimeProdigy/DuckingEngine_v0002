@@ -1740,6 +1740,8 @@ namespace DK
 			}
 		}
 
+		_currentTextureSRV = DK::Math::max(_currentTextureSRV, index + 1);
+
 		DK_ASSERT_LOG(index < kMaxTextureSRVCount, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureSRV의 최대 개수를 초과했습니다. TextureSRV를 더 이상 할당할 수 없습니다.");
 
