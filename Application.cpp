@@ -185,12 +185,19 @@ namespace DK
 
 			LARGE_INTEGER tTime;
 			QueryPerformanceCounter(&tTime);
-			g_fDeltaTime = (tTime.QuadPart - g_tTime.QuadPart) / (float)g_tSecond.QuadPart;
+			const double elapsedSeconds = static_cast<double>(tTime.QuadPart - g_tTime.QuadPart)
+				/ static_cast<double>(g_tSecond.QuadPart);
+			g_tTime = tTime;
+
+			// Limit simulation advancement after a stall (window dragging, dialogs, debugger).
+			// Excess wall-clock time is intentionally discarded, not carried into later frames.
+			constexpr double maxDeltaTime = 0.1;
+			g_fDeltaTime = static_cast<float>(elapsedSeconds < 0.0 ? 0.0
+				: (elapsedSeconds > maxDeltaTime ? maxDeltaTime : elapsedSeconds));
 
 			updateFrame();
 			renderFrame();
 
-			g_tTime = tTime;
 		}
 	}
 

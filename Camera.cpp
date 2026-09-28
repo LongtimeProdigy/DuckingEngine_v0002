@@ -15,11 +15,13 @@ namespace DK
 		float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_RIGHT)) * mouseRotationFriction;
 
 		// 노트북으로 작업 시에 패드로 카메라 회전이 힘들어서 임시로 추가
-		static float kKeyboardRotateFraction = 0.07f;
-		mouseDelta.y -= static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_I)) * kKeyboardRotateFraction;
-		mouseDelta.x -= static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_J)) * kKeyboardRotateFraction;
-		mouseDelta.y += static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_K)) * kKeyboardRotateFraction;
-		mouseDelta.x += static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_L)) * kKeyboardRotateFraction;
+		// Angular speeds in radians/second, preserving the previous feel at 60 FPS.
+		static constexpr float keyboardRotationSpeed = 0.07f * 0.2f * 60.0f;
+		static constexpr float joystickRotationSpeed = 0.2f * 60.0f;
+		const float keyboardYaw = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_L))
+			- static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_J));
+		const float keyboardPitch = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_K))
+			- static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_I));
 
 		const float2& lJoystick = InputModule::GetJoystickL();
 		const float2& rJoystick = InputModule::GetJoystickR();
@@ -34,11 +36,11 @@ namespace DK
 		float moveUp = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_E)) - 
 			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_Q));
 
-		float yaw = mouseDelta.x; // + rJoystick.x
-		float pitch = mouseDelta.y; //+ rJoystick.y
-
-		_yaw += (mouseDelta.x + rJoystick.x) * 0.2f;
-		_pitch += (mouseDelta.y + rJoystick.y) * 0.2f;
+		// Mouse delta already represents displacement since the previous input update.
+		_yaw += mouseDelta.x * 0.2f
+			+ (keyboardYaw * keyboardRotationSpeed + rJoystick.x * joystickRotationSpeed) * deltaTime;
+		_pitch += mouseDelta.y * 0.2f
+			+ (keyboardPitch * keyboardRotationSpeed + rJoystick.y * joystickRotationSpeed) * deltaTime;
 		_pitch = Math::clamp(_pitch, -Math::Half_PI + 0.0001f, Math::Half_PI - 0.0001f);
 		
 		// Rotate
