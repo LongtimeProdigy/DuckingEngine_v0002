@@ -15,6 +15,8 @@
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
 
+#include <random>
+
 namespace DK
 {
 	bool SceneRenderer::initialize()
@@ -190,9 +192,23 @@ namespace DK
 				{
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
-#if defined(_DK_DBEUG_)
+#if defined(_DK_DEBUG_)
 					pipelineCreateInfo._pipelineName = pipelineName;
 #endif
+					if (const char* hitGroup = renderPassChildNode->Attribute("HitGroup"))
+						pipelineCreateInfo._hitGroupExport = hitGroup;
+					const char* configNames[] = { "MaxPayloadSize", "MaxAttributeSize", "MaxTraceRecursionDepth" };
+					uint32* configValues[] = { &pipelineCreateInfo._maxPayloadSize, &pipelineCreateInfo._maxAttributeSize, &pipelineCreateInfo._maxTraceRecursionDepth };
+					for (uint32 i = 0; i < DK_COUNT_OF(configNames); ++i)
+					{
+						int value = 0;
+						const int result = renderPassChildNode->QueryIntAttribute(configNames[i], &value);
+						if (result == TIXML_NO_ATTRIBUTE)
+							continue;
+						if (result != TIXML_SUCCESS || value < 0)
+							return false;
+						*configValues[i] = static_cast<uint32>(value);
+					}
 
 					for (TiXmlElement* pipelineChildNode = renderPassChildNode->FirstChildElement(); pipelineChildNode != nullptr; pipelineChildNode = pipelineChildNode->NextSiblingElement())
 					{
@@ -344,6 +360,9 @@ namespace DK
 		return &findResult->second;
 	}
 	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
+	static std::random_device rd;
+	static std::mt19937 gen(rd());
+	static std::normal_distribution<float> dist(0, 1);
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
 		// Upload Scene ConstantBuffer
@@ -354,6 +373,7 @@ namespace DK
 			_sceneConstantBufferData._time += deltaTime;
 			_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
 			_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
+			_sceneConstantBufferData._rngState = static_cast<uint32>(dist(gen) * RenderModule::kWidth * RenderModule::kHeight);
 			Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
 			Camera::gMainCamera->getCameraWorldMatrix(_sceneConstantBufferData._cameraWorldMatrixInv);
 			Camera::gMainCamera->getCameraProjectionMatrix(_sceneConstantBufferData._cameraProjectionMatrix);
@@ -446,16 +466,15 @@ namespace DK
 	void SceneRenderer::preRender() const noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		renderModule.preRender();
 
 #if defined(_DK_DEBUG_)
 		if (gIsReload)
 		{
-			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 			renderModule.reloadShader();
 			gIsReload = false;
 		}
 #endif
+		renderModule.preRender();
 
 #if defined(USE_IMGUI)
 		ImGui_ImplWin32_NewFrame();
@@ -506,12 +525,12 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-#if 0
-		RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
-		raytracingRenderer.updateRaytracingRenderer(renderModule);
-		raytracingRenderer.dispatchRay(renderModule);
-#endif
-
+        RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
+        const bool raytraced = raytracingRenderer.updateRaytracingRenderer(renderModule);
+        if (raytraced)
+            raytracingRenderer.dispatchRay(renderModule, _sceneConstantBuffer);
+        if (!raytraced)
+        {
 #if 1
 #if 1
 		startRenderPass(renderModule, "OceanRenderPass", 0);
@@ -899,6 +918,8 @@ namespace DK
 		}
 		endRenderPass();
 #endif
+
+        }
 
 		// GBuffer
 		startRenderPass(renderModule, "GBufferRenderPass", 2 + RenderModule::kCurrentBackBufferIndex);

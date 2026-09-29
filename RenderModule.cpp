@@ -127,7 +127,7 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 
 namespace DK
 {
-	static constexpr const bool gSerializeRender = false;
+	static constexpr const bool gSerializeRender = true;
 
 	RenderPass* gCurrentBindedRenderPass = nullptr;
 	Pipeline* gCurrentBindedPipeline = nullptr;
@@ -1202,6 +1202,22 @@ namespace DK
 		}
 		else if (pipelineCreateInfo._raygenShaderPath.empty() == false)
 		{
+			if (!supportsRaytracing())
+			{
+				inoutPipeline._type = Pipeline::Type::RAYTRACING;
+#if defined(_DK_DEBUG_)
+				inoutPipeline._createInfo = pipelineCreateInfo;
+#endif
+				return true;
+			}
+			if (pipelineCreateInfo._raygenEntry.empty() || pipelineCreateInfo._missEntry.empty() ||
+				pipelineCreateInfo._closestEntry.empty() || pipelineCreateInfo._hitGroupExport.empty() ||
+				pipelineCreateInfo._maxAttributeSize > D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES ||
+				pipelineCreateInfo._maxTraceRecursionDepth > D3D12_RAYTRACING_MAX_DECLARABLE_TRACE_RECURSION_DEPTH)
+			{
+				DK_LOG("Invalid raytracing pipeline configuration.");
+				return false;
+			}
 			inoutPipeline._type = Pipeline::Type::RAYTRACING;
 
 			// 이 Scope Stack내(CreateStateObject호출까지) 유지되어야 해서 이 곳에서 Stack에 할당함
@@ -1211,6 +1227,7 @@ namespace DK
 			const DKStringW raygenEntry = StringUtil::convertCtoWC(pipelineCreateInfo._raygenEntry.c_str()).c_str();
 			const DKStringW missEntry = StringUtil::convertCtoWC(pipelineCreateInfo._missEntry.c_str()).c_str();
 			const DKStringW closestEntry = StringUtil::convertCtoWC(pipelineCreateInfo._closestEntry.c_str()).c_str();
+			const DKStringW hitGroupExport = StringUtil::convertCtoWC(pipelineCreateInfo._hitGroupExport.c_str()).c_str();
 
 			DKVector<D3D12_DXIL_LIBRARY_DESC> libraryDesc;
 			DKVector<DKVector<D3D12_EXPORT_DESC>> exportDesc;
@@ -1329,18 +1346,18 @@ namespace DK
 
 			// HitGroup
 			D3D12_HIT_GROUP_DESC hitGroup = {};
-			hitGroup.HitGroupExport = L"HitGroup";
-			hitGroup.ClosestHitShaderImport = L"ClosestHit";
+			hitGroup.HitGroupExport = hitGroupExport.c_str();
+			hitGroup.ClosestHitShaderImport = closestEntry.c_str();
 			hitGroup.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
 
 			// ShaderConfig
 			D3D12_RAYTRACING_SHADER_CONFIG shaderConfig = {};
-			shaderConfig.MaxPayloadSizeInBytes = sizeof(float) * 4;
-			shaderConfig.MaxAttributeSizeInBytes = sizeof(float) * 2;
+			shaderConfig.MaxPayloadSizeInBytes = pipelineCreateInfo._maxPayloadSize;
+			shaderConfig.MaxAttributeSizeInBytes = pipelineCreateInfo._maxAttributeSize;
 
 			// PipelineConfig
 			D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = {};
-			pipelineConfig.MaxTraceRecursionDepth = 1;
+			pipelineConfig.MaxTraceRecursionDepth = pipelineCreateInfo._maxTraceRecursionDepth;
 
 			// Rootsignature
 			D3D12_GLOBAL_ROOT_SIGNATURE globalRoot = {};
@@ -1375,20 +1392,22 @@ namespace DK
 				DK_ASSERT_LOG(false, "Failed Raytracing CreateStateObject");
 				return false;
 			}
-			inoutPipeline._rtStateObject = pso;
+			inoutPipeline._raytracing._stateObject = pso;
 
 			// StateObject Properties
 			ID3D12StateObjectProperties* psoProp;
-			hr = inoutPipeline._rtStateObject->QueryInterface(IID_PPV_ARGS(&psoProp));
+			hr = inoutPipeline._raytracing._stateObject->QueryInterface(IID_PPV_ARGS(&psoProp));
 			if (FAILED(hr))
 			{
 				DK_ASSERT_LOG(false, "Failed Raytracing QueryInterface");
 				return false;
 			}
-			inoutPipeline._rtStateObjectProperties = psoProp;
+			inoutPipeline._raytracing._properties = psoProp;
+			if (createShaderBindingTable(pipelineCreateInfo, inoutPipeline._raytracing) == false)
+				return false;
 #if defined(_DK_DEBUG_)
 			inoutPipeline._createInfo = pipelineCreateInfo;
-			inoutPipeline._rtStateObject->SetName(StringUtil::convertCtoWC(inoutPipeline._createInfo._pipelineName.c_str()).c_str());
+			inoutPipeline._raytracing._stateObject->SetName(StringUtil::convertCtoWC(inoutPipeline._createInfo._pipelineName.c_str()).c_str());
 #endif
 		}
 		else
@@ -1399,6 +1418,49 @@ namespace DK
 
 		return true;
 	}
+	bool RenderModule::createShaderBindingTable(const Pipeline::CreateInfo& createInfo, RaytracingPipelineData& pipeline)
+	{
+		// One record per table; scene/material data is accessed through bindless resources.
+		const auto alignUp = [](uint64 value, uint64 alignment) { return (value + alignment - 1) & ~(alignment - 1); };
+		const uint64 recordSize = alignUp(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT);
+		const uint64 tableSpacing = alignUp(recordSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+		const uint32 bufferSize = static_cast<uint32>(tableSpacing * 3);
+		const DKStringW exports[] = {
+			StringUtil::convertCtoWC(createInfo._raygenEntry.c_str()).c_str(),
+			StringUtil::convertCtoWC(createInfo._missEntry.c_str()).c_str(),
+			StringUtil::convertCtoWC(createInfo._hitGroupExport.c_str()).c_str()
+		};
+		const void* identifiers[3] = {};
+		for (uint32 i = 0; i < 3; ++i)
+		{
+			identifiers[i] = pipeline._properties->GetShaderIdentifier(exports[i].c_str());
+			if (identifiers[i] == nullptr)
+			{
+				DK_ASSERT_LOG(false, "Missing raytracing shader identifier.");
+				return false;
+			}
+		}
+
+		ShaderBindingTable sbt;
+		sbt._buffer = createUploadBuffer(bufferSize, L"Shader Binding Table");
+		if (sbt._buffer == nullptr || sbt._buffer->isValid() == false)
+			return false;
+		// A new, unpublished buffer can be filled immediately, including during reload.
+		void* mapped = nullptr;
+		D3D12_RANGE readRange = { 0, 0 };
+		if (FAILED(sbt._buffer->_buffer->Map(0, &readRange, &mapped)))
+			return false;
+		memset(mapped, 0, bufferSize);
+		for (uint32 i = 0; i < 3; ++i)
+			memcpy(static_cast<uint8*>(mapped) + tableSpacing * i, identifiers[i], D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		sbt._buffer->_buffer->Unmap(0, nullptr);
+		sbt._rayGeneration = { 0, recordSize, recordSize };
+		sbt._miss = { tableSpacing, recordSize, recordSize };
+		sbt._hitGroup = { tableSpacing * 2, recordSize, recordSize };
+		pipeline._sbt = DK::move(sbt);
+		return true;
+	}
+
 	bool RenderModule::createRenderPass(ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
 	{
 		using FindResult = DKHashMap<DKString, RenderPass>::iterator;
@@ -1449,18 +1511,27 @@ namespace DK
 #if defined(_DK_DEBUG_)
 	const bool RenderModule::reloadShader()
 	{
+		EnsureMainThread();
+		// Called before recording any pipeline bindings for the new frame.
+		if (gCurrentBindedRenderPass != nullptr || gCurrentBindedPipeline != nullptr)
+			return false;
 		ShaderCompiler shaderCompiler;
+		DKVector<DKPair<Pipeline*, Pipeline>> replacements;
 
 		for (DKHashMap<DKString, RenderPass>::iterator iter = _renderPassMap.begin(); iter != _renderPassMap.end(); ++iter)
 		{
 			for (DKHashMap<DKString, Pipeline>::iterator pipelineIter = iter->second._pipelineMap.begin(); pipelineIter != iter->second._pipelineMap.end(); ++pipelineIter)
 			{
-				if (createPipelineObjectState(shaderCompiler, pipelineIter->second._createInfo, pipelineIter->second) == false)
+				Pipeline replacement;
+				if (createPipelineObjectState(shaderCompiler, pipelineIter->second._createInfo, replacement) == false)
 					return false;
+				replacements.push_back(std::make_pair(&pipelineIter->second, DK::move(replacement)));
 			}
 		}
 
-		DuckingEngine::getInstance().GetRaytracingRendererWritable().createShaderBindingTable(this);
+		waitAllGPU();
+		for (auto& replacement : replacements)
+			*replacement.first = DK::move(replacement.second);
 
 		return true;
 	}
@@ -2312,6 +2383,8 @@ namespace DK
 
 	void RenderModule::bindRenderPass(const uint32 rtvSlot)
 	{
+		if (rtvSlot == 0xffffffff)
+			return;
 		if (_currentRenderTargetIndex == rtvSlot)
 			return;
 
@@ -2372,7 +2445,7 @@ namespace DK
 		ID3D12DescriptorHeap* heaps[] = { _textureDescriptorHeap.get(),  };
 		if (type == Pipeline::Type::RAYTRACING)
 		{
-			_commandList->SetPipelineState1(pipeline._rtStateObject.get());
+			_commandList->SetPipelineState1(pipeline._raytracing._stateObject.get());
 			_commandList->SetDescriptorHeaps(DK_COUNT_OF(heaps), heaps);	// TODO 비싼 함수니까 initialize쪽으로 옮기자. 어차피 bindless인데..
 			_commandList->SetComputeRootSignature(pipeline._rootSignature.get());
 			_commandList->SetComputeRootDescriptorTable(0, _textureDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
@@ -2513,9 +2586,172 @@ namespace DK
 #endif
 	}
 
-	void RenderModule::dispatchRays(const D3D12_DISPATCH_RAYS_DESC* pDesc)
+    bool RenderModule::supportsRaytracing() const
+    {
+        D3D12_FEATURE_DATA_D3D12_OPTIONS5 options = {};
+        return SUCCEEDED(const_cast<ID3D12Device8*>(_device.get())->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options, sizeof(options))) &&
+            options.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+    }
+
+    IBufferRef RenderModule::createAccelerationBuffer(const uint64 size, const D3D12_RESOURCE_STATES state)
+    {
+        if (size == 0 || size > UINT32_MAX)
+            return nullptr;
+        auto properties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+        auto desc = CD3DX12_RESOURCE_DESC::Buffer(size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        ID3D12Resource* resource = nullptr;
+        if (FAILED(_device->CreateCommittedResource(&properties, D3D12_HEAP_FLAG_NONE, &desc, state, nullptr, IID_PPV_ARGS(&resource))))
+            return nullptr;
+        return IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(resource), static_cast<uint32>(size), state));
+    }
+
+    bool RenderModule::buildRaytracingScene(const DKVector<RaytracingGeometry>& geometries, RaytracingAccelerationStructure& result)
+    {
+        const uint32 count = static_cast<uint32>(geometries.size());
+        if (count == 0 || count > RaytracingRenderer::kRaytracingDescriptorCount)
+            return false;
+        DKVector<D3D12_RAYTRACING_GEOMETRY_DESC> descriptions(count);
+        DKVector<D3D12_RAYTRACING_INSTANCE_DESC> instances(count);
+        result._bottomLevels.reserve(count);
+        result._bottomLevelScratch.reserve(count);
+        for (uint32 i = 0; i < count; ++i)
+        {
+            const auto& geometry = geometries[i];
+            if (!geometry._vertices || !geometry._indices || !geometry._material ||
+                !geometry._vertices->isValid() || !geometry._indices->isValid() || !geometry._material->isValid())
+                return false;
+            auto& desc = descriptions[i];
+            desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+            desc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+            desc.Triangles.VertexBuffer = { geometry._vertices->_buffer->GetGPUVirtualAddress(), geometry._vertexStride };
+            desc.Triangles.VertexCount = geometry._vertexCount;
+            desc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+            desc.Triangles.IndexBuffer = geometry._indices->_buffer->GetGPUVirtualAddress();
+            desc.Triangles.IndexCount = geometry._indexCount;
+            desc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+            inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+            inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+            inputs.NumDescs = 1;
+            inputs.pGeometryDescs = &desc;
+            inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
+            _device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+            auto blas = createAccelerationBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+            auto scratch = createAccelerationBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_STATE_COMMON);
+            if (!blas || !scratch)
+                return false;
+            instances[i].InstanceID = i;
+            instances[i].InstanceMask = 0xff;
+            instances[i].AccelerationStructure = blas->_buffer->GetGPUVirtualAddress();
+            // Engine matrices use row vectors; DXR expects a row-major 3x4 transform.
+            const float* world = reinterpret_cast<const float*>(&geometry._world);
+            for (uint32 row = 0; row < 3; ++row)
+                for (uint32 column = 0; column < 4; ++column)
+                    instances[i].Transform[row][column] = world[column * 4 + row];
+            result._bottomLevels.push_back(DK::move(blas));
+            result._bottomLevelScratch.push_back(DK::move(scratch));
+        }
+        result._instances = createUploadBuffer(count * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), L"TLAS Instances");
+        if (!result._instances || !result._instances->isValid())
+            return false;
+        void* mapped = nullptr;
+        D3D12_RANGE readRange = { 0, 0 };
+        if (FAILED(result._instances->_buffer->Map(0, &readRange, &mapped)))
+            return false;
+        memcpy(mapped, instances.data(), count * sizeof(instances[0]));
+        result._instances->_buffer->Unmap(0, nullptr);
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS tlasInputs = {};
+        tlasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+        tlasInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+        tlasInputs.NumDescs = count;
+        tlasInputs.InstanceDescs = result._instances->_buffer->GetGPUVirtualAddress();
+        tlasInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
+        _device->GetRaytracingAccelerationStructurePrebuildInfo(&tlasInputs, &info);
+        result._result = createAccelerationBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+        result._scratch = createAccelerationBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_STATE_COMMON);
+        if (!result._result || !result._scratch)
+            return false;
+
+        // Allocate everything before recording commands. Descriptors are replaced only after a GPU wait by the caller.
+        for (uint32 i = 0; i < count; ++i)
+        {
+            const auto& geometry = geometries[i];
+            resourceBarrierTransition(*geometry._vertices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+            resourceBarrierTransition(*geometry._indices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_INDEX_BUFFER);
+            const IBufferRef buffers[] = { geometry._vertices, geometry._indices, geometry._material };
+            const uint32 counts[] = { geometry._vertexCount, geometry._indexCount, 1 };
+            const uint32 strides[] = { geometry._vertexStride, sizeof(uint32), geometry._materialStride };
+            for (uint32 table = 0; table < 3; ++table)
+            {
+                D3D12_SHADER_RESOURCE_VIEW_DESC view = {};
+                view.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+                view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+                view.Buffer.NumElements = counts[table];
+                view.Buffer.StructureByteStride = strides[table];
+                auto handle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+                handle.ptr += static_cast<SIZE_T>(kMaxTextureSRVCount + kMaxTextureUAVCount + table * RaytracingRenderer::kRaytracingDescriptorCount + i) * _bindlessViewSize;
+                _device->CreateShaderResourceView(buffers[table]->_buffer.get(), &view, handle);
+            }
+            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
+            build.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+            build.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+            build.Inputs.NumDescs = 1;
+            build.Inputs.pGeometryDescs = &descriptions[i];
+            build.Inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+            build.DestAccelerationStructureData = result._bottomLevels[i]->_buffer->GetGPUVirtualAddress();
+            build.ScratchAccelerationStructureData = result._bottomLevelScratch[i]->_buffer->GetGPUVirtualAddress();
+            resourceBarrierTransition(*result._bottomLevelScratch[i], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            _commandList->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
+            auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(result._bottomLevels[i]->_buffer.get());
+            _commandList->ResourceBarrier(1, &barrier);
+        }
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
+        build.Inputs = tlasInputs;
+        build.DestAccelerationStructureData = result._result->_buffer->GetGPUVirtualAddress();
+        build.ScratchAccelerationStructureData = result._scratch->_buffer->GetGPUVirtualAddress();
+        resourceBarrierTransition(*result._scratch, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        _commandList->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
+        auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(result._result->_buffer.get());
+        _commandList->ResourceBarrier(1, &barrier);
+        DK_LOG("DXR scene built: %u static mesh instances", count);
+        return true;
+    }
+
+    void RenderModule::copyTextureToRenderTarget(ITextureRef& source, const uint32 targetSlot)
+    {
+        auto& target = _renderTargetArr[targetSlot]._renderTarget.getTextureBuffer();
+        resourceBarrierTransition(source, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        resourceBarrierTransition(target, D3D12_RESOURCE_STATE_COPY_DEST);
+        _commandList->CopyResource(target._buffer.get(), source->getTextureBuffer()._buffer.get());
+        resourceBarrierTransition(target, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    }
+
+	void RenderModule::dispatchRays(const uint32 width, const uint32 height, const uint32 depth)
 	{
-		_commandList->DispatchRays(pDesc);
+		if (width == 0 || height == 0 || depth == 0)
+			return;
+		if (gCurrentBindedPipeline == nullptr || gCurrentBindedPipeline->_type != Pipeline::Type::RAYTRACING)
+		{
+			DK_ASSERT_LOG(false, "dispatchRays requires a raytracing pipeline.");
+			return;
+		}
+		ShaderBindingTable& sbt = gCurrentBindedPipeline->_raytracing._sbt;
+		if (sbt._buffer == nullptr || sbt._buffer->isValid() == false)
+		{
+			DK_ASSERT_LOG(false, "Raytracing pipeline has no shader binding table.");
+			return;
+		}
+		const D3D12_GPU_VIRTUAL_ADDRESS address = sbt._buffer->_buffer->GetGPUVirtualAddress();
+		D3D12_DISPATCH_RAYS_DESC desc = {};
+		desc.RayGenerationShaderRecord = { address + sbt._rayGeneration._offset, sbt._rayGeneration._size };
+		desc.MissShaderTable = { address + sbt._miss._offset, sbt._miss._size, sbt._miss._stride };
+		desc.HitGroupTable = { address + sbt._hitGroup._offset, sbt._hitGroup._size, sbt._hitGroup._stride };
+		desc.Width = width;
+		desc.Height = height;
+		desc.Depth = depth;
+		_commandList->DispatchRays(&desc);
 	}
 
 	void IBuffer::upload(const void* data)

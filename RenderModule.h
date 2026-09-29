@@ -59,6 +59,28 @@ namespace DK
 		uint32 _rootParameterIndex = uint32 (-1);		// createRenderPass 시점에 설정 (나머지는 Resource로부터)
 	};
 
+	struct ShaderTableRange
+	{
+		uint64 _offset = 0;
+		uint64 _size = 0;
+		uint64 _stride = 0;
+	};
+
+	struct ShaderBindingTable
+	{
+		std::shared_ptr<IBuffer> _buffer;
+		ShaderTableRange _rayGeneration;
+		ShaderTableRange _miss;
+		ShaderTableRange _hitGroup;
+	};
+
+	struct RaytracingPipelineData
+	{
+		RenderResourcePtr<ID3D12StateObject> _stateObject;
+		RenderResourcePtr<ID3D12StateObjectProperties> _properties;
+		ShaderBindingTable _sbt;
+	};
+
 	struct Pipeline
 	{
 	public:
@@ -99,9 +121,9 @@ namespace DK
 #endif
 
 			DKString _primitiveTopologyType;
-			bool _depthEnable;
-			FillMode _fillMode;
-			CullMode _cullMode;
+			bool _depthEnable = false;
+			FillMode _fillMode = FillMode::SOLID;
+			CullMode _cullMode = CullMode::NONE;
 			DKString _vertexShaderPath;
 			DKString _vertexShaderEntry;
 			DKString _pixelShaderPath;
@@ -116,6 +138,10 @@ namespace DK
 			DKString _missEntry;
 			DKString _closestShaderPath;
 			DKString _closestEntry;
+			DKString _hitGroupExport = "HitGroup";
+			uint32 _maxPayloadSize = sizeof(float) * 4;
+			uint32 _maxAttributeSize = sizeof(float) * 2;
+			uint32 _maxTraceRecursionDepth = 1;
 
 			DKVector<LayoutInfo> _layout;
 			DKVector<RootConstant32BitParameter> _rootConstant32BitParameter;
@@ -140,16 +166,14 @@ namespace DK
 		RenderResourcePtr<ID3D12PipelineState> _pipelineStateObject;
 		// compute
 		uint32 _threadGroupSize[3] = { 0, 0, 0 };
-		// Raytraincg
-		RenderResourcePtr<ID3D12StateObject> _rtStateObject;
-		RenderResourcePtr<ID3D12StateObjectProperties> _rtStateObjectProperties;
+		RaytracingPipelineData _raytracing;
 
-		D3D12_PRIMITIVE_TOPOLOGY_TYPE _primitiveTopologyType;
+		D3D12_PRIMITIVE_TOPOLOGY_TYPE _primitiveTopologyType = static_cast<D3D12_PRIMITIVE_TOPOLOGY_TYPE>(0);
 		DKVector<DKVector<char>> _rootConstant32BitParameterBuffer;
 		DKHashMap<DKString, RootConstant32BitParameterBindingInfo> _rootConstant32BitParameterMap;
 		DKHashMap<DKString, ShaderParameter> _shaderParameterMap;
 
-		// static하게만 호출해야합니다.
+		// Binding pointers are valid only until the next pipeline reload.
 		dk_inline RootConstant32BitParameterBindingInfo* getRootConstantParameter(const DKString& name)
 		{
 			DKHashMap<DKString, RootConstant32BitParameterBindingInfo>::iterator iter = _rootConstant32BitParameterMap.find(name);
@@ -161,7 +185,7 @@ namespace DK
 
 			return &iter->second;
 		}
-		// static하게만 호출해야합니다.
+		// Binding pointers are valid only until the next pipeline reload.
 		dk_inline ShaderParameter* getShaderParameter(const DKString& name)
 		{
 			DKHashMap<DKString, ShaderParameter>::iterator iter = _shaderParameterMap.find(name);
@@ -214,8 +238,8 @@ if (object == nullptr) \
 	break; \
 }
 #else
-#define RENDERING_ALREADY_BIND(object)
-#define RENDERING_VERIFY(object)
+#define RENDERING_ALREADY_BIND(object, name)
+#define RENDERING_VERIFY(object, name)
 #endif
 
 #define startRenderPass(renderModule, renderPassName, rtvSlot) \
@@ -246,7 +270,7 @@ do{ \
 #define setRootConstantParameter(name, value) \
 { \
 	static_assert(sizeof(value) == 4, "Root constant value must be 4 bytes."); \
-	static RootConstant32BitParameterBindingInfo* bindingInfo = gCurrentBindedPipeline->getRootConstantParameter(name); \
+	RootConstant32BitParameterBindingInfo* bindingInfo = gCurrentBindedPipeline->getRootConstantParameter(name); \
 	RENDERING_VERIFY(bindingInfo, name); \
 	DK::memcpy((static_cast<uint8*>(bindingInfo->_buffer) + bindingInfo->_offset), &value, 4); \
 	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, gCurrentBindedPipeline->_type); \
@@ -254,13 +278,13 @@ do{ \
 
 #define setConstantBuffer(name, buffer) \
 { \
-	static const ShaderParameter* shaderParameter = gCurrentBindedPipeline->getShaderParameter(name); \
+	const ShaderParameter* shaderParameter = gCurrentBindedPipeline->getShaderParameter(name); \
 	RENDERING_VERIFY(shaderParameter, name); \
 	currentRenderModule.bindConstantBuffer(shaderParameter->_rootParameterIndex, buffer, gCurrentBindedPipeline->_type); \
 }
 #define setShaderResourceView(name, buffer) \
 { \
-	static const ShaderParameter* shaderParameter = gCurrentBindedPipeline->getShaderParameter(name); \
+	const ShaderParameter* shaderParameter = gCurrentBindedPipeline->getShaderParameter(name); \
 	RENDERING_VERIFY(shaderParameter, name); \
 	currentRenderModule.bindShaderResourceView(shaderParameter->_rootParameterIndex, buffer, gCurrentBindedPipeline->_type); \
 }
@@ -322,6 +346,19 @@ do{ \
 		D3D12_RESOURCE_STATES _currentState;
 	};
 	using IBufferRef = std::shared_ptr<IBuffer>;
+
+	struct RaytracingGeometry
+	{
+		IBufferRef _vertices, _indices, _material;
+		uint32 _vertexCount = 0, _vertexStride = 0, _indexCount = 0, _materialStride = 0;
+		float4x4 _world;
+	};
+
+	struct RaytracingAccelerationStructure
+	{
+		IBufferRef _result, _scratch, _instances;
+		DKVector<IBufferRef> _bottomLevels, _bottomLevelScratch;
+	};
 
 	class ITexture : public std::enable_shared_from_this<ITexture>
 	{
@@ -528,7 +565,10 @@ do{ \
 		void setIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view);
 		void drawIndexedInstanced(const uint32 indexCountPerInstance, const uint32 instanceCount, const uint32 startIndexLocation, const int baseVertexLocation, const uint32 startInstanceLocation);
 		void dispatch(const uint32 threadGroupCountX, const uint32 threadGroupCountY, const uint32 threadGroupCountZ);
-		void dispatchRays(const D3D12_DISPATCH_RAYS_DESC* pDesc);
+		void dispatchRays(const uint32 width, const uint32 height, const uint32 depth = 1);
+		bool supportsRaytracing() const;
+		bool buildRaytracingScene(const DKVector<RaytracingGeometry>& geometries, RaytracingAccelerationStructure& result);
+		void copyTextureToRenderTarget(ITextureRef& source, const uint32 targetSlot);
 		void endRender();
 
 		// helper 함수
@@ -573,6 +613,7 @@ do{ \
 		const bool createRenderTarget(const uint32 width, const uint32 height);
 		bool createRootSignature(const Pipeline::CreateInfo& createInfo, const DKVector<ShaderResourceReflection>& resources, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
+		bool createShaderBindingTable(const Pipeline::CreateInfo& createInfo, RaytracingPipelineData& pipeline);
 
 		const bool allocateTextureSRV(ITexture& texture);
 		const bool allocateTextureSRV(ITexture& texture, const uint32 index);
@@ -580,6 +621,7 @@ do{ \
 
 		IBufferRef createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);
 		IBufferRef createDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const wchar_t* debugName);
+		IBufferRef createAccelerationBuffer(const uint64 size, const D3D12_RESOURCE_STATES state);
 
 		void execute(const bool present = false);
 

@@ -5,7 +5,7 @@
 
 <RenderPassGroup>
 	<RenderPass Name="PathTracing">
-		<RaytracingPipeline Name="BruteForce">
+		<RaytracingPipeline Name="BruteForce" HitGroup="HitGroup" MaxPayloadSize="24" MaxAttributeSize="8" MaxTraceRecursionDepth="3">
 			<RootConstant Buffer="RaytracingConstants"/>
 			<RaygenShader Entry="RayGen">Shader/Raytracing/PathTracingBruteForce.hlsl</RaygenShader>
 			<MissShader Entry="Miss">Shader/Raytracing/PathTracingBruteForce.hlsl</MissShader>

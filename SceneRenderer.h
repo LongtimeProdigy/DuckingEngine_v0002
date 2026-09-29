@@ -20,7 +20,8 @@ namespace DK
 
 		float _nearDistance;
 		float _farDistance;
-		float _padding1[2];
+		uint32 _rngState;
+		float _padding;
 
 		float4x4 _cameraWorldMatrix;
 		float4x4 _cameraWorldMatrixInv;

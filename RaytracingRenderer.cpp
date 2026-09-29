@@ -1,399 +1,127 @@
 ﻿#include "stdafx.h"
 #include "RaytracingRenderer.h"
-#include "RenderModule.h"
 #include "DuckingEngine.h"
 #include "SceneObjectManager.h"
 #include "SceneObject.h"
 #include "StaticMeshComponent.h"
 #include "Model.h"
 #include "Material.h"
-#include "SceneRenderer.h"
 
 namespace DK
 {
-	const bool RaytracingRenderer::initialize(RenderModule* renderModule, const uint32 width, const uint32 height)
-	{
-		//D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5{};
-  //      HRESULT hr = renderModule->_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
-		//if (FAILED(hr))
-		//{
-		//	DK_ASSERT_LOG(false, "DXR is not supported by this device.");
-		//	return false;
-		//}
-
-		//if (options5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
-		//{
-		//	DK_ASSERT_LOG(false, "DXR is not supported by this device.");
-		//	return false;
-		//}
-
-  //      // Raytracing Output Texture & UAV
-  //      {
-  //          _outputTexture = renderModule->createTexture(
-  //              "Raytracing Output Texture", width, height, nullptr,
-  //              1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, false, true
-  //          );
-
-  //          if (_outputTexture.get() == nullptr)
-  //              return false;
-  //      }
-
-  //      _renderPassName = "PathTracing";
-  //      _pipelineName = "BruteForce";
-
-  //      _width = width;
-  //      _height = height;
-
-  //      createShaderBindingTable(renderModule);
-
-		return true;
-	}
-
-    const bool RaytracingRenderer::createShaderBindingTable(RenderModule* renderModule)
+    const bool RaytracingRenderer::initialize(RenderModule* renderModule, uint32 width, uint32 height)
     {
-        //Pipeline* pipeline = renderModule->getRenderPass(_renderPassName)->getPipeline(_pipelineName);
-
-        ////UINT64 rayGenSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        ////UINT64 missSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        ////UINT64 hitGroupSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        //UINT64 sbtSize = 192;
-        //ID3D12Resource* sbtBuffer = renderModule->createBufferInternal(sbtSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, L"SBT Buffer");
-        //if (sbtBuffer == nullptr)
-        //    return false;
-
-        //void* rayGenIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"RayGen");
-        //void* missIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"Miss");
-        //void* hitGroupIdentifier = pipeline->_rtStateObjectProperties->GetShaderIdentifier(L"HitGroup");
-
-        //void* mapped = nullptr;
-        //D3D12_RANGE range = {};
-        //_SBT->Map(0, &range, &mapped);
-        //memset(mapped, 0, sbtSize);
-        //memcpy(static_cast<uint8_t*>(mapped) + rayGenOffset, rayGenIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //memcpy(static_cast<uint8_t*>(mapped) + missOffset, missIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //memcpy(static_cast<uint8_t*>(mapped) + hitGroupOffset, hitGroupIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //_SBT->Unmap(0, nullptr);
-
+        _supported = renderModule->supportsRaytracing();
+        if (!_supported)
+            DK_LOG("DXR unavailable; using raster rendering.");
         return true;
     }
 
-    BLAS createBlas(ID3D12Device8* device, ID3D12GraphicsCommandList4* commandList, const uint32 heapOffset, RenderResourcePtr<ID3D12DescriptorHeap>& materialDescriptorHeap, const uint32 materialIndex, /*const*/ StaticMeshModel::SubMeshType& subMesh)
-	{
-        D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
-        geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-        geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-
-        // Vertex
-        geometryDesc.Triangles.VertexBuffer.StartAddress = subMesh._vertexBufferView->BufferLocation;// vertexBuffer->GetGPUVirtualAddress();
-        geometryDesc.Triangles.VertexBuffer.StrideInBytes = subMesh._vertexBufferView->StrideInBytes;// vertexStride;
-        geometryDesc.Triangles.VertexCount = subMesh._vertexBufferView->SizeInBytes / subMesh._vertexBufferView->StrideInBytes;
-        geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-        // Index
-        geometryDesc.Triangles.IndexBuffer = subMesh._indexBufferView->BufferLocation;
-        geometryDesc.Triangles.IndexCount = subMesh._indexBufferView->SizeInBytes / (subMesh._indexBufferView->Format == DXGI_FORMAT_R16_UINT ? 2 : 4);
-        geometryDesc.Triangles.IndexFormat = subMesh._indexBufferView->Format;
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        inputs.NumDescs = 1;
-        inputs.pGeometryDescs = &geometryDesc;
-        inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo = {};
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuildInfo);
-
-        if (prebuildInfo.ResultDataMaxSizeInBytes == 0 || prebuildInfo.ScratchDataSizeInBytes == 0)
-        {
-            DK_ASSERT_LOG(false, "failed craeteblas prebuild");
-            return BLAS();
-        }
-
-        ID3D12Resource* blas = nullptr;
-        ID3D12Resource* scratch = nullptr;
-
-        D3D12_RESOURCE_DESC blasDesc = CD3DX12_RESOURCE_DESC::Buffer(prebuildInfo.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
-        CD3DX12_HEAP_PROPERTIES blasProperty(D3D12_HEAP_TYPE_DEFAULT);
-        HRESULT hr = device->CreateCommittedResource(&blasProperty, D3D12_HEAP_FLAG_NONE, &blasDesc, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr, IID_PPV_ARGS(&blas));
-        if (FAILED(hr))
-        {
-            DK_ASSERT_LOG(false, "failed craeteblas blas");
-            blas = nullptr;
-            return BLAS();
-        }
-
-        D3D12_RESOURCE_DESC scratchDesc =CD3DX12_RESOURCE_DESC::Buffer(prebuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-        CD3DX12_HEAP_PROPERTIES scratchProperty(D3D12_HEAP_TYPE_DEFAULT);
-        hr = device->CreateCommittedResource(&scratchProperty, D3D12_HEAP_FLAG_NONE, &scratchDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
-        if (FAILED(hr))
-        {
-            DK_ASSERT_LOG(false, "failed craeteblas scratch");
-            blas->Release();
-            blas = nullptr;
-            scratch = nullptr;
-            return BLAS();
-        }
-
-        D3D12_RESOURCE_BARRIER scratchBarrier{};
-        scratchBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        scratchBarrier.Transition.pResource = scratch;
-        scratchBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
-        scratchBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-        scratchBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        commandList->ResourceBarrier(1, &scratchBarrier);
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc = {};
-        buildDesc.Inputs = inputs;
-        buildDesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-        buildDesc.DestAccelerationStructureData = blas->GetGPUVirtualAddress();
-        commandList->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
-
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.UAV.pResource = blas;
-        commandList->ResourceBarrier(1, &barrier);
-
-        // SRV
-        {
-            //D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            //srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-            //srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-            //srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            //srvDesc.Buffer.FirstElement = 0;
-
-            //UINT descriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-            //// Vertex
-            //{
-            //    srvDesc.Buffer.NumElements = subMesh._vertices.size();
-            //    srvDesc.Buffer.StructureByteStride = sizeof(subMesh._vertices[0]);
-
-            //    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-            //    cpuHandle.ptr += static_cast<SIZE_T>(materialIndex + heapOffset) * descriptorSize;
-            //    device->CreateShaderResourceView(subMesh._vertexBuffer.get(), &srvDesc, cpuHandle);
-            //}
-            ////Index
-            //{
-            //    srvDesc.Buffer.NumElements = subMesh._indices.size();
-            //    srvDesc.Buffer.StructureByteStride = sizeof(uint32);
-
-            //    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-            //    cpuHandle.ptr += static_cast<SIZE_T>(materialIndex + heapOffset + RaytracingRenderer::kRaytracingDescriptorCount) * descriptorSize;
-            //    device->CreateShaderResourceView(subMesh._indexBuffer.get(), &srvDesc, cpuHandle);
-            //}
-            ////Material
-            //{
-            //    srvDesc.Buffer.NumElements = 1;
-            //    srvDesc.Buffer.StructureByteStride = subMesh._material->_parameterBufferForCPU.size();
-
-            //    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-            //    cpuHandle.ptr += static_cast<SIZE_T>(materialIndex + heapOffset + RaytracingRenderer::kRaytracingDescriptorCount * 2) * descriptorSize;
-            //    device->CreateShaderResourceView(subMesh._material->_parameterBufferForGPU->operator->(), &srvDesc, cpuHandle);
-            //}
-        }
-
-        return BLAS(blas, scratch, materialIndex);
-	}
-    TLAS createTLAS(ID3D12Device8* device, ID3D12GraphicsCommandList4* commandList, DKVector<BLAS>&& blases)
+    bool RaytracingRenderer::updateRaytracingRenderer(RenderModule& renderModule)
     {
-        const uint32 blasCount = blases.size();
+        if (!_supported || RenderModule::kWidth == 0 || RenderModule::kHeight == 0)
+            return false;
 
-        UINT64 instanceBufferSize = sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * blasCount;
-        CD3DX12_HEAP_PROPERTIES uploadHeap(D3D12_HEAP_TYPE_UPLOAD);
-        D3D12_RESOURCE_DESC instanceBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(instanceBufferSize);
-
-        ID3D12Resource* instanceBuffer = nullptr;
-        HRESULT hr = device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &instanceBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&instanceBuffer));
-        if (FAILED(hr))
+        DKVector<RaytracingGeometry> geometries;
+        DKVector<ITextureRef> textures;
+        for (auto& entry : DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable())
         {
-            instanceBuffer = nullptr;
-            return TLAS();
+            SceneObject& object = entry.second;
+            for (auto& component : object._components)
+            {
+                auto* mesh = dynamic_cast<StaticMeshComponent*>(component.get());
+                if (mesh == nullptr || mesh->get_modelWritable() == nullptr)
+                    continue;
+                for (auto& submesh : mesh->get_modelWritable()->get_subMeshArrWritable())
+                {
+                    Material* material = submesh._material.get();
+                    if (submesh._indices.empty() || submesh._vertices.empty() || material == nullptr)
+                        continue;
+                    // The current hit shader uses the StaticMeshStandard material layout.
+                    if (material->get_materialName() != "StaticMeshStandard" || material->_parameterBufferForCPU.size() != 8)
+                        continue;
+                    if (geometries.size() == kRaytracingDescriptorCount)
+                        return false;
+                    RaytracingGeometry geometry;
+                    geometry._vertices = submesh._vertexBuffer;
+                    geometry._indices = submesh._indexBuffer;
+                    geometry._material = material->get_parameterBufferForGPUWritable();
+                    geometry._vertexCount = static_cast<uint32>(submesh._vertices.size());
+                    geometry._vertexStride = sizeof(StaticMeshVertex);
+                    geometry._indexCount = static_cast<uint32>(submesh._indices.size());
+                    geometry._materialStride = static_cast<uint32>(material->_parameterBufferForCPU.size());
+                    object.get_worldTransform().tofloat4x4(geometry._world);
+                    geometries.push_back(DK::move(geometry));
+                    for (auto& parameter : material->_parameterArr)
+                    {
+                        if (parameter->getType() == MaterialParameter::Type::TEXTURE)
+                        {
+                            auto texture = static_cast<MaterialParameterTexture*>(parameter.get())->_value;
+                            if (texture != nullptr)
+                                textures.push_back(DK::move(texture));
+                        }
+                    }
+                }
+            }
         }
+        if (geometries.empty())
+            return false;
 
-        void* mappedData = nullptr;
-        D3D12_RANGE readRange = {};
-        readRange.Begin = 0;
-        readRange.End = 0;
-        hr = instanceBuffer->Map(0, &readRange, &mappedData );
-        if (FAILED(hr))
+        bool changed = geometries.size() != _geometries.size();
+        for (size_t i = 0; !changed && i < geometries.size(); ++i)
         {
-            instanceBuffer->Release();
-            instanceBuffer = nullptr;
-            return TLAS();
+            const auto& a = geometries[i];
+            const auto& b = _geometries[i];
+            changed = a._vertices != b._vertices || a._indices != b._indices || a._material != b._material ||
+                a._vertexCount != b._vertexCount || a._indexCount != b._indexCount ||
+                a._vertexStride != b._vertexStride || a._materialStride != b._materialStride ||
+                memcmp(&a._world, &b._world, sizeof(float4x4)) != 0;
         }
+        bool texturesChanged = textures != _materialTextures;
+        bool resized = _width != RenderModule::kWidth || _height != RenderModule::kHeight;
+        if (changed || texturesChanged || resized)
+            renderModule.waitAllGPU();
 
-        DKVector<D3D12_RAYTRACING_INSTANCE_DESC> instanceDesces;
-        instanceDesces.resize(blasCount);
-        for (uint32 i = 0; i < blasCount; ++i)
+        if (resized || _outputTexture == nullptr)
         {
-            BLAS& blas = blases[i];
-
-            D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instanceDesces[i];
-            instanceDesc.InstanceID = blas._materialIndex;
-            instanceDesc.InstanceContributionToHitGroupIndex = 0;       // TODO: Raytracing PipelineObject의 HitGroup내에 있는 HitShader 이름 Index이다. Material이 연결되면 작업해야할듯?
-            instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-            instanceDesc.AccelerationStructure = blas._blas->GetGPUVirtualAddress();
-            instanceDesc.InstanceMask = 0xFF;
-
-            instanceDesc.Transform[0][0] = 1.0f;
-            instanceDesc.Transform[0][1] = 0.0f;
-            instanceDesc.Transform[0][2] = 0.0f;
-            instanceDesc.Transform[0][3] = 0.0f;
-
-            instanceDesc.Transform[1][0] = 0.0f;
-            instanceDesc.Transform[1][1] = 1.0f;
-            instanceDesc.Transform[1][2] = 0.0f;
-            instanceDesc.Transform[1][3] = 0.0f;
-
-            instanceDesc.Transform[2][0] = 0.0f;
-            instanceDesc.Transform[2][1] = 0.0f;
-            instanceDesc.Transform[2][2] = 1.0f;
-            instanceDesc.Transform[2][3] = 0.0f;
+            _outputTexture.reset();
+            _width = RenderModule::kWidth;
+            _height = RenderModule::kHeight;
+            _outputTexture = renderModule.createTexture("Raytracing Output", _width, _height,
+                static_cast<const byte*>(nullptr), DXGI_FORMAT_R8G8B8A8_UNORM,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, false, true);
+            if (_outputTexture == nullptr)
+                return false;
         }
-
-        memcpy(mappedData, instanceDesces.data(), sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * blasCount);
-        instanceBuffer->Unmap(0, nullptr);
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        inputs.NumDescs = instanceDesces.size();
-        inputs.InstanceDescs = instanceBuffer->GetGPUVirtualAddress();
-        inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo = {};
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuildInfo);
-        if (prebuildInfo.ResultDataMaxSizeInBytes == 0 || prebuildInfo.ScratchDataSizeInBytes == 0)
+        if (changed || _scene._result == nullptr)
         {
-            instanceBuffer->Release();
-            instanceBuffer = nullptr;
-            return TLAS();
+            // Keep any successfully recorded builds alive even if a later allocation fails.
+            _scene = RaytracingAccelerationStructure();
+            if (!renderModule.buildRaytracingScene(geometries, _scene))
+                return false;
+            _geometries = DK::move(geometries);
         }
-
-        // TLAS
-        ID3D12Resource* tlas = nullptr;
-        ID3D12Resource* scratch = nullptr;
-
-        D3D12_RESOURCE_DESC tlasDesc = CD3DX12_RESOURCE_DESC::Buffer(prebuildInfo.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-        CD3DX12_HEAP_PROPERTIES defaultHeap(D3D12_HEAP_TYPE_DEFAULT);
-        hr = device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &tlasDesc, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr, IID_PPV_ARGS(&tlas));
-        if (FAILED(hr))
-        {
-            instanceBuffer->Release();
-            instanceBuffer = nullptr;
-            return TLAS();
-        }
-
-        D3D12_RESOURCE_DESC scratchDesc = CD3DX12_RESOURCE_DESC::Buffer(prebuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-        hr = device->CreateCommittedResource( &defaultHeap, D3D12_HEAP_FLAG_NONE, &scratchDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&scratch));
-        if (FAILED(hr))
-        {
-            tlas->Release();
-            tlas = nullptr;
-            instanceBuffer->Release();
-            instanceBuffer = nullptr;
-            return TLAS();
-        }
-
-        D3D12_RESOURCE_BARRIER scratchBarrier{};
-        scratchBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        scratchBarrier.Transition.pResource = scratch;
-        scratchBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
-        scratchBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-        scratchBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        commandList->ResourceBarrier(1, &scratchBarrier);
-
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc = {};
-        buildDesc.Inputs = inputs;
-        buildDesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-        buildDesc.DestAccelerationStructureData = tlas->GetGPUVirtualAddress();
-        commandList->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
-
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.UAV.pResource = tlas;
-        commandList->ResourceBarrier(1, &barrier);
-
-        return TLAS(DK::move(blases), tlas, scratch);
+        _materialTextures = DK::move(textures);
+        for (auto& texture : _materialTextures)
+            renderModule.resourceBarrierTransition(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        return true;
     }
-	void RaytracingRenderer::updateRaytracingRenderer(RenderModule& renderModule)
-	{
-  //      if (_refresh == false)
-  //          return;
 
-  //      _refresh = false;
-  //      _tlas.release();
-
-  //      ID3D12Device8* device = renderModule._device.get();
-  //      ID3D12GraphicsCommandList4* commandList = renderModule._commandList->_commandList.get();
-
-  //      DKVector<BLAS> blases;
-
-		//DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-		//for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
-		//{
-  //          SceneObject& sceneObject = iter->second;
-  //          uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-  //          for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
-  //          {
-  //              // #todo- component 완전 개편 필요해보임.
-  //              // for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
-  //              // 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-  //              StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
-  //              DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-  //              blases.reserve(blases.size() + subMeshes.size());
-  //              for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
-  //              {
-  //                  StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
-  //                  BLAS blas = createBlas(device, commandList, RenderModule::kMaxTextureSRVCount + RenderModule::kMaxTextureUAVCount, renderModule._textureDescriptorHeap, blases.size(), subMesh);
-  //                  if (blas.isValid() == false)
-  //                      continue;
-
-  //                  blases.push_back(DK::move(blas));
-  //              }
-  //          }
-		//}
-
-  //      TLAS tlas = createTLAS(device, commandList, DK::move(blases));
-  //      if (tlas.isValid() == false)
-  //          return;
-
-  //      _tlas = DK::move(tlas);
-	}
-    void RaytracingRenderer::dispatchRay(RenderModule& renderModule)
+    void RaytracingRenderer::dispatchRay(RenderModule& renderModule, const IBufferRef& sceneConstants)
     {
-        //startRenderPass(renderModule, "PathTracing", 0xFFFFFFFF, 0, true, true, true);
-        //{
-        //    startPipeline("BruteForce");
-        //    {
-        //        setConstantBuffer("SceneConstantBuffer", DuckingEngine::getInstance().getSceneRenderWritable()._sceneConstantBuffer->GetGPUVirtualAddress());
-
-        //        setRootConstantParameter("_targetUAV", _outputTexture->getUAV());
-        //        setShaderResourceView("gTLAS", _tlas._tlas->GetGPUVirtualAddress());
-
-        //        D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
-        //        D3D12_GPU_VIRTUAL_ADDRESS sbtAddress = _SBT->GetGPUVirtualAddress();
-
-        //        dispatchDesc.RayGenerationShaderRecord.StartAddress = sbtAddress + rayGenOffset;
-        //        dispatchDesc.RayGenerationShaderRecord.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        //        dispatchDesc.MissShaderTable.StartAddress = sbtAddress + missOffset;
-        //        dispatchDesc.MissShaderTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        //        dispatchDesc.MissShaderTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        //        dispatchDesc.HitGroupTable.StartAddress = sbtAddress + hitGroupOffset;
-        //        dispatchDesc.HitGroupTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        //        dispatchDesc.HitGroupTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-        //        dispatchDesc.Width = _width;
-        //        dispatchDesc.Height = _height;
-        //        dispatchDesc.Depth = 1;
-
-        //        renderModule.dispatchRays(&dispatchDesc);
-        //    }
-        //    endPipeline();
-        //}
-        //endRenderPass();
-
-        //const uint32 rtvIndex = RenderModule::kCurrentFrameIndex * kFrameCount + 1;
-        //renderModule.copyResource(renderModule._renderTargetTextureArr[rtvIndex].get(), _outputTexture.get());
+        renderModule.resourceBarrierTransition(_outputTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        startRenderPass(renderModule, "PathTracing", 0xffffffff);
+        {
+            startPipeline("BruteForce");
+            {
+                setConstantBuffer("SceneConstantBuffer", sceneConstants);
+                setRootConstantParameter("_targetUAV", _outputTexture->getUAV());
+                setShaderResourceView("gTLAS", _scene._result);
+                renderModule.dispatchRays(_width, _height);
+            }
+            endPipeline();
+        }
+        endRenderPass();
+        renderModule.copyTextureToRenderTarget(_outputTexture, 1);
     }
 }

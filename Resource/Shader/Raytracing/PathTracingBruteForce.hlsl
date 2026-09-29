@@ -32,8 +32,18 @@ StructuredBuffer<Material> gMaterials[] : register(t0, BINDLESSMATERIALARRAY_SPA
 
 struct RayPayload
 {
+    uint depth;
+    uint rngState;
     float4 color;
 };
+
+float RandomValue(inout uint state) 
+{
+    state *= (state + 195439) * (state + 124395) * (state + 845921);
+    return state / 4294967295.0;
+}
+
+#define USE_JITTER
 
 // ============================================================
 // Ray Generation
@@ -41,17 +51,24 @@ struct RayPayload
 [shader("raygeneration")]
 void RayGen()
 {
-    const uint2 pixel = DispatchRaysIndex().xy;
+    uint2 pixel = DispatchRaysIndex().xy;
     const uint2 size = DispatchRaysDimensions().xy;
+
+#if defined(USE_JITTER)
+    uint rngState = (pixel.y * size.x + pixel.x) + _rngState;
+    const float2 jitter = float2(RandomValue(rngState), RandomValue(rngState));
+    pixel = pixel + jitter;
+#endif
+
     const float2 uv = (float2(pixel) + 0.5) / float2(size);
-
-    float2 screen = uv * 2.0 - 1.0;
-    screen.y = -screen.y;
-
+    float2 ndc = uv * 2.0 - 1.0;
+    ndc.y = -ndc.y;
     const float nearPlaneHalfHeightWS = _nearDistance * getFOVTangent();
     const float nearPlaneHalfWidthWS = nearPlaneHalfHeightWS * ((float)_resolution.x / (float)_resolution.y);
-    const float3 rayDirToNearPlaneWS = getViewForwardDirection() * _nearDistance + getViewRightDirection() 
-        * nearPlaneHalfWidthWS * screen.x + getViewUpDirection() * nearPlaneHalfHeightWS * screen.y;
+    const float3 rayDirToNearPlaneWS = 
+                                getViewForwardDirection() * _nearDistance 
+                                + getViewRightDirection() * nearPlaneHalfWidthWS * ndc.x 
+                                + getViewUpDirection() * nearPlaneHalfHeightWS * ndc.y;
 
     RayDesc ray;
     ray.Origin = getViewPosition();
@@ -59,13 +76,23 @@ void RayGen()
     ray.TMin = 0.001;
     ray.TMax = 10000.0;
 
-    RayPayload payload;
-    payload.color = float4(0, 0, 0, 1);
+    uint rayCount = 1;
+    float4 tempColor = float4(0, 0, 0, 0);
+    for (uint i = 0; i < rayCount; ++i)
+    {
+        RayPayload payload;
+        payload.depth = 1;
+        payload.rngState = rngState;
+        payload.color = float4(0, 0, 0, 1);
+        TraceRay(gTLAS, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
 
-    TraceRay(gTLAS, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
+        tempColor += payload.color;
+    }
+
+    tempColor /= rayCount;
 
     RWTexture2D<float4> output = getTextureRW(_targetUAV);
-    output[pixel] = payload.color;
+    output[pixel] = tempColor;
 }
 
 // ============================================================
@@ -74,39 +101,121 @@ void RayGen()
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-    payload.color = float4(0.1, 0.2, 0.4, 1.0);
+    //payload.color = float4(1, 1, 1, 1.0);
+    payload.color = float4(1, 1, 1, 1);
 }
 
 // ============================================================
 // Closest Hit
 // ============================================================
+float3 CosineSampleHemisphere(inout uint state) 
+{
+    float u1 = RandomValue(state);
+    float u2 = RandomValue(state);
+
+    float r = sqrt(u1);
+    float theta = 2.0 * 3.1415926 * u2;
+
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1.0 - u1);
+
+    return float3(x, y, z);
+}
+float RandomValueNormalDistribution(inout uint state) {
+    float theta = 2 * 3.1415926 * RandomValue(state);
+	float rho = sqrt(-2 * log(max(RandomValue(state), 1e-9)));
+    return rho * cos(theta);
+}
+float3 RandomDirection(inout uint state) {
+    float x = RandomValueNormalDistribution(state);
+    float y = RandomValueNormalDistribution(state);
+    float z = RandomValueNormalDistribution(state);
+    return normalize(float3(x, y, z));
+}
+float3 RandomHemisphereDirection(bool useCos, float3 normal, inout uint state) {
+    float3 dir = useCos ? CosineSampleHemisphere(state) : RandomDirection(state);
+    return dir * sign(dot(normal, dir));
+}
+
 [shader("closesthit")]
 void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attributes)
 {
-    uint subMeshIndex = InstanceID();
+    if(payload.depth >= 2)
+	{
+		payload.color = float4(0, 0, 0, 1);
+		return;
+	}
 
+    uint subMeshIndex = InstanceID();
     uint primitiveIndex = PrimitiveIndex();
 
-    uint index0 = gIndices[subMeshIndex][primitiveIndex * 3 + 0];
-    uint index1 = gIndices[subMeshIndex][primitiveIndex * 3 + 1];
-    uint index2 = gIndices[subMeshIndex][primitiveIndex * 3 + 2];
+    uint index0 = gIndices[NonUniformResourceIndex(subMeshIndex)][primitiveIndex * 3 + 0];
+    uint index1 = gIndices[NonUniformResourceIndex(subMeshIndex)][primitiveIndex * 3 + 1];
+    uint index2 = gIndices[NonUniformResourceIndex(subMeshIndex)][primitiveIndex * 3 + 2];
 
-    float2 uv0 = gVertices[subMeshIndex][index0].uv0;
-    float2 uv1 = gVertices[subMeshIndex][index1].uv0;
-    float2 uv2 = gVertices[subMeshIndex][index2].uv0;
+    float3 p0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0].position;
+    float3 p1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1].position;
+    float3 p2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2].position;
+
+    float3 n0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0].normal;
+    float3 n1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1].normal;
+    float3 n2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2].normal;
+
+    float2 uv0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0].uv0;
+    float2 uv1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1].uv0;
+    float2 uv2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2].uv0;
 
     float b1 = attributes.barycentrics.x;
     float b2 = attributes.barycentrics.y;
     float b0 = 1.0 - b1 - b2;
 
+    float3 hitPosition = p0 * b0 + p1 * b1 + p2 * b2; 
+    float3 hitNormal = n0 * b0 + n1 * b1 + n2 * b2; 
     float2 uv = uv0 * b0 + uv1 * b1 + uv2 * b2;
 
-    Material material = gMaterials[subMeshIndex][0];
+    float3x4 objectToWorld = ObjectToWorld3x4();
+    float3 hitPositionWS = mul(objectToWorld, float4(hitPosition, 1.0));
+    float3 hitNormalWS = hitNormal;//mul((float3x3)objectToWorld, hitNormal);
 
-    TextureParameter diffuseTextureSRV = material._diffuseTexture;
-    Texture2D<float4> diffuseTexture = getTexture(diffuseTextureSRV);
-
+    Material material = gMaterials[NonUniformResourceIndex(subMeshIndex)][0];
+    Texture2D<float4> diffuseTexture = getTexture(NonUniformResourceIndex(material._diffuseTexture));
     float4 diffuse = diffuseTexture.SampleLevel(bilinearRepeatSampler, uv, 0.0);
+
+    const uint sampleCount = 1;
+
+    const uint currentDepth = payload.depth;
+	float3 sumEmissive = float3(0, 0, 0);
+	for(uint i = 0; i < sampleCount; ++i)
+	{
+		const float3 Ldir = RandomHemisphereDirection(false, hitNormalWS, payload.rngState);
+		// if(roughness < 0.2)
+		// {
+		// 	Ldir = normalize(-V + 2 * dot(V, hitNormalWS) * hitNormalWS);
+		// }
+
+		//hitValue._prevMonteCarlo = Ldir;
+
+        RayDesc ray;
+        ray.Origin = hitPositionWS;
+        ray.Direction = Ldir;
+        ray.TMin = 0.001;
+        ray.TMax = 10000.0;
+
+        RayPayload payload2;
+        payload2.depth = currentDepth + 1;
+        payload2.rngState = payload.rngState;
+        payload2.color = float4(0, 0, 0, 1);
+        TraceRay(gTLAS, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload2);
+
+		const float3 brdf = diffuse.xyz * (1 / 3.14159265358979); //EvaluateBRDF(hitNormalWS, V, Ldir, hitColor, roughness, metallic);
+		const float3 emissiveFromQ = payload2.color.xyz;
+		const float cos_p = dot(hitNormalWS, Ldir);
+        const float spherePDF = 1 / (2 * 3.14159265358979);
+		sumEmissive += (brdf * emissiveFromQ * cos_p) / spherePDF;
+
+        payload.rngState = payload2.rngState;
+	}
 
     // if (diffuse.a <= 0.0)
     // {
@@ -114,7 +223,7 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     //     return;
     // }
 
-    payload.color = diffuse;
+    payload.color = float4((sumEmissive / sampleCount), 1);
     //payload.color = float4(0, 1, 1, 1);
 }
 
