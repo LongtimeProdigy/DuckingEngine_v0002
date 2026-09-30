@@ -373,7 +373,7 @@ namespace DK
 			_sceneConstantBufferData._time += deltaTime;
 			_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
 			_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
-			_sceneConstantBufferData._rngState = static_cast<uint32>(dist(gen) * RenderModule::kWidth * RenderModule::kHeight);
+			_sceneConstantBufferData._rngState = static_cast<uint32>(gen());
 			Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
 			Camera::gMainCamera->getCameraWorldMatrix(_sceneConstantBufferData._cameraWorldMatrixInv);
 			Camera::gMainCamera->getCameraProjectionMatrix(_sceneConstantBufferData._cameraProjectionMatrix);
@@ -514,6 +514,8 @@ namespace DK
 			ImGui::InputInt("Planet R: ", &_atmosphereConstantBufferData._planetRadius);
 			ImGui::InputInt("AtmosRadius: ", &_atmosphereConstantBufferData._atmosphereRadius);
 			ImGui::InputFloat("OceanHeightScale: ", &gHeightScale);
+
+			ImGui::Text("RT SPP: %d", DuckingEngine::getInstance().GetRaytracingRenderer().getAccumulationCount());
 
 			ImGui::End();
 		}

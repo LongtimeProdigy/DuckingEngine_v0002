@@ -670,6 +670,10 @@ namespace DK
 			: m{ _x, _y }
 		{}
 
+		dk_inline const bool operator==(const float2& rhs) const
+		{
+			return x == rhs.x && y == rhs.y;
+		}
 		dk_inline float2 operator+(const float2& rhs) const
 		{
 			return float2(x + rhs.x, y + rhs.y);

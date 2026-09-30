@@ -82,17 +82,52 @@ namespace DK
         if (changed || texturesChanged || resized)
             renderModule.waitAllGPU();
 
-        if (resized || _outputTexture == nullptr)
+        const bool recreateTextures =
+            resized ||
+            _outputTexture == nullptr ||
+            _outputAccumulateTexture == nullptr;
+
+        if (changed || texturesChanged || recreateTextures)
+            renderModule.waitAllGPU();
+
+        if (recreateTextures)
         {
-            _outputTexture.reset();
             _width = RenderModule::kWidth;
             _height = RenderModule::kHeight;
-            _outputTexture = renderModule.createTexture("Raytracing Output", _width, _height,
-                static_cast<const byte*>(nullptr), DXGI_FORMAT_R8G8B8A8_UNORM,
-                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, false, true);
+
+            _outputTexture.reset();
+            _outputAccumulateTexture.reset();
+
+            _outputTexture = renderModule.createTexture(
+                "Raytracing Output",
+                _width, _height,
+                static_cast<const byte*>(nullptr),
+                DXGI_FORMAT_R8G8B8A8_UNORM,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                false, true);
+
             if (_outputTexture == nullptr)
                 return false;
+
+            // 초기 데이터는 필요 없습니다.
+            // 첫 DispatchRays에서 모든 픽셀을 덮어씁니다.
+            _outputAccumulateTexture = renderModule.createTexture(
+                "Raytracing Accumulation",
+                _width, _height,
+                static_cast<const byte*>(nullptr),
+                DXGI_FORMAT_R32G32B32A32_FLOAT,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                false, true);
+
+            if (_outputAccumulateTexture == nullptr)
+                return false;
         }
+
+        if (changed || texturesChanged || recreateTextures)
+            resetAccumulation();
+
         if (changed || _scene._result == nullptr)
         {
             // Keep any successfully recorded builds alive even if a later allocation fails.
@@ -109,19 +144,29 @@ namespace DK
 
     void RaytracingRenderer::dispatchRay(RenderModule& renderModule, const IBufferRef& sceneConstants)
     {
+        if (_outputTexture == nullptr || _outputAccumulateTexture == nullptr)
+            return;
+
         renderModule.resourceBarrierTransition(_outputTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        renderModule.resourceBarrierTransition(_outputAccumulateTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
         startRenderPass(renderModule, "PathTracing", 0xffffffff);
         {
             startPipeline("BruteForce");
             {
                 setConstantBuffer("SceneConstantBuffer", sceneConstants);
+
+                setRootConstantParameter("_accumulateTextureUAV", _outputAccumulateTexture->getUAV());
                 setRootConstantParameter("_targetUAV", _outputTexture->getUAV());
+                setRootConstantParameter("_sampleCount", _sampleCount);
                 setShaderResourceView("gTLAS", _scene._result);
                 renderModule.dispatchRays(_width, _height);
+                ++_sampleCount;
             }
             endPipeline();
         }
         endRenderPass();
+
         renderModule.copyTextureToRenderTarget(_outputTexture, 1);
     }
 }

@@ -4,6 +4,8 @@
 #include "InputModule.h"
 #include "XboxState.h"
 #include "ComputerController.h"
+#include "DuckingEngine.h"
+#include "RaytracingRenderer.h"
 
 namespace DK
 {
@@ -36,6 +38,10 @@ namespace DK
 		float moveUp = static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_E)) - 
 			static_cast<float>(InputModule::GetKeyDown(KeyboardState::KEYBOARD_Q));
 
+		if (mouseDelta == float2::Zero && keyboardYaw == 0.f && keyboardPitch == 0.f && lJoystick == float2::Zero && lJoystick == float2::Zero
+			&& moveForward == 0.f && moveRight == 0.f && moveUp == 0.f)
+			return;
+
 		// Mouse delta already represents displacement since the previous input update.
 		_yaw += mouseDelta.x * 0.2f
 			+ (keyboardYaw * keyboardRotationSpeed + rJoystick.x * joystickRotationSpeed) * deltaTime;
@@ -62,5 +68,6 @@ namespace DK
 		Transform setTransform(finalMoveOffset, finalQuaternion, float3::Identity);
 
 		set_worldTransform(setTransform);
+		DuckingEngine::getInstance().GetRaytracingRendererWritable().resetAccumulation();
 	}
 }

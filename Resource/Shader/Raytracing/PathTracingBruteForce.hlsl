@@ -10,7 +10,9 @@
 
 cbuffer RaytracingConstants : register(b1)
 {
+    TextureParameter _accumulateTextureUAV;
     TextureParameter _targetUAV;
+    uint _sampleCount;
 };
 
 RaytracingAccelerationStructure gTLAS : register(t0);
@@ -37,14 +39,6 @@ struct RayPayload
     float4 color;
 };
 
-float RandomValue(inout uint state) 
-{
-    state *= (state + 195439) * (state + 124395) * (state + 845921);
-    return state / 4294967295.0;
-}
-
-#define USE_JITTER
-
 // ============================================================
 // Ray Generation
 // ============================================================
@@ -54,13 +48,16 @@ void RayGen()
     uint2 pixel = DispatchRaysIndex().xy;
     const uint2 size = DispatchRaysDimensions().xy;
 
-#if defined(USE_JITTER)
-    uint rngState = (pixel.y * size.x + pixel.x) + _rngState;
+#if 1
+    uint rngState = (pixel.y * size.x + pixel.x) + _rngState + _sampleCount * 747796405u;
     const float2 jitter = float2(RandomValue(rngState), RandomValue(rngState));
     pixel = pixel + jitter;
+    //일반적인 [0, 1) jitter는 정수 변환에서 사라집니다. 출력 좌표는 그대로 두고, 광선 생성용 좌표만 실수로 계산해야 합니다.
+    const float2 uv = (float2(pixel) + jitter) / float2(size);
+#else
+    const float2 uv = (float2(pixel) + 0.5) / float2(size);
 #endif
 
-    const float2 uv = (float2(pixel) + 0.5) / float2(size);
     float2 ndc = uv * 2.0 - 1.0;
     ndc.y = -ndc.y;
     const float nearPlaneHalfHeightWS = _nearDistance * getFOVTangent();
@@ -76,23 +73,40 @@ void RayGen()
     ray.TMin = 0.001;
     ray.TMax = 10000.0;
 
-    uint rayCount = 1;
+    const uint rayCount = 1;
     float4 tempColor = float4(0, 0, 0, 0);
+    RayPayload payload;
+    payload.rngState = rngState;
     for (uint i = 0; i < rayCount; ++i)
     {
-        RayPayload payload;
         payload.depth = 1;
-        payload.rngState = rngState;
         payload.color = float4(0, 0, 0, 1);
-        TraceRay(gTLAS, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
+        TraceRay(gTLAS, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, payload);
 
         tempColor += payload.color;
     }
 
     tempColor /= rayCount;
 
+    RWTexture2D<float4> accumulation = getTextureRW(_accumulateTextureUAV);
     RWTexture2D<float4> output = getTextureRW(_targetUAV);
-    output[pixel] = tempColor;
+
+    float3 average;
+    [branch]
+    if (_sampleCount == 0)
+    {
+        // 최초 실행 또는 리셋: 초기화되지 않은 이전 텍스처 값을 읽지 않습니다.
+        average = tempColor.rgb;
+    }
+    else
+    {
+        const float3 previousAverage = accumulation[pixel].rgb;
+        const float weight = 1.0 / (float(_sampleCount) + 1.0);
+        average = previousAverage + (tempColor.rgb - previousAverage) * weight;
+    }
+
+    accumulation[pixel] = float4(average, 1.0);
+    output[pixel] = float4(pow(max(average, 0.0), 1.0 / 2.2), 1.0);
 }
 
 // ============================================================
@@ -101,47 +115,25 @@ void RayGen()
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-    //payload.color = float4(1, 1, 1, 1.0);
-    payload.color = float4(1, 1, 1, 1);
+    const float height = normalize(WorldRayDirection()).y;
+    const float3 horizonColor = float3(1.0, 0.38, 0.16);
+    const float3 sunsetColor = float3(0.55, 0.24, 0.36);
+    const float3 zenithColor = float3(0.08, 0.12, 0.28);
+    const float3 groundColor = float3(0.08, 0.05, 0.06);
+
+    float3 skyColor = lerp(horizonColor, sunsetColor, smoothstep(0.0, 0.3, height));
+    skyColor = lerp(skyColor, zenithColor, smoothstep(0.2, 0.85, height));
+    skyColor = lerp(skyColor, groundColor, smoothstep(0.0, 0.25, -height));
+    payload.color = float4(skyColor, 1.0);
 }
 
 // ============================================================
 // Closest Hit
 // ============================================================
-float3 CosineSampleHemisphere(inout uint state) 
-{
-    float u1 = RandomValue(state);
-    float u2 = RandomValue(state);
-
-    float r = sqrt(u1);
-    float theta = 2.0 * 3.1415926 * u2;
-
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(1.0 - u1);
-
-    return float3(x, y, z);
-}
-float RandomValueNormalDistribution(inout uint state) {
-    float theta = 2 * 3.1415926 * RandomValue(state);
-	float rho = sqrt(-2 * log(max(RandomValue(state), 1e-9)));
-    return rho * cos(theta);
-}
-float3 RandomDirection(inout uint state) {
-    float x = RandomValueNormalDistribution(state);
-    float y = RandomValueNormalDistribution(state);
-    float z = RandomValueNormalDistribution(state);
-    return normalize(float3(x, y, z));
-}
-float3 RandomHemisphereDirection(bool useCos, float3 normal, inout uint state) {
-    float3 dir = useCos ? CosineSampleHemisphere(state) : RandomDirection(state);
-    return dir * sign(dot(normal, dir));
-}
-
 [shader("closesthit")]
 void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attributes)
 {
-    if(payload.depth >= 2)
+    if(payload.depth >= 3)
 	{
 		payload.color = float4(0, 0, 0, 1);
 		return;
@@ -180,39 +172,48 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
 
     Material material = gMaterials[NonUniformResourceIndex(subMeshIndex)][0];
     Texture2D<float4> diffuseTexture = getTexture(NonUniformResourceIndex(material._diffuseTexture));
-    float4 diffuse = diffuseTexture.SampleLevel(bilinearRepeatSampler, uv, 0.0);
+    const float4 diffuse = diffuseTexture.SampleLevel(bilinearRepeatSampler, uv, 0.0);
 
     const uint sampleCount = 1;
-
-    const uint currentDepth = payload.depth;
-	float3 sumEmissive = float3(0, 0, 0);
+	float3 Lo = float3(0, 0, 0);
 	for(uint i = 0; i < sampleCount; ++i)
 	{
-		const float3 Ldir = RandomHemisphereDirection(false, hitNormalWS, payload.rngState);
+        float pdf;
+        float3 wi;
+        if(false)
+        {
+            wi = RandomHemisphereDirection(true, hitNormalWS, payload.rngState);
+            float cosTheta = max(dot(hitNormalWS, wi), 0.0);
+            pdf = cosTheta / PI;
+        }
+        else
+        {
+            wi = RandomHemisphereDirection(false, hitNormalWS, payload.rngState);
+            pdf = 1.0 / PI2;
+        }
 		// if(roughness < 0.2)
 		// {
-		// 	Ldir = normalize(-V + 2 * dot(V, hitNormalWS) * hitNormalWS);
+		// 	    wi = normalize(-V + 2 * dot(V, hitNormalWS) * hitNormalWS);
 		// }
 
-		//hitValue._prevMonteCarlo = Ldir;
+		//hitValue._prevMonteCarlo = wi;
 
         RayDesc ray;
         ray.Origin = hitPositionWS;
-        ray.Direction = Ldir;
+        ray.Direction = wi;
         ray.TMin = 0.001;
         ray.TMax = 10000.0;
 
         RayPayload payload2;
-        payload2.depth = currentDepth + 1;
+        payload2.depth = payload.depth + 1;
         payload2.rngState = payload.rngState;
         payload2.color = float4(0, 0, 0, 1);
-        TraceRay(gTLAS, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload2);
+        TraceRay(gTLAS, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray, payload2);
 
-		const float3 brdf = diffuse.xyz * (1 / 3.14159265358979); //EvaluateBRDF(hitNormalWS, V, Ldir, hitColor, roughness, metallic);
-		const float3 emissiveFromQ = payload2.color.xyz;
-		const float cos_p = dot(hitNormalWS, Ldir);
-        const float spherePDF = 1 / (2 * 3.14159265358979);
-		sumEmissive += (brdf * emissiveFromQ * cos_p) / spherePDF;
+		const float3 brdf = diffuse.xyz / PI; //EvaluateBRDF(hitNormalWS, V, wi, hitColor, roughness, metallic);
+		const float3 Li = payload2.color.xyz;
+		const float cosTheta = dot(hitNormalWS, wi);
+		Lo += (brdf * Li * cosTheta) / pdf;
 
         payload.rngState = payload2.rngState;
 	}
@@ -223,7 +224,7 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     //     return;
     // }
 
-    payload.color = float4((sumEmissive / sampleCount), 1);
+    payload.color = float4((Lo / sampleCount), 1);
     //payload.color = float4(0, 1, 1, 1);
 }
 

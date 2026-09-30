@@ -15,12 +15,18 @@ namespace DK
         bool updateRaytracingRenderer(RenderModule& renderModule);
         void dispatchRay(RenderModule& renderModule, const IBufferRef& sceneConstants);
 
+        const uint32 getAccumulationCount() const { return _sampleCount; }
+        void resetAccumulation() { _sampleCount = 0; }
+
     private:
         uint32 _width = 0, _height = 0;
         bool _supported = false;
         ITextureRef _outputTexture;
+        ITextureRef _outputAccumulateTexture;
         RaytracingAccelerationStructure _scene;
         DKVector<RaytracingGeometry> _geometries;
         DKVector<ITextureRef> _materialTextures;
+
+        uint32 _sampleCount = 0;
     };
 }

@@ -1533,6 +1533,8 @@ namespace DK
 		for (auto& replacement : replacements)
 			*replacement.first = DK::move(replacement.second);
 
+		DuckingEngine::getInstance().GetRaytracingRendererWritable().resetAccumulation();
+
 		return true;
 	}
 
@@ -2644,7 +2646,7 @@ namespace DK
             instances[i].InstanceID = i;
             instances[i].InstanceMask = 0xff;
             instances[i].AccelerationStructure = blas->_buffer->GetGPUVirtualAddress();
-            // Engine matrices use row vectors; DXR expects a row-major 3x4 transform.
+			instances[i].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE;
             const float* world = reinterpret_cast<const float*>(&geometry._world);
             for (uint32 row = 0; row < 3; ++row)
                 for (uint32 column = 0; column < 4; ++column)

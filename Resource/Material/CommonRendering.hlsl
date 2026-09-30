@@ -12,7 +12,7 @@ cbuffer SceneConstantBuffer : register(b0)
 
     float _nearDistance;
     float _farDistance;
-    float _rngState;
+    uint _rngState;
     uint _paddingSCB;
 
     float4x4 _cameraWorldMatrix;

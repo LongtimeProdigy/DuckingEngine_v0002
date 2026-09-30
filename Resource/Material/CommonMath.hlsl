@@ -70,4 +70,51 @@ float2 randGaussian(float2 seed)
     return float2(r * cos(theta), r * sin(theta));
 }
 
+float RandomValue(inout uint state) 
+{
+    state *= (state + 195439) * (state + 124395) * (state + 845921);
+    return state / 4294967295.0;
+}
+
+float3 CosineSampleHemisphere(inout uint state) 
+{
+    float u1 = RandomValue(state);
+    float u2 = RandomValue(state);
+
+    float r = sqrt(u1);
+    float theta = PI2 * u2;
+
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1.0 - u1);
+
+    return float3(x, y, z);
+}
+float RandomValueNormalDistribution(inout uint state) {
+    float theta = PI2 * RandomValue(state);
+	float rho = sqrt(-2 * log(max(RandomValue(state), 1e-9)));
+    return rho * cos(theta);
+}
+float3 RandomDirection(inout uint state) {
+#if 0
+    float x = RandomValueNormalDistribution(state);
+    float y = RandomValueNormalDistribution(state);
+    float z = RandomValueNormalDistribution(state);
+    return normalize(float3(x, y, z));
+#else
+    float u1 = RandomValue(state);
+    float u2 = RandomValue(state);
+
+    float z = u1;
+    float r = sqrt(max(0.0, 1.0 - z * z));
+    float phi = 2.0 * PI * u2;
+
+    return float3(r * cos(phi), r * sin(phi), z);
+#endif
+}
+float3 RandomHemisphereDirection(bool useCos, float3 normal, inout uint state) {
+    const float3 dir = useCos ? CosineSampleHemisphere(state) : RandomDirection(state);
+    return dir * sign(dot(normal, dir));
+}
+
 #endif

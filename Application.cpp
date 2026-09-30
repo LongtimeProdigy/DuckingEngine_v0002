@@ -68,6 +68,7 @@ namespace DK
 					return 0;
 				}
 			}
+			break;
 			case WM_DESTROY:
 				PostQuitMessage(0);
 				return 0;
@@ -174,10 +175,10 @@ namespace DK
 		// #todo- running을 합칠 수 있을까?
 		while (true)
 		{
-			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 			{
-				//if (msg.message == WM_QUIT)
-				//	break;
+				if (msg.message == WM_QUIT)
+					return;
 
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
