@@ -76,45 +76,55 @@ float RandomValue(inout uint state)
     return state / 4294967295.0;
 }
 
-float3 CosineSampleHemisphere(inout uint state) 
-{
+// // Z축이 Up인 반구 기준으로 샘플링
+// float3 consineHemisphereSampling(inout uint state) 
+// {
+//     float u1 = RandomValue(state);
+//     float u2 = RandomValue(state);
+
+//     float r = sqrt(u1);
+//     float theta = PI2 * u2;
+
+//     float x = r * cos(theta);
+//     float y = r * sin(theta);
+//     float z = sqrt(1.0 - u1);
+
+//     return float3(x, z, y);
+// }
+// // Z축이 Up인 반구 기준으로 샘플링
+// float3 uniformHemisphereSampling(inout uint state) {
+//     float u1 = RandomValue(state);
+//     float u2 = RandomValue(state);
+
+//     float z = u1;
+//     float r = sqrt(max(0.0, 1.0 - z * z));
+//     float phi = 2.0 * PI * u2;
+
+//     return float3(r * cos(phi), r * sin(phi), z);
+// }
+float3 RandomHemisphereDirection(uniform bool useCos, float3 normal, inout uint state) {
+    float3 N = normalize(normal);
+
+    // N을 로컬 Z축으로 하는 직교 기저.
+    float s = 2.0 * step(0.0, N.z) - 1.0;       // s는 항상 -1 또는 +1이므로 N.z == 0에서도 안전합니다.
+    float a = -1.0 / (s + N.z);                 // s의 특성 때문에 a는 항상 양수
+    float b = N.x * N.y * a;
+    float3 T = float3(1.0 + s * N.x * N.x * a, s * b, -s * N.x);
+    float3 B = float3(b, s + N.y * N.y * a, -N.y);
+
+    // +Z가 법선인 반구 기준 샘플링
     float u1 = RandomValue(state);
     float u2 = RandomValue(state);
-
-    float r = sqrt(u1);
-    float theta = PI2 * u2;
-
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(1.0 - u1);
-
-    return float3(x, y, z);
-}
-float RandomValueNormalDistribution(inout uint state) {
-    float theta = PI2 * RandomValue(state);
-	float rho = sqrt(-2 * log(max(RandomValue(state), 1e-9)));
-    return rho * cos(theta);
-}
-float3 RandomDirection(inout uint state) {
-#if 0
-    float x = RandomValueNormalDistribution(state);
-    float y = RandomValueNormalDistribution(state);
-    float z = RandomValueNormalDistribution(state);
-    return normalize(float3(x, y, z));
-#else
-    float u1 = RandomValue(state);
-    float u2 = RandomValue(state);
-
-    float z = u1;
+    float sinPhi, cosPhi;
+    sincos(PI2 * u2, sinPhi, cosPhi);
+    
+    float z = useCos ? sqrt(1.0 - u1) : u1;
     float r = sqrt(max(0.0, 1.0 - z * z));
-    float phi = 2.0 * PI * u2;
+    float x = (r * cosPhi);
+    float y = (r * sinPhi);
 
-    return float3(r * cos(phi), r * sin(phi), z);
-#endif
-}
-float3 RandomHemisphereDirection(bool useCos, float3 normal, inout uint state) {
-    const float3 dir = useCos ? CosineSampleHemisphere(state) : RandomDirection(state);
-    return dir * sign(dot(normal, dir));
+    // 로컬 +Z를 표면 법선 N으로 변환합니다.
+    return x * T + y * B + z * N;
 }
 
 #endif

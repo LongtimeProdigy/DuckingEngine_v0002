@@ -13,6 +13,7 @@ cbuffer RaytracingConstants : register(b1)
     TextureParameter _accumulateTextureUAV;
     TextureParameter _targetUAV;
     uint _sampleCount;
+    uint _samplingMode;
 };
 
 RaytracingAccelerationStructure gTLAS : register(t0);
@@ -168,7 +169,7 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
 
     float3x4 objectToWorld = ObjectToWorld3x4();
     float3 hitPositionWS = mul(objectToWorld, float4(hitPosition, 1.0));
-    float3 hitNormalWS = hitNormal;//mul((float3x3)objectToWorld, hitNormal);
+    float3 hitNormalWS = normalize(hitNormal);//mul((float3x3)objectToWorld, hitNormal);
 
     Material material = gMaterials[NonUniformResourceIndex(subMeshIndex)][0];
     Texture2D<float4> diffuseTexture = getTexture(NonUniformResourceIndex(material._diffuseTexture));
@@ -180,7 +181,8 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
 	{
         float pdf;
         float3 wi;
-        if(false)
+        [branch]
+        if(_samplingMode == 1)
         {
             wi = RandomHemisphereDirection(true, hitNormalWS, payload.rngState);
             float cosTheta = max(dot(hitNormalWS, wi), 0.0);

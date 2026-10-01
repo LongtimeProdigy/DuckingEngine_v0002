@@ -462,6 +462,19 @@ namespace DK
 #endif
 	}
 
+	template<typename Enum>
+	bool EnumCombo(const char* label, Enum& value, const char* const* names, int count)
+	{
+		int current = static_cast<int>(value);
+		if (ImGui::Combo(label, &current, names, count))
+		{
+			value = static_cast<Enum>(current);
+			return true;
+		}
+
+		return false;
+	}
+
 	static bool gIsReload = false;
 	void SceneRenderer::preRender() const noexcept
 	{
@@ -515,7 +528,17 @@ namespace DK
 			ImGui::InputInt("AtmosRadius: ", &_atmosphereConstantBufferData._atmosphereRadius);
 			ImGui::InputFloat("OceanHeightScale: ", &gHeightScale);
 
-			ImGui::Text("RT SPP: %d", DuckingEngine::getInstance().GetRaytracingRenderer().getAccumulationCount());
+			RaytracingRenderer& rtRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
+			ImGui::Text("RT SPP: %d", rtRenderer._sampleCount);
+			const char* names[] =
+			{
+				"Uniform",
+				"Cosine",
+			};
+			if (EnumCombo("Render Mode", rtRenderer._samplingMode, names, static_cast<uint32>(RaytracingRenderer::SamplingMode::COUNT)))
+			{
+				rtRenderer.resetAccumulation();
+			}
 
 			ImGui::End();
 		}

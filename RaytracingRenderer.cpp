@@ -159,6 +159,7 @@ namespace DK
                 setRootConstantParameter("_accumulateTextureUAV", _outputAccumulateTexture->getUAV());
                 setRootConstantParameter("_targetUAV", _outputTexture->getUAV());
                 setRootConstantParameter("_sampleCount", _sampleCount);
+                setRootConstantParameter("_samplingMode", _samplingMode);
                 setShaderResourceView("gTLAS", _scene._result);
                 renderModule.dispatchRays(_width, _height);
                 ++_sampleCount;
