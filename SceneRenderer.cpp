@@ -47,6 +47,28 @@ namespace DK
 		return true;
 	}
 
+	bool appendPipelinePermutations(const TiXmlElement& node, const DKString& name, const Pipeline::CreateInfo& base, RenderPass::CreateInfo& renderPass)
+	{
+		DKVector<DKVector<DKString>> combinations;
+		DKString error;
+		if (!parsePipelinePermutations(node, combinations, error))
+		{
+			DK_ASSERT_LOG(false, "Pipeline %s: %s", name.c_str(), error.c_str());
+			return false;
+		}
+		for (uint32 index = 0; index < combinations.size(); ++index)
+		{
+			Pipeline::CreateInfo variant = base;
+			variant._defines = DK::move(combinations[index]);
+			const DKString variantName = pipelinePermutationName(name, index);
+#if defined(_DK_DEBUG_)
+			variant._pipelineName = variantName;
+#endif
+			renderPass._pipelineArr.push_back(std::make_pair(variantName, DK::move(variant)));
+		}
+		return true;
+	}
+
 	bool SceneRenderer::initialize_createRenderPass()
 	{
 		ScopeString<DK_MAX_PATH> renderPassGroupPath = GlobalPath::makeResourceFullPath("RenderPass/RenderPassGroup.xml");
@@ -108,6 +130,8 @@ namespace DK
 							continue;
 
 						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "Permutation")
+							continue;
 						if (pipelineChildNodeName == "LayoutInfo")
 						{
 							for (TiXmlElement* layoutElement = pipelineChildNode->FirstChildElement(); layoutElement != nullptr; layoutElement = layoutElement->NextSiblingElement())
@@ -154,7 +178,8 @@ namespace DK
 						}
 					}
 
-					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+					if (!appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo))
+						return false;
 				}
 				else if (renderPassChildNodeName == "ComputePipeline")
 				{
@@ -167,6 +192,8 @@ namespace DK
 							continue;
 
 						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "Permutation")
+							continue;
 						if (pipelineChildNodeName == "Shader")
 						{
 							pipelineCreateInfo._computeShaderEntry = pipelineChildNode->Attribute("Entry");
@@ -186,7 +213,8 @@ namespace DK
 						}
 					}
 
-					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+					if (!appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo))
+						return false;
 				}
 				else if (renderPassChildNodeName == "RaytracingPipeline")
 				{
@@ -216,6 +244,8 @@ namespace DK
 							continue;
 
 						DKString pipelineChildNodeName = pipelineChildNode->Value();
+						if (pipelineChildNodeName == "Permutation")
+							continue;
 						if (pipelineChildNodeName == "RaygenShader")
 						{
 							pipelineCreateInfo._raygenEntry = pipelineChildNode->Attribute("Entry");
@@ -245,7 +275,8 @@ namespace DK
 						}
 					}
 
-					renderPassCreateInfo._pipelineArr.push_back(std::make_pair(pipelineName, DK::move(pipelineCreateInfo)));
+					if (!appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo))
+						return false;
 				}
 				else
 				{
@@ -530,12 +561,21 @@ namespace DK
 
 			RaytracingRenderer& rtRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
 			ImGui::Text("RT SPP: %d", rtRenderer._sampleCount);
-			const char* names[] =
+			const char* kSamplingModeStr[] =
 			{
 				"Uniform",
 				"Cosine",
 			};
-			if (EnumCombo("Render Mode", rtRenderer._samplingMode, names, static_cast<uint32>(RaytracingRenderer::SamplingMode::COUNT)))
+			const char* kRaytracingMode[] =
+			{
+				"BruteForce",
+				"NEE",
+			};
+			if (EnumCombo("Render Mode", rtRenderer._samplingMode, kSamplingModeStr, static_cast<uint32>(RaytracingRenderer::SamplingMode::COUNT)))
+			{
+				rtRenderer.resetAccumulation();
+			}
+			if (EnumCombo("RT Mode", rtRenderer._mode, kRaytracingMode, static_cast<uint32>(RaytracingRenderer::Mode::COUNT)))
 			{
 				rtRenderer.resetAccumulation();
 			}

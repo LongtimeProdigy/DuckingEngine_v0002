@@ -206,6 +206,9 @@
     <ClInclude Include="Material.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="PipelinePermutation.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="RenderModule.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>

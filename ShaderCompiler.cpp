@@ -119,12 +119,16 @@ namespace DK
 		ScopeStringW<DK_MAX_PATH> includePath = GlobalPath::makeResourceFullPathW(L"Material");
 		arguments.push_back(includePath.c_str());
 
-		//for (const DKString& define : defines)
-		//{
-		//	const DKStringW defineW = StringUtil::convertCtoWC(define.c_str());
-		//	arguments.push_back(L"-D");
-		//	arguments.push_back(defineW.c_str());
-		//}
+		// Own the strings until Compile returns; arguments contains their pointers.
+		DKVector<DKStringW> wideDefines;
+		wideDefines.reserve(defines.size());
+		for (const DKString& define : defines)
+			wideDefines.push_back(StringUtil::convertCtoWC(define.c_str()));
+		for (const DKStringW& define : wideDefines)
+		{
+			arguments.push_back(L"-D");
+			arguments.push_back(define.c_str());
+		}
 
 		DxcBuffer sourceBuffer{};
 		sourceBuffer.Ptr = sourceBlob->GetBufferPointer();

@@ -116,6 +116,9 @@ void RayGen()
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
+#if PATHTRACING_MODE == 1
+    payload.color = float4(1, 1, 1, 1.0);
+#else
     const float height = normalize(WorldRayDirection()).y;
     const float3 horizonColor = float3(1.0, 0.38, 0.16);
     const float3 sunsetColor = float3(0.55, 0.24, 0.36);
@@ -126,6 +129,7 @@ void Miss(inout RayPayload payload)
     skyColor = lerp(skyColor, zenithColor, smoothstep(0.2, 0.85, height));
     skyColor = lerp(skyColor, groundColor, smoothstep(0.0, 0.25, -height));
     payload.color = float4(skyColor, 1.0);
+#endif
 }
 
 // ============================================================

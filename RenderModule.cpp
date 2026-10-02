@@ -1024,7 +1024,6 @@ namespace DK
 	}
 	bool RenderModule::createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline)
 	{
-		DKVector<DKString> emptyDefines;
 		DKVector<ShaderResourceReflection> pipelineResources;
 
 		if (pipelineCreateInfo._vertexShaderPath.empty() == false)
@@ -1041,7 +1040,7 @@ namespace DK
 			RenderResourcePtr<IDxcBlob> vertexShader = nullptr;
 			bool success = shaderCompiler.compileShader(
 				pipelineCreateInfo._vertexShaderPath.c_str(), pipelineCreateInfo._vertexShaderEntry.c_str(),
-				ShaderType::VertexShader, emptyDefines,
+				ShaderType::VertexShader, pipelineCreateInfo._defines,
 				vertexShader, vertexShaderView, pipelineResources
 			);
 			if (success == false)
@@ -1050,7 +1049,7 @@ namespace DK
 			RenderResourcePtr<IDxcBlob> pixelShader = nullptr;
 			success = shaderCompiler.compileShader(
 				pipelineCreateInfo._pixelShaderPath.c_str(), pipelineCreateInfo._pixelShaderEntry.c_str(),
-				ShaderType::PixelShader, emptyDefines,
+				ShaderType::PixelShader, pipelineCreateInfo._defines,
 				pixelShader, pixelShaderView, pipelineResources
 			);
 			if (success == false)
@@ -1169,7 +1168,7 @@ namespace DK
 
 			bool success = shaderCompiler.compileShader(
 				pipelineCreateInfo._computeShaderPath.c_str(), pipelineCreateInfo._computeShaderEntry.c_str(),
-				ShaderType::ComputeShader, emptyDefines,
+				ShaderType::ComputeShader, pipelineCreateInfo._defines,
 				computeShader, computeShaderView, pipelineResources, threadGroupSize
 			);
 			if (success == false)
@@ -1235,7 +1234,7 @@ namespace DK
 				D3D12_SHADER_BYTECODE raygenShaderView = {};
 				const bool success = shaderCompiler.compileShader(
 					pipelineCreateInfo._raygenShaderPath.c_str(), "",
-					ShaderType::Raytracing, emptyDefines,
+					ShaderType::Raytracing, pipelineCreateInfo._defines,
 					raygenShaderBlob, raygenShaderView, pipelineResources
 				);
 				if (success == false)
@@ -1270,7 +1269,7 @@ namespace DK
 				D3D12_SHADER_BYTECODE missShaderView = {};
 				const bool success = shaderCompiler.compileShader(
 					pipelineCreateInfo._missShaderPath.c_str(), "",
-					ShaderType::Raytracing, emptyDefines,
+					ShaderType::Raytracing, pipelineCreateInfo._defines,
 					missShaderBlob, missShaderView, pipelineResources
 				);
 				if (success == false)
@@ -1315,7 +1314,7 @@ namespace DK
 				D3D12_SHADER_BYTECODE cloesetShaderView = {};
 				const bool success = shaderCompiler.compileShader(
 					pipelineCreateInfo._closestShaderPath.c_str(), "",
-					ShaderType::Raytracing, emptyDefines,
+					ShaderType::Raytracing, pipelineCreateInfo._defines,
 					cloesetShaderBlob, cloesetShaderView, pipelineResources
 				);
 				if (success == false)
@@ -1492,7 +1491,7 @@ namespace DK
 			if (foundPipeline != renderPass._pipelineMap.end())
 			{
 				DK_ASSERT_LOG(false, "중복된 이름의 Pipeline(%s)이 같은 RenderPass(%s) 내에 있습니다.", pipelineName.c_str(), renderPassName.c_str());
-				continue;
+				return false;
 			}
 
 			Pipeline::CreateInfo& pipelineCreateInfo = renderPassCreateInfo._pipelineArr[i].second;

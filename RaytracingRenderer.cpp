@@ -152,7 +152,7 @@ namespace DK
 
         startRenderPass(renderModule, "PathTracing", 0xffffffff);
         {
-            startPipeline("BruteForce");
+            startPipelinePermutation("BruteForce", static_cast<uint32>(_mode));
             {
                 setConstantBuffer("SceneConstantBuffer", sceneConstants);
 

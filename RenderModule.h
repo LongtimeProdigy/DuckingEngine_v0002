@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "PipelinePermutation.h"
+
 struct ID3D12Device8;
 struct ID3D12RootSignature;
 struct ID3D12PipelineState;
@@ -143,6 +145,7 @@ namespace DK
 			uint32 _maxAttributeSize = sizeof(float) * 2;
 			uint32 _maxTraceRecursionDepth = 1;
 
+			DKVector<DKString> _defines;
 			DKVector<LayoutInfo> _layout;
 			DKVector<RootConstant32BitParameter> _rootConstant32BitParameter;
 		};
@@ -208,14 +211,12 @@ namespace DK
 
 		DKHashMap<DKString, Pipeline> _pipelineMap;
 
-		dk_inline Pipeline* getPipeline(const DKString& pipelineName)
+		dk_inline Pipeline* getPipeline(const DKString& pipelineName, uint32 permutationIndex = 0)
 		{
-			DKHashMap<DKString, Pipeline>::iterator iter = _pipelineMap.find(pipelineName);
+			DKHashMap<DKString, Pipeline>::iterator iter = _pipelineMap.find(pipelinePermutationName(pipelineName, permutationIndex));
 			DK_ASSERT_LOG(iter != _pipelineMap.end(), "존재하지 않는 Pipeline을 찾습니다.\nPipelineName: %s", pipelineName.c_str());
-#ifdef _DK_DEBUG_
 			if (iter == _pipelineMap.end())
 				return nullptr;
-#endif
 
 			return &iter->second;
 		}
@@ -255,12 +256,15 @@ do{ \
 	gCurrentBindedRenderPass = nullptr; \
 }while(false)
 
-#define startPipeline(pipelineName) \
+#define startPipeline(pipelineName) startPipelinePermutation(pipelineName, 0)
+
+#define startPipelinePermutation(pipelineName, permutationIndex) \
 do{ \
 	RENDERING_ALREADY_BIND(gCurrentBindedPipeline, pipelineName); \
-	static Pipeline* findPipeline = gCurrentBindedRenderPass->getPipeline(pipelineName); \
+	Pipeline* findPipeline = gCurrentBindedRenderPass->getPipeline(pipelineName, permutationIndex); \
 	gCurrentBindedPipeline = findPipeline; \
 	RENDERING_VERIFY(gCurrentBindedPipeline, pipelineName); \
+	if (gCurrentBindedPipeline == nullptr) break; \
 	currentRenderModule.bindPipeline(*gCurrentBindedPipeline, gCurrentBindedPipeline->_type)
 
 #define endPipeline() \
