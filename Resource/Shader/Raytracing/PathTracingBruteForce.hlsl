@@ -215,7 +215,11 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
 		const float3 brdf = diffuse.xyz / PI; //EvaluateBRDF(hitNormalWS, V, wi, hitColor, roughness, metallic);
 		const float3 Li = payload2.color.xyz;
 		const float cosTheta = dot(hitNormalWS, wi);
-		Lo += (brdf * Li * cosTheta) / pdf;
+        [branch]
+		if (_samplingMode == 1)
+            Lo += diffuse.rgb * Li; // pdf가 0이 나올수 있어서 나눗셈을 하면안됨. 마침 cossampling시에는 pdf가 약분됨
+        else
+            Lo += (brdf * Li * max(dot(hitNormalWS, wi), 0.0)) / pdf;
 
         payload.rngState = payload2.rngState;
 	}
