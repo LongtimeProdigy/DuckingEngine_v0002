@@ -20,10 +20,10 @@ namespace DK
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadGbuffer();
 
-		_sponza = DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadGLTF("Resource/Object/Sponza/glTF/Sponza.gltf");
-		if (_sponza == nullptr)
-			return false;
-		_sponza->set_worldTransform(Transform(float3(0, 0, 0), Quaternion::Identity, float3(0.05f, 0.05f, 0.05f)));
+		//_sponza = DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadGLTF("Resource/Object/Sponza/glTF/Sponza.gltf");
+		//if (_sponza == nullptr)
+		//	return false;
+		//_sponza->set_worldTransform(Transform(float3(0, 0, 0), Quaternion::Identity, float3(0.05f, 0.05f, 0.05f)));
 
 		// Test Object
 		_testObjectSceneObject = DuckingEngine::getInstance().GetSceneObjectManagerWritable().createSceneObject(

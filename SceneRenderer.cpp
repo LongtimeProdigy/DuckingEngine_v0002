@@ -533,25 +533,26 @@ namespace DK
 #endif
 
 #define MAX_BUFFER_LENGTH 200
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+			ImGui::Text("average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
-			ImGui::Text("MainCameraPosition");
 			char cameraPosBuffer[MAX_BUFFER_LENGTH];
 			const float3& cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
-			sprintf_s(cameraPosBuffer, MAX_BUFFER_LENGTH, "Position: x: %f, y: %f, z: %f", cameraPosition.x, cameraPosition.y, cameraPosition.z);
+			sprintf_s(cameraPosBuffer, MAX_BUFFER_LENGTH, "Pos: %f, %f, %f", cameraPosition.x, cameraPosition.y, cameraPosition.z);
 			ImGui::Text(cameraPosBuffer);
 			char cameraRotationEulerBuffer[MAX_BUFFER_LENGTH];
 			const Quaternion& cameraRotation = Camera::gMainCamera->get_worldTransform().get_rotation();
 			float3 eulerRotation;
 			cameraRotation.toEuler(eulerRotation);
-			sprintf_s(cameraRotationEulerBuffer, MAX_BUFFER_LENGTH, "Rotation: roll: %f, yaw: %f, pitch: %f", eulerRotation.x, eulerRotation.y, eulerRotation.z);
+			sprintf_s(cameraRotationEulerBuffer, MAX_BUFFER_LENGTH, "Rot: r: %f, y: %f, p: %f", eulerRotation.x, eulerRotation.y, eulerRotation.z);
 			ImGui::Text(cameraRotationEulerBuffer);
 
-			ImGui::DragInt("scatter point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 10);
-			ImGui::DragInt("optical point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 10);
+			ImGui::Text(" ");
+
+			ImGui::DragInt("scatter point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 128);
+			ImGui::DragInt("optical point: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 64);
 			ImGui::DragInt("densityFallOff: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._densityFallOff), 1.0f, 1, 10);
 			ImGui::DragInt("scatteringStrength: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._scatteringStrength), 1.0f, 1, 100);
-			ImGui::DragFloat("SunDegree: ", &_atmosphereConstantBufferData._sunDegree);
+			ImGui::DragFloat("SunDegree: ", &_atmosphereConstantBufferData._sunDegree, 0.1f, 0.0f, 0.0f, "%.3f");
 			ImGui::InputInt("SunIntensity: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._sunIntensity));
 			ImGui::InputInt("SunRadius: ", reinterpret_cast<int*>(&_atmosphereConstantBufferData._sunRadius));
 			ImGui::InputInt3("Planet C: ", _atmosphereConstantBufferData._planetCentre);
@@ -591,12 +592,13 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
         RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
+#if 0
         const bool raytraced = raytracingRenderer.updateRaytracingRenderer(renderModule);
         if (raytraced)
             raytracingRenderer.dispatchRay(renderModule, _sceneConstantBuffer);
         if (!raytraced)
+#else
         {
-#if 1
 #if 1
 		startRenderPass(renderModule, "OceanRenderPass", 0);
 		{
@@ -982,9 +984,8 @@ namespace DK
 			endPipeline();
 		}
 		endRenderPass();
-#endif
-
         }
+#endif
 
 		// GBuffer
 		startRenderPass(renderModule, "GBufferRenderPass", 2 + RenderModule::kCurrentBackBufferIndex);

@@ -4,17 +4,13 @@
 #include "CommonRendering.hlsl"
 #include "CommonTexture.hlsl"
 
-#define APPLY_MIE_SCATTERING
+//#define OPTIMZE_OPTICALDEPTH
 
-#define APPLY_ADVICE_CHATCPT
-
-#if defined(APPLY_ADVICE_CHATCPT)
 struct AtmosphereSegment
 {
     float3 transmittance;
     float3 inScattering;
 };
-#endif
 
 cbuffer AtmosphereConstantBuffer : register(b1)
 {
@@ -90,49 +86,23 @@ float2 raySphere(const float3 sphereCentre, const float sphereRadius, const floa
     const float destToSphere2 = (-b + rootDet);
 #endif
 
-    // b >= 0, rootDet > 0 이기 때문에
-    // destToSphere2은 항상 destToSphere1보다 크다. 때문에 둘 중에 하나만 음수여야 한다면 항상 destToSphere1가 음수일 수 밖에 없다.
-    // 따라서 destToSphere2가 음수라는 것은 항상 rayOrigin보다 뒤에 Sphere가 있다는 것 (이 경우엔 intersection하지 않는다고 본다)
+    // 여기까지 오면 b >= 0, rootDet > 0이다.
+    // 따라서, destToSphere2는 항상 destToSphere1보다 크다. 때문에 둘 중 음수가 있다면 항상 destToSphere1은 음수일 수 밖에 없다.
+    // 따라서, 둘 다 음수인 경우는 destToSphere2가 음수인 경우랑 동치이다.
+    // 그리고 이 경우는 두 점이 rayOrigin부터 -rayDir방향에 있다는 것이기 때문에 여기선 교차하지 않는 것으로 처리한다.
     if(destToSphere2 < 0)
         return float2(FLOAT_MAX, 0);
 
-#if 0
-    const float nearestPoint = destToSphere1 >= 0 ? destToSphere1 : destToSphere2;
-
+    // destToSphere2는 양수이므로 두가지 경우의 수밖에 없다
     // destToSphere1이 음수인 경우: rayOrigin이 Sphere 내부에 있다. >> rayOrigin/Dir의 양수거리만큼만 반환한다. 그리고 Through는 rayOrigin부터 HitPoint까지만 반환한다.
     // destToSphere1이 양수인 경우: rayOrigin이 Sphere 외부에 있다. >> 이경우엔 destToSphere1이 무조건 더 작으므로 가장 가까운 거리를 반환한다.
-#if 0
-    const float throughLength = abs(destToSphere2 - destToSphere1);
-#else
-    const float throughLength = destToSphere1 >= 0 ? destToSphere2 - destToSphere1 : destToSphere2;
-#endif
-    return float2(nearestPoint, throughLength);
-#else
-    // destToSphere1이 음수인 경우: rayOrigin이 Sphere 내부에 있다. >> rayOrigin/Dir의 양수거리만큼만 반환한다. 그리고 Through는 rayOrigin부터 HitPoint까지만 반환한다.
-    // destToSphere1이 양수인 경우: rayOrigin이 Sphere 외부에 있다. >> 이경우엔 destToSphere1이 무조건 더 작으므로 가장 가까운 거리를 반환한다.
-    const float3 nearPoint = float3(
-        rayOrigin.x + (destToSphere1 < 0 ? 0 : destToSphere1) * rayDir.x, 
-        rayOrigin.y + (destToSphere1 < 0 ? 0 : destToSphere1) * rayDir.y, 
-        rayOrigin.z + (destToSphere1 < 0 ? 0 : destToSphere1) * rayDir.z
-        );
-    const float3 farPoint = float3(
-        rayOrigin.x + destToSphere2 * rayDir.x, 
-        rayOrigin.y + destToSphere2 * rayDir.y, 
-        rayOrigin.z + destToSphere2 * rayDir.z
-        );
+    const float nearLength = destToSphere1 > 0 ? destToSphere1 : 0;
+    const float farLength = destToSphere2 - nearLength;
 
-    const float nearLength = length(rayOrigin - nearPoint);
-    const float farLength = length(rayOrigin - farPoint);
-
-    return float2(nearLength, farLength - nearLength);
-#endif
+    return float2(nearLength, farLength);
 }
 
-#if defined(APPLY_ADVICE_CHATCPT)
 AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDir, const float rayLength, const float3 sunDir)
-#else
-float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float rayLength, const float3 originalCol, const float3 sunDir)
-#endif
 {
     static const float M_PI = 3.141592f;
     // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky/simulating-colors-of-the-sky.html
@@ -145,107 +115,120 @@ float3 calculateLight(const float3 rayOrigin, const float3 rayDir, const float r
     static const float HrM = 1200;
     static const float g = 0.76;
 
-    // rayLength를 너무 길게 가져가면 레일리산란이 너무 누적되어서 지평선에 붉은 띠가 형성됩니다.
-    const float maxViewDistance = 120000.0; // 120 km 정도
-    const float effectiveRayLength = min(rayLength, maxViewDistance);
-    const float segmentLength = effectiveRayLength / _numInScatteringPoints;
-    float tCurrent = 0;
+    if (rayLength <= 0.0f)
+    {
+        AtmosphereSegment result;
+        result.transmittance = float3(1, 1, 1);
+        result.inScattering = float3(0, 0, 0);
+        return result;
+    }
+
+    const uint viewCount = max(_numInScatteringPoints, 1u);
+    const uint lightCount = max(_opticalDepthPointCount, 1u);
+    const float segmentLength = rayLength / viewCount;
+
+    const float mu = dot(rayDir, sunDir);
+    const float phaseR = (3.f / (16.f * M_PI)) * (1 + mu * mu);
+    const float phaseM = (1.0 - g * g) / (4.0 * M_PI * pow(1.0 + g * g - 2.0 * g * mu, 1.5));
+
     float3 sumR = float3(0, 0, 0);
     float3 sumM = float3(0, 0, 0);
     float opticalDepthR = 0;
     float opticalDepthM = 0;
-
-    for(int i = 0; i < _numInScatteringPoints; ++i)
+    for (uint i = 0; i < viewCount; ++i)
     {
-        const float3 samplePosition = rayOrigin + (tCurrent + segmentLength * 0.5f) * rayDir; // Segment 중간에서 Sample하기 위해 semgentLength * 0.5를 더함
-        float height = length(samplePosition - _planetCentre) - _planetRadius;
-        height = max(height, 0.0);
+        const float3 samplePosition = rayOrigin + ((i + 0.5f) * segmentLength) * rayDir;
+        const float height = max(length(samplePosition - _planetCentre) - _planetRadius, 0.0f);
 
         // View 방향으로의 공기 밀도 누적
         const float hrR = exp(-height / HrR);
-        opticalDepthR += hrR * segmentLength;
         const float hrM = exp(-height / HrM);
-        opticalDepthM += hrM * segmentLength;
+        const float segmentDepthR = hrR * segmentLength;
+        const float segmentDepthM = hrM * segmentLength;
+        // 현재 샘플까지의 깊이: 이전 구간 전체 + 현재 구간 절반.
+        const float viewDepthR = opticalDepthR + segmentDepthR * 0.5f;
+        const float viewDepthM = opticalDepthM + segmentDepthM * 0.5f;
+        // 최종 투과율용 누적에는 현재 구간 전체를 포함한다.
+        opticalDepthR += segmentDepthR;
+        opticalDepthM += segmentDepthM;
 
-        // 태양 위치부터 SamplePosition까지의 공기 밀도 계산
         const float sunRayLength = raySphere(_planetCentre, _atmosphereRadius, samplePosition, sunDir).y; // 태양빛이 대기를 가로지르는 길이
-
-        // Self Shadow 제외
-        if (sunRayLength <= 0.0)
+        if (sunRayLength <= 0.0f)   // samplePosition이 대기 밖이면 누적 건너뜀
             continue;
 
-        const float segmentLengthLight = sunRayLength / _opticalDepthPointCount;
-        float tCurrentLight = 0;
+        const float segmentLengthLight = sunRayLength / lightCount;
+
+        // Light 방향으로의 공기 밀도 계산
         float opticalDepthLightR = 0;
         float opticalDepthLightM = 0;
-        for(int j = 0; j < _opticalDepthPointCount; ++j )
+        for (uint j = 0; j < lightCount; ++j)
         {
-            const float3 samplePositionLight = samplePosition + (tCurrentLight + segmentLengthLight * 0.5f) * sunDir;
-            float heightLight = length(samplePositionLight - _planetCentre) - _planetRadius;
-            heightLight = max(heightLight, 0.0);
+            const float3 samplePositionLight = samplePosition + ((j + 0.5f) * segmentLengthLight) * sunDir;
+            const float heightLight = max(length(samplePositionLight - _planetCentre) - _planetRadius, 0.0f);
 
             opticalDepthLightR += exp(-heightLight / HrR) * segmentLengthLight;
             opticalDepthLightM += exp(-heightLight / HrM) * segmentLengthLight;
-
-            tCurrentLight += segmentLengthLight;
         }
 
+#if defined(OPTIMZE_OPTICALDEPTH)
         // Camera방향, Sun방향 공기밀도를 합해서 투과율로 변환
-#if !defined(APPLY_MIE_SCATTERING)
-        const float3 tau = betaR * (opticalDepthR + opticalDepthLightR);
-#else
-        const float3 tau = betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM);
-#endif
+        const float3 tau = betaR * (viewDepthR + opticalDepthLightR) + betaM * (viewDepthM + opticalDepthLightM);
         const float3 attenuation = exp(-tau);
 
-        // 투과율을 리만적분 누적
-        sumR += attenuation * hrR * segmentLength;
-        sumM += attenuation * hrM * segmentLength;
+        // 투과율을 리만적분 누적 (segmentLength를 곱해야 리만합이 되지만 최적화로 for문 밖에서 한번에 곱함)
+        sumR += attenuation * hrR;
+        sumM += attenuation * hrM;
+#else
+        // Camera방향, Sun방향 공기밀도를 합해서 투과율로 변환
+        const float3 sunTransmittanceR = exp(-betaR * opticalDepthLightR);
+        const float3 sunTransmittanceM = exp(-betaM * opticalDepthLightM);
+        const float3 viewTransmittanceR = exp(-betaR * viewDepthR);
+        const float3 viewTransmittanceM = exp(-betaM * viewDepthM);
 
-        tCurrent += segmentLength;
+        // betaR: 들어온 빛이 단위 밀도에서 단위 길이당 얼마나 산란되는지 나타내는 계수
+        // hrR: betaR에 곱해져서 현재 밀도에서 산란되는 양을 구할 수 있도록 함
+        // phase: 방향에 따라 산란되는 양을 계산하는 함수
+        // 결국 3개를 다 곱해야 해당 밀도에서 원하는 방향으로 산란되어 나가는 빛의 양을 구할 수 있음
+        const float3 scatterCeofficientCurrentHeightR = betaR * hrR;
+        const float3 scatterCeofficientCurrentHeightM = betaM * hrM;
+        const float3 scatterCepffocoemtCurrentHeightWithDirR = scatterCeofficientCurrentHeightR * phaseR;
+        const float3 scatterCepffocoemtCurrentHeightWithDirM = scatterCeofficientCurrentHeightM * phaseM;
+
+        const float3 remainSunIntensityAtSamplePosition = _sunIntensity * sunTransmittanceR * sunTransmittanceM;
+        const float3 ramainSunIntensityAtSamplePositionToRayOriginR = remainSunIntensityAtSamplePosition * scatterCepffocoemtCurrentHeightWithDirR;
+        const float3 ramainSunIntensityAtSamplePositionToRayOriginM = remainSunIntensityAtSamplePosition * scatterCepffocoemtCurrentHeightWithDirM;
+        const float3 remainSunIntensityFromSamplePositionAtRayOriginR = ramainSunIntensityAtSamplePositionToRayOriginR * viewTransmittanceR * viewTransmittanceM;
+        const float3 remainSunIntensityFromSamplePositionAtRayOriginM = ramainSunIntensityAtSamplePositionToRayOriginM * viewTransmittanceR * viewTransmittanceM;
+
+        // samplePosition에서 rayOrigin으로 들어오는 빛의 양(레일리, 미)을 더함
+        sumR += remainSunIntensityFromSamplePositionAtRayOriginR * segmentLength;
+        sumM += remainSunIntensityFromSamplePositionAtRayOriginM * segmentLength;
+#endif
     }
 
     // 리만적분에 필요했던 상수 부분들 마지막에 곱(위상함수, beta)
-    const float mu = dot(rayDir, sunDir);
-    const float phaseR = (3.f / (16.f * M_PI)) * (1 + mu * mu);
-#if !defined(APPLY_MIE_SCATTERING)
-    return _sunIntensity * (betaR * sumR * phaseR);
-#else
-#if defined(APPLY_ADVICE_CHATCPT)
-    const float phaseM = (1.0 - g * g) / (4.0 * M_PI * pow(1.0 + g * g - 2.0 * g * mu, 1.5));
-#else
-    const float phaseM = (1.0 - g * g) / (4.0 * M_PI * pow(1.0 + mu - 2.0 * g * mu, 1.5));
-#endif
-#if defined(APPLY_ADVICE_CHATCPT)
     AtmosphereSegment result;
+#if defined(OPTIMZE_OPTICALDEPTH)
     result.transmittance = exp(-betaR * opticalDepthR - betaM * opticalDepthM);
-    result.inScattering = _sunIntensity * (betaR * sumR * phaseR + betaM * sumM * phaseM);
-    return result;
+    result.inScattering = _sunIntensity * segmentLength * (betaR * phaseR * sumR + betaM * phaseM * sumM);
 #else
-    return _sunIntensity * (betaR * sumR * phaseR + sumM * betaM * phaseM);
+    result.transmittance = exp(-betaR * opticalDepthR - betaM * opticalDepthM);
+    result.inScattering = sumR + sumM;
 #endif
-#endif
+    return result;
 }
 
-bool renderSun(const float3 rayOrigin, const float3 rayDir, out float3 sunDir)
+bool renderSun(const float3 rayDir, out float3 sunDir)
 {
 #define SUN_PERIOD_TIME 0.003f
-#define SUN_DISTANCE 100 // m단위
     const float sunPeriodTime = SUN_PERIOD_TIME * 3600;
     const float dayOfTimeSecond = _time % sunPeriodTime;
-#if 1
-    const float sunDegree = _sunDegree * (3.141592 / 180);// radians(360 / sunPeriodTime) * dayOfTimeSecond;// * (dayOfTimeSecond - (6 * 3600)); // 오전 6시부터 0도
-#else
-    const float sunDegree = radians(360 / sunPeriodTime) * dayOfTimeSecond;// * (dayOfTimeSecond - (6 * 3600)); // 오전 6시부터 0도
-#endif
+    const float sunDegree = radians(_sunDegree);// radians(360 / sunPeriodTime) * dayOfTimeSecond;// * (dayOfTimeSecond - (6 * 3600)); // 오전 6시부터 0도
     sunDir = float3(0, sin(sunDegree), cos(sunDegree));
-    const float4 sunPositionWS = float4(sunDir * SUN_DISTANCE, 1);
 
-    const float2 hitInfo = raySphere(sunPositionWS.xyz, _sunRadius, rayOrigin, rayDir);
-    if(hitInfo.y <= 0)
-        return false;
-
-    return true;
+    // 예시 각반경. 기존 _sunRadius 대신 사용한다.
+    const float angularRadius = radians(0.27f);
+    return dot(rayDir, sunDir) >= cos(angularRadius);
 }
 
 float3 toneMapACES(float3 x)
@@ -270,9 +253,7 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float3 rayDirWS = normalize(rayDirToNearPlaneWS);
 
     float3 sunDir = float3(0, -1, 0);
-    const bool successSunRender = renderSun(rayOriginWS, rayDirWS, sunDir);
-    if(successSunRender)
-        return float4(255 / 255.0f, 221 / 255.0f, 64 / 255.0f, 1);
+    const bool successSunRender = renderSun(rayDirWS, sunDir);
 
     const Texture2D<float4> renderTexture = getRenderTargetTexture(_frameIndex.x, 0);
     const Texture2D<float4> depthTexture = getDepthStencilTexture(_frameIndex.x, 0);
@@ -280,44 +261,33 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     
     const float depth = depthTexture.Load(uint3(input.uv * _resolution, 0)).x;
     // 기본적으로 depthTexture의 Value는 log된 값입니다. 이를 선형적 값으로 변환합니다.
-    const float linearDepth01 = (_nearDistance) / (_farDistance + _nearDistance - depth * (_farDistance - _nearDistance));
-    const float linearDepthDistanceWS = linearDepth01 * (_farDistance - _nearDistance);
+    const float viewZ = (_nearDistance * _farDistance) / (_farDistance - depth * (_farDistance - _nearDistance));
+    const float linearDepthDistanceWS = viewZ / max(dot(rayDirWS, getViewForwardDirection()), 1e-6f);
 
-    // // TODO: 나중엔 stencil로 교체해야함
-    // if(depth != 1.f)
-    //     return originalCol;
-    
     const float2 hitInfo = raySphere(_planetCentre, _atmosphereRadius, rayOriginWS, rayDirWS);
-    const float destToAtmosphere = hitInfo.x;                       // 대기 near 거리 (만약 카메라가 대기 안에 있다면 0)
-    const float lengthAtmosphere = hitInfo.y;                       // 대기 관통 거리 (만약 카메라가 대기 안에 있다면 far - camerapos)
+    const float destToAtmosphere = hitInfo.x;   // 대기 near 거리 (만약 카메라가 대기 안에 있다면 0)
+    const float lengthAtmosphere = hitInfo.y;   // 대기 관통 거리 (만약 카메라가 대기 안에 있다면 far - camerapos)
 
     if(lengthAtmosphere == 0)
         return float4(1, 0, 0, 1);  // 우주공간
 
-    const float lengthToSurface = linearDepthDistanceWS - destToAtmosphere;                 // near to surface 또는 camerapos to surface
-    const float destThroughAtrmosphere = depth != 1.f ? lengthToSurface : lengthAtmosphere; // 지면에 안부딪힐 경우 대기 관통거리, 지면에 부딪힌 경우 카메라 또는 near부터 부딪힌 지면까지의 거리
-    const float3 pointInAtmosphere = rayOriginWS + rayDirWS * (destThroughAtrmosphere/* + FLOAT_EPSILON*/);
-#if defined(APPLY_ADVICE_CHATCPT)
     const float atmosphereEnd = destToAtmosphere + lengthAtmosphere;
-    const float rayEnd = depth != 1.0f ? min(linearDepthDistanceWS, atmosphereEnd) : atmosphereEnd;
+    const float rayEnd = depth < 1.0f ? min(linearDepthDistanceWS, atmosphereEnd)  : atmosphereEnd; // 실제 지형의 높낮이는 깊이 버퍼가 반영한다.
     
     const float integrationLength = max(0.0f, rayEnd - destToAtmosphere);
     const float3 atmosphereStart = rayOriginWS + rayDirWS * destToAtmosphere;
     
     const AtmosphereSegment atmosphere = calculateAtmosphere( atmosphereStart, rayDirWS, integrationLength, sunDir);
-#else
-    const float3 lightHDR = calculateLight(rayOriginWS, rayDirWS, destThroughAtrmosphere /*- FLOAT_EPSILON * 2*/, originalCol.xyz, sunDir);
-#endif
 
-#if defined(APPLY_ADVICE_CHATCPT)
-    const float3 surfaceRadiance = depth != 1.0f ? originalCol.xyz : float3(0, 0, 0);
-    const float3 composedHDR = surfaceRadiance * atmosphere.transmittance + atmosphere.inScattering;
+    float3 backgroundRadiance = float3(0, 0, 0);
+    if (depth < 1.0f)
+        backgroundRadiance = originalCol.rgb;
+    else if (successSunRender)
+        backgroundRadiance = float3(1, 1, 1) * float(_sunIntensity);
+
+    const float3 composedHDR = backgroundRadiance * atmosphere.transmittance + atmosphere.inScattering;
     const float3 test = toneMapACES(composedHDR);
 
     return float4(test, originalCol.a);
-#else
-    const float3 lightToneMap = toneMapACES(lightHDR);
-    return originalCol * (1 - float4(lightToneMap, 1)) + float4(lightToneMap, 1);
-#endif
 }
 #endif
