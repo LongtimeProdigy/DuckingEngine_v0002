@@ -448,7 +448,99 @@ namespace DK
 			ocean._initialSpectrumConstantBuffer->upload(&params);
 		}
 
-		// Render StaticMesh SceneObject
+		// Upload Terrain CBuffer
+		{
+			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
+
+			const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
+			const float2 cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
+
+			uint32 terrainConstantBufferTypeIndex = 0;
+			constexpr const float vertexScale = 0.125f;
+			constexpr const uint32 morphCells = 4;				// 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
+			// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
+			static_assert(SceneManager::ClipMapTerrain::TILE_RESOLUTION >= 4);
+			static_assert(morphCells > 0);
+			static_assert(morphCells <= SceneManager::ClipMapTerrain::TILE_RESOLUTION - 2);
+
+			const auto snapToGrid = [](const float2 position, const float spacing)
+				{
+					return DK::Math::floor(position / spacing) * spacing;
+				};
+
+			uint32 bufferIndex = 0;
+			const auto uploadPatch = [&](const uint32 level, const uint32 type, const float2 patchOrigin, const uint32 rotation)
+				{
+					const float spacing = static_cast<float>(1u << level) * vertexScale;
+					const float parentSpacing = spacing * 2.0f;
+					const float2 parentOrigin = snapToGrid(cameraPos, parentSpacing);
+
+					// 현재 Clipmap 배치에서 실제 외곽 경계는
+					// 카메라로부터 각 축 방향으로 최소 2*T*spacing만큼 떨어져 있다.
+					const float morphEnd = 2.0f * static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION) * spacing;
+					const float morphStart = morphEnd - static_cast<float>(morphCells) * spacing;
+
+					TerrainMeshConstantBuffer cb{};
+					cb._baseXY_scale_rotate = float4( patchOrigin.x, patchOrigin.y, spacing, static_cast<float>(rotation));
+					cb._morphCenter_start_end = float4( cameraPos.x, cameraPos.y, morphStart, morphEnd);
+					cb._parentOrigin_spacing = float4( parentOrigin.x, parentOrigin.y, parentSpacing, 0.0f);
+					cb._type = type;
+					cb._level = level;
+					cb._hasParent = (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS) ? 1u : 0u;
+					cb._padding = 0;
+					DK_ASSERT_LOG(bufferIndex < terrain._terrainConstantBuffer.size(), "Clipmap constant buffer count mismatch.");
+					terrain._terrainConstantBuffer[bufferIndex++]->upload(&cb);
+				};
+
+			// Draw Cross
+			uploadPatch(0u, 0u, snapToGrid(cameraPos, vertexScale), 0u);
+
+			for (uint32 level = 0; level < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++level)
+			{
+				const float spacing = static_cast<float>(1u << level) * vertexScale;
+				const float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION) * spacing;
+				const float2 snappedCameraPos = snapToGrid(cameraPos, spacing);
+				const float2 base = snappedCameraPos - gridScale * 2.0f;
+
+				// Tile
+				for (uint32 x = 0; x < 4; ++x)
+				{
+					for (uint32 y = 0; y < 4; ++y)
+					{
+						if (level != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
+							continue;
+
+						const float2 fill(x >= 2 ? spacing : 0.0f, y >= 2 ? spacing : 0.0f);
+						const float2 tileOrigin = base + float2(x, y) * gridScale + fill;
+						uploadPatch(level, 1u, tileOrigin, 0u);
+					}
+				}
+
+				// Filler: 현재 코드에서는 Filter라는 이름을 사용한다.
+				uploadPatch(level, 2u, snappedCameraPos, 0u);
+
+				const float2 parentOrigin = snapToGrid(cameraPos, spacing * 2.0f);
+
+				// Seam: 부모가 있는 레벨만 생성한다.
+				if (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+				{
+					const float2 seamOrigin = parentOrigin - gridScale * 2.0f;
+					uploadPatch(level, 3u, seamOrigin, 0u);
+				}
+
+				// Trim
+				if ((level + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+				{
+					const float2 d = cameraPos - parentOrigin;
+					const uint32 rotation = (d.x < spacing ? 2u : 0u) | (d.y < spacing ? 1u : 0u);
+					const float2 trimOrigin = snappedCameraPos + float2(spacing * 0.5f, spacing * 0.5f);
+					uploadPatch(level, 4u, trimOrigin, rotation);
+				}
+			}
+		}
+
+		// Upload SceneObject
 		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
 		for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 		{
@@ -493,6 +585,7 @@ namespace DK
 #endif
 	}
 
+#if defined(USE_IMGUI)
 	template<typename Enum>
 	bool EnumCombo(const char* label, Enum& value, const char* const* names, int count)
 	{
@@ -505,13 +598,13 @@ namespace DK
 
 		return false;
 	}
-
-	static bool gIsReload = false;
+#endif
 	void SceneRenderer::preRender() const noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
 #if defined(_DK_DEBUG_)
+		static bool gIsReload = false;
 		if (gIsReload)
 		{
 			renderModule.reloadShader();
@@ -591,13 +684,11 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-        RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
-#if 0
-        const bool raytraced = raytracingRenderer.updateRaytracingRenderer(renderModule);
-        if (raytraced)
-            raytracingRenderer.dispatchRay(renderModule, _sceneConstantBuffer);
-        if (!raytraced)
-#else
+        //RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
+        //const bool raytraced = raytracingRenderer.updateRaytracingRenderer(renderModule);
+        //if (raytraced)
+        //    raytracingRenderer.dispatchRay(renderModule, _sceneConstantBuffer);
+        //if (!raytraced)
         {
 #if 1
 		startRenderPass(renderModule, "OceanRenderPass", 0);
@@ -733,34 +824,21 @@ namespace DK
 			endPipeline();
 #endif
 
-#if 0
+#if 1
 			startPipeline("TerrainClipmapPipeline");
 			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->GetGPUVirtualAddress());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 				Material* material = terrain._material.get();
-				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable()->GetGPUVirtualAddress());
-
-				const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
-				float2 cameraPos = float2::Zero;
-				cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
-				//cameraPos = float2(0, 0);
+				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable());
 
 				uint32 terrainConstantBufferTypeIndex = 0;
-				float vertexScale = 0.125f;
 				// Draw Cross
 				{
-					float tileScale = vertexScale;
-					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
-
-					TerrainMeshConstantBuffer meshCBuffer;
-					meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, vertexScale, 0.0f);
-					meshCBuffer._type = 0;
 					IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-					terrainConstantBuffer->upload(&meshCBuffer);
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
 
 					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
 					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
@@ -769,12 +847,6 @@ namespace DK
 
 				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
 				{
-					float tileScale = (1 << i) * vertexScale;
-					float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION * tileScale);
-					float2 snappedCameraPos = DK::Math::floor(cameraPos / tileScale) * tileScale;
-
-					float2 base = snappedCameraPos - gridScale * 2;
-
 					// Draw Tile
 					for (uint32 x = 0; x < 4; ++x)
 					{
@@ -783,15 +855,8 @@ namespace DK
 							if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
 								continue;
 
-							float2 fill = float2(x >= 2 ? tileScale : 0, y >= 2 ? tileScale : 0);
-							float2 tile_bl = base + float2(x, y) * gridScale + fill;
-
-							TerrainMeshConstantBuffer meshCBuffer;
-							meshCBuffer._baseXY_scale_rotate = float4(tile_bl.x, tile_bl.y, tileScale, 0.0f);
-							meshCBuffer._type = 1;
 							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-							terrainConstantBuffer->upload(&meshCBuffer);
-							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
+							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
 
 							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
 							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
@@ -801,32 +866,19 @@ namespace DK
 
 					// Draw Filter
 					{
-						TerrainMeshConstantBuffer meshCBuffer;
-						meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos.x, snappedCameraPos.y, tileScale, 0.0f);
-						meshCBuffer._type = 2;
 						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						terrainConstantBuffer->upload(&meshCBuffer);
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
 
 						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
 						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
 						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
 					}
 
-					float nextTileScale = tileScale * 2.0f;
-					float nextGridScale = gridScale * 1;
-					float2 nextSnappedPos = DK::Math::floor(cameraPos / nextTileScale) * nextTileScale;
 					// Draw Seam
-					if (i != SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
 					{
-						float2 next_base = nextSnappedPos - nextGridScale * 2;
-
-						TerrainMeshConstantBuffer meshCBuffer;
-						meshCBuffer._baseXY_scale_rotate = float4(next_base.x, next_base.y, tileScale, 0.0f);
-						meshCBuffer._type = 3;
 						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						terrainConstantBuffer->upload(&meshCBuffer);
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
 
 						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
 						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
@@ -834,19 +886,83 @@ namespace DK
 					}
 
 					// Draw Trim
+					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
 					{
-						float2 tile_centre = snappedCameraPos - float2(tileScale * 0.5f);
-
-						float2 d = cameraPos - nextSnappedPos;
-						uint32 r = 0;
-						r |= d.x < tileScale ? 2 : 0;
-						r |= d.y < tileScale ? 1 : 0;
-						TerrainMeshConstantBuffer meshCBuffer;
-						meshCBuffer._baseXY_scale_rotate = float4(snappedCameraPos + tileScale * 0.5f, tileScale, r);
-						meshCBuffer._type = 4;
 						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						terrainConstantBuffer->upload(&meshCBuffer);
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer->GetGPUVirtualAddress());
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
+					}
+				}
+			}
+			endPipeline();
+			startPipeline("TerrainClipmapPipeline2");
+			{
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
+				Material* material = terrain._material.get();
+				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable());
+
+				uint32 terrainConstantBufferTypeIndex = 0;
+				// Draw Cross
+				{
+					IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
+					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
+				}
+
+				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
+				{
+					// Draw Tile
+					for (uint32 x = 0; x < 4; ++x)
+					{
+						for (uint32 y = 0; y < 4; ++y)
+						{
+							if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
+								continue;
+
+							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
+							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
+						}
+					}
+
+					// Draw Filter
+					{
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
+					}
+
+					// Draw Seam
+					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+					{
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
+					}
+
+					// Draw Trim
+					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+					{
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
 
 						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
 						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());

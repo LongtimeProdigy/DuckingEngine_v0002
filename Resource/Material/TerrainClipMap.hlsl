@@ -3,6 +3,7 @@
 
 #include "CommonTexture.hlsl"
 #include "CommonRendering.hlsl"
+#include "ClipmapCommon.hlsl"
 
 struct VS_INPUT
 {
@@ -23,60 +24,58 @@ cbuffer TerrainClipMap : register(b1)
     TextureParameter _heightTexture;
 }
 
-// Terrain Mesh별로 하나씩 있음
-cbuffer TerrainMeshConstantBuffer : register(b2)
+float2 GetTerrainUV(float2 worldXZ, uint2 textureSize)
 {
-    float4 _baseXY_scale_rotate;
-    uint _type;
+    const float meterPerTexel = 0.125f;
+    return worldXZ / (float2(textureSize) * meterPerTexel) + 0.5f;
+}
+
+float3 EvaluateSurfacePosition(float2 worldXZ, uint level)
+{
+    Texture2D<float4> heightTexture = getTexture(_heightTexture);
+
+    uint2 textureSize;
+    heightTexture.GetDimensions(textureSize.x, textureSize.y);
+
+    // texel 중심을 기준으로 샘플링한다.
+    const float2 heightUV = GetTerrainUV(worldXZ, textureSize) + 0.5f / float2(textureSize);
+
+    // 현재 데이터 경로에 맞춰 mip 0을 사용한다.
+    // 레벨별 필터링 데이터를 추가하면 여기서 level에 따라 선택한다.
+    const float height = heightTexture.SampleLevel(bilinearRepeatSampler, heightUV, 0.0f).x * 50.0f - 50.0f;
+    return float3(worldXZ.x, height, worldXZ.y);
 }
 
 VS_OUTPUT VSMain(VS_INPUT input)
 {
     VS_OUTPUT output = (VS_OUTPUT)0;
 
-    float scale = _baseXY_scale_rotate.z;
-    float2 offset = _baseXY_scale_rotate.xy;
-    float type = _baseXY_scale_rotate.w;
+    const float2 baseXZ = GetClipmapBaseXZ(input.position);
+    const float3 worldPosition = EvaluateClipmapPosition(baseXZ);
 
-    static float2x2 temp[] = 
-    {
-        float2x2(1, 0, 0, 1), // 0
-        float2x2(0, -1, 1, 0), // 270
-        float2x2(0, 1, -1, 0), // 90
-        float2x2(-1, 0, 0, -1), // 180
-    };
-    float2 localPosition = input.position * scale;
-    localPosition = mul(localPosition, temp[type]);
-#if 1
-    localPosition = localPosition + offset;
-#else
-    //localPosition = localPosition;
-#endif
+    output.position = mul(float4(worldPosition, 1.0f), _cameraWorldMatrixInv);
 
-    Texture2D<float4> heightTexture = getTexture(_heightTexture);
-    float meterPerTexel = 0.125f;
-    uint2 texSize;
-    heightTexture.GetDimensions(texSize.x, texSize.y);
-    float2 uv =  (localPosition + texSize * meterPerTexel * 0.5) / (texSize * meterPerTexel);
-    uv = abs(uv % 1.0f);
-    float4 height = heightTexture.Load(uint3(uv * texSize, 0)) * 50 - 50;
-
-    output.position = float4(localPosition.x, height.x, localPosition.y, 1.0f);
-
-    output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
-    output.uv0 = uv;
+    Texture2D<float4> heightTexture = getTexture(_heightTexture);
 
-    static float4 ColorArr[] = 
+    uint2 textureSize;
+    heightTexture.GetDimensions(textureSize.x, textureSize.y);
+
+    // UV를 정점 단계에서 감싸지 않는다.
+    // 픽셀에서 Repeat sampler가 처리한다.
+    output.uv0 = GetTerrainUV(baseXZ, textureSize);
+
+    static const float4 colors[5] =
     {
-        float4(0, 0, 0, 1), // cross
-        float4(1, 0, 0, 1), // tile
-        float4(0, 1, 0, 1), // filter
-        float4(0, 0, 1, 1), // seam
-        float4(1, 1, 0, 1), // trim
+        float4(0, 0, 0, 1), // Cross
+        float4(1, 0, 0, 1), // Tile
+        float4(0, 1, 0, 1), // Filler
+        float4(0, 0, 1, 1), // Seam
+        float4(1, 1, 0, 1)  // Trim
     };
-    output.color = ColorArr[_type];
+
+    output.color = colors[_type];
 
     return output;
 }

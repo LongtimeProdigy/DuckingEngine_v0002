@@ -1,3 +1,7 @@
+## 시스템 문서
+
+- [Ocean 시스템 — 위상·스펙트럼·IFFT의 수학과 구현](docs/Ocean.md)
+
 ## Renderer (DX12, Windows)
 - RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정
 - Material
@@ -11,8 +15,11 @@
 - Mie scattering
 - Simple Ocean
 
+Atmosphere의 빛 전달 원리, Rayleigh/Mie 산란, ray marching, 장면 합성과 실시간 최적화는 [Atmosphere 렌더링 기술 이해 노트](docs/Atmosphere-System.md)에 정리되어 있다. [Notion 문서](https://app.notion.com/p/3f58d819296a81ecaaf3d28b3a270625?pvs=204)에서도 읽을 수 있다.
+
 ## Terrain
 - ClipMap Terrain
+- [ClipMap 시스템 이해 문서](docs/ClipMap.md)
 
 ## 그 외
 - SkinnedMesh

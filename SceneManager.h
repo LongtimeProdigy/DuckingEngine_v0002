@@ -11,10 +11,27 @@ namespace DK
 	class MaterialParameterTemplate;
 	using MaterialParameterTexture = MaterialParameterTemplate<ITextureRef>;
 
-	struct TerrainMeshConstantBuffer
+	struct alignas(16) TerrainMeshConstantBuffer
 	{
+		// xy: 패치 원점의 월드 XZ
+		// z : 현재 레벨의 정점 간격
+		// w : 패치 회전 번호, 0~3
 		float4 _baseXY_scale_rotate;
+
+		// xy: 실제 카메라의 월드 XZ
+		// z : 모핑 시작 거리
+		// w : 모핑 완료 거리
+		float4 _morphCenter_start_end;
+
+		// xy: 부모 레벨의 스냅 원점
+		// z : 부모 레벨의 정점 간격
+		// w : 예약
+		float4 _parentOrigin_spacing;
+
 		uint32 _type;
+		uint32 _level;
+		uint32 _hasParent;
+		uint32 _padding;
 	};
 
 	class SceneManager

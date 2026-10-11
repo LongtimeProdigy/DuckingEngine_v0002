@@ -190,10 +190,10 @@ namespace DK
 		// horizontal indices
 		for (uint32 i = 0; i < tileResolution * 2 + 1; i++)
 		{
-			uint32 bl = i * 2 + 0;
-			uint32 tl = i * 2 + 1;
-			uint32 br = i * 2 + 2;
-			uint32 tr = i * 2 + 3;
+			const uint32 bl = i * 2 + 0;
+			const uint32 tl = i * 2 + 1;
+			const uint32 br = i * 2 + 2;
+			const uint32 tr = i * 2 + 3;
 
 			indexArr[n++] = bl;
 			indexArr[n++] = tl;
@@ -208,10 +208,10 @@ namespace DK
 			if (i == tileResolution)
 				continue;
 
-			uint32 bl = i * 2 + 0;
-			uint32 br = i * 2 + 1;
-			uint32 tl = i * 2 + 2;
-			uint32 tr = i * 2 + 3;
+			const uint32 bl = i * 2 + 0;
+			const uint32 br = i * 2 + 1;
+			const uint32 tl = i * 2 + 2;
+			const uint32 tr = i * 2 + 3;
 
 			indexArr[n++] = start_of_vertical + bl;
 			indexArr[n++] = start_of_vertical + tl;
@@ -412,6 +412,8 @@ namespace DK
 	}
 	void SceneManager::loadLevel()
 	{
+		_clipmapTerrain._terrainConstantBuffer.clear();
+
 		// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
 		// TileMap
 		_clipmapTerrain._cross = loadLevel_ClipMap_Cross(SceneManager::ClipMapTerrain::PATCH_VERT_RESOLUTION, SceneManager::ClipMapTerrain::TILE_RESOLUTION);
