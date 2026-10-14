@@ -125,6 +125,7 @@ namespace DK
 			DKString _primitiveTopologyType;
 			bool _depthEnable = false;
 			bool _hdrRenderTarget = true;
+			bool _gbufferOutput = false;
 			FillMode _fillMode = FillMode::SOLID;
 			CullMode _cullMode = CullMode::NONE;
 			DKString _vertexShaderPath;
@@ -543,7 +544,9 @@ do{ \
 		static uint32 kCurrentBackBufferIndex;
 		static uint32 kWidth;
 		static uint32 kHeight;
-		static constexpr uint32 kRenderTargetTextureCount = 3 * kFrameCount;
+		static constexpr uint32 kGBufferStart = 3 * kFrameCount;
+		static constexpr uint32 kGBufferCount = 3;
+		static constexpr uint32 kRenderTargetTextureCount = kGBufferStart + kGBufferCount;
 
 	public:
 		~RenderModule();

@@ -1,4 +1,6 @@
 <Material Name="SkinnedMeshStandard">
 	<Parameter Name="_diffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
 	<Parameter Name="_opacity" Type="float">1.0</Parameter>
+	<Parameter Name="_metallic" Type="float">0.0</Parameter>
+	<Parameter Name="_roughness" Type="float">0.6</Parameter>
 </Material>

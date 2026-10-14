@@ -2,50 +2,50 @@
 	<SubMeshArr Count="8">
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\BODY_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\BODY_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\BODY_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\BODY_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\BODY_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\BODY_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 		<SubMesh Name="SkinnedMeshStandard">
 			<Parameters>
-				<Parameter Name="DiffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
-				<Parameter Name="Opacity" Type="Float">1.0</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Character\Model\textures\EXO_diffuse.png</Parameter>
+				<Parameter Name="_opacity" Type="Float">1.0</Parameter>
 			</Parameters>
 		</SubMesh>
 	</SubMeshArr>

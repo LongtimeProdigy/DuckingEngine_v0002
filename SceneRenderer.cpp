@@ -97,6 +97,8 @@ namespace DK
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
 					const char* targetFormat = renderPassChildNode->Attribute("RenderTargetFormat");
+					const char* gbufferOutput = renderPassChildNode->Attribute("GBufferOutput");
+					pipelineCreateInfo._gbufferOutput = gbufferOutput != nullptr && StringUtil::strcmp(gbufferOutput, "True") == 0;
 					if (targetFormat != nullptr)
 					{
 						if (StringUtil::strcmp(targetFormat, "LDR") == 0)
@@ -907,7 +909,7 @@ namespace DK
 #if 1
 		if (_renderLocalScene)
 		{
-		startRenderPass(renderModule, "OceanRenderPass", 0);
+		startRenderPass(renderModule, "OceanRenderPass", RenderModule::kGBufferStart);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
@@ -1024,7 +1026,7 @@ namespace DK
 #endif
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", 0);
+		startRenderPass(renderModule, "MainRenderPass", RenderModule::kGBufferStart);
 		if (_renderLocalScene)
 		{
 #if 0
@@ -1225,10 +1227,32 @@ namespace DK
 		}
 		endRenderPass();
 
+		// Resolve material attributes to HDR radiance before atmosphere and bloom.
+		startRenderPass(renderModule, "GBufferRenderPass", 0);
+		{
+			startPipeline("GBufferPipeline");
+			for (uint32 i = 0; i < RenderModule::kGBufferCount; ++i)
+				renderModule.resourceBarrierTransition(renderModule.getRenderTarget(RenderModule::kGBufferStart + i)._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(renderModule.getRenderTarget(0)._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			setRootConstantParameter("_baseColorIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart)._renderTarget.getSRV());
+			setRootConstantParameter("_normalRoughnessIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 1)._renderTarget.getSRV());
+			setRootConstantParameter("_materialIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 2)._renderTarget.getSRV());
+			setRootConstantParameter("_depthIndex", renderModule.getRenderTarget(0)._depthStencil.getSRV());
+			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+			SceneManager::PostProcess& postProcess = DuckingEngine::getInstance().getSceneManagerWritable().getPostProcessWritable();
+			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
+			renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
+			renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+			endPipeline();
+		}
+		endRenderPass();
+
 		startRenderPass(renderModule, "AtmosphereRenderPass", 1);
 		{
 			startPipeline("AtmospherePipeline");
 			{
+				setRootConstantParameter("_materialIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 2)._renderTarget.getSRV());
 				RenderTarget& rt = renderModule.getRenderTarget(0);
 				renderModule.resourceBarrierTransition(rt._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				renderModule.resourceBarrierTransition(rt._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -1277,9 +1301,9 @@ namespace DK
 		}
 
 		// Final output only applies exposure and tone mapping to the selected HDR source.
-		startRenderPass(renderModule, "GBufferRenderPass", RenderModule::kRenderTargetTextureCount + RenderModule::kCurrentBackBufferIndex);
+		startRenderPass(renderModule, "FinalOutputRenderPass", RenderModule::kRenderTargetTextureCount + RenderModule::kCurrentBackBufferIndex);
 		{
-			startPipeline("GBufferPipeline");
+			startPipeline("FinalOutputPipeline");
 			{
 				const uint32 outputSourceSlot = _atmosphereConstantBufferData._bloomStrength > 0.0f ? 2u : 1u;
 				RenderTarget& rt = renderModule.getRenderTarget(outputSourceSlot);

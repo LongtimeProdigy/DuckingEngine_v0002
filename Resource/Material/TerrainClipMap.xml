@@ -1,4 +1,6 @@
 <Material Name="TerrainClipMap">
 	<Parameter Name="_diffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
 	<Parameter Name="_heightTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_metallic" Type="float">0.0</Parameter>
+	<Parameter Name="_roughness" Type="float">0.9</Parameter>
 </Material>

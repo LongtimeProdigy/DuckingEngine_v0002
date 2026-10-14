@@ -2,6 +2,7 @@
 #define __DEFINE_DEBUGDRAWELEMENT_HLSL__
 
 #include "CommonRendering.hlsl"
+#include "GBufferCommon.hlsl"
 
 struct VS_INPUT
 {
@@ -54,9 +55,9 @@ VS_OUTPUT VSMainSphere(VS_INPUT input, uint instanceID : SV_InstanceID)
 	return output;
 }
 
-float4 PSMainSphere(VS_OUTPUT input) : SV_TARGET
+GBufferOutput PSMainSphere(VS_OUTPUT input)
 {
-	return input.color;
+	return writeGBuffer(input.color.rgb, float3(0, 1, 0), 0, 1, 1);
 }
 
 VS_OUTPUT VSMainLine(VS_INPUT input, uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -71,9 +72,9 @@ VS_OUTPUT VSMainLine(VS_INPUT input, uint vertexID : SV_VertexID, uint instanceI
 
 	return output;
 }
-float4 PSMainLine(VS_OUTPUT input) : SV_TARGET
+GBufferOutput PSMainLine(VS_OUTPUT input)
 {
-	return input.color;
+	return writeGBuffer(input.color.rgb, float3(0, 1, 0), 0, 1, 1);
 }
 
 #endif

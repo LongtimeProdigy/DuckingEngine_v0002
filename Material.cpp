@@ -84,11 +84,24 @@ namespace DK
 		for (uint32 i = 0; i < parameterCount; ++i)
 		{
 			outMaterial->_parameterArr[i]->setParameterValuePtr(&outMaterial->_parameterBufferForCPU[offset]);
+			// Initialize defaults before model overrides (older assets omit new PBR parameters).
+			MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
+			if (parameter->getType() == MaterialParameter::Type::FLOAT)
+			{
+				auto* value = static_cast<MaterialParameterFloat*>(parameter);
+				value->setParameterValue(value->_value);
+			}
+			else if (parameter->getType() == MaterialParameter::Type::TEXTURE)
+			{
+				auto* value = static_cast<MaterialParameterTexture*>(parameter);
+				value->setParameterValue(value->_value);
+			}
 			offset += outMaterial->_parameterArr[i]->getParameterSize();
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		outMaterial->_parameterBufferForGPU = renderModule.createConstantBuffer(parameterBufferSize, L"Material_CBuffer");
+		outMaterial->_parameterBufferForGPU->upload(outMaterial->_parameterBufferForCPU.data());
 
 		return outMaterial;
 	}
@@ -96,14 +109,14 @@ namespace DK
 	Material* Material::createMaterial(const MaterialDefinition& modelProperty)
 	{
 		// 기존의 Parameter들의 Value들은 유지하면서 MaterialDefinition의 Parameter들로 Material::Parameters를 구성합니다.
-		Material* outMaterial = createMaterial(modelProperty._materialName);
-		if(outMaterial == nullptr)
+		Ptr<Material> outMaterial = createMaterial(modelProperty._materialName);
+		if(outMaterial.get() == nullptr)
 			return nullptr;
 
 		if (outMaterial->setModelProperty(modelProperty) == false)
 			return nullptr;
 
-		return outMaterial;
+		return outMaterial.relocate();
 	}
 
 	bool Material::setModelProperty(const MaterialDefinition& modelProperty)
@@ -115,13 +128,21 @@ namespace DK
 		const uint32 parameterDefinitionCount = modelProperty._parameters.size();
 		for (uint32 i = 0; i < parameterDefinitionCount; ++i)
 		{
-			bool validation = true;
+			bool validation = false;
 			const MaterialParameterDefinition& parameterDefinition = modelProperty._parameters[i];
 			for (uint32 j = 0; j < parameterCount; ++j)
 			{
 				MaterialParameter* parameter = _parameterArr[j].get();
 				if (parameterDefinition._name == parameter->getParameterName())
 				{
+					const bool typeMatches =
+						(parameterDefinition._type == MaterialParameterType::FLOAT && parameter->getType() == MaterialParameter::Type::FLOAT) ||
+						(parameterDefinition._type == MaterialParameterType::TEXTURE && parameter->getType() == MaterialParameter::Type::TEXTURE);
+					if (!typeMatches)
+					{
+						DK_ASSERT_LOG(false, "Material %s: parameter %s has an incompatible type.", _materialName.c_str(), parameterDefinition._name.c_str());
+						return false;
+					}
 					switch (parameterDefinition._type)
 					{
 					case MaterialParameterType::FLOAT:
@@ -144,11 +165,16 @@ namespace DK
 					}
 					}
 
-					validation &= true;
+					validation = true;
+					break;
 				}
 			}
 
-			DK_ASSERT_LOG(validation, "Material과 ModelProperty사이에 Name이 다른 Parameter가 있습니다.");
+			if (!validation)
+			{
+				DK_ASSERT_LOG(false, "Material %s: unknown model parameter %s.", _materialName.c_str(), parameterDefinition._name.c_str());
+				return false;
+			}
 		}
 
 		_parameterBufferForGPU->upload(_parameterBufferForCPU.data());

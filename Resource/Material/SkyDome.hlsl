@@ -2,6 +2,7 @@
 #define __DEFINE_SKYDOME_HLSL__
 
 #include "CommonRendering.hlsl"
+#include "GBufferCommon.hlsl"
 
 struct VS_INPUT
 {
@@ -27,9 +28,9 @@ VS_OUTPUT VSMain(VS_INPUT input)
     return output;
 }
 
-float4 PSMain(VS_OUTPUT input) : SV_TARGET
+GBufferOutput PSMain(VS_OUTPUT input)
 {
-    return float4(0, 1, 1, 1);
+    return writeGBuffer(float3(0, 1, 1), float3(0, 1, 0), 0, 1, 1);
 }
 
 #endif

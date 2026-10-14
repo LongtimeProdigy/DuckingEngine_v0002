@@ -98,6 +98,7 @@ namespace DK
 	public:
 		MaterialParameterTemplate(const DKString& name, const T& defaultValue)
 			: MaterialParameter(name)
+			, _value(defaultValue)
 			, _defaultValue(defaultValue)
 		{}
 		virtual ~MaterialParameterTemplate() override final

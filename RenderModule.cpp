@@ -140,6 +140,7 @@ namespace DK
 	static constexpr const DXGI_FORMAT gRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	// The sun's radiance exceeds half-float range; retain it through bloom.
 	static constexpr const DXGI_FORMAT gHDRRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	static constexpr const DXGI_FORMAT gGBufferFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	static constexpr const DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	static constexpr const FLOAT gRenderTargetClearColor[4] = { 0, 0, 0, 1 };
 	DXGI_FORMAT GetDepthResourceFormat(DXGI_FORMAT depthformat)
@@ -279,13 +280,16 @@ namespace DK
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvs[kRenderTargetTextureCount] = {};
 		for (uint32 i = 0; i < kRenderTargetTextureCount; ++i)
 		{
+			const DXGI_FORMAT format = i >= kGBufferStart ? gGBufferFormat : gHDRRenderTargetFormat;
+			clearValue.Format = format;
+			clearValue.Color[3] = i >= kGBufferStart ? 0.0f : 1.0f;
 #if defined(_DK_DEBUG_)
 			ScopeString<DK_MAX_BUFFER> indexString;
 			StringUtil::itoa(i, indexString.data(), indexString.capacity());
 			ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
 			rtvTextureName.append(indexString.c_str());
 #endif
-			IBufferRef buffer = createBuffer2DInternal(width, height, 1, gHDRRenderTargetFormat, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
+			IBufferRef buffer = createBuffer2DInternal(width, height, 1, format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
 			if (buffer == nullptr)
 				return false;
 
@@ -293,7 +297,7 @@ namespace DK
 			rtvs[i] = rtvHandle;
 			rtvHandle.ptr += _renderTargetViewSize;
 
-			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, gHDRRenderTargetFormat, DK::move(buffer));
+			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, format, DK::move(buffer));
 			if (allocateTextureSRV(renderTargets[i], 1 + i) == false)
 				return false;
 		}
@@ -1212,12 +1216,13 @@ namespace DK
 			psoDesc.VS = vertexShaderView;
 			psoDesc.PS = pixelShaderView;
 			psoDesc.PrimitiveTopologyType = inoutPipeline._primitiveTopologyType;
-			psoDesc.RTVFormats[0] = pipelineCreateInfo._hdrRenderTarget ? gHDRRenderTargetFormat : gRenderTargetFormat;
+			for (uint32 i = 0; i < (pipelineCreateInfo._gbufferOutput ? kGBufferCount : 1u); ++i)
+				psoDesc.RTVFormats[i] = pipelineCreateInfo._gbufferOutput ? gGBufferFormat : (pipelineCreateInfo._hdrRenderTarget ? gHDRRenderTargetFormat : gRenderTargetFormat);
 			psoDesc.SampleDesc = sampleDesc;
 			psoDesc.SampleMask = 0xffffffff;
 			psoDesc.RasterizerState = rasterizerDesc;
 			psoDesc.BlendState = blendDesc;
-			psoDesc.NumRenderTargets = 1;
+			psoDesc.NumRenderTargets = pipelineCreateInfo._gbufferOutput ? kGBufferCount : 1;
 			psoDesc.DepthStencilState = depthStencilDesc;
 			psoDesc.DSVFormat = gDepthStencilFormat;
 
@@ -2480,6 +2485,24 @@ namespace DK
 		_commandList->RSSetScissorRects(1, _scissorRect.get());
 		_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+		if (rtvSlot == kGBufferStart)
+		{
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvs[kGBufferCount];
+			const float clear[4] = { 0, 0, 0, 0 };
+			for (uint32 i = 0; i < kGBufferCount; ++i)
+			{
+				RenderTarget& target = _renderTargetArr[kGBufferStart + i];
+				resourceBarrierTransition(target._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+				rtvs[i] = target._rtv;
+				_commandList->ClearRenderTargetView(rtvs[i], clear, 0, nullptr);
+			}
+			RenderTarget& depth = _renderTargetArr[0];
+			resourceBarrierTransition(depth._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			_commandList->ClearDepthStencilView(depth._dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+			_commandList->OMSetRenderTargets(kGBufferCount, rtvs, FALSE, &depth._dsv);
+			return;
+		}
+
 		RenderTarget& renderTarget = _renderTargetArr[rtvSlot];
 
 		ITexture& renderTargetTexture = renderTarget._renderTarget;
@@ -2488,7 +2511,8 @@ namespace DK
 		if (renderTarget._clearRenderTarget)
 			_commandList->ClearRenderTargetView(rtv, gRenderTargetClearColor, 0, nullptr);
 
-		if (renderTarget._hasDepthStencil)
+		// The depth attachment is owned by RT0, but only the geometry pass writes it.
+		if (renderTarget._hasDepthStencil && rtvSlot != 0)
 		{
 			ITexture& depthStencilTexture = renderTarget._depthStencil;
 			D3D12_CPU_DESCRIPTOR_HANDLE dsv = renderTarget._dsv;

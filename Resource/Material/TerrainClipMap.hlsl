@@ -4,6 +4,7 @@
 #include "CommonTexture.hlsl"
 #include "CommonRendering.hlsl"
 #include "ClipmapCommon.hlsl"
+#include "GBufferCommon.hlsl"
 
 struct VS_INPUT
 {
@@ -15,6 +16,7 @@ struct VS_OUTPUT
     float4 position : SV_POSITION;
     float2 uv0 : TEXCOORD0;
     float4 color : COLOR;
+    float3 worldPosition : TEXCOORD1;
 };
 
 // 터레인에 하나만 있는 material 조합
@@ -22,6 +24,8 @@ cbuffer TerrainClipMap : register(b1)
 {
     TextureParameter _diffuseTexture;
     TextureParameter _heightTexture;
+    float _metallic;
+    float _roughness;
 }
 
 float2 GetTerrainUV(float2 worldXZ, uint2 textureSize)
@@ -53,6 +57,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
     const float2 baseXZ = GetClipmapBaseXZ(input.position);
     const float3 worldPosition = EvaluateClipmapPosition(baseXZ);
 
+    output.worldPosition = worldPosition;
     output.position = mul(float4(worldPosition, 1.0f), _cameraWorldMatrixInv);
 
     output.position = mul(output.position, _cameraProjectionMatrix);
@@ -80,14 +85,11 @@ VS_OUTPUT VSMain(VS_INPUT input)
     return output;
 }
 
-float4 PSMain(VS_OUTPUT input) : SV_TARGET
+GBufferOutput PSMain(VS_OUTPUT input)
 {
-#if 1
-    Texture2D<float4> diffuseTexture = getTexture(_diffuseTexture);
-    return diffuseTexture.Sample(bilinearRepeatSampler, input.uv0);
-#else
-    return input.color;
-#endif
+    float3 normal = safeNormal(cross(ddy(input.worldPosition), ddx(input.worldPosition)));
+    if (normal.y < 0) normal = -normal;
+    const float3 albedo = getTexture(_diffuseTexture).Sample(bilinearRepeatSampler, input.uv0).rgb;
+    return writeGBuffer(albedo, normal, _metallic, _roughness);
 }
-
 #endif

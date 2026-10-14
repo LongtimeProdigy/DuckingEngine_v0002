@@ -3,6 +3,7 @@
 
 #include "CommonTexture.hlsl"
 #include "CommonRendering.hlsl"
+#include "GBufferCommon.hlsl"
 
 struct VS_INPUT
 {
@@ -29,6 +30,8 @@ cbuffer SkinnedMeshStandard : register(b2)
 {
     TextureParameter _diffuseTexture;
     float _opacity;
+    float _metallic;
+    float _roughness;
 }
 
 // #todo- StructuredBuffer로 교체 가능?
@@ -43,7 +46,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
 {
     VS_OUTPUT output;
     output.position = float4(input.position, 1.0f);
-    output.normal = float4(input.normal, 1.0f);
+    output.normal = float4(input.normal, 0.0f);
     output.uv0 = input.uv0;
 
     // Skinning
@@ -64,15 +67,16 @@ VS_OUTPUT VSMain(VS_INPUT input)
     output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
-    output.normal = mul(output.normal, _cameraWorldMatrixInv);
+    output.normal = float4(transformNormal(input.normal, (float3x3)mul(skinMatrix, _worldMatrix)), 0);
     
     return output;
 }
 
-float4 PSMain(VS_OUTPUT input) : SV_TARGET
+GBufferOutput PSMain(VS_OUTPUT input)
 {
     Texture2D<float4> diffuseTexture = getTexture(_diffuseTexture);
-    return diffuseTexture.Sample(bilinearRepeatSampler, input.uv0);
+    const float4 albedo = diffuseTexture.Sample(bilinearRepeatSampler, input.uv0);
+    return writeGBuffer(albedo.rgb, input.normal.xyz, _metallic, _roughness);
 }
 
 #endif

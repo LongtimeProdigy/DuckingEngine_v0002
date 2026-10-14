@@ -5,6 +5,11 @@
 #include "CommonTexture.hlsl"
 #include "AtmosphereParameters.hlsl"
 
+cbuffer AtmosphereInputConstants : register(b2)
+{
+    uint _materialIndex;
+};
+
 //#define OPTIMZE_OPTICALDEPTH
 
 struct AtmosphereSegment
@@ -239,6 +244,9 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const Texture2D<float4> renderTexture = getRenderTargetTexture(_frameIndex.x, 0);
     const Texture2D<float4> depthTexture = getDepthStencilTexture(_frameIndex.x, 0);
     const float4 originalCol = renderTexture.Load(uint3(input.uv * _resolution, 0));
+    // Debug primitives use the unlit channel and must survive sky/ground composition.
+    if (getTexture(_materialIndex).Load(uint3(input.uv * _resolution, 0)).z > 0.5f)
+        return float4(originalCol.rgb, 1);
     
     const float depth = depthTexture.Load(uint3(input.uv * _resolution, 0)).x;
     // 기본적으로 depthTexture의 Value는 log된 값입니다. 이를 선형적 값으로 변환합니다.
