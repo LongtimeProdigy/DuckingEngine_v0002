@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "RenderModule.h"
 #include <cstdint>
+#include <cstdlib>
 
 #pragma region Lib
 #define USE_WINCODEC
@@ -137,6 +138,8 @@ namespace DK
 	uint32 RenderModule::kWidth = 0;
 	uint32 RenderModule::kHeight = 0;
 	static constexpr const DXGI_FORMAT gRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	// The sun's radiance exceeds half-float range; retain it through bloom.
+	static constexpr const DXGI_FORMAT gHDRRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	static constexpr const DXGI_FORMAT gDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	static constexpr const FLOAT gRenderTargetClearColor[4] = { 0, 0, 0, 1 };
 	DXGI_FORMAT GetDepthResourceFormat(DXGI_FORMAT depthformat)
@@ -267,13 +270,13 @@ namespace DK
 		// rendertarget
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _renderTargetDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 		D3D12_CLEAR_VALUE clearValue;
-		clearValue.Format = gRenderTargetFormat;
+		clearValue.Format = gHDRRenderTargetFormat;
 		clearValue.Color[0] = gRenderTargetClearColor[0];
 		clearValue.Color[1] = gRenderTargetClearColor[1];
 		clearValue.Color[2] = gRenderTargetClearColor[2];
 		clearValue.Color[3] = gRenderTargetClearColor[3];
 		ITexture renderTargets[kRenderTargetTextureCount];
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvs[kRenderTargetTextureCount] = { {}, {} };
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvs[kRenderTargetTextureCount] = {};
 		for (uint32 i = 0; i < kRenderTargetTextureCount; ++i)
 		{
 #if defined(_DK_DEBUG_)
@@ -282,7 +285,7 @@ namespace DK
 			ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
 			rtvTextureName.append(indexString.c_str());
 #endif
-			IBufferRef buffer = createBuffer2DInternal(width, height, 1, gRenderTargetFormat, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
+			IBufferRef buffer = createBuffer2DInternal(width, height, 1, gHDRRenderTargetFormat, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
 			if (buffer == nullptr)
 				return false;
 
@@ -290,7 +293,7 @@ namespace DK
 			rtvs[i] = rtvHandle;
 			rtvHandle.ptr += _renderTargetViewSize;
 
-			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, gRenderTargetFormat, DK::move(buffer));
+			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, gHDRRenderTargetFormat, DK::move(buffer));
 			if (allocateTextureSRV(renderTargets[i], 1 + i) == false)
 				return false;
 		}
@@ -327,9 +330,10 @@ namespace DK
 		}
 
 		_renderTargetArr[0] = RenderTarget(DK::move(renderTargets[0]), DK::move(depthStencilTexture), rtvs[0], dsv, false, true);
-		_renderTargetArr[1] = RenderTarget(DK::move(renderTargets[1]), rtvs[1]);
-		_renderTargetArr[2] = RenderTarget(DK::move(backBuffers[0]), backbuverViews[0]);
-		_renderTargetArr[3] = RenderTarget(DK::move(backBuffers[1]), backbuverViews[1]);
+		for (uint32 i = 1; i < kRenderTargetTextureCount; ++i)
+			_renderTargetArr[i] = RenderTarget(DK::move(renderTargets[i]), rtvs[i]);
+		for (uint32 i = 0; i < kBackBufferCount; ++i)
+			_renderTargetArr[kRenderTargetTextureCount + i] = RenderTarget(DK::move(backBuffers[i]), backbuverViews[i]);
 
 		// Viewport
 		{
@@ -363,8 +367,11 @@ namespace DK
 		if (FAILED(hr))
 			return false;
 
-		_renderTargetArr[2] = RenderTarget();
-		_renderTargetArr[3] = RenderTarget();
+		// Release old SRVs before recreating their reserved slots, so destruction
+		// cannot return those slots to the free list after new views are installed.
+		for (uint32 i = 0; i < DK_COUNT_OF(_renderTargetArr); ++i)
+			_renderTargetArr[i] = RenderTarget();
+		_currentRenderTargetIndex = 0xffffffff;
 
 		hr = _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, desc.Flags);
 
@@ -653,16 +660,53 @@ namespace DK
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
-		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+		io.ConfigDpiScaleFonts = true;
+		io.ConfigDpiScaleViewports = true;
+		io.ConfigWindowsMoveFromTitleBarOnly = true;
+		ImFontConfig fontConfig;
+		fontConfig.SizePixels = 15.0f;
+		io.Fonts->AddFontDefault(&fontConfig);
 
 		ImGui::StyleColorsDark();
-		//ImGui::StyleColorsClassic();
+		auto& style = ImGui::GetStyle();
+		style.FontSizeBase = 15.0f;
+		style.WindowPadding = ImVec2(12.0f, 12.0f);
+		style.FramePadding = ImVec2(8.0f, 5.0f);
+		style.ItemSpacing = ImVec2(8.0f, 8.0f);
+		style.CellPadding = ImVec2(0.0f, 3.0f);
+		style.WindowRounding = 0.0f; // Match native detached window edges.
+		style.FrameRounding = 4.0f;
+		style.GrabRounding = 4.0f;
+		style.TabRounding = 4.0f;
+		style.ScrollbarSize = 12.0f;
+		style.Colors[ImGuiCol_WindowBg] = ImVec4(0.075f, 0.085f, 0.10f, 1.0f);
+		style.Colors[ImGuiCol_PopupBg] = ImVec4(0.10f, 0.12f, 0.14f, 1.0f);
+		style.Colors[ImGuiCol_Text] = ImVec4(0.88f, 0.90f, 0.92f, 1.0f);
+		style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.49f, 0.55f, 0.60f, 1.0f);
+		style.Colors[ImGuiCol_Border] = ImVec4(0.22f, 0.26f, 0.29f, 0.6f);
+		style.Colors[ImGuiCol_TitleBg] = ImVec4(0.10f, 0.12f, 0.14f, 1.0f);
+		style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.17f, 0.19f, 1.0f);
+		style.Colors[ImGuiCol_FrameBg] = ImVec4(0.13f, 0.16f, 0.19f, 1.0f);
+		style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.18f, 0.25f, 0.28f, 1.0f);
+		style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.19f, 0.31f, 0.33f, 1.0f);
+		style.Colors[ImGuiCol_Button] = ImVec4(0.16f, 0.22f, 0.25f, 1.0f);
+		style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.20f, 0.34f, 0.37f, 1.0f);
+		style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.20f, 0.43f, 0.44f, 1.0f);
+		style.Colors[ImGuiCol_Header] = ImVec4(0.13f, 0.18f, 0.21f, 1.0f);
+		style.Colors[ImGuiCol_HeaderHovered] = style.Colors[ImGuiCol_ButtonHovered];
+		style.Colors[ImGuiCol_HeaderActive] = style.Colors[ImGuiCol_ButtonActive];
+		style.Colors[ImGuiCol_Tab] = style.Colors[ImGuiCol_WindowBg];
+		style.Colors[ImGuiCol_TabSelected] = ImVec4(0.16f, 0.26f, 0.28f, 1.0f);
+		style.Colors[ImGuiCol_TabHovered] = style.Colors[ImGuiCol_ButtonHovered];
+		style.Colors[ImGuiCol_CheckMark] = ImVec4(0.40f, 0.78f, 0.72f, 1.0f);
+		style.Colors[ImGuiCol_SliderGrab] = style.Colors[ImGuiCol_CheckMark];
+		style.Colors[ImGuiCol_TabSelectedOverline] = style.Colors[ImGuiCol_CheckMark];
 
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 			desc.Type = gTextureBindlessDescriptorHeapType;
-			desc.NumDescriptors = 1;
+			desc.NumDescriptors = kImGuiDescriptorCount;
 			desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 			ID3D12DescriptorHeap* imguiHeap;
 			if (_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&imguiHeap)) != S_OK)
@@ -672,11 +716,44 @@ namespace DK
 			}
 			_imguiDescriptorHeap = imguiHeap;
 
-			ImGui_ImplWin32_Init(hwnd);
-			ImGui_ImplDX12_Init(
-				_device.get(), kFrameCount, DXGI_FORMAT_R8G8B8A8_UNORM, _imguiDescriptorHeap.get(),
-				_imguiDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), _imguiDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
-			);
+			if (!ImGui_ImplWin32_Init(hwnd))
+				return false;
+			ImGui_ImplDX12_InitInfo initInfo;
+			initInfo.Device = _device.get();
+			initInfo.CommandQueue = _commandQueue.get();
+			// The backend also uses this count for flip-model viewport swap chains (minimum two).
+			initInfo.NumFramesInFlight = Math::max(kFrameCount, kBackBufferCount);
+			initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+			initInfo.SrvDescriptorHeap = _imguiDescriptorHeap.get();
+			initInfo.UserData = this;
+			initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cpu, D3D12_GPU_DESCRIPTOR_HANDLE* gpu)
+			{
+				auto& renderer = *static_cast<RenderModule*>(info->UserData);
+				const UINT stride = info->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				for (uint32 i = 0; i < kImGuiDescriptorCount; ++i)
+				{
+					if (renderer._imguiDescriptorUsed[i])
+						continue;
+					renderer._imguiDescriptorUsed[i] = true;
+					*cpu = info->SrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+					*gpu = info->SrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+					cpu->ptr += static_cast<SIZE_T>(i) * stride;
+					gpu->ptr += static_cast<UINT64>(i) * stride;
+					return;
+				}
+				// The backend requires a valid descriptor; never alias a live slot.
+				std::abort();
+			};
+			initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE)
+			{
+				auto& renderer = *static_cast<RenderModule*>(info->UserData);
+				const UINT stride = info->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				const SIZE_T index = (cpu.ptr - info->SrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr) / stride;
+				assert(index < kImGuiDescriptorCount && renderer._imguiDescriptorUsed[index]);
+				renderer._imguiDescriptorUsed[index] = false;
+			};
+			if (!ImGui_ImplDX12_Init(&initInfo))
+				return false;
 		}
 
 		assert(io.BackendPlatformName != nullptr);
@@ -1135,7 +1212,7 @@ namespace DK
 			psoDesc.VS = vertexShaderView;
 			psoDesc.PS = pixelShaderView;
 			psoDesc.PrimitiveTopologyType = inoutPipeline._primitiveTopologyType;
-			psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+			psoDesc.RTVFormats[0] = pipelineCreateInfo._hdrRenderTarget ? gHDRRenderTargetFormat : gRenderTargetFormat;
 			psoDesc.SampleDesc = sampleDesc;
 			psoDesc.SampleMask = 0xffffffff;
 			psoDesc.RasterizerState = rasterizerDesc;
@@ -1602,6 +1679,14 @@ namespace DK
 
 		if (isPresent)
 		{
+#ifdef USE_IMGUI
+			// Submit secondary viewports after the main draw list and before the frame fence.
+			if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+			{
+				ImGui::UpdatePlatformWindows();
+				ImGui::RenderPlatformWindowsDefault();
+			}
+#endif
 			UINT syncInterval = 0; //gVSync ? 1 : 0;
 			UINT presentFlags = 0; // CheckTearingSupport() && !gVSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
 			HRESULT hr = _swapChain->Present(syncInterval, presentFlags);
@@ -1806,7 +1891,7 @@ namespace DK
 		{
 			if (_deletedTextureSRVArr[i] == index)
 			{
-				_deletedTextureSRVArr.erase(_deletedTextureSRVArr.begin() + 1);
+				_deletedTextureSRVArr.erase(_deletedTextureSRVArr.begin() + i);
 				break;
 			}
 		}

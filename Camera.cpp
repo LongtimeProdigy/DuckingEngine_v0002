@@ -13,6 +13,13 @@ namespace DK
 
 	void Camera::update(float deltaTime)
 	{
+		// Detached tool windows must not keep moving the scene with stale input.
+		if (InputModule::isBlocked())
+			return;
+#if defined(USE_IMGUI)
+		if (ImGui::GetCurrentContext() && (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantCaptureMouse))
+			return;
+#endif
 		static constexpr float mouseRotationFriction = 0.05f;
 		float2 mouseDelta = (InputModule::getMouseDelta() * InputModule::GetKeyDown(KeyboardState::MOUSE_RIGHT)) * mouseRotationFriction;
 
@@ -55,7 +62,7 @@ namespace DK
 		// Translation
 		float3 moveOffset(moveRight, moveUp, moveForward);
 		moveOffset.normalize();
-		moveOffset *= deltaTime;
+		moveOffset *= deltaTime * _moveSpeed;
 
 		if (InputModule::GetKeyDown(KeyboardState::KEYBOARD_CAPSLOCK) == true)
 			moveOffset *= 10;

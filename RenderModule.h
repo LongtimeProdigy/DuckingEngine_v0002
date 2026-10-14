@@ -124,6 +124,7 @@ namespace DK
 
 			DKString _primitiveTopologyType;
 			bool _depthEnable = false;
+			bool _hdrRenderTarget = true;
 			FillMode _fillMode = FillMode::SOLID;
 			CullMode _cullMode = CullMode::NONE;
 			DKString _vertexShaderPath;
@@ -542,6 +543,7 @@ do{ \
 		static uint32 kCurrentBackBufferIndex;
 		static uint32 kWidth;
 		static uint32 kHeight;
+		static constexpr uint32 kRenderTargetTextureCount = 3 * kFrameCount;
 
 	public:
 		~RenderModule();
@@ -658,9 +660,10 @@ do{ \
 		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
 #if defined(USE_IMGUI)
 		RenderResourcePtr<ID3D12DescriptorHeap> _imguiDescriptorHeap;
+		static constexpr uint32 kImGuiDescriptorCount = 64;
+		bool _imguiDescriptorUsed[kImGuiDescriptorCount] = {};
 #endif
 
-		static constexpr const uint32 kRenderTargetTextureCount = 2 * kFrameCount;
 		// RenderTarget + BackBuffer
 		RenderTarget _renderTargetArr[kRenderTargetTextureCount + kBackBufferCount];
 		uint32 _currentRenderTargetIndex = 0xffffffff;

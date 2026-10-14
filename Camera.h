@@ -24,6 +24,31 @@ namespace DK
 
 		virtual void update(float deltaTime) override final;
 
+		void setView(const float3& position, const float3& direction)
+		{
+			float3 forward = direction;
+			forward.normalize();
+			_yaw = std::atan2(forward.x, forward.z);
+			_pitch = -std::asin(Math::clamp(forward.y, -1.0f, 1.0f));
+			set_worldTransform(Transform(position, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
+		}
+
+		void setMoveSpeed(float speed)
+		{
+			if (std::isfinite(speed) && speed >= 0.0f)
+				_moveSpeed = speed;
+		}
+
+		void setClipPlaneDistances(float nearDistance, float farDistance)
+		{
+			if (std::isfinite(nearDistance) && std::isfinite(farDistance)
+				&& nearDistance > 0.0f && farDistance > nearDistance)
+			{
+				_nearPlaneDistance = nearDistance;
+				_farPlaneDistance = farDistance;
+			}
+		}
+
 		void setViewportSize(int width, int height)
 		{
 			if (width <= 0 || height <= 0)
@@ -94,6 +119,7 @@ namespace DK
 		*	- 따라서 카메라의 경우 yaw, pitch를 직접 관리하여 clamp등에 사용하기 용이하도록 한다
 		*/
 		float _yaw = 0.0f;
+		float _moveSpeed = 1.0f;
 		float _pitch = 0.0f;
 	};
 }

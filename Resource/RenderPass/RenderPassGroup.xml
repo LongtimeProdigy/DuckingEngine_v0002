@@ -111,12 +111,31 @@
 	</RenderPass>
 
 	<RenderPass Name="GBufferRenderPass">
-		<Pipeline Name="GBufferPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
+		<Pipeline Name="GBufferPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="LDR">
+			<RootConstant Buffer="FinalOutputConstants"/>
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material\GBuffer.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material\GBuffer.hlsl</PixelShader>
+		</Pipeline>
+	</RenderPass>
+	<RenderPass Name="BloomHorizontalRenderPass">
+		<Pipeline Name="BloomHorizontalPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="HDR">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material/Bloom.hlsl</VertexShader>
+			<PixelShader Entry="PSHorizontal">Material/Bloom.hlsl</PixelShader>
+		</Pipeline>
+	</RenderPass>
+	<RenderPass Name="BloomVerticalRenderPass">
+		<Pipeline Name="BloomVerticalPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="HDR">
+			<LayoutInfo>
+				<Element Type="float2">POSITION</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMain">Material/Bloom.hlsl</VertexShader>
+			<PixelShader Entry="PSVertical">Material/Bloom.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
 </RenderPassGroup>

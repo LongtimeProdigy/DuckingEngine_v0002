@@ -31,21 +31,31 @@ namespace DK
 	{
 		uint32 _numInScatteringPoints = 32;
 		uint32 _opticalDepthPointCount = 16;
-		uint32 _densityFallOff = 1;
-		uint32 _scatteringStrength = 21;
+		float _rayleighHeight = 7994.0f;
+		float _mieHeight = 1200.0f;
 
 		float _sunDegree = 90.f;
-		uint32 _sunIntensity = 20;
-		uint32 _sunRadius = 10;
-		uint32 _padding;
+		float _sunIntensity = 20.0f;
+		float _scatteringScale = 1.0f;
+		float _cameraAltitude = 0.0f;
 
-		int _planetRadius = 6360000;
-		int _planetCentre[3] = { 0, -6360000, 0 };	// 지구 반지름 6371km
+		float _planetRadius = 6360000.0f;
+		float _planetCentre[3] = { 0, -6360000.0f, 0 };
 
-		int _atmosphereRadius = 6390000;			// 대기 반지름 (1unit = 1m >> 30000  = 30km) [10km 대류권, 50km 성층권, 80km 중간권, 600km 열권], 지구 대기의 99%는 30km내에 존재
+		float _atmosphereRadius = 6390000.0f;
+		float _sunAngularRadius = 0.27f;
+		float _exposureEV = 0.0f;
+		float _bloomStrength = 0.02f;
+
+		float _bloomRadius = 16.0f;
+		float _bloomThreshold = 2.0f;
+		float _sunRadianceScale = 1.0f;
+		float _padding = 0.0f;
 	};
+	static_assert(sizeof(AtmosphereConstantBuffer) == 80, "Match the HLSL cbuffer layout");
 
 	class RaytracingRenderer;
+	class Camera;
 
 	class SceneRenderer
 	{
@@ -63,6 +73,8 @@ namespace DK
 		void preRender() const noexcept;
 		void updateRender() noexcept;
 		void endRender() const noexcept;
+		void setOrbitView() const noexcept;
+		void updateAtmosphereCamera(Camera& camera) const noexcept;
 
 	private:
 		bool initialize_createRenderPass();
@@ -76,6 +88,7 @@ namespace DK
 		IBufferRef _sceneConstantBuffer = nullptr;
 
 		mutable AtmosphereConstantBuffer _atmosphereConstantBufferData;	// TODO: 지금은 ingui때문에 preRender에서 set하기때문에 mutable붙었는데.. UI시스템 구성되면 지워야한다.
+		bool _renderLocalScene = false;
 		IBufferRef _atmosphereConstantBuffer = nullptr;
 	};
 }

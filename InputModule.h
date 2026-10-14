@@ -15,6 +15,7 @@ namespace DK
 	{
 	public:
 		dk_inline static void setBlock(const bool value) { kBlock = value; }
+		dk_inline static bool isBlocked() { return kBlock; }
 		static void Update();
 
 		// PC는 기본 지원입니다.

@@ -3,6 +3,7 @@
 
 #include "CommonRendering.hlsl"
 #include "CommonTexture.hlsl"
+#include "AtmosphereParameters.hlsl"
 
 //#define OPTIMZE_OPTICALDEPTH
 
@@ -10,24 +11,6 @@ struct AtmosphereSegment
 {
     float3 transmittance;
     float3 inScattering;
-};
-
-cbuffer AtmosphereConstantBuffer : register(b1)
-{
-	uint _numInScatteringPoints;
-	uint _opticalDepthPointCount;
-	uint _densityFallOff;
-	uint _scatteringStrength;
-
-	float _sunDegree = 7.f;
-    uint _sunIntensity = 20;
-    uint _sunRadius = 10;
-    uint _padding;	
-
-    int _planetRadius;
-    int3 _planetCentre;
-
-    int _atmosphereRadius;
 };
 
 struct VS_INPUT
@@ -50,56 +33,35 @@ VS_OUTPUT VSMain(VS_INPUT input)
     return output;
 }
 
+// All positions in this shader are relative to the camera. The CPU supplies
+// camera altitude in double precision; this form preserves small surface heights.
+float atmosphereHeight(float3 cameraRelativePosition)
+{
+    const float3 cameraRadial = -_planetCentre;
+    const float numerator = dot(cameraRelativePosition, cameraRelativePosition) + 2.0f * dot(cameraRelativePosition, cameraRadial) + _cameraAltitude * (2.0f * _planetRadius + _cameraAltitude);
+    return numerator / max(length(cameraRadial + cameraRelativePosition) + _planetRadius, 1.0f);
+}
+
 float2 raySphere(const float3 sphereCentre, const float sphereRadius, const float3 rayOrigin, const float3 rayDir)
 {
-    /*
-    *   https://gohen.tistory.com/79 ... 조금 잘못된 식들이 있긴한데.. 얼추 개념은 이해하기 쉬움. 진짜 식은 아래를 따라야함
-    *   결국 3차원 직선의 방정식에서 t에 대한 2차방정식을 세우고 판별식을 통해서 intersection여부를 판단한다.
-    */
-    // https://stackoverflow.com/questions/6533856/ray-sphere-intersection
-    const float3 dirCenterToOrigin = rayOrigin - sphereCentre;
-
-    const float c = dot(dirCenterToOrigin, dirCenterToOrigin) - sphereRadius * sphereRadius;
-#if 0// no optimize
-    const float a = dot(rayDir, rayDir);
-    const float b = 2 * dot(dirCenterToOrigin, rayDir);
-    const float det = b * b - 4 * a * c;
-
-    // 판별식이 0미만이면 접하지 않음
-    if(det < 0)
+    const float3 radial = rayOrigin - sphereCentre;
+    const float altitude = atmosphereHeight(rayOrigin) + (_planetRadius - sphereRadius);
+    const float c = altitude * (2.0f * sphereRadius + altitude);
+    const float b = dot(radial, rayDir);
+    const float determinant = b * b - c;
+    if (determinant < 0.0f)
         return float2(FLOAT_MAX, 0);
-
-    const float denominator = 2 * a;
-    const float rootDet = sqrt(det);
-    const float destToSphere1 = (-b - rootDet) * denominator;
-    const float destToSphere2 = (-b + rootDet) * denominator;
-#else
-    const float b = dot(dirCenterToOrigin, rayDir);
-    const float det = b * b - c;
-
-    // 판별식이 0미만이면 접하지 않음
-    if(det < 0)
+    const float root = sqrt(determinant);
+    // Stable quadratic roots avoid subtracting two nearly equal values at the ground.
+    const float q = -b - (b >= 0.0f ? root : -root);
+    const float t0 = q;
+    const float t1 = abs(q) > 1e-10f ? c / q : -b;
+    const float nearHit = min(t0, t1);
+    const float farHit = max(t0, t1);
+    if (farHit <= 0.0f)
         return float2(FLOAT_MAX, 0);
-    
-    const float rootDet = sqrt(det);
-    const float destToSphere1 = (-b - rootDet);
-    const float destToSphere2 = (-b + rootDet);
-#endif
-
-    // 여기까지 오면 b >= 0, rootDet > 0이다.
-    // 따라서, destToSphere2는 항상 destToSphere1보다 크다. 때문에 둘 중 음수가 있다면 항상 destToSphere1은 음수일 수 밖에 없다.
-    // 따라서, 둘 다 음수인 경우는 destToSphere2가 음수인 경우랑 동치이다.
-    // 그리고 이 경우는 두 점이 rayOrigin부터 -rayDir방향에 있다는 것이기 때문에 여기선 교차하지 않는 것으로 처리한다.
-    if(destToSphere2 < 0)
-        return float2(FLOAT_MAX, 0);
-
-    // destToSphere2는 양수이므로 두가지 경우의 수밖에 없다
-    // destToSphere1이 음수인 경우: rayOrigin이 Sphere 내부에 있다. >> rayOrigin/Dir의 양수거리만큼만 반환한다. 그리고 Through는 rayOrigin부터 HitPoint까지만 반환한다.
-    // destToSphere1이 양수인 경우: rayOrigin이 Sphere 외부에 있다. >> 이경우엔 destToSphere1이 무조건 더 작으므로 가장 가까운 거리를 반환한다.
-    const float nearLength = destToSphere1 > 0 ? destToSphere1 : 0;
-    const float farLength = destToSphere2 - nearLength;
-
-    return float2(nearLength, farLength);
+    const float entry = max(nearHit, 0.0f);
+    return float2(entry, max(farHit - entry, 0.0f));
 }
 
 AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDir, const float rayLength, const float3 sunDir)
@@ -108,11 +70,11 @@ AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDi
     // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky/simulating-colors-of-the-sky.html
     // https://www.shadertoy.com/view/tdSXzD
     // Rayleigh
-    static const float3 betaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
-    static const float HrR = 7994;
+    const float3 betaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f) * _scatteringScale;
+    const float HrR = max(_rayleighHeight, 1e-6f);
     // Mie
-    static const float3 betaM = float3(21e-6, 21e-6, 21e-6);
-    static const float HrM = 1200;
+    const float3 betaM = float3(21e-6, 21e-6, 21e-6) * _scatteringScale;
+    const float HrM = max(_mieHeight, 1e-6f);
     static const float g = 0.76;
 
     if (rayLength <= 0.0f)
@@ -138,7 +100,7 @@ AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDi
     for (uint i = 0; i < viewCount; ++i)
     {
         const float3 samplePosition = rayOrigin + ((i + 0.5f) * segmentLength) * rayDir;
-        const float height = max(length(samplePosition - _planetCentre) - _planetRadius, 0.0f);
+        const float height = max(atmosphereHeight(samplePosition), 0.0f);
 
         // View 방향으로의 공기 밀도 누적
         const float hrR = exp(-height / HrR);
@@ -156,6 +118,11 @@ AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDi
         if (sunRayLength <= 0.0f)   // samplePosition이 대기 밖이면 누적 건너뜀
             continue;
 
+        // Keep view extinction, but suppress direct sunlight behind the planet.
+        const float2 groundShadow = raySphere(_planetCentre, _planetRadius, samplePosition, sunDir);
+        if (groundShadow.y > 0.0f && groundShadow.x < sunRayLength)
+            continue;
+
         const float segmentLengthLight = sunRayLength / lightCount;
 
         // Light 방향으로의 공기 밀도 계산
@@ -164,7 +131,7 @@ AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDi
         for (uint j = 0; j < lightCount; ++j)
         {
             const float3 samplePositionLight = samplePosition + ((j + 0.5f) * segmentLengthLight) * sunDir;
-            const float heightLight = max(length(samplePositionLight - _planetCentre) - _planetRadius, 0.0f);
+            const float heightLight = max(atmosphereHeight(samplePositionLight), 0.0f);
 
             opticalDepthLightR += exp(-heightLight / HrR) * segmentLengthLight;
             opticalDepthLightM += exp(-heightLight / HrM) * segmentLengthLight;
@@ -218,27 +185,38 @@ AtmosphereSegment calculateAtmosphere(const float3 rayOrigin, const float3 rayDi
     return result;
 }
 
-bool renderSun(const float3 rayDir, out float3 sunDir)
+float renderSun(const float3 rayDir, out float3 sunDir)
 {
-#define SUN_PERIOD_TIME 0.003f
-    const float sunPeriodTime = SUN_PERIOD_TIME * 3600;
-    const float dayOfTimeSecond = _time % sunPeriodTime;
-    const float sunDegree = radians(_sunDegree);// radians(360 / sunPeriodTime) * dayOfTimeSecond;// * (dayOfTimeSecond - (6 * 3600)); // 오전 6시부터 0도
+    const float sunDegree = radians(_sunDegree);
     sunDir = float3(0, sin(sunDegree), cos(sunDegree));
-
-    // 예시 각반경. 기존 _sunRadius 대신 사용한다.
-    const float angularRadius = radians(0.27f);
-    return dot(rayDir, sunDir) >= cos(angularRadius);
+    // atan2 avoids the precision loss of acos(dot) around a tiny solar disk.
+    const float angle = atan2(length(cross(rayDir, sunDir)), dot(rayDir, sunDir));
+    const float pixelAngle = max(fwidth(angle), 1e-6f);
+    const float radius = radians(_sunAngularRadius);
+    return 1.0f - smoothstep(radius - pixelAngle * 0.5f, radius + pixelAngle * 0.5f, angle);
 }
 
-float3 toneMapACES(float3 x)
+float3 groundSunTransmittance(float3 surfacePosition, float3 normal, float3 sunDir)
 {
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
-    return saturate((x*(a*x+b))/(x*(c*x+d)+e));
+    if (dot(normal, sunDir) <= 0.0f)
+        return float3(0, 0, 0);
+        
+    // Offset off the surface to avoid self-intersection after float rounding.
+    const float3 origin = surfacePosition + normal * max(_planetRadius * 1e-6f, 1e-6f);
+    const float pathLength = raySphere(_planetCentre, _atmosphereRadius, origin, sunDir).y;
+    const uint count = max(_opticalDepthPointCount, 1u);
+    const float stepLength = pathLength / count;
+    float2 opticalDepth = float2(0, 0);
+    for (uint i = 0; i < count; ++i)
+    {
+        const float3 position = origin + sunDir * ((i + 0.5f) * stepLength);
+        const float height = max(atmosphereHeight(position), 0.0f);
+        opticalDepth += exp(-height / max(float2(_rayleighHeight, _mieHeight), 1e-6f)) * stepLength;
+    }
+    
+    const float3 betaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f) * _scatteringScale;
+    const float3 betaM = float3(21e-6f, 21e-6f, 21e-6f) * _scatteringScale;
+    return exp(-betaR * opticalDepth.x - betaM * opticalDepth.y);
 }
 float4 PSMain(VS_OUTPUT input) : SV_TARGET
 {
@@ -249,11 +227,14 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
         getViewRightDirection() * nearPlaneHalfWidthWS * nearPlaneUV.x + 
         getViewUpDirection() * nearPlaneHalfHeightWS * nearPlaneUV.y;
 
-    const float3 rayOriginWS = getViewPosition();
+    const float3 rayOriginWS = float3(0, 0, 0); // Camera-relative origin.
     const float3 rayDirWS = normalize(rayDirToNearPlaneWS);
 
     float3 sunDir = float3(0, -1, 0);
-    const bool successSunRender = renderSun(rayDirWS, sunDir);
+    const float sunCoverage = renderSun(rayDirWS, sunDir);
+    // Uniform disk: irradiance on a facing plane is L * pi * sin(radius)^2.
+    const float sinRadius = sin(radians(_sunAngularRadius));
+    const float sunRadiance = _sunIntensity * _sunRadianceScale / max(3.141592f * sinRadius * sinRadius, 1e-8f);
 
     const Texture2D<float4> renderTexture = getRenderTargetTexture(_frameIndex.x, 0);
     const Texture2D<float4> depthTexture = getDepthStencilTexture(_frameIndex.x, 0);
@@ -268,26 +249,33 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float destToAtmosphere = hitInfo.x;   // 대기 near 거리 (만약 카메라가 대기 안에 있다면 0)
     const float lengthAtmosphere = hitInfo.y;   // 대기 관통 거리 (만약 카메라가 대기 안에 있다면 far - camerapos)
 
+    float3 backgroundRadiance = depth < 1.0f ? originalCol.rgb : float3(1, 1, 1) * sunRadiance * sunCoverage;
+
     if(lengthAtmosphere == 0)
-        return float4(1, 0, 0, 1);  // 우주공간
+        return float4(backgroundRadiance, 1);
 
     const float atmosphereEnd = destToAtmosphere + lengthAtmosphere;
-    const float rayEnd = depth < 1.0f ? min(linearDepthDistanceWS, atmosphereEnd)  : atmosphereEnd; // 실제 지형의 높낮이는 깊이 버퍼가 반영한다.
+    float rayEnd = depth < 1.0f ? min(linearDepthDistanceWS, atmosphereEnd) : atmosphereEnd;
+    // Actual terrain wins where it has depth; the reference sphere fills uncovered pixels.
+    if (depth >= 1.0f)
+    {
+        const float2 groundHit = raySphere(_planetCentre, _planetRadius, rayOriginWS, rayDirWS);
+        if (groundHit.y > 0.0f && groundHit.x < rayEnd)
+        {
+            rayEnd = groundHit.x;
+            const float3 normal = normalize(rayOriginWS + rayDirWS * rayEnd - _planetCentre);
+            // Direct sunlight crosses the atmosphere before reaching the surface.
+            const float3 surfacePosition = rayOriginWS + rayDirWS * rayEnd;
+            backgroundRadiance = float3(0.12f, 0.14f, 0.16f) * (_sunIntensity / 3.141592f) * saturate(dot(normal, sunDir)) * groundSunTransmittance(surfacePosition, normal, sunDir);
+        }
+    }
     
     const float integrationLength = max(0.0f, rayEnd - destToAtmosphere);
     const float3 atmosphereStart = rayOriginWS + rayDirWS * destToAtmosphere;
     
     const AtmosphereSegment atmosphere = calculateAtmosphere( atmosphereStart, rayDirWS, integrationLength, sunDir);
 
-    float3 backgroundRadiance = float3(0, 0, 0);
-    if (depth < 1.0f)
-        backgroundRadiance = originalCol.rgb;
-    else if (successSunRender)
-        backgroundRadiance = float3(1, 1, 1) * float(_sunIntensity);
-
     const float3 composedHDR = backgroundRadiance * atmosphere.transmittance + atmosphere.inScattering;
-    const float3 test = toneMapACES(composedHDR);
-
-    return float4(test, originalCol.a);
+    return float4(composedHDR, 1);
 }
 #endif
