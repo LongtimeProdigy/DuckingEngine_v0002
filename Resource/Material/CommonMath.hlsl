@@ -1,13 +1,7 @@
 #ifndef __DEFINE_COMMONMATH_HLSL__
 #define __DEFINE_COMMONMATH_HLSL__
 
-//based on google's omni-directional stereo rendering thread
-#define FLOAT_EPSILON (1e-6)
-#define FLOAT_MAX (3.402823466e+38F)
-
-#define PI 3.14159265358979
-#define PI2 (2 * PI)
-
+#include "CommonMathConstant.hlsl"
 
 // // 예전부터 가장 많이 쓰인 방식으로, 속도는 빠르지만 패턴이 반복되는 단점이 있습니다. (오션 시뮬레이션의 초기값 정도로 쓰기엔 적당합니다.)
 // float rand(float2 uv)

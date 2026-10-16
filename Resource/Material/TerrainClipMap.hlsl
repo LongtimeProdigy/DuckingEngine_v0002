@@ -88,7 +88,9 @@ VS_OUTPUT VSMain(VS_INPUT input)
 GBufferOutput PSMain(VS_OUTPUT input)
 {
     float3 normal = safeNormal(cross(ddy(input.worldPosition), ddx(input.worldPosition)));
-    if (normal.y < 0) normal = -normal;
+    if (normal.y < 0) 
+        normal = -normal;
+        
     const float3 albedo = getTexture(_diffuseTexture).Sample(bilinearRepeatSampler, input.uv0).rgb;
     return writeGBuffer(albedo, normal, _metallic, _roughness);
 }

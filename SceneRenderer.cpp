@@ -385,6 +385,10 @@ namespace DK
 
 		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
 		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
+		_atmosphereTransmittanceLut = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture("AtmosphereTransmittanceLut", kAtmosphereLutWidth, kAtmosphereLutHeight, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		if (_atmosphereTransmittanceLut == nullptr)
+			return false;
+		_atmosphereConstantBufferData._transmittanceLutIndex = _atmosphereTransmittanceLut->getSRV();
 
 		return true;
 	}
@@ -406,7 +410,7 @@ namespace DK
 	static std::normal_distribution<float> dist(0, 1);
 	void SceneRenderer::updateAtmosphereCamera(Camera& camera) const noexcept
 	{
-		const auto& atmosphere = _atmosphereConstantBufferData;
+		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 		const float3 center(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
 		const Transform& transform = camera.get_worldTransform();
 		const float3 position = transform.get_translation();
@@ -414,23 +418,15 @@ namespace DK
 		const double y = static_cast<double>(position.y) - center.y;
 		const double z = static_cast<double>(position.z) - center.z;
 		const double distance = std::sqrt(x * x + y * y + z * z);
-		const double minimumRadius = static_cast<double>(atmosphere._planetRadius) + 2.0;
-		if (distance < minimumRadius)
-		{
-			const double factor = distance > 0.0 ? minimumRadius / distance : 0.0;
-			const float3 correctedPosition = distance > 0.0
-				? float3(static_cast<float>(center.x + x * factor), static_cast<float>(center.y + y * factor), static_cast<float>(center.z + z * factor))
-				: center + float3(0, static_cast<float>(minimumRadius), 0);
-			camera.set_worldTransform(Transform(correctedPosition, transform.get_rotation(), transform.get_scale()));
-			DuckingEngine::getInstance().GetRaytracingRendererWritable().resetAccumulation();
-		}
-		const float altitude = static_cast<float>(std::max(distance, minimumRadius) - atmosphere._planetRadius);
+		// The density reference sphere is not a collision surface.
+		// Keep camera controls positive even inside that radius.
+		const float altitude = static_cast<float>(std::max(distance - atmosphere._densityReferenceRadius, 0.0));
 		camera.setMoveSpeed(Math::clamp(altitude * 0.2f, 5.0f, 2000000.0f));
 		camera.setClipPlaneDistances(Math::max(0.1f, altitude * 0.00001f), Math::max(1000.0f, altitude * 4.0f));
 	}
 	void SceneRenderer::setOrbitView() const noexcept
 	{
-		const auto& atmosphere = _atmosphereConstantBufferData;
+		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 		const float sunAngle = atmosphere._sunDegree * Math::kToRadian;
 		const float earthAngle = sunAngle - 25.0f * Math::kToRadian;
 		const float3 earthDirection(0, std::sin(earthAngle), std::cos(earthAngle));
@@ -443,18 +439,20 @@ namespace DK
 	{
 		// UI may have changed the view or atmosphere since the input update.
 		updateAtmosphereCamera(*Camera::gMainCamera);
+
 		const float3 cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
-		const auto& atmosphere = _atmosphereConstantBufferData;
+		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 		const float3 planetCenter(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
 		const double dx = static_cast<double>(cameraPosition.x) - planetCenter.x;
 		const double dy = static_cast<double>(cameraPosition.y) - planetCenter.y;
 		const double dz = static_cast<double>(cameraPosition.z) - planetCenter.z;
-		_atmosphereConstantBufferData._cameraAltitude = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz) - atmosphere._planetRadius);
+		_atmosphereConstantBufferData._cameraAltitude = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz) - atmosphere._densityReferenceRadius);
+
 		// Existing flat terrain is a local patch at the planet's +Y surface.
 		const double patchX = static_cast<double>(cameraPosition.x) - planetCenter.x;
 		const double patchZ = static_cast<double>(cameraPosition.z) - planetCenter.z;
-		_renderLocalScene = atmosphere._cameraAltitude < 10000.0f && cameraPosition.y > planetCenter.y
-			&& patchX * patchX + patchZ * patchZ < 50000.0 * 50000.0;
+		_renderLocalScene = atmosphere._cameraAltitude < 10000.0f && cameraPosition.y > planetCenter.y && patchX * patchX + patchZ * patchZ < 50000.0 * 50000.0;
+
 		// Upload Scene ConstantBuffer
 		{
 			_sceneConstantBufferData._frameIndex = RenderModule::kCurrentFrameIndex;
@@ -685,7 +683,7 @@ namespace DK
 		return false;
 	}
 #endif
-	void SceneRenderer::preRender() const noexcept
+	void SceneRenderer::preRender() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
@@ -767,7 +765,7 @@ namespace DK
 			const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
 			if (ImGui::Begin("Scene inspector###SceneInspector", &showSettings, flags))
 			{
-				auto& atmosphere = _atmosphereConstantBufferData;
+				AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 				ImGui::TextDisabled("EARTH / METERS");
 				ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight());
 				ImGui::TextDisabled("(?)");
@@ -780,13 +778,14 @@ namespace DK
 							setOrbitView();
 						ImGui::SameLine();
 						if (ImGui::Button("Surface", ImVec2(-FLT_MIN, 0)))
-							Camera::gMainCamera->setView(float3(atmosphere._planetCentre[0] + 3.0f, atmosphere._planetCentre[1] + atmosphere._planetRadius + 23.0f, atmosphere._planetCentre[2] - 50.0f), float3(0, 0, 1));
+							Camera::gMainCamera->setView(float3(atmosphere._planetCentre[0] + 3.0f, atmosphere._planetCentre[1] + atmosphere._densityReferenceRadius + 23.0f, atmosphere._planetCentre[2] - 50.0f), float3(0, 0, 1));
 						ImGui::Text("Altitude: %.1f km", atmosphere._cameraAltitude / 1000.0f);
 						if (ImGui::CollapsingHeader("Shape & scale", ImGuiTreeNodeFlags_DefaultOpen))
 						{
 							if (ImGui::Button("Reset Earth atmosphere"))
 							{
-								atmosphere._planetRadius = 6360000.0f;
+								atmosphere._densityReferenceRadius = 6360000.0f;
+								atmosphere._densityTransitionRadius = 6358000.0f;
 								atmosphere._planetCentre[0] = atmosphere._planetCentre[2] = 0.0f;
 								atmosphere._planetCentre[1] = -6360000.0f;
 								atmosphere._atmosphereRadius = 6390000.0f;
@@ -795,11 +794,13 @@ namespace DK
 								atmosphere._scatteringScale = 1.0f;
 							}
 							InspectorProperty("Center (XYZ)", [&] { ImGui::InputFloat3("##value", atmosphere._planetCentre, "%.3g"); });
-							float thickness = atmosphere._atmosphereRadius - atmosphere._planetRadius;
-							InspectorProperty("Radius", [&] { ImGui::InputFloat("##value", &atmosphere._planetRadius); });
+							float thickness = atmosphere._atmosphereRadius - atmosphere._densityReferenceRadius;
+							InspectorProperty("Density reference radius (m)", [&] { ImGui::InputFloat("##value", &atmosphere._densityReferenceRadius); });
+							InspectorProperty("Density transition radius (m)", [&] { ImGui::InputFloat("##value", &atmosphere._densityTransitionRadius, 100.0f, 1000.0f, "%.1f"); });
 							InspectorProperty("Air thickness", [&] { ImGui::InputFloat("##value", &thickness, 0, 0, "%.6f"); });
-							atmosphere._planetRadius = Math::max(atmosphere._planetRadius, 0.01f);
-							atmosphere._atmosphereRadius = atmosphere._planetRadius + Math::max(thickness, atmosphere._planetRadius * 0.000001f);
+							atmosphere._densityReferenceRadius = Math::max(atmosphere._densityReferenceRadius, 0.01f);
+							atmosphere._densityTransitionRadius = Math::clamp(atmosphere._densityTransitionRadius, 0.01f, atmosphere._densityReferenceRadius);
+							atmosphere._atmosphereRadius = atmosphere._densityReferenceRadius + Math::max(thickness, atmosphere._densityReferenceRadius * 0.000001f);
 						}
 						if (ImGui::CollapsingHeader("Ocean"))
 							InspectorProperty("Height scale", [&] { ImGui::InputFloat("##value", &gHeightScale); });
@@ -822,8 +823,12 @@ namespace DK
 						}
 						if (ImGui::CollapsingHeader("Sampling quality"))
 						{
-							InspectorProperty("Scattering samples", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 128); });
-							InspectorProperty("Optical depth samples", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 64); });
+							const char* samplingModes[] = { "Production", "Direct reference", "Reference limits" };
+							InspectorProperty("Atmosphere integration", [&] { ImGui::Combo("##value", reinterpret_cast<int*>(&atmosphere._atmosphereSamplingMode), samplingModes, 3); });
+							InspectorProperty("Relative error", [&] { ImGui::DragFloat("##value", &atmosphere._integrationRelativeTolerance, 0.0001f, 0.00001f, 0.05f, "%.5f"); });
+							InspectorProperty("Subdivision depth", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&atmosphere._integrationMaxDepth), 1.0f, 0, 10); });
+							InspectorProperty("Initial view intervals", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 128); });
+							InspectorProperty("Initial light intervals", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 64); });
 						}
 						ImGui::EndTabItem();
 					}
@@ -894,11 +899,47 @@ namespace DK
 		ImGui::Render();
 #endif
 	}
+	void SceneRenderer::updateAtmosphereTransmittanceLut()
+	{
+		const auto& p = _atmosphereConstantBufferData;
+		if (p._atmosphereSamplingMode != 0u) return;
+		const auto& previous = _cachedAtmosphereLutParameters;
+		const bool dirty = !_atmosphereLutValid
+			|| p._densityReferenceRadius != previous._densityReferenceRadius
+			|| p._densityTransitionRadius != previous._densityTransitionRadius
+			|| p._atmosphereRadius != previous._atmosphereRadius
+			|| p._rayleighHeight != previous._rayleighHeight
+			|| p._mieHeight != previous._mieHeight
+			|| p._scatteringScale != previous._scatteringScale
+			|| p._integrationRelativeTolerance != previous._integrationRelativeTolerance
+			|| p._integrationMaxDepth != previous._integrationMaxDepth
+			|| p._opticalDepthPointCount != previous._opticalDepthPointCount;
+		if (!dirty) return;
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		startRenderPass(renderModule, "AtmosphereTransmittancePass", 0);
+		{
+			startPipeline("AtmosphereTransmittancePipeline");
+			{
+				renderModule.resourceBarrierTransition(_atmosphereTransmittanceLut, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+				setRootConstantParameter("_atmosphereLutUav", _atmosphereTransmittanceLut->getUAV());
+				// RenderModule::dispatch accepts thread counts, not group counts.
+				renderModule.dispatch(kAtmosphereLutWidth, kAtmosphereLutHeight, 1);
+				renderModule.resourceBarrierTransition(_atmosphereTransmittanceLut, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			}
+			endPipeline();
+		}
+		endRenderPass();
+		_cachedAtmosphereLutParameters = p;
+		_atmosphereLutValid = true;
+	}
+
 	void SceneRenderer::updateRender() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		// Finish uploads after UI changes, before preRender closes the upload phase.
 		renderModule.preRender();
+		updateAtmosphereTransmittanceLut();
 
         //RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
         //const bool raytraced = raytracingRenderer.updateRaytracingRenderer(renderModule);

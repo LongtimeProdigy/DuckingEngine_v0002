@@ -100,6 +100,13 @@
 		</Pipeline>
 	</RenderPass>
 
+    <RenderPass Name="AtmosphereTransmittancePass">
+        <ComputePipeline Name="AtmosphereTransmittancePipeline">
+            <RootConstant Buffer="AtmosphereLutOutputConstants"/>
+            <Shader Entry="CSMain">Material/AtmosphereTransmittanceCS.hlsl</Shader>
+        </ComputePipeline>
+    </RenderPass>
+
 	<RenderPass Name="AtmosphereRenderPass">
 		<Pipeline Name="AtmospherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
 			<RootConstant Buffer="AtmosphereInputConstants"/>

@@ -14,8 +14,7 @@ float3 safeNormal(float3 n)
 // Inverse transpose for row-vector transforms, including non-uniform scale.
 float3 transformNormal(float3 normal, float3x3 transform)
 {
-    float3x3 cofactor = float3x3(cross(transform[1], transform[2]),
-        cross(transform[2], transform[0]), cross(transform[0], transform[1]));
+    float3x3 cofactor = float3x3(cross(transform[1], transform[2]), cross(transform[2], transform[0]), cross(transform[0], transform[1]));
     float determinant = dot(transform[0], cofactor[0]);
     return safeNormal(mul(normal, cofactor) * (determinant < 0 ? -1.0f : 1.0f));
 }
