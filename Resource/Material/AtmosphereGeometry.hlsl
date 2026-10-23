@@ -10,6 +10,12 @@ float atmosphereHeight(float3 cameraRelativePosition)
     // 원래는 아래식을 구하는 게 전부이지만, float 정밀도를 개선하기 식을 변형함
     // length(cameraRadial + cameraRelativePosition) - _densityReferenceRadius
     const float3 cameraRadial = -_planetCentre;
+    const float3 radial = cameraRadial + cameraRelativePosition;
+    // The rational expression is accurate near the camera, but at orbital
+    // distances its large terms cancel. Use the centre-relative radius there.
+    const float nearCameraRange = 0.1f * _densityReferenceRadius;
+    if (dot(cameraRelativePosition, cameraRelativePosition) > nearCameraRange * nearCameraRange)
+        return length(radial) - _densityReferenceRadius;
     const float numerator = dot(cameraRelativePosition, cameraRelativePosition) + 2.0f * dot(cameraRelativePosition, cameraRadial) + _cameraAltitude * (2.0f * _densityReferenceRadius + _cameraAltitude);
     return numerator / max(length(cameraRadial + cameraRelativePosition) + _densityReferenceRadius, 1.0f);
 }
@@ -20,7 +26,10 @@ float2 raySphere(const float3 sphereCentre, const float sphereRadius, const floa
     const float altitude = atmosphereHeight(rayOrigin) + (_densityReferenceRadius - sphereRadius);
     const float c = altitude * (2.0f * sphereRadius + altitude);
     const float b = dot(radial, rayDir);
-    const float determinant = b * b - c;
+    // A tangent ray makes b*b and c almost equal for a distant camera.
+    // Cross product gives the distance from the centre to the ray directly.
+    const float impact = length(cross(radial, rayDir));
+    const float determinant = (sphereRadius - impact) * (sphereRadius + impact);
     if (determinant < 0.0f)
         return float2(FLOAT_MAX, 0);
     const float root = sqrt(determinant);

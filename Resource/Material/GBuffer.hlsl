@@ -2,8 +2,11 @@
 #define GBUFFER_LIGHTING_HLSL
 
 #include "PostProcessCommon.hlsl"
+#define ATMOSPHERE_FORCE_LUT
 #include "AtmosphereTransmittance.hlsl"
 #include "GBufferCommon.hlsl"
+#include "AtmosphereSkyLighting.hlsl"
+#include "AtmosphereSurfaceLighting.hlsl"
 #include "CommonMathConstant.hlsl"
 
 cbuffer GBufferConstants : register(b2)
@@ -51,10 +54,10 @@ float4 PSMain(VS_OUTPUT input) : SV_Target
     const float3 F = F0 + (1 - F0) * pow(1 - VoH, 5);
     const float3 specular = D * G * F / max(4 * NoV * NoL, 0.001f);
     const float3 diffuse = (1 - F) * (1 - metallic) * base.rgb / PI;
-    const float3 ambient = base.rgb * (1 - metallic) * 0.03f * material.y;
+    const float3 ambient = atmosphereSkyAmbient(N, V, base.rgb, metallic, roughness, material.y);
     float3 sunTransmittance = float3(1, 1, 1);
-    if (NoL > 0.0f && _sunIntensity > 0.0f)
+    if (NoL > 0.0f && _sunIrradiance > 0.0f)
         sunTransmittance = getSunTransmittance(cameraRelativePosition, L);
-    return float4(ambient + (diffuse + specular) * NoL * max(_sunIntensity, 0) * sunTransmittance, 1);
+    return float4(ambient + (diffuse + specular) * NoL * atmosphereSunIrradiance() * sunTransmittance * atmosphereSurfaceSunVisibilityFiltered(cameraRelativePosition, N), 1);
 }
 #endif

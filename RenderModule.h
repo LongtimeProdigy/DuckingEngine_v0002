@@ -13,6 +13,7 @@ enum D3D12_RESOURCE_BARRIER_TYPE;
 enum D3D12_HEAP_TYPE;
 struct ID3D12CommandQueue;
 struct ID3D12Fence;
+struct ID3D12QueryHeap;
 struct ID3D12DescriptorHeap;
 struct D3D12_CPU_DESCRIPTOR_HANDLE;
 struct D3D12_VIEWPORT;
@@ -443,6 +444,14 @@ do{ \
 		TextureResourceViewType _textureUAVIndex = kErrorTextureResourceViewIndex;
 	};
 
+    struct ReflectiveSurfaceMap
+    {
+        ITextureRef attributes[3]; // Same base color, normal and material layout as the main GBuffer.
+        ITextureRef depth;
+        RenderResourcePtr<ID3D12DescriptorHeap> rtvHeap, dsvHeap;
+        uint32 size = 0;
+    };
+
 	struct RenderTarget
 	{
 		RenderTarget() = default;
@@ -564,7 +573,16 @@ do{ \
 #endif
 
 		// SceneRenderer 전용 함수
-		void preRender();
+        void preRender();
+        void beginGpuTiming(uint32 scope);
+        void endGpuTiming(uint32 scope);
+        double gpuMilliseconds(uint32 scope) const { return scope < 5 ? _gpuMilliseconds[scope] : -1.0; }
+        double gpuPeakMilliseconds(uint32 scope) const { return scope < 5 ? _gpuPeakMilliseconds[scope] : -1.0; }
+        void resetGpuTimingPeaks() { for (auto& value : _gpuPeakMilliseconds) value = 0.0; }
+        void prepareGpuTimings();
+        bool createReflectiveSurfaceMap(ReflectiveSurfaceMap& map, uint32 size);
+        void beginReflectiveSurfaceMap(ReflectiveSurfaceMap& map);
+        void endReflectiveSurfaceMap(ReflectiveSurfaceMap& map);
 		void bindRenderPass(const uint32 rtvSlot);
 		bool bindPipeline(Pipeline& pipeline, const Pipeline::Type type);
 		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const Pipeline::Type type);
@@ -644,7 +662,19 @@ do{ \
 #endif
 
 	private:
-		bool _useWarpDevice = false;
+		// Gpu Timings
+        RenderResourcePtr<ID3D12QueryHeap> _gpuTimestampHeap;
+        RenderResourcePtr<ID3D12Resource> _gpuTimestampReadback;
+        uint64 _gpuTimestampFrequency = 0;
+        uint64 _gpuTimingFence = 0;
+        uint32 _gpuTimingFenceIndex = 0;
+        bool _gpuTimingsInitialized = false;
+        bool _gpuTimingRecorded = false;
+        double _gpuMilliseconds[5] = { -1, -1, -1, -1, -1 };
+        double _gpuPeakMilliseconds[5] = { 0, 0, 0, 0, 0 };
+
+		// resource
+        bool _useWarpDevice = false;
 		RenderResourcePtr<ID3D12Device8> _device = nullptr;
 		RenderResourcePtr<ID3D12CommandQueue> _commandQueue;
 		DKCommandList _commandList;

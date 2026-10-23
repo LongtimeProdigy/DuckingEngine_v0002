@@ -19,6 +19,10 @@
 
 namespace DK
 {
+	static std::random_device rd;
+	static std::mt19937 gen(rd());
+	//static std::normal_distribution<float> dist(0, 1);
+
 	bool SceneRenderer::initialize()
 	{
 		if (initialize_createRenderPass() == false) 
@@ -384,11 +388,53 @@ namespace DK
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
 		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
+
 		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
-		_atmosphereTransmittanceLut = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture("AtmosphereTransmittanceLut", kAtmosphereLutWidth, kAtmosphereLutHeight, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		_atmosphereTransmittanceLut = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture("AtmosphereTransmittanceLut", kAtmosphereLutWidth, kAtmosphereLutHeight * 2u, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
 		if (_atmosphereTransmittanceLut == nullptr)
 			return false;
-		_atmosphereConstantBufferData._transmittanceLutIndex = _atmosphereTransmittanceLut->getSRV();
+
+        RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		for (uint32 i = 0; i < 2u; ++i)
+		{
+			_multipleScatteringLut[i] = renderModule.createTexture(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1", 32, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+			if (_multipleScatteringLut[i] == nullptr)
+				return false;
+		}
+
+		_skyRadiance = renderModule.createTexture("AtmosphereSkyRadiance", 64, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+		if (_skyRadiance == nullptr)
+			return false;
+		_skyFiltered = renderModule.createTexture("AtmosphereSkyFiltered", 64, 192, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		if (_skyFiltered == nullptr)
+			return false;
+
+        _surfaceSceneConstantBuffer = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), L"SurfaceCaptureSceneConstantBuffer");
+		if (_surfaceSceneConstantBuffer == nullptr)
+			return false;
+        _surfaceBounce = renderModule.createTexture("Atmosphere surface bounce field", 256, 16, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+        if (_surfaceBounce == nullptr)
+			return false;
+
+        if (renderModule.createReflectiveSurfaceMap(_surfaceMap, 512u) == false)
+			return false;
+		for (uint32 i = 0; i < 3; ++i)
+		{
+			_nearShadowSceneConstants[i] = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), L"ShadowCascadeSceneConstants");
+			if (_nearShadowSceneConstants[i] == nullptr || renderModule.createReflectiveSurfaceMap(_nearShadowMaps[i], 512u) == false)
+				return false;
+		}
+
+		AtmosphereConstantBuffer& surface = _atmosphereConstantBufferData;
+		surface._transmittanceLutIndex = _atmosphereTransmittanceLut->getSRV();
+        surface._multipleScatteringLutIndex = _multipleScatteringLut[0]->getSRV();
+        surface._skyRadianceIndex = _skyRadiance->getSRV();
+        surface._skyFilteredIndex = _skyFiltered->getSRV();
+        surface._surfaceAlbedoIndex = _surfaceMap.attributes[0]->getSRV();
+        surface._surfaceNormalIndex = _surfaceMap.attributes[1]->getSRV();
+        surface._surfaceMaterialIndex = _surfaceMap.attributes[2]->getSRV();
+        surface._surfaceDepthIndex = _surfaceMap.depth->getSRV();
+        surface._surfaceBounceIndex = _surfaceBounce->getSRV();
 
 		return true;
 	}
@@ -404,10 +450,7 @@ namespace DK
 
 		return &findResult->second;
 	}
-	static float gHeightScale = 750.f;	// TODO: Ocean쪽으로 옮겨야함
-	static std::random_device rd;
-	static std::mt19937 gen(rd());
-	static std::normal_distribution<float> dist(0, 1);
+
 	void SceneRenderer::updateAtmosphereCamera(Camera& camera) const noexcept
 	{
 		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
@@ -424,22 +467,8 @@ namespace DK
 		camera.setMoveSpeed(Math::clamp(altitude * 0.2f, 5.0f, 2000000.0f));
 		camera.setClipPlaneDistances(Math::max(0.1f, altitude * 0.00001f), Math::max(1000.0f, altitude * 4.0f));
 	}
-	void SceneRenderer::setOrbitView() const noexcept
-	{
-		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
-		const float sunAngle = atmosphere._sunDegree * Math::kToRadian;
-		const float earthAngle = sunAngle - 25.0f * Math::kToRadian;
-		const float3 earthDirection(0, std::sin(earthAngle), std::cos(earthAngle));
-		const float3 sunDirection(0, std::sin(sunAngle), std::cos(sunAngle));
-		const float3 center(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
-		Camera::gMainCamera->setView(center - earthDirection * (4.0f * atmosphere._atmosphereRadius), earthDirection + sunDirection);
-		updateAtmosphereCamera(*Camera::gMainCamera);
-	}
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
-		// UI may have changed the view or atmosphere since the input update.
-		updateAtmosphereCamera(*Camera::gMainCamera);
-
 		const float3 cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
 		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 		const float3 planetCenter(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
@@ -448,10 +477,11 @@ namespace DK
 		const double dz = static_cast<double>(cameraPosition.z) - planetCenter.z;
 		_atmosphereConstantBufferData._cameraAltitude = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz) - atmosphere._densityReferenceRadius);
 
-		// Existing flat terrain is a local patch at the planet's +Y surface.
-		const double patchX = static_cast<double>(cameraPosition.x) - planetCenter.x;
-		const double patchZ = static_cast<double>(cameraPosition.z) - planetCenter.z;
-		_renderLocalScene = atmosphere._cameraAltitude < 10000.0f && cameraPosition.y > planetCenter.y && patchX * patchX + patchZ * patchZ < 50000.0 * 50000.0;
+        // The demo geometry has its own world-space region, independent of atmospheric radii.
+        const double gx = double(cameraPosition.x) - _localGeometryCentre.x;
+        const double gy = double(cameraPosition.y) - _localGeometryCentre.y;
+        const double gz = double(cameraPosition.z) - _localGeometryCentre.z;
+        _renderLocalScene = _localGeometryEnabled && gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius;
 
 		// Upload Scene ConstantBuffer
 		{
@@ -462,12 +492,20 @@ namespace DK
 			_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
 			_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
 			_sceneConstantBufferData._rngState = static_cast<uint32>(gen());
+
 			Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
 			Camera::gMainCamera->getCameraWorldMatrix(_sceneConstantBufferData._cameraWorldMatrixInv);
 			Camera::gMainCamera->getCameraProjectionMatrix(_sceneConstantBufferData._cameraProjectionMatrix);
 			_sceneConstantBuffer->upload(&_sceneConstantBufferData);
 
-			AtmosphereConstantBuffer relativeAtmosphere = atmosphere;
+			prepareSurfaceCapture(cameraPosition);
+		}
+
+		{
+			// The last ping-pong output is determined by the number of scattering passes.
+            const uint32 passes = atmosphere._multipleScatteringMaxOrder > 1u ? atmosphere._multipleScatteringMaxOrder - 1u : 0u;
+            _atmosphereConstantBufferData._multipleScatteringLutIndex = _multipleScatteringLut[passes ? (passes - 1u) & 1u : 0u]->getSRV();
+            AtmosphereConstantBuffer relativeAtmosphere = _atmosphereConstantBufferData;
 			relativeAtmosphere._planetCentre[0] = static_cast<float>(-dx);
 			relativeAtmosphere._planetCentre[1] = static_cast<float>(-dy);
 			relativeAtmosphere._planetCentre[2] = static_cast<float>(-dz);
@@ -501,7 +539,7 @@ namespace DK
 			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * kFrameCount];
 
 			SceneManager::Ocean::OceanParams params(
-				time, g, windDir, gHeightScale, length, A, L, N,
+				time, g, windDir, ocean._heightScale, length, A, L, N,
 				ocean._h0[0]->getSRV(), ocean._h0[0]->getUAV(),
 				sourceTexture->getUAV(),
 				ocean._height[ocean._currentReadTextureIndex]->getSRV(), ocean._height[ocean._currentReadTextureIndex]->getUAV(),
@@ -683,7 +721,7 @@ namespace DK
 		return false;
 	}
 #endif
-	void SceneRenderer::preRender() noexcept
+	void SceneRenderer::renderUI() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
@@ -708,8 +746,8 @@ namespace DK
 
 		const ImGuiViewport* viewport = ImGui::GetMainViewport();
 		// Transparent central node keeps the rendered scene visible and interactive.
-		ImGui::DockSpaceOverViewport(0, viewport, ImGuiDockNodeFlags_PassthruCentralNode
-			| (showUI ? ImGuiDockNodeFlags_None : ImGuiDockNodeFlags_KeepAliveOnly));
+		ImGui::DockSpaceOverViewport(0, viewport, ImGuiDockNodeFlags_PassthruCentralNode | (showUI ? ImGuiDockNodeFlags_None : ImGuiDockNodeFlags_KeepAliveOnly));
+
 		const float uiScale = ImGui::GetFontSize() / 15.0f;
 		const float margin = 12.0f * uiScale;
 		float toolbarHeight = ImGui::GetFrameHeight() + 16.0f;
@@ -718,30 +756,27 @@ namespace DK
 			ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + margin, viewport->WorkPos.y + margin));
 			ImGui::SetNextWindowViewport(viewport->ID);
 			ImGui::SetNextWindowBgAlpha(0.90f);
-			const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize
-				| ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoDocking;
+			const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoDocking;
 			if (ImGui::Begin("Renderer status", nullptr, flags))
 			{
 				if (ImGui::Button(showSettings ? "Close inspector" : "Inspector"))
 					showSettings = !showSettings;
+
 				ImGui::SameLine();
 				const float fps = ImGui::GetIO().Framerate;
 				ImGui::TextDisabled("%.0f fps", fps);
 				ImGui::SetItemTooltip("Frame time: %.2f ms", fps > 0.0f ? 1000.0f / fps : 0.0f);
+
 				ImGui::SameLine();
 				if (ImGui::Button("..."))
 					ImGui::OpenPopup("View options");
 				if (ImGui::BeginPopup("View options"))
 				{
-					if (ImGui::MenuItem("Bring inspector back"))
-					{
-						showSettings = true;
-						resetSettingsLayout = true;
-					}
-					if (ImGui::MenuItem("Hide interface", "F1"))
-						showUI = false;
+					if (ImGui::MenuItem("Bring inspector back")) { showSettings = true; resetSettingsLayout = true; }
+					if (ImGui::MenuItem("Hide interface", "F1")) showUI = false;
 					ImGui::EndPopup();
 				}
+
 				toolbarHeight = ImGui::GetWindowHeight();
 			}
 			ImGui::End();
@@ -766,24 +801,38 @@ namespace DK
 			if (ImGui::Begin("Scene inspector###SceneInspector", &showSettings, flags))
 			{
 				AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
+
 				ImGui::TextDisabled("EARTH / METERS");
 				ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight());
 				ImGui::TextDisabled("(?)");
 				ImGui::SetItemTooltip("Drag the title bar out to detach this panel.\nF1 hides or restores the interface.\nUse ... > Bring inspector back to reset its position.");
+
 				if (ImGui::BeginTabBar("Renderer tabs"))
 				{
 					if (ImGui::BeginTabItem("Scene"))
 					{
 						if (ImGui::Button("Orbit", ImVec2((ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f, 0)))
-							setOrbitView();
+						{
+							const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
+							const float sunAngle = atmosphere._sunDegree * Math::kToRadian;
+							const float earthAngle = sunAngle - 25.0f * Math::kToRadian;
+							const float3 earthDirection(0, std::sin(earthAngle), std::cos(earthAngle));
+							const float3 sunDirection(0, std::sin(sunAngle), std::cos(sunAngle));
+							const float3 center(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
+							Camera::gMainCamera->setView(center - earthDirection * (4.0f * atmosphere._atmosphereRadius), earthDirection + sunDirection);
+						}
+
 						ImGui::SameLine();
 						if (ImGui::Button("Surface", ImVec2(-FLT_MIN, 0)))
 							Camera::gMainCamera->setView(float3(atmosphere._planetCentre[0] + 3.0f, atmosphere._planetCentre[1] + atmosphere._densityReferenceRadius + 23.0f, atmosphere._planetCentre[2] - 50.0f), float3(0, 0, 1));
+
 						ImGui::Text("Altitude: %.1f km", atmosphere._cameraAltitude / 1000.0f);
+
 						if (ImGui::CollapsingHeader("Shape & scale", ImGuiTreeNodeFlags_DefaultOpen))
 						{
 							if (ImGui::Button("Reset Earth atmosphere"))
 							{
+                                _compareExtendedAtmosphereTop = false;
 								atmosphere._densityReferenceRadius = 6360000.0f;
 								atmosphere._densityTransitionRadius = 6358000.0f;
 								atmosphere._planetCentre[0] = atmosphere._planetCentre[2] = 0.0f;
@@ -792,18 +841,54 @@ namespace DK
 								atmosphere._rayleighHeight = 7994.0f;
 								atmosphere._mieHeight = 1200.0f;
 								atmosphere._scatteringScale = 1.0f;
+                                atmosphere._rayleighScale = atmosphere._mieScale = 1.0f;
+                                atmosphere._mieAbsorptionScale = 0.0f;
+                                atmosphere._mieAnisotropy = 0.76f;
+                                for (AtmosphereAbsorptionLayer& layer : atmosphere._absorptionLayers)
+									layer = AtmosphereAbsorptionLayer();
 							}
-							InspectorProperty("Center (XYZ)", [&] { ImGui::InputFloat3("##value", atmosphere._planetCentre, "%.3g"); });
-							float thickness = atmosphere._atmosphereRadius - atmosphere._densityReferenceRadius;
-							InspectorProperty("Density reference radius (m)", [&] { ImGui::InputFloat("##value", &atmosphere._densityReferenceRadius); });
-							InspectorProperty("Density transition radius (m)", [&] { ImGui::InputFloat("##value", &atmosphere._densityTransitionRadius, 100.0f, 1000.0f, "%.1f"); });
-							InspectorProperty("Air thickness", [&] { ImGui::InputFloat("##value", &thickness, 0, 0, "%.6f"); });
-							atmosphere._densityReferenceRadius = Math::max(atmosphere._densityReferenceRadius, 0.01f);
-							atmosphere._densityTransitionRadius = Math::clamp(atmosphere._densityTransitionRadius, 0.01f, atmosphere._densityReferenceRadius);
-							atmosphere._atmosphereRadius = atmosphere._densityReferenceRadius + Math::max(thickness, atmosphere._densityReferenceRadius * 0.000001f);
+							ImGui::InputFloat3("Center (XYZ)", atmosphere._planetCentre, "%.3g");
+							ImGui::Text("Density reference radius (m): %.1f km", atmosphere._densityReferenceRadius / 1000.0f);
+							ImGui::InputFloat("Density transition radius (m)", &atmosphere._densityTransitionRadius, 100.0f, 1000.0f, "%.1f");
+							ImGui::InputFloat("Atmosphere radius (m)", &atmosphere._atmosphereRadius, 100.0f, 1000.0f, "%.1f");
+
+                            if (ImGui::Checkbox("Compare extended atmosphere top", &_compareExtendedAtmosphereTop))
+                            {
+                                if (_compareExtendedAtmosphereTop)
+                                {
+                                    float top = atmosphere._densityReferenceRadius + 12.0f * Math::max(atmosphere._rayleighHeight, atmosphere._mieHeight);
+									for (const auto& layer : atmosphere._absorptionLayers)
+									{
+										if (layer.strength > 0.0f)
+											top = Math::max(top, layer.peakRadius + layer.upperWidth);
+									}
+
+                                    atmosphere._atmosphereRadius = Math::max(top, atmosphere._atmosphereRadius);
+                                }
+								else
+								{
+									atmosphere._atmosphereRadius = Math::max(kEarthAtmosphereRadius, atmosphere._densityReferenceRadius + 1.0f);
+								}
+                            }
 						}
+
+                        if (ImGui::CollapsingHeader("Local geometry region"))
+                        {
+                            ImGui::Checkbox("Enable demo geometry", &_localGeometryEnabled);
+                            ImGui::InputFloat3("Region centre", &_localGeometryCentre.x);
+                            ImGui::InputFloat("Region radius (m)", &_localGeometryRadius);
+                            ImGui::TextWrapped("This controls the existing demo scene, independently of atmosphere density radii. Disable for a gas-only scene.");
+
+                            _localGeometryRadius = Math::max(_localGeometryRadius, 1.0f);
+                        }
+
 						if (ImGui::CollapsingHeader("Ocean"))
-							InspectorProperty("Height scale", [&] { ImGui::InputFloat("##value", &gHeightScale); });
+						{
+							SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+							SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
+							InspectorProperty("Height scale", [&] { ImGui::InputFloat("##value", &ocean._heightScale); });
+						}
+
 						ImGui::EndTabItem();
 					}
 					if (ImGui::BeginTabItem("Light"))
@@ -811,7 +896,9 @@ namespace DK
 						if (ImGui::CollapsingHeader("Sun", ImGuiTreeNodeFlags_DefaultOpen))
 						{
 							InspectorProperty("Sun angle (deg)", [&] { ImGui::DragFloat("##value", &_atmosphereConstantBufferData._sunDegree, 0.1f, 0.0f, 0.0f, "%.3f"); });
-							InspectorProperty("Irradiance", [&] { ImGui::DragFloat("##value", &atmosphere._sunIntensity, 0.1f, 0.0f, 100000.0f, "%.2f"); });
+							InspectorProperty("Solar irradiance (relative)", [&] { ImGui::DragFloat("##value", &atmosphere._sunIrradiance, 0.1f, 0.0f, 100000.0f, "%.2f"); });
+							InspectorProperty("Sun color (linear RGB)", [&] { ImGui::ColorEdit3("##value", atmosphere._sunColor, ImGuiColorEditFlags_Float); });
+							ImGui::TextDisabled("Relative HDR units; color normalized to unit luminance.");
 							InspectorProperty("Disk radius (deg)", [&] { ImGui::DragFloat("##value", &atmosphere._sunAngularRadius, 0.01f, 0.01f, 5.0f, "%.3f"); });
 							InspectorProperty("Disk brightness", [&] { ImGui::DragFloat("##value", &atmosphere._sunRadianceScale, 0.01f, 0.0f, 100.0f, "%.2f"); });
 						}
@@ -819,13 +906,68 @@ namespace DK
 						{
 							InspectorProperty("Rayleigh height", [&] { ImGui::InputFloat("##value", &atmosphere._rayleighHeight, 0, 0, "%.6f"); });
 							InspectorProperty("Mie height", [&] { ImGui::InputFloat("##value", &atmosphere._mieHeight, 0, 0, "%.6f"); });
+                            InspectorProperty("Rayleigh amount", [&] { ImGui::DragFloat("##value", &atmosphere._rayleighScale, 0.01f, 0.0f, 10.0f); });
+                            InspectorProperty("Mie scattering", [&] { ImGui::DragFloat("##value", &atmosphere._mieScale, 0.01f, 0.0f, 10.0f); });
+                            InspectorProperty("Mie absorption", [&] { ImGui::DragFloat("##value", &atmosphere._mieAbsorptionScale, 0.01f, 0.0f, 10.0f); });
+                            InspectorProperty("Mie anisotropy", [&] { ImGui::SliderFloat("##value", &atmosphere._mieAnisotropy, -0.95f, 0.95f); });
+                            InspectorProperty("Multiple scattering", [&] { ImGui::SliderFloat("##value", &atmosphere._multipleScatteringStrength, 0.0f, 1.0f); });
+                            InspectorProperty("Max scattering order", [&] {
+                                int order = static_cast<int>(atmosphere._multipleScatteringMaxOrder);
+                                if (ImGui::SliderInt("##value", &order, 1, 8))
+                                    atmosphere._multipleScatteringMaxOrder = static_cast<uint32>(order);
+                            });
+                            InspectorProperty("Sky lighting", [&] { ImGui::SliderFloat("##value", &atmosphere._skyLightingStrength, 0.0f, 2.0f); });
 							InspectorProperty("Density multiplier", [&] { ImGui::DragFloat("##value", &atmosphere._scatteringScale, 0.01f, 0.0f, 0.0f, "%.2f"); });
 						}
+                        if (ImGui::CollapsingHeader("Surface to atmosphere"))
+                        {
+                            InspectorProperty("Sun shadow strength", [&] { ImGui::SliderFloat("##value", &atmosphere._surfaceShadowStrength, 0.0f, 1.0f); });
+                            InspectorProperty("Reflected light strength", [&] { ImGui::SliderFloat("##value", &atmosphere._surfaceBounceStrength, 0.0f, 2.0f); });
+                            InspectorProperty("Capture half-width (m)", [&] { ImGui::InputFloat("##value", &_surfaceCaptureExtent); });
+                            InspectorProperty("Capture depth (m)", [&] { ImGui::InputFloat("##value", &_surfaceCaptureDepth); });
+                            InspectorProperty("Shadow bias (m)", [&] { ImGui::InputFloat("##value", &atmosphere._surfaceBias); });
+                            InspectorProperty("Bounce samples", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._surfaceBounceSamples), 8, 64); });
+                            _surfaceCaptureExtent = Math::max(_surfaceCaptureExtent, 1.0f);
+							_surfaceCaptureDepth = Math::max(_surfaceCaptureDepth, 1.0f);
+                            atmosphere._surfaceBias = Math::max(atmosphere._surfaceBias, 0.0f);
+                            ImGui::TextWrapped("Four 512x512 shadow cascades (1/8, 1/4, 1/2, full half-width), with blended boundaries. The outer capture feeds the 16x16x16 bounce field.");
+                        }
+                        if (ImGui::CollapsingHeader("Gas absorption layers"))
+                        {
+                            ImGui::TextWrapped("Independent RGB absorption shells. Radii are measured from the planet centre; zero amount disables a layer.");
+                            if (ImGui::Button("Earth ozone example (layer 0)"))
+                            {
+                                auto& layer = atmosphere._absorptionLayers[0];
+                                layer.extinction[0] = 0.650e-6f; layer.extinction[1] = 1.881e-6f; layer.extinction[2] = 0.085e-6f;
+                                layer.strength = 1.0f; layer.peakRadius = atmosphere._densityReferenceRadius + 25000.0f;
+                                layer.lowerWidth = layer.upperWidth = 15000.0f;
+                            }
+                            for (uint32 i = 0; i < 2u; ++i)
+                            {
+                                ImGui::PushID(static_cast<int>(i));
+                                ImGui::Text("Layer %u", i);
+                                auto& layer = atmosphere._absorptionLayers[i];
+                                InspectorProperty("Amount", [&] { ImGui::DragFloat("##value", &layer.strength, 0.01f, 0.0f, 10.0f); });
+                                float inverseKm[3] = { layer.extinction[0] * 1000, layer.extinction[1] * 1000, layer.extinction[2] * 1000 };
+                                InspectorProperty("Absorption RGB (1/km)", [&] { ImGui::InputFloat3("##value", inverseKm, "%.6f"); });
+                                for (uint32 c = 0; c < 3u; ++c) layer.extinction[c] = Math::max(inverseKm[c], 0.0f) / 1000.0f;
+                                InspectorProperty("Peak radius (m)", [&] { ImGui::InputFloat("##value", &layer.peakRadius, 100, 1000, "%.1f"); });
+                                InspectorProperty("Lower width (m)", [&] { ImGui::InputFloat("##value", &layer.lowerWidth); });
+                                InspectorProperty("Upper width (m)", [&] { ImGui::InputFloat("##value", &layer.upperWidth); });
+                                layer.peakRadius = Math::max(layer.peakRadius, 0.0f);
+                                layer.lowerWidth = Math::max(layer.lowerWidth, 0.001f); layer.upperWidth = Math::max(layer.upperWidth, 0.001f);
+                                ImGui::PopID();
+                            }
+                        }
 						if (ImGui::CollapsingHeader("Sampling quality"))
 						{
-							const char* samplingModes[] = { "Production", "Direct reference", "Reference limits" };
-							InspectorProperty("Atmosphere integration", [&] { ImGui::Combo("##value", reinterpret_cast<int*>(&atmosphere._atmosphereSamplingMode), samplingModes, 3); });
-							InspectorProperty("Relative error", [&] { ImGui::DragFloat("##value", &atmosphere._integrationRelativeTolerance, 0.0001f, 0.00001f, 0.05f, "%.5f"); });
+							const char* samplingModes[] = { "Production", "Direct reference", "Reference limits", "Production work", "Production transmittance" };
+							InspectorProperty("Atmosphere integration", [&] { ImGui::Combo("##value", reinterpret_cast<int*>(&atmosphere._atmosphereSamplingMode), samplingModes, 5); });
+                            if (atmosphere._atmosphereSamplingMode == 1u || atmosphere._atmosphereSamplingMode == 2u)
+                                ImGui::TextWrapped("Direct integration is limited to the centre 16x16 pixels. Surrounding pixels use Production. Move the camera to inspect a feature at the centre.");
+							InspectorProperty("View work budget", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._viewNodeBudget), 128, 256); });
+                            InspectorProperty("Light work budget", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._opticalNodeBudget), 64, 128); });
+                            InspectorProperty("Relative error", [&] { ImGui::DragFloat("##value", &atmosphere._integrationRelativeTolerance, 0.0001f, 0.00001f, 0.05f, "%.5f"); });
 							InspectorProperty("Subdivision depth", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&atmosphere._integrationMaxDepth), 1.0f, 0, 10); });
 							InspectorProperty("Initial view intervals", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&_atmosphereConstantBufferData._numInScatteringPoints), 1.0f, 1, 128); });
 							InspectorProperty("Initial light intervals", [&] { ImGui::DragInt("##value", reinterpret_cast<int*>(&_atmosphereConstantBufferData._opticalDepthPointCount), 1.0f, 1, 64); });
@@ -835,7 +977,7 @@ namespace DK
 					if (ImGui::BeginTabItem("Image"))
 					{
 						ImGui::SeparatorText("Tone mapping");
-						InspectorProperty("Exposure (EV)", [&] { ImGui::DragFloat("##value", &atmosphere._exposureEV, 0.1f, -16.0f, 16.0f, "%.1f"); });
+						InspectorProperty("Exposure compensation (EV)", [&] { ImGui::DragFloat("##value", &atmosphere._exposureEV, 0.1f, -16.0f, 16.0f, "%.1f"); });
 						ImGui::SeparatorText("Bloom");
 						InspectorProperty("Intensity", [&] { ImGui::SliderFloat("##value", &atmosphere._bloomStrength, 0.0f, 1.0f, "%.2f"); });
 						InspectorProperty("Radius (px)", [&] { ImGui::DragFloat("##value", &atmosphere._bloomRadius, 1.0f, 1.0f, 32.0f, "%.0f"); });
@@ -846,7 +988,12 @@ namespace DK
 					{
 #if defined(_DK_DEBUG_)
 						if (ImGui::Button("Reload shaders"))
-							gIsReload = true;
+                        {
+                            gIsReload = true;
+                            _atmosphereLutValid = false;
+                            _skyLightingValid = false;
+                            _surfaceTransportValid = false;
+                        }
 #endif
 						const float3& position = Camera::gMainCamera->get_worldTransform().get_translation();
 						float3 rotation;
@@ -877,15 +1024,23 @@ namespace DK
 								rtRenderer.resetAccumulation();
 							}
 						}
-						ImGui::TextDisabled("F1: show / hide all UI");
+						auto& timing = DuckingEngine::getInstance().GetRenderModuleWritable();
+                        const char* scopeNames[] = { "Transmittance LUT", "Sky lighting", "Surface lighting", "Atmosphere", "Surface capture / bounce" };
+                        for (uint32 scope = 0; scope < 5; ++scope)
+                            ImGui::Text("%s: %.3f ms (peak %.3f)", scopeNames[scope], timing.gpuMilliseconds(scope), timing.gpuPeakMilliseconds(scope));
+                        if (ImGui::Button("Reset GPU peaks")) timing.resetGpuTimingPeaks();
+                        ImGui::TextDisabled("GPU timestamps; -1 = unavailable. Cached passes approach 0 ms.");
+                        ImGui::TextDisabled("F1: show / hide all UI");
 						ImGui::EndTabItem();
 					}
 					ImGui::EndTabBar();
 				}
+
 				atmosphere._rayleighHeight = Math::max(atmosphere._rayleighHeight, 0.000001f);
 				atmosphere._mieHeight = Math::max(atmosphere._mieHeight, 0.000001f);
+				atmosphere._multipleScatteringMaxOrder = Math::clamp(atmosphere._multipleScatteringMaxOrder, 1u, 8u);
 				atmosphere._scatteringScale = Math::max(atmosphere._scatteringScale, 0.0f);
-				atmosphere._sunIntensity = Math::clamp(atmosphere._sunIntensity, 0.0f, 100000.0f);
+				atmosphere._sunIrradiance = Math::clamp(atmosphere._sunIrradiance, 0.0f, 100000.0f);
 				atmosphere._sunAngularRadius = Math::clamp(atmosphere._sunAngularRadius, 0.01f, 5.0f);
 				atmosphere._sunRadianceScale = Math::clamp(atmosphere._sunRadianceScale, 0.0f, 100.0f);
 				atmosphere._exposureEV = Math::clamp(atmosphere._exposureEV, -16.0f, 16.0f);
@@ -899,24 +1054,375 @@ namespace DK
 		ImGui::Render();
 #endif
 	}
+    void SceneRenderer::prepareSurfaceCapture(const float3& cameraPosition)
+    {
+		AtmosphereConstantBuffer& atmosphereData = _atmosphereConstantBufferData;
+        atmosphereData._surfaceMapEnabled = _renderLocalScene && (atmosphereData._surfaceShadowStrength > 0 || atmosphereData._surfaceBounceStrength > 0) ? 1u : 0u;
+
+        const float depth = Math::max(_surfaceCaptureDepth, 1.0f);
+        const float directionalLightAngle = atmosphereData._sunDegree * Math::kToRadian;
+        const float3 directionalLightDir(0, -std::sin(directionalLightAngle), -std::cos(directionalLightAngle));
+		const float4 directionalLightDir4 = float4(directionalLightDir.x, directionalLightDir.y, directionalLightDir.z, 0);
+        const float3 hint = std::abs(directionalLightDir.y) < 0.99f ? float3::Up : float3::Right;
+
+		float3 r3 = hint.cross(directionalLightDir);
+		r3.normalize();
+		float3 u3 = directionalLightDir.cross(r3);
+		u3.normalize();
+
+        const float3 right(r3.x, r3.y, r3.z), up(u3.x, u3.y, u3.z);
+		const float3 basis[3] = { right, up, directionalLightDir };
+
+        auto doublePrecisionDot = [](const float3& a, const float3& b) { return double(a.x) * b.x + double(a.y) * b.y + double(a.z) * b.z; };
+        for (uint32 cascadeIndex = 0; cascadeIndex < atmosphereData._shadowCascadeCount; ++cascadeIndex)
+        {
+            // Nested light-space coverage also serves off-screen atmospheric samples.
+            const float extent = Math::max(_surfaceCaptureExtent, 1.0f) / float(1u << (3u - cascadeIndex));
+            const float cell = 2.0f * extent / atmosphereData._surfaceMapSize;
+            const float snapRight = std::round(doublePrecisionDot(cameraPosition, right) / cell) * cell - doublePrecisionDot(cameraPosition, right);
+            const float snapUp = std::round(doublePrecisionDot(cameraPosition, up) / cell) * cell - doublePrecisionDot(cameraPosition, up);
+            const float snapForward = std::round(doublePrecisionDot(cameraPosition, directionalLightDir) / (depth / 16.0)) * (depth / 16.0) - doublePrecisionDot(cameraPosition, directionalLightDir);
+            const float3 eye(float(double(cameraPosition.x) + right.x * snapRight + up.x * snapUp + directionalLightDir.x * (snapForward - depth * 0.5)),
+                             float(double(cameraPosition.y) + right.y * snapRight + up.y * snapUp + directionalLightDir.y * (snapForward - depth * 0.5)),
+                             float(double(cameraPosition.z) + right.z * snapRight + up.z * snapUp + directionalLightDir.z * (snapForward - depth * 0.5)));
+            const float3 origin = eye - cameraPosition;
+
+            float* target[3] = { atmosphereData._surfaceRight, atmosphereData._surfaceUp, atmosphereData._surfaceForward };
+			for (uint32 i = 0; i < 3; ++i)
+			{
+				target[i][0] = basis[i].x;
+				target[i][1] = basis[i].y;
+				target[i][2] = basis[i].z;
+			}
+
+			atmosphereData._surfaceRight[3] = extent;
+			atmosphereData._surfaceUp[3] = extent;
+			atmosphereData._surfaceForward[3] = depth;
+            atmosphereData._surfaceOrigin[0] = origin.x;
+			atmosphereData._surfaceOrigin[1] = origin.y;
+			atmosphereData._surfaceOrigin[2] = origin.z;
+
+			// cascade constant buffer에 덮어 씌울 것이기 때문에 복사한다음 cascade로 upload 수행
+            SceneConstantBuffer scene = _sceneConstantBufferData;
+            scene._resolution[0] = scene._resolution[1] = atmosphereData._surfaceMapSize;
+            scene._cameraWorldMatrixInv = float4x4(
+				right.x, up.x, directionalLightDir.x, 0,
+				right.y, up.y, directionalLightDir.y, 0,
+				right.z, up.z, directionalLightDir.z, 0,
+				float(-doublePrecisionDot(eye, right)), float(-doublePrecisionDot(eye, up)), float(-doublePrecisionDot(eye, directionalLightDir)), 1
+			);
+            scene._cameraWorldMatrix = float4x4(right.x, right.y, right.z, 0, up.x, up.y, up.z, 0, directionalLightDir.x, directionalLightDir.y, directionalLightDir.z, 0, eye.x, eye.y, eye.z, 1);
+            scene._cameraProjectionMatrix = float4x4(1 / extent, 0, 0, 0, 0, 1 / extent, 0, 0, 0, 0, 1 / depth, 0, 0, 0, 0, 1);
+
+			IBufferRef& surfaceSceneConstantBuffer = (cascadeIndex == 3u ? _surfaceSceneConstantBuffer : _nearShadowSceneConstants[cascadeIndex]);
+			surfaceSceneConstantBuffer->upload(&scene);
+
+			SurfaceShadowCascade& cascade = atmosphereData._shadowCascades[cascadeIndex];
+            memcpy(cascade.right, atmosphereData._surfaceRight, sizeof(cascade.right));
+            memcpy(cascade.up, atmosphereData._surfaceUp, sizeof(cascade.up));
+            memcpy(cascade.forward, atmosphereData._surfaceForward, sizeof(cascade.forward));
+            memcpy(cascade.origin, atmosphereData._surfaceOrigin, sizeof(cascade.origin));
+
+			ReflectiveSurfaceMap& map = cascadeIndex == 3u ? _surfaceMap : _nearShadowMaps[cascadeIndex];
+            cascade.albedoIndex = map.attributes[0]->getSRV();
+			cascade.depthIndex = map.depth->getSRV();
+			cascade.mapSize = map.size;
+        } // Keep the outermost capture in the legacy fields for bounce transport.
+    }
+    void SceneRenderer::updateSurfaceTransport()
+    {
+        if (_atmosphereConstantBufferData._surfaceMapEnabled == false)
+        {
+            _surfaceTransportValid = false;
+            return;
+        }
+
+        const AtmosphereConstantBuffer& surface = _atmosphereConstantBufferData;
+        const uint64 now = GetTickCount64();
+        const bool changed = _surfaceTransportValid == false || memcmp(&surface, &_cachedSurfaceParameters, sizeof(surface)) != 0;
+        const bool updateBounce = changed || now - _lastSurfaceTransportUpdate >= 100u;
+        if (updateBounce == false && surface._surfaceShadowStrength <= 0.0f)
+			return;
+
+        RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+        renderModule.beginGpuTiming(4);
+        startRenderPass(renderModule, "MainRenderPass", 0xffffffffu);
+		{
+			if (surface._surfaceShadowStrength > 0.0f)
+			{
+				for (uint32 i = 0; i < 3u; ++i)
+				{
+					renderModule.beginReflectiveSurfaceMap(_nearShadowMaps[i]);
+					drawSceneGeometry(renderModule, _nearShadowSceneConstants[i], false);
+					renderModule.endReflectiveSurfaceMap(_nearShadowMaps[i]);
+				}
+			}
+			renderModule.beginReflectiveSurfaceMap(_surfaceMap);
+			drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, false);
+			renderModule.endReflectiveSurfaceMap(_surfaceMap);
+		}
+        endRenderPass();
+
+        if (updateBounce && _atmosphereConstantBufferData._surfaceBounceStrength > 0.0f)
+        {
+            startRenderPass(renderModule, "AtmosphereSurfaceBouncePass", 0xffffffffu);
+			{
+				startPipeline("AtmosphereSurfaceBouncePipeline");
+				{
+					renderModule.resourceBarrierTransition(_surfaceBounce, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+					setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+					setRootConstantParameter("_surfaceBounceOutputUav", _surfaceBounce->getUAV());
+					renderModule.dispatch(256u, 16u, 1u);
+					renderModule.resourceBarrierTransition(_surfaceBounce, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				}
+				endPipeline();
+			}
+			endRenderPass();
+        }
+        renderModule.endGpuTiming(4);
+
+		if (updateBounce == false)
+			return;
+
+        _cachedSurfaceParameters = surface;
+        _lastSurfaceTransportUpdate = now;
+        _surfaceTransportValid = true;
+        _skyLightingValid = false; // Only invalidate when capture/bounce data were refreshed.
+    }
+    void SceneRenderer::drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, bool includeDebug)
+    {
+        RenderModule& currentRenderModule = renderModule;
+		if (_renderLocalScene)
+		{
+#if 0
+			startPipeline("SkyDomePipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", sceneConstants->GetGPUVirtualAddress());
+
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
+
+				renderModule.setVertexBuffers(0, 1, skyDome._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(skyDome._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._mesh._indexCount), 1, 0, 0, 0);
+			}
+			endPipeline();
+#endif
+
+#if 1
+			startPipeline("TerrainClipmapPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", sceneConstants);
+
+				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
+				Material* material = terrain._material.get();
+				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable());
+
+				uint32 terrainConstantBufferTypeIndex = 0;
+				// Draw Cross
+				{
+					IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
+					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
+				}
+
+				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
+				{
+					// Draw Tile
+					for (uint32 x = 0; x < 4; ++x)
+					{
+						for (uint32 y = 0; y < 4; ++y)
+						{
+							if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
+								continue;
+
+							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
+							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
+						}
+					}
+
+					// Draw Filter
+					{
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
+					}
+
+					// Draw Seam
+					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+					{
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
+					}
+
+					// Draw Trim
+					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+					{
+						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
+						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
+
+						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
+						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
+						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
+					}
+				}
+			}
+			endPipeline();
+#endif
+
+			startPipeline("StaticMeshStandardPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", sceneConstants);
+
+				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
+				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				{
+					SceneObject& sceneObject = iter->second;
+					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
+
+					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+					{
+						// #todo- component 완전 개편 필요해보임.
+						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+						StaticMeshComponent* staticMeshComponent = dynamic_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
+                        if (!staticMeshComponent || !staticMeshComponent->get_modelWritable()) continue;
+
+						DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+						{
+							StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+
+							Material* material = subMesh._material.get();
+							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
+
+							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						}
+					}
+				}
+			}
+			endPipeline();
+
+			startPipeline("SkinnedMeshStandardPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", sceneConstants);
+
+				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
+				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				{
+					SceneObject& sceneObject = iter->second;
+					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
+
+					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
+					{
+						// #todo- component 완전 개편 필요해보임.
+						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
+						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
+						SkinnedMeshComponent* skinnedMeshComponent = dynamic_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
+                        if (!skinnedMeshComponent || !skinnedMeshComponent->get_modelWritable()) continue;
+
+						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_currentAnimationBufferCS());
+
+						DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
+						{
+							SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+
+							Material* material = subMesh._material.get();
+							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
+
+							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
+						}
+					}
+				}
+			}
+			endPipeline();
+
+#ifdef _DK_DEBUG_
+            if (includeDebug)
+            {
+			EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
+			const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& spherePrimitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
+			const uint32 sphereInstanceCount = static_cast<uint32>(spherePrimitiveInfo.size());
+			if (sphereInstanceCount)
+			{
+				startPipeline("SpherePipeline");
+				{
+					setConstantBuffer("SceneConstantBuffer", sceneConstants);
+					setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBuffer());
+					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
+					renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), sphereInstanceCount, 0, 0, 0);
+				}
+				endPipeline();
+			}
+			const DKVector<EditorDebugDrawManager::LinePrimitiveInfo>& linePrimitiveInfo = debugDrawManager.get_primitiveInfoLineArr();
+			const uint32 lineInstanceCount = static_cast<uint32>(linePrimitiveInfo.size());
+			if (lineInstanceCount)
+			{
+				startPipeline("LinePipeline");
+				{
+					setConstantBuffer("SceneConstantBuffer", sceneConstants);
+					setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBuffer());
+					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView.get());
+					renderModule.setIndexBuffer(EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), lineInstanceCount, 0, 0, 0);
+				}
+				endPipeline();
+			}
+			debugDrawManager.endUpdateRender();
+            }
+#endif
+		}
+    }
+
 	void SceneRenderer::updateAtmosphereTransmittanceLut()
 	{
-		const auto& p = _atmosphereConstantBufferData;
-		if (p._atmosphereSamplingMode != 0u) return;
-		const auto& previous = _cachedAtmosphereLutParameters;
-		const bool dirty = !_atmosphereLutValid
+		const AtmosphereConstantBuffer& p = _atmosphereConstantBufferData;
+		// The sky-lighting compute pass always uses the bounded transmittance LUT.
+		const AtmosphereConstantBuffer& previous = _cachedAtmosphereLutParameters;
+		const bool dirty = _atmosphereLutValid == false
+			|| memcmp(p._absorptionLayers, previous._absorptionLayers, sizeof(p._absorptionLayers)) != 0
 			|| p._densityReferenceRadius != previous._densityReferenceRadius
 			|| p._densityTransitionRadius != previous._densityTransitionRadius
 			|| p._atmosphereRadius != previous._atmosphereRadius
 			|| p._rayleighHeight != previous._rayleighHeight
 			|| p._mieHeight != previous._mieHeight
 			|| p._scatteringScale != previous._scatteringScale
+            || p._rayleighScale != previous._rayleighScale
+            || p._mieScale != previous._mieScale
+            || p._mieAbsorptionScale != previous._mieAbsorptionScale
+            || p._opticalNodeBudget != previous._opticalNodeBudget
 			|| p._integrationRelativeTolerance != previous._integrationRelativeTolerance
 			|| p._integrationMaxDepth != previous._integrationMaxDepth
 			|| p._opticalDepthPointCount != previous._opticalDepthPointCount;
-		if (!dirty) return;
+		if (dirty == false)
+			return;
+
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		startRenderPass(renderModule, "AtmosphereTransmittancePass", 0);
+		renderModule.beginGpuTiming(0);
+        startRenderPass(renderModule, "AtmosphereTransmittancePass", 0);
 		{
 			startPipeline("AtmosphereTransmittancePipeline");
 			{
@@ -925,21 +1431,112 @@ namespace DK
 				setRootConstantParameter("_atmosphereLutUav", _atmosphereTransmittanceLut->getUAV());
 				// RenderModule::dispatch accepts thread counts, not group counts.
 				renderModule.dispatch(kAtmosphereLutWidth, kAtmosphereLutHeight, 1);
-				renderModule.resourceBarrierTransition(_atmosphereTransmittanceLut, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				renderModule.resourceBarrierTransition(_atmosphereTransmittanceLut, static_cast<D3D12_RESOURCE_STATES>(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
 			}
 			endPipeline();
 		}
 		endRenderPass();
+        renderModule.endGpuTiming(0);
+
+		_skyLightingValid = false;
+        _multipleScatteringValid = false;
 		_cachedAtmosphereLutParameters = p;
 		_atmosphereLutValid = true;
 	}
+
+    void SceneRenderer::updateAtmosphereMultipleScattering()
+    {
+        const AtmosphereConstantBuffer& p = _atmosphereConstantBufferData;
+        if (p._multipleScatteringStrength <= 0.0f || p._multipleScatteringMaxOrder <= 1u)
+			return;
+        if (_multipleScatteringValid && p._mieAnisotropy == _cachedMultipleAnisotropy && p._multipleScatteringMaxOrder == _cachedMultipleMaxOrder)
+			return;
+
+        RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
+        startRenderPass(rm, "AtmosphereMultipleScatteringPass", 0);
+        for (uint32 iteration = 0; iteration < p._multipleScatteringMaxOrder - 1u; ++iteration)
+        {
+			const uint32 output = iteration & 1u;
+			const uint32 input = output ^ 1u;
+            startPipeline("AtmosphereMultipleScatteringPipeline");
+			{
+				rm.resourceBarrierTransition(_multipleScatteringLut[output], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+				setRootConstantParameter("_multipleOutputUav", _multipleScatteringLut[output]->getUAV());
+				setRootConstantParameter("_multipleInputSrv", _multipleScatteringLut[input]->getSRV());
+				setRootConstantParameter("_multipleIteration", iteration);
+				rm.dispatch(32, 32, 1);
+				rm.resourceBarrierTransition(_multipleScatteringLut[output], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			}
+            endPipeline();
+        }
+        const uint32 final = (p._multipleScatteringMaxOrder - 2u) & 1u;
+        rm.resourceBarrierTransition(_multipleScatteringLut[final], static_cast<D3D12_RESOURCE_STATES>(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+        endRenderPass();
+
+        _cachedMultipleAnisotropy = p._mieAnisotropy;
+        _cachedMultipleMaxOrder = p._multipleScatteringMaxOrder;
+        _multipleScatteringValid = true;
+        _skyLightingValid = false;
+    }
+
+    void SceneRenderer::updateAtmosphereSkyLighting()
+    {
+        const AtmosphereConstantBuffer& p = _atmosphereConstantBufferData;
+        const AtmosphereConstantBuffer& old = _cachedSkyParameters;
+        const float3 position = Camera::gMainCamera->get_worldTransform().get_translation();
+        bool dirty = !_skyLightingValid || p._multipleScatteringStrength != old._multipleScatteringStrength
+            || p._multipleScatteringMaxOrder != old._multipleScatteringMaxOrder || p._surfaceMapEnabled != old._surfaceMapEnabled
+            || p._surfaceShadowStrength != old._surfaceShadowStrength || p._surfaceBounceStrength != old._surfaceBounceStrength
+            || p._sunDegree != old._sunDegree
+            || p._sunIrradiance != old._sunIrradiance || p._mieAnisotropy != old._mieAnisotropy;
+        for (uint32 i = 0; i < 3; ++i)
+            dirty = dirty || p._sunColor[i] != old._sunColor[i] || p._planetCentre[i] != old._planetCentre[i];
+        dirty = dirty || position.x != _cachedSkyPosition[0] || position.y != _cachedSkyPosition[1] || position.z != _cachedSkyPosition[2];
+        if (dirty == false)
+			return;
+
+        RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
+        rm.beginGpuTiming(1);
+        startRenderPass(rm, "AtmosphereSkyLightingPass", 0);
+		{
+			startPipeline("AtmosphereSkyRadiancePipeline");
+			{
+				rm.resourceBarrierTransition(_skyRadiance, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+				setRootConstantParameter("_skyOutputUav", _skyRadiance->getUAV());
+				rm.dispatch(64, 32, 1);
+				rm.resourceBarrierTransition(_skyRadiance, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			}
+			endPipeline();
+			startPipeline("AtmosphereSkyFilterPipeline");
+			{
+				rm.resourceBarrierTransition(_skyFiltered, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+				setRootConstantParameter("_skyOutputUav", _skyFiltered->getUAV());
+				rm.dispatch(64, 192, 1);
+				rm.resourceBarrierTransition(_skyFiltered, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			}
+			endPipeline();
+		}
+        endRenderPass();
+        rm.endGpuTiming(1);
+
+        _cachedSkyParameters = p;
+        _cachedSkyPosition[0] = position.x; _cachedSkyPosition[1] = position.y; _cachedSkyPosition[2] = position.z;
+        _skyLightingValid = true;
+    }
 
 	void SceneRenderer::updateRender() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		// Finish uploads after UI changes, before preRender closes the upload phase.
 		renderModule.preRender();
+
 		updateAtmosphereTransmittanceLut();
+        updateAtmosphereMultipleScattering();
+        updateSurfaceTransport();
+        updateAtmosphereSkyLighting();
 
         //RaytracingRenderer& raytracingRenderer = DuckingEngine::getInstance().GetRaytracingRendererWritable();
         //const bool raytraced = raytracingRenderer.updateRaytracingRenderer(renderModule);
@@ -1068,228 +1665,36 @@ namespace DK
 
 		// MainRender
 		startRenderPass(renderModule, "MainRenderPass", RenderModule::kGBufferStart);
-		if (_renderLocalScene)
-		{
-#if 0
-			startPipeline("SkyDomePipeline");
-			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer->GetGPUVirtualAddress());
-
-				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-				SceneManager::SkyDome& skyDome = sceneManager.getSkyDomeWritable();
-
-				renderModule.setVertexBuffers(0, 1, skyDome._mesh._vertexBufferView.get());
-				renderModule.setIndexBuffer(skyDome._mesh._indexBufferView.get());
-				renderModule.drawIndexedInstanced(static_cast<UINT>(skyDome._mesh._indexCount), 1, 0, 0, 0);
-			}
-			endPipeline();
-#endif
-
-#if 1
-			startPipeline("TerrainClipmapPipeline");
-			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-
-				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
-				Material* material = terrain._material.get();
-				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable());
-
-				uint32 terrainConstantBufferTypeIndex = 0;
-				// Draw Cross
-				{
-					IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
-					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
-				}
-
-				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
-				{
-					// Draw Tile
-					for (uint32 x = 0; x < 4; ++x)
-					{
-						for (uint32 y = 0; y < 4; ++y)
-						{
-							if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
-								continue;
-
-							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
-							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
-							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
-						}
-					}
-
-					// Draw Filter
-					{
-						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
-					}
-
-					// Draw Seam
-					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
-					{
-						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
-					}
-
-					// Draw Trim
-					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
-					{
-						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
-					}
-				}
-			}
-			endPipeline();
-#endif
-
-			startPipeline("StaticMeshStandardPipeline");
-			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-
-				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
-				{
-					SceneObject& sceneObject = iter->second;
-					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
-
-					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
-					{
-						// #todo- component 완전 개편 필요해보임.
-						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
-						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-						StaticMeshComponent* staticMeshComponent = static_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
-
-						DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
-						{
-							StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
-
-							Material* material = subMesh._material.get();
-							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
-
-							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
-							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
-							renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
-						}
-					}
-				}
-			}
-			endPipeline();
-
-			startPipeline("SkinnedMeshStandardPipeline");
-			{
-				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-
-				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
-				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
-				{
-					SceneObject& sceneObject = iter->second;
-					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
-
-					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
-					{
-						// #todo- component 완전 개편 필요해보임.
-						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
-						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-						SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
-
-						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_currentAnimationBufferCS());
-
-						DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
-						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
-						{
-							SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
-
-							Material* material = subMesh._material.get();
-							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
-
-							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
-							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
-							renderModule.drawIndexedInstanced(static_cast<UINT>(subMesh._indices.size()), 1, 0, 0, 0);
-						}
-					}
-				}
-			}
-			endPipeline();
-
-#ifdef _DK_DEBUG_
-			EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
-			const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& spherePrimitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
-			const uint32 sphereInstanceCount = static_cast<uint32>(spherePrimitiveInfo.size());
-			if (sphereInstanceCount)
-			{
-				startPipeline("SpherePipeline");
-				{
-					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-					setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBuffer());
-					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
-					renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), sphereInstanceCount, 0, 0, 0);
-				}
-				endPipeline();
-			}
-			const DKVector<EditorDebugDrawManager::LinePrimitiveInfo>& linePrimitiveInfo = debugDrawManager.get_primitiveInfoLineArr();
-			const uint32 lineInstanceCount = static_cast<uint32>(linePrimitiveInfo.size());
-			if (lineInstanceCount)
-			{
-				startPipeline("LinePipeline");
-				{
-					setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-					setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBuffer());
-					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView.get());
-					renderModule.setIndexBuffer(EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), lineInstanceCount, 0, 0, 0);
-				}
-				endPipeline();
-			}
-			debugDrawManager.endUpdateRender();
-#endif
-		}
+        drawSceneGeometry(renderModule, _sceneConstantBuffer, true);
 		endRenderPass();
 
 		// Resolve material attributes to HDR radiance before atmosphere and bloom.
-		startRenderPass(renderModule, "GBufferRenderPass", 0);
+		renderModule.beginGpuTiming(2);
+        startRenderPass(renderModule, "GBufferRenderPass", 0);
 		{
 			startPipeline("GBufferPipeline");
-			for (uint32 i = 0; i < RenderModule::kGBufferCount; ++i)
-				renderModule.resourceBarrierTransition(renderModule.getRenderTarget(RenderModule::kGBufferStart + i)._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			renderModule.resourceBarrierTransition(renderModule.getRenderTarget(0)._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			setRootConstantParameter("_baseColorIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart)._renderTarget.getSRV());
-			setRootConstantParameter("_normalRoughnessIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 1)._renderTarget.getSRV());
-			setRootConstantParameter("_materialIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 2)._renderTarget.getSRV());
-			setRootConstantParameter("_depthIndex", renderModule.getRenderTarget(0)._depthStencil.getSRV());
-			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
-			SceneManager::PostProcess& postProcess = DuckingEngine::getInstance().getSceneManagerWritable().getPostProcessWritable();
-			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
-			renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
-			renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+			{
+				for (uint32 i = 0; i < RenderModule::kGBufferCount; ++i)
+					renderModule.resourceBarrierTransition(renderModule.getRenderTarget(RenderModule::kGBufferStart + i)._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				renderModule.resourceBarrierTransition(renderModule.getRenderTarget(0)._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				setRootConstantParameter("_baseColorIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart)._renderTarget.getSRV());
+				setRootConstantParameter("_normalRoughnessIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 1)._renderTarget.getSRV());
+				setRootConstantParameter("_materialIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 2)._renderTarget.getSRV());
+				setRootConstantParameter("_depthIndex", renderModule.getRenderTarget(0)._depthStencil.getSRV());
+				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+				SceneManager::PostProcess& postProcess = DuckingEngine::getInstance().getSceneManagerWritable().getPostProcessWritable();
+				renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
+				renderModule.setIndexBuffer(postProcess._mesh._indexBufferView.get());
+				renderModule.drawIndexedInstanced(static_cast<UINT>(postProcess._mesh._indexCount), 1, 0, 0, 0);
+			}
 			endPipeline();
 		}
 		endRenderPass();
+		renderModule.endGpuTiming(2);
 
-		startRenderPass(renderModule, "AtmosphereRenderPass", 1);
+        renderModule.beginGpuTiming(3);
+        startRenderPass(renderModule, "AtmosphereRenderPass", 1);
 		{
 			startPipeline("AtmospherePipeline");
 			{
@@ -1312,7 +1717,9 @@ namespace DK
 		endRenderPass();
         }
 
-		// RT0 is no longer needed by atmosphere; reuse it for horizontal HDR bloom.
+		renderModule.endGpuTiming(3);
+
+        // RT0 is no longer needed by atmosphere; reuse it for horizontal HDR bloom.
 		if (_atmosphereConstantBufferData._bloomStrength > 0.0f)
 		{
 			SceneManager::PostProcess& postProcess = DuckingEngine::getInstance().getSceneManagerWritable().getPostProcessWritable();

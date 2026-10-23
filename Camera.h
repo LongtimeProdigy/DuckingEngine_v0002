@@ -24,6 +24,9 @@ namespace DK
 
 		virtual void update(float deltaTime) override final;
 
+		bool loadViewState();
+		void saveViewState();
+
 		void setView(const float3& position, const float3& direction)
 		{
 			float3 forward = direction;
@@ -41,8 +44,7 @@ namespace DK
 
 		void setClipPlaneDistances(float nearDistance, float farDistance)
 		{
-			if (std::isfinite(nearDistance) && std::isfinite(farDistance)
-				&& nearDistance > 0.0f && farDistance > nearDistance)
+			if (std::isfinite(nearDistance) && std::isfinite(farDistance) && nearDistance > 0.0f && farDistance > nearDistance)
 			{
 				_nearPlaneDistance = nearDistance;
 				_farPlaneDistance = farDistance;

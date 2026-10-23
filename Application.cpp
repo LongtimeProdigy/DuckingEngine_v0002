@@ -44,6 +44,8 @@ namespace DK
 			break;
 			case WM_KILLFOCUS:
 			{
+				if (Camera::gMainCamera)
+					Camera::gMainCamera->saveViewState();
 				InputModule::setBlock(true);
 			}
 			break;
@@ -69,6 +71,10 @@ namespace DK
 				}
 			}
 			break;
+			case WM_CLOSE:
+				if (Camera::gMainCamera)
+					Camera::gMainCamera->saveViewState();
+				break;
 			case WM_DESTROY:
 				PostQuitMessage(0);
 				return 0;
@@ -186,29 +192,17 @@ namespace DK
 
 			LARGE_INTEGER tTime;
 			QueryPerformanceCounter(&tTime);
-			const double elapsedSeconds = static_cast<double>(tTime.QuadPart - g_tTime.QuadPart)
-				/ static_cast<double>(g_tSecond.QuadPart);
+			const double elapsedSeconds = static_cast<double>(tTime.QuadPart - g_tTime.QuadPart) / static_cast<double>(g_tSecond.QuadPart);
 			g_tTime = tTime;
 
 			// Limit simulation advancement after a stall (window dragging, dialogs, debugger).
 			// Excess wall-clock time is intentionally discarded, not carried into later frames.
 			constexpr double maxDeltaTime = 0.1;
-			g_fDeltaTime = static_cast<float>(elapsedSeconds < 0.0 ? 0.0
-				: (elapsedSeconds > maxDeltaTime ? maxDeltaTime : elapsedSeconds));
+			g_fDeltaTime = static_cast<float>(elapsedSeconds < 0.0 ? 0.0 : (elapsedSeconds > maxDeltaTime ? maxDeltaTime : elapsedSeconds));
 
-			updateFrame();
-			renderFrame();
+			DuckingEngine::getInstance().Update(g_fDeltaTime);
+			DuckingEngine::getInstance().Render(g_fDeltaTime);
 
 		}
-	}
-
-	void Application::updateFrame()
-	{
-		DuckingEngine::getInstance().Update(g_fDeltaTime);
-	}
-
-	void Application::renderFrame()
-	{
-		DuckingEngine::getInstance().Render(g_fDeltaTime);
 	}
 }

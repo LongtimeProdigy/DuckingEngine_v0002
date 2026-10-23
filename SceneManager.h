@@ -68,6 +68,8 @@ namespace DK
 
 			Mesh _mesh;
 
+			float _heightScale = 750.f;
+
 			struct OceanParams
 			{
 				OceanParams(
@@ -113,6 +115,7 @@ namespace DK
 				const TextureResourceViewType _normalSRV;
 				const TextureResourceViewType _normalUAV;
 			};
+
 			IBufferRef _initialSpectrumConstantBuffer;
 			ITextureRef _h0[kFrameCount];
 			ITextureRef _ht[kFrameCount * 2]; // *2 for Ping-pong
