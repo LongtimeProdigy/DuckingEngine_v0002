@@ -593,7 +593,7 @@ namespace DK
 		if (LoadSkeletonInternal(skeletonPath, skeleton) == false)
 		{
 			DK_ASSERT_LOG(true, "Skeleton Loading Failed. path: %s", skeletonPath.c_str());
-			_skinnedMeshModelContainer.erase(skeletonPath);
+			_skeletonContainer.erase(skeletonPath);
 			return false;
 		}
 
@@ -618,7 +618,7 @@ namespace DK
 		if (LoadAnimationInternal(animationPath, skeleton, animation) == false)
 		{
 			DK_ASSERT_LOG(true, "Animation Loading Failed. path: %s", animationPath.c_str());
-			_skinnedMeshModelContainer.erase(animationPath);
+			_animationContainer.erase(animationPath);
 			return false;
 		}
 

@@ -84,8 +84,8 @@ namespace DK
 			_valuePtr = valuePtr;
 		}
 
-		dk_inline virtual Type getType() const noexcept = 0;
-		dk_inline virtual uint32 getParameterSize() const noexcept = 0;
+		virtual Type getType() const noexcept = 0;
+		virtual uint32 getParameterSize() const noexcept = 0;
 
 	protected:
 		DKString _name;
