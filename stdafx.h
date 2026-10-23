@@ -1368,9 +1368,9 @@ namespace DK
 #ifdef USE_DIRECTX_MATH
 			DirectX::FXMMATRIX m = DirectX::XMMatrixRotationQuaternion(_rotation.r);
 			outMatrix = float4x4(
-				m.r[0].m128_f32[0] * _scale.x,	m.r[0].m128_f32[1],				m.r[0].m128_f32[2],				m.r[0].m128_f32[3],
-				m.r[1].m128_f32[0],				m.r[1].m128_f32[1] * _scale.y,	m.r[1].m128_f32[2],				m.r[1].m128_f32[3],
-				m.r[2].m128_f32[0],				m.r[2].m128_f32[1],				m.r[2].m128_f32[2] * _scale.z,	m.r[2].m128_f32[3],
+				m.r[0].m128_f32[0] * _scale.x,	m.r[0].m128_f32[1] * _scale.x,	m.r[0].m128_f32[2] * _scale.x,	m.r[0].m128_f32[3],
+				m.r[1].m128_f32[0] * _scale.y,	m.r[1].m128_f32[1] * _scale.y,	m.r[1].m128_f32[2] * _scale.y,	m.r[1].m128_f32[3],
+				m.r[2].m128_f32[0] * _scale.z,	m.r[2].m128_f32[1] * _scale.z,	m.r[2].m128_f32[2] * _scale.z,	m.r[2].m128_f32[3],
 				_translation.x,					_translation.y,					_translation.z,					1
 			);
 #else
