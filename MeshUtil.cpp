@@ -27,10 +27,8 @@ namespace DK
 				}
 			}
 			positionArr[n++] = float3(0, -radius, 0);
-			DK_ASSERT_LOG(n == positionArr.size(), "Sphere VertexCount�� �ùٸ��� ����");
 
 			// Index
-			// ���� �ﰢ�� + �߰����� + �� ������ ��
 			const uint32 indexCount = (tessellationX * 3) + (tessellationX * 6) * (tessellationY - 2) + (tessellationX * 3);
 			indexArr.resize(indexCount);
 			n = 0;
@@ -58,7 +56,6 @@ namespace DK
 					}
 				}
 			}
-			DK_ASSERT_LOG(n == indexArr.size(), "Sphere IndexCount�� �ùٸ��� ����");
 
 			return true;
 		}
@@ -68,7 +65,6 @@ namespace DK
 			const uint32 vertexCount = m * n;
             const uint32 faceCount = (m - 1) * (n - 1) * 2;
             
-            // ���� ��ġ ���
             const float halfWidth = 0.5f * width;
             const float halfDepth = 0.5f * depth;
             

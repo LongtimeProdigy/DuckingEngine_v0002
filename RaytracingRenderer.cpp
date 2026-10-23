@@ -54,7 +54,7 @@ namespace DK
                     geometries.push_back(DK::move(geometry));
                     for (auto& parameter : material->_parameterArr)
                     {
-                        if (parameter->getType() == MaterialParameter::Type::TEXTURE)
+                        if (parameter->getType() == MaterialParameterType::TEXTURE)
                         {
                             auto texture = static_cast<MaterialParameterTexture*>(parameter.get())->_value;
                             if (texture != nullptr)

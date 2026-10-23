@@ -58,14 +58,6 @@ namespace DK
 	class MaterialParameter
 	{
 	public:
-		enum class Type : uint8
-		{
-			FLOAT, 
-			TEXTURE, 
-			COUNT
-		};
-
-	public:
 		static MaterialParameter* createMaterialParameter(const MaterialParameterDefinition& parameterDefinition);
 
 	public:
@@ -84,7 +76,7 @@ namespace DK
 			_valuePtr = valuePtr;
 		}
 
-		virtual Type getType() const noexcept = 0;
+		virtual MaterialParameterType getType() const noexcept = 0;
 		virtual uint32 getParameterSize() const noexcept = 0;
 
 	protected:
@@ -104,7 +96,7 @@ namespace DK
 		virtual ~MaterialParameterTemplate() override final
 		{}
 
-		dk_inline virtual Type getType() const noexcept override;
+		dk_inline virtual MaterialParameterType getType() const noexcept override;
 		dk_inline virtual uint32 getParameterSize() const noexcept override
 		{
 			return sizeof(T);

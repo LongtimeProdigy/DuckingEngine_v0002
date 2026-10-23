@@ -28,13 +28,13 @@ namespace DK
 		return nullptr;
 	}
 
-	MaterialParameter::Type MaterialParameterFloat::getType() const noexcept
+	MaterialParameterType MaterialParameterFloat::getType() const noexcept
 	{
-		return Type::FLOAT;
+		return MaterialParameterType::FLOAT;
 	}
-	MaterialParameter::Type MaterialParameterTexture::getType() const noexcept
+	MaterialParameterType MaterialParameterTexture::getType() const noexcept
 	{
-		return Type::TEXTURE;
+		return MaterialParameterType::TEXTURE;
 	}
 	uint32 MaterialParameterTexture::getParameterSize() const noexcept
 	{
@@ -85,12 +85,12 @@ namespace DK
 			outMaterial->_parameterArr[i]->setParameterValuePtr(&outMaterial->_parameterBufferForCPU[offset]);
 			// Initialize defaults before model overrides (older assets omit new PBR parameters).
 			MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
-			if (parameter->getType() == MaterialParameter::Type::FLOAT)
+			if (parameter->getType() == MaterialParameterType::FLOAT)
 			{
 				auto* value = static_cast<MaterialParameterFloat*>(parameter);
 				value->setParameterValue(value->_value);
 			}
-			else if (parameter->getType() == MaterialParameter::Type::TEXTURE)
+			else if (parameter->getType() == MaterialParameterType::TEXTURE)
 			{
 				auto* value = static_cast<MaterialParameterTexture*>(parameter);
 				value->setParameterValue(value->_value);
@@ -134,8 +134,7 @@ namespace DK
 				MaterialParameter* parameter = _parameterArr[j].get();
 				if (parameterDefinition._name == parameter->getParameterName())
 				{
-					if ((parameterDefinition._type == MaterialParameterType::FLOAT && parameter->getType() == MaterialParameter::Type::FLOAT) == false
-						|| (parameterDefinition._type == MaterialParameterType::TEXTURE && parameter->getType() == MaterialParameter::Type::TEXTURE) == false)
+					if (parameterDefinition._type != parameter->getType())
 					{
 						DK_ASSERT_LOG(false, "Material %s: parameter %s has an incompatible type.", _materialName.c_str(), parameterDefinition._name.c_str());
 						return false;
@@ -190,14 +189,14 @@ namespace DK
 			Ptr<MaterialParameter>& targetParameter = newMaterial->_parameterArr[i];
 			switch (sourceParameter->getType())
 			{
-			case MaterialParameter::Type::FLOAT:
+			case MaterialParameterType::FLOAT:
 			{
 				const MaterialParameterFloat* floatParameter = static_cast<const MaterialParameterFloat*>(sourceParameter.get());
 				MaterialParameterFloat* floatTargetParameter = static_cast<MaterialParameterFloat*>(targetParameter.get());
 				floatTargetParameter->setParameterValue(floatParameter->_value);
 				break;
 			}
-			case MaterialParameter::Type::TEXTURE:
+			case MaterialParameterType::TEXTURE:
 			{
 				const MaterialParameterTexture* textureParameter = static_cast<const MaterialParameterTexture*>(sourceParameter.get());
 				MaterialParameterTexture* textureTargetParameter = static_cast<MaterialParameterTexture*>(targetParameter.get());
