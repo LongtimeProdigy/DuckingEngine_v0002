@@ -128,7 +128,7 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 
 namespace DK
 {
-	static constexpr const bool gSerializeRender = true;
+	static constexpr const bool gSerializeRender = false;
 
 	RenderPass* gCurrentBindedRenderPass = nullptr;
 	Pipeline* gCurrentBindedPipeline = nullptr;
@@ -415,6 +415,8 @@ namespace DK
 			_fences[i].release();
 
 		_commandList = DKCommandList();
+        _gpuTimestampReadback.release();
+        _gpuTimestampHeap.release();
 		_commandQueue.release();
 
 		_device.release();
@@ -1703,6 +1705,12 @@ namespace DK
 		HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
 		assert(SUCCEEDED(hr));
 
+        if (_gpuTimingRecorded)
+        {
+            _gpuTimingFence = _fenceValues[kCurrentFrameIndex];
+            _gpuTimingFenceIndex = kCurrentFrameIndex;
+            _gpuTimingRecorded = false;
+        }
 		isExecuted = true;
 	}
 	void RenderModule::waitFenceAndResetCommandList()
@@ -2445,11 +2453,73 @@ namespace DK
 		_deletedTextureUAVArr.push_back(index);
 	}
 
+    void RenderModule::prepareGpuTimings()
+    {
+        if (_gpuTimingsInitialized == false)
+        {
+            _gpuTimingsInitialized = true;
+            D3D12_QUERY_HEAP_DESC queryDesc = {};
+            queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+            queryDesc.Count = 10;
+            ID3D12QueryHeap* heap = nullptr;
+            if (FAILED(_device->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&heap))))
+				return;
+
+            _gpuTimestampHeap = heap;
+            const CD3DX12_HEAP_PROPERTIES props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK);
+            const CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(10 * sizeof(uint64));
+            ID3D12Resource* resource = nullptr;
+            if (FAILED(_device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&resource))))
+				return;
+
+            _gpuTimestampReadback = resource;
+            if (FAILED(_commandQueue->GetTimestampFrequency(&_gpuTimestampFrequency)))
+				_gpuTimestampFrequency = 0;
+        }
+
+        if (_gpuTimestampHeap == nullptr || _gpuTimestampReadback == nullptr || _gpuTimestampFrequency == 0)
+			return;
+
+        // Never wait for profiling. Read only after the submission fence has completed.
+        if (_gpuTimingFence && _fences[_gpuTimingFenceIndex]->GetCompletedValue() >= _gpuTimingFence)
+        {
+            D3D12_RANGE range = { 0, 10 * sizeof(uint64) };
+            void* address = nullptr;
+            if (SUCCEEDED(_gpuTimestampReadback->Map(0, &range, &address)))
+            {
+                const uint64* ticks = static_cast<const uint64*>(address);
+                for (uint32 i = 0; i < 5; ++i)
+                {
+                    _gpuMilliseconds[i] = ticks[i * 2 + 1] >= ticks[i * 2] ? double(ticks[i * 2 + 1] - ticks[i * 2]) * 1000.0 / double(_gpuTimestampFrequency) : 0.0;
+                    _gpuPeakMilliseconds[i] = std::max(_gpuPeakMilliseconds[i], _gpuMilliseconds[i]);
+                }
+
+				D3D12_RANGE written = { 0, 0 };
+                _gpuTimestampReadback->Unmap(0, &written);
+            }
+
+            _gpuTimingFence = 0;
+        }
+
+        // Initialize absent/cached scopes to zero-duration intervals.
+        for (uint32 i = 0; i < 10; ++i)
+			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, i);
+
+        _gpuTimingRecorded = true;
+    }
+    void RenderModule::beginGpuTiming(uint32 scope)
+    {
+        if (_gpuTimingRecorded && scope < 5)
+			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, scope * 2);
+    }
+    void RenderModule::endGpuTiming(uint32 scope)
+    {
+        if (_gpuTimingRecorded && scope < 5)
+			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, scope * 2 + 1);
+    }
+
 	void RenderModule::preRender()
 	{
-		_commandList._prevUploadResourcePendingArray.clear();
-		_commandList._prevCopyResourcePendingArray.clear();
-
 #if defined(_DK_DEBUG_)
 		_blockUpload = true;
 		_blockCopy = true;
@@ -2461,6 +2531,8 @@ namespace DK
 			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
 		}
 
+        prepareGpuTimings();
+
 		for (const DKCommandList::CopyResourcePendingData& pending : _commandList._copyResourcePendingArray)
 		{
 			resourceBarrierTransition(*pending._source.get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -2469,8 +2541,71 @@ namespace DK
 			if(pending._afterState != static_cast<D3D12_RESOURCE_STATES>(DKCommandList::CopyResourcePendingData::INVALID_AFTER_STATE))
 				resourceBarrierTransition(*pending._target.get(), pending._afterState);
 		}
-		_commandList._prevCopyResourcePendingArray.swap(_commandList._copyResourcePendingArray);
 	}
+
+    bool RenderModule::createReflectiveSurfaceMap(ReflectiveSurfaceMap& map, uint32 size)
+    {
+        map.size = size;
+        D3D12_DESCRIPTOR_HEAP_DESC heap = {};
+        heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; heap.NumDescriptors = 3;
+        ID3D12DescriptorHeap* rtv = nullptr;
+        if (FAILED(_device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&rtv)))) return false;
+        map.rtvHeap = rtv;
+        heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV; heap.NumDescriptors = 1;
+        ID3D12DescriptorHeap* dsv = nullptr;
+        if (FAILED(_device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&dsv)))) return false;
+        map.dsvHeap = dsv;
+        auto handle = map.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        for (uint32 i = 0; i < 3; ++i)
+        {
+            const std::wstring name = L"Atmosphere surface attribute " + std::to_wstring(i);
+            D3D12_CLEAR_VALUE clear = {}; clear.Format = gGBufferFormat;
+            auto buffer = createBuffer2DInternal(size, size, 1, gGBufferFormat, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+                D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, name.c_str());
+            if (!buffer) return false;
+            _device->CreateRenderTargetView(buffer->_buffer, nullptr, handle);
+            handle.ptr += _renderTargetViewSize;
+            map.attributes[i] = ITextureRef(dk_new ITexture(StringUtil::convertWCtoC(name.c_str()), 1, gGBufferFormat, DK::move(buffer)));
+            if (!allocateTextureSRV(*map.attributes[i])) return false;
+        }
+        D3D12_CLEAR_VALUE clear = {}; clear.Format = gDepthStencilFormat; clear.DepthStencil.Depth = 1;
+        auto depth = createBuffer2DInternal(size, size, 1, GetDepthResourceFormat(gDepthStencilFormat), D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+            D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, L"Atmosphere surface depth");
+        if (!depth) return false;
+        D3D12_DEPTH_STENCIL_VIEW_DESC view = {}; view.Format = gDepthStencilFormat; view.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        _device->CreateDepthStencilView(depth->_buffer, &view, map.dsvHeap->GetCPUDescriptorHandleForHeapStart());
+        map.depth = ITextureRef(dk_new ITexture("Atmosphere surface depth", 1, GetDepthSRVFormat(gDepthStencilFormat), DK::move(depth)));
+        return allocateTextureSRV(*map.depth);
+    }
+    void RenderModule::beginReflectiveSurfaceMap(ReflectiveSurfaceMap& map)
+    {
+        D3D12_CPU_DESCRIPTOR_HANDLE handles[3];
+        auto handle = map.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        const float clear[4] = {};
+        for (uint32 i = 0; i < 3; ++i)
+        {
+            resourceBarrierTransition(map.attributes[i], D3D12_RESOURCE_STATE_RENDER_TARGET);
+            handles[i] = handle;
+            _commandList->ClearRenderTargetView(handle, clear, 0, nullptr);
+            handle.ptr += _renderTargetViewSize;
+        }
+
+        resourceBarrierTransition(map.depth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        auto dsv = map.dsvHeap->GetCPUDescriptorHandleForHeapStart();
+        _commandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1, 0, 0, nullptr);
+        _commandList->OMSetRenderTargets(3, handles, FALSE, &dsv);
+        D3D12_VIEWPORT viewport = { 0, 0, float(map.size), float(map.size), 0, 1 };
+        D3D12_RECT scissor = { 0, 0, LONG(map.size), LONG(map.size) };
+        _commandList->RSSetViewports(1, &viewport); _commandList->RSSetScissorRects(1, &scissor);
+        _commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        _currentRenderTargetIndex = 0xfffffffeu; // Force restoration of the main viewport/targets.
+    }
+    void RenderModule::endReflectiveSurfaceMap(ReflectiveSurfaceMap& map)
+    {
+        const auto state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        for (auto& texture : map.attributes) resourceBarrierTransition(texture, state);
+        resourceBarrierTransition(map.depth, state);
+    }
 
 	void RenderModule::bindRenderPass(const uint32 rtvSlot)
 	{
@@ -2654,6 +2789,30 @@ namespace DK
 
 	void RenderModule::endRender()
 	{
+        if (_gpuTimingRecorded)
+        {
+#if defined(_DK_DEBUG_)
+            // ResolveQueryData may create an internal COPY_DEST buffer and emit warning #1328.
+            // Suppress only that benign runtime warning for this call; keep other diagnostics enabled.
+            // Windows SDK 10.0.19041 does not name CREATERESOURCE_STATE_IGNORED yet.
+            D3D12_MESSAGE_ID ignoredMessage = static_cast<D3D12_MESSAGE_ID>(1328);
+            D3D12_INFO_QUEUE_FILTER filter = {};
+            filter.DenyList.NumIDs = 1;
+            filter.DenyList.pIDList = &ignoredMessage;
+            ID3D12InfoQueue* infoQueue = nullptr;
+            bool filterPushed = false;
+            if (SUCCEEDED(_device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
+                filterPushed = SUCCEEDED(infoQueue->PushStorageFilter(&filter));
+#endif
+            _commandList->ResolveQueryData(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 0, 10, _gpuTimestampReadback.get(), 0);
+#if defined(_DK_DEBUG_)
+            if (filterPushed)
+				infoQueue->PopStorageFilter();
+            if (infoQueue)
+				infoQueue->Release();
+#endif
+        }
+
 #ifdef USE_IMGUI
 		ID3D12DescriptorHeap* heaps[] = { _imguiDescriptorHeap.get(), };
 		_commandList->SetDescriptorHeaps(DK_COUNT_OF(heaps), heaps);
@@ -2661,6 +2820,13 @@ namespace DK
 #endif // USE_IMGUI
 
 		resourceBarrierTransition(_renderTargetArr[kRenderTargetTextureCount + kCurrentBackBufferIndex]._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PRESENT);
+
+
+		if (gSerializeRender == false)
+			waitFenceAndResetCommandList();
+
+		_commandList._prevUploadResourcePendingArray.clear();
+		_commandList._prevCopyResourcePendingArray.clear();
 
 		for (const DKCommandList::UploadResourcePendingData& pending : _commandList._uploadResourcePendingArray)
 		{
@@ -2677,9 +2843,7 @@ namespace DK
 			pending._target.get()->_buffer->Unmap(0, nullptr);
 		}
 		_commandList._prevUploadResourcePendingArray.swap(_commandList._uploadResourcePendingArray);
-
-		if (gSerializeRender == false)
-			waitFenceAndResetCommandList();
+		_commandList._prevCopyResourcePendingArray.swap(_commandList._copyResourcePendingArray);
 
 		execute(true);
 

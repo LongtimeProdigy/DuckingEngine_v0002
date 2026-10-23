@@ -6,10 +6,74 @@
 #include "ComputerController.h"
 #include "DuckingEngine.h"
 #include "RaytracingRenderer.h"
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <limits>
+#include <locale>
 
 namespace DK
 {
 	Camera* Camera::gMainCamera = nullptr;
+
+	namespace
+	{
+		const std::filesystem::path& cameraStatePath()
+		{
+			// Independent of Visual Studio's working directory.
+			static const std::filesystem::path path = [] {
+				wchar_t executable[32768];
+				const DWORD length = GetModuleFileNameW(nullptr, executable, 32768);
+				if (length == 0 || length >= 32768)
+					return std::filesystem::path();
+
+				return std::filesystem::path(executable).parent_path() / L"camera-state.txt";
+			}();
+			return path;
+		}
+	}
+
+	bool Camera::loadViewState()
+	{
+		std::ifstream input(cameraStatePath());
+		input.imbue(std::locale::classic());
+
+		std::string signature;
+		int version = 0;
+		float3 position;
+		float yaw = 0.0f, pitch = 0.0f;
+		if (!(input >> signature >> version >> position.x >> position.y >> position.z >> yaw >> pitch))
+			return false;
+		if (signature != "DuckingCamera" || version != 1 || !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) || !std::isfinite(yaw) || !std::isfinite(pitch) || std::abs(pitch) > Math::Half_PI)
+			return false;
+
+		_yaw = yaw;
+		_pitch = pitch;
+		set_worldTransform(Transform(position, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
+
+		return true;
+	}
+
+	void Camera::saveViewState()
+	{
+		if (cameraStatePath().empty() /*|| !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) || !std::isfinite(_yaw) || !std::isfinite(_pitch)*/)
+			return;
+
+		const float3& position = get_worldTransform().get_translation();
+
+		// Replace only after a complete write, keeping the previous snapshot on failure.
+		const std::filesystem::path temporary = cameraStatePath().wstring() + L".tmp";
+		std::ofstream output(temporary, std::ios::trunc);
+		output.imbue(std::locale::classic());
+		output << std::setprecision(std::numeric_limits<float>::max_digits10) << "DuckingCamera 1\n" << position.x << ' ' << position.y << ' ' << position.z << '\n' << _yaw << ' ' << _pitch << '\n';
+		output.close();
+
+		if (!output || MoveFileExW(temporary.c_str(), cameraStatePath().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == false)
+		{
+			DK_LOG("Camera state save failed.");
+			return;
+		}
+	}
 
 	void Camera::update(float deltaTime)
 	{

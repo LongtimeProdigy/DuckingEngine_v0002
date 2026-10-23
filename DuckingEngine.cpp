@@ -34,6 +34,8 @@ namespace DK
 
 	void DuckingEngine::destroy()
 	{
+		if (Camera::gMainCamera)
+			Camera::gMainCamera->saveViewState();
 		_renderModule->waitAllGPU();
 
 		ImGui_ImplDX12_Shutdown();
@@ -90,13 +92,13 @@ namespace DK
 			return false;
 
 		Camera::gMainCamera = dk_new Camera(60, width, height);
+		Camera::gMainCamera->loadViewState();
 
 		// Camera 정보가 필요하기 때문에 이 곳에서 SceneConstantBuffer를 생성합니다.
 		// #todo- 어차피 매프레임 업데이트하기 때문에 굳이 이렇게 할 필요는 없음.. PreRender직후 바로 업데이트하기 때문
 		_sceneRenderer = dk_new SceneRenderer;
 		if (_sceneRenderer->initialize() == false) 
 			return false;
-		_sceneRenderer->setOrbitView();
 
 		_raytracingRenderer = dk_new RaytracingRenderer;
 		if (_raytracingRenderer->initialize(_renderModule.get(), width, height) == false)
@@ -122,19 +124,21 @@ namespace DK
 
 	void DuckingEngine::Update(const float deltaTime)
 	{
+		_sceneRenderer->updateAtmosphereCamera(*Camera::gMainCamera);
+
 		InputModule::Update();
-		_sceneRenderer->updateAtmosphereCamera(*Camera::gMainCamera);
 		Camera::gMainCamera->update(deltaTime);
-		_sceneRenderer->updateAtmosphereCamera(*Camera::gMainCamera);
 		_sceneObjectManager->update(deltaTime);
 	}
 
 	void DuckingEngine::Render(const float deltaTime)
 	{
-		_sceneRenderer->preRender();
-		// Apply UI presets before uploading camera/atmosphere and dependent scene data.
+		_sceneRenderer->renderUI();
 		_sceneRenderer->prepareShaderData(deltaTime);
+
 		_sceneRenderer->updateRender();
+
+		// 여기서부터 upload 금지
 		_sceneRenderer->endRender();
 	}
 }

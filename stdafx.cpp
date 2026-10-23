@@ -10,6 +10,8 @@ namespace DK
 
 	const float3 float3::Identity = float3(1, 1, 1);
 	const float3 float3::Zero = float3(0, 0, 0);
+	const float3 float3::Up = float3(0, 1, 0);
+	const float3 float3::Right = float3(1, 0, 0);
 
 	const Quaternion Quaternion::Identity = Quaternion(0, 0, 0, 1);
 

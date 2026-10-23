@@ -107,7 +107,29 @@
         </ComputePipeline>
     </RenderPass>
 
-	<RenderPass Name="AtmosphereRenderPass">
+    <RenderPass Name="AtmosphereMultipleScatteringPass">
+        <ComputePipeline Name="AtmosphereMultipleScatteringPipeline">
+            <RootConstant Buffer="MultipleScatteringOutputConstants"/>
+            <Shader Entry="CSMain">Material/AtmosphereMultipleScatteringCS.hlsl</Shader>
+        </ComputePipeline>
+    </RenderPass>
+    <RenderPass Name="AtmosphereSurfaceBouncePass">
+        <ComputePipeline Name="AtmosphereSurfaceBouncePipeline">
+            <RootConstant Buffer="SurfaceBounceOutputConstants"/>
+            <Shader Entry="CSMain">Material/AtmosphereSurfaceBounceCS.hlsl</Shader>
+        </ComputePipeline>
+    </RenderPass>
+	<RenderPass Name="AtmosphereSkyLightingPass">
+        <ComputePipeline Name="AtmosphereSkyRadiancePipeline">
+            <RootConstant Buffer="SkyLightingOutputConstants"/>
+            <Shader Entry="CSRadiance">Material/AtmosphereSkyLightingCS.hlsl</Shader>
+        </ComputePipeline>
+        <ComputePipeline Name="AtmosphereSkyFilterPipeline">
+            <RootConstant Buffer="SkyLightingOutputConstants"/>
+            <Shader Entry="CSFilter">Material/AtmosphereSkyLightingCS.hlsl</Shader>
+        </ComputePipeline>
+    </RenderPass>
+    <RenderPass Name="AtmosphereRenderPass">
 		<Pipeline Name="AtmospherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
 			<RootConstant Buffer="AtmosphereInputConstants"/>
 			<LayoutInfo>

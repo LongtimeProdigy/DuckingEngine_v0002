@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 namespace DK
 {
@@ -33,10 +33,6 @@ namespace DK
 		bool initialize(const ApplicationInitializeData& data);
 		bool initializeWindow(HINSTANCE hInstance, int showWnd, int width, int height, bool fullScreen);
 		void run();
-
-	private:
-		void updateFrame();
-		void renderFrame();
 
 	private:
 		HWND _hwnd;

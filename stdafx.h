@@ -713,6 +713,8 @@ namespace DK
 	{
 		static const float3 Identity;
 		static const float3 Zero;
+		static const float3 Up;
+		static const float3 Right;
 
 		float3()
 			: m{ 0, 0, 0 }
@@ -724,6 +726,11 @@ namespace DK
 		float3(const float2& value0, const float value1)
 			: m{ value0.x, value0.y, value1 }
 		{}
+
+		dk_inline const bool operator==(const float3& rhs) const noexcept
+		{
+			return x == rhs.x && y == rhs.y && z == rhs.z;
+		}
 
 		dk_inline void operator+=(const float3& rhs) noexcept
 		{
@@ -781,6 +788,14 @@ namespace DK
 			x /= len;
 			y /= len;
 			z /= len;
+		}
+
+		dk_inline float3 cross(const float3& rhs) const
+		{
+			const float _x = y * rhs.z - rhs.y * z;
+			const float _y = z * rhs.x - rhs.z * x;
+			const float _z = x * rhs.y - rhs.x * y;
+			return float3(_x, _y, _z);
 		}
 
 	public:
