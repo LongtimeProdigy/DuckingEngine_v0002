@@ -155,7 +155,7 @@ namespace DK
 		}
 
 		uint32 boneCount = atoi(boneCountAttr->Value());
-		if (boneCount == 0)
+		if (boneCount == 0 || boneCount > Bone::kMaxBoneCount)
 		{
 			DK_ASSERT_LOG(false, "BoneCount가 0입니다.");
 			return false;
@@ -228,27 +228,26 @@ namespace DK
 			return false;
 		}
 
-		uint32 frameCount = atoi(frameCountAttr->Value());
+		const uint32 frameCount = atoi(frameCountAttr->Value());
+		if (frameCount == 0)
+			return false;
+			
 		outAnimation->SetFrameCount(frameCount);
 
 		const DKVector<Bone>& bones = skeleton->getBoneArr();
 		DKVector<Animation::BoneAnimation> boneAnimations;
 		boneAnimations.resize(bones.size());
 
-		uint32 boneCount = static_cast<uint32>(bones.size());
-		DKVector<bool> boneAnimationFound;
-		boneAnimationFound.resize(bones.size());
+		const uint32 boneCount = static_cast<uint32>(bones.size());
 
 		for (TiXmlNode* boneNode = rootNode->FirstChild(); boneNode != nullptr; boneNode = boneNode->NextSibling())
 		{
 			DKString boneName = boneNode->ToElement()->FirstAttribute()->Value();
-
 			int boneIndex = -1;
 			for (uint32 i = 0; i < boneCount; ++i)
 			{
 				if (boneName == bones[i]._boneName)
 				{
-					boneAnimationFound[i] = true;
 					boneIndex = static_cast<int>(i);
 					break;
 				}
@@ -256,13 +255,15 @@ namespace DK
 
 			if (boneIndex == -1)
 			{
-				//DK_ASSERT_LOG(false, "Animation이 Skeleton에 없는 본을 가지고 있습니다. BoneName: %s", boneName.c_str());
-				//return false;
+				DK_ASSERT_LOG(false, "Animation이 Skeleton에 없는 본을 가지고 있습니다. BoneName: %s", boneName.c_str());
+				return false;
 			}
 			else
 			{
 				Animation::BoneAnimation& boneAnimation = boneAnimations[boneIndex];
+#if defined(_DK_DEBUG_)
 				boneAnimation._boneName = boneName;
+#endif
 				boneAnimation._animation.resize(frameCount);
 
 				uint32 boneFrameCount = 0;
@@ -285,6 +286,12 @@ namespace DK
 					Quaternion rotation = parseQuaternionFromString(rotationStr);
 					float3 scale = parseFloat3FromString(scaleStr);
 
+					if (boneFrameCount >= frameCount)
+					{
+						DK_ASSERT_LOG(false, "FrameCount와 BoneFrameCount가 다릅니다. %d / %d", boneFrameCount, frameCount);
+						return false;
+					}
+						
 					Transform animation(position, rotation, scale);
 					animation.tofloat4x4(boneAnimation._animation[boneFrameCount]);
 
@@ -296,16 +303,6 @@ namespace DK
 					DK_ASSERT_LOG(false, "FrameCount와 BoneFrameCount가 다릅니다. %d / %d", boneFrameCount, frameCount);
 					return false;
 				}
-			}
-		}
-
-		uint32 boneFoundCount = static_cast<uint32>(boneAnimationFound.size());
-		for (uint32 boneIndex = 0; boneIndex < boneFoundCount; ++boneIndex)
-		{
-			if (boneAnimationFound[boneIndex] == false)
-			{
-				DK_ASSERT_LOG(false, "Skeleton에 Animation에는 없는 Bone이 있습니다. BoneName: %s", bones[boneIndex]._boneName.c_str());
-				return false;
 			}
 		}
 

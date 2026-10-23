@@ -1,6 +1,7 @@
 #ifndef __DEFINE_SKINNEDMESHSTANDARD_HLSL__
 #define __DEFINE_SKINNEDMESHSTANDARD_HLSL__
 
+#include "SkinningLimits.h"
 #include "CommonTexture.hlsl"
 #include "CommonRendering.hlsl"
 #include "GBufferCommon.hlsl"
@@ -35,7 +36,7 @@ cbuffer SkinnedMeshStandard : register(b2)
 }
 
 // #todo- StructuredBuffer로 교체 가능?
-#define MAX_BONE_COUNT 64
+#define MAX_BONE_COUNT DK_MAX_BONE_COUNT
 #define MAX_SKINNING_COUNT 4
 cbuffer SkeletonConstantBuffer : register(b3)
 {
@@ -53,7 +54,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
     float4x4 skinMatrix = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     for(uint i = 0; i < MAX_SKINNING_COUNT; ++i)
     {
-        if(input.boneIndexes[i] == 0xffffffff)
+        if(input.boneIndexes[i] >= MAX_BONE_COUNT)
             continue;
 
         if(input.boneWeights[i] == 0)

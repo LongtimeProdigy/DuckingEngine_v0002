@@ -28,11 +28,6 @@ namespace DK
 		return nullptr;
 	}
 
-	uint32 MaterialParameterTexture::getParameterSize() const noexcept
-	{
-		return sizeof(TextureResourceViewType);
-	}
-
 	MaterialParameter::Type MaterialParameterFloat::getType() const noexcept
 	{
 		return Type::FLOAT;
@@ -40,6 +35,10 @@ namespace DK
 	MaterialParameter::Type MaterialParameterTexture::getType() const noexcept
 	{
 		return Type::TEXTURE;
+	}
+	uint32 MaterialParameterTexture::getParameterSize() const noexcept
+	{
+		return sizeof(TextureResourceViewType);
 	}
 	template<typename T>
 	void MaterialParameterTemplate<T>::setParameterValue(const T& value) noexcept
@@ -135,10 +134,8 @@ namespace DK
 				MaterialParameter* parameter = _parameterArr[j].get();
 				if (parameterDefinition._name == parameter->getParameterName())
 				{
-					const bool typeMatches =
-						(parameterDefinition._type == MaterialParameterType::FLOAT && parameter->getType() == MaterialParameter::Type::FLOAT) ||
-						(parameterDefinition._type == MaterialParameterType::TEXTURE && parameter->getType() == MaterialParameter::Type::TEXTURE);
-					if (!typeMatches)
+					if ((parameterDefinition._type == MaterialParameterType::FLOAT && parameter->getType() == MaterialParameter::Type::FLOAT) == false
+						|| (parameterDefinition._type == MaterialParameterType::TEXTURE && parameter->getType() == MaterialParameter::Type::TEXTURE) == false)
 					{
 						DK_ASSERT_LOG(false, "Material %s: parameter %s has an incompatible type.", _materialName.c_str(), parameterDefinition._name.c_str());
 						return false;

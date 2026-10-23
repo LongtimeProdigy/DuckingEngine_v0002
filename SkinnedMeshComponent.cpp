@@ -30,17 +30,8 @@ namespace DK
 		if (resourceManager.loadAnimation(_animationPath, _skeleton, _animation) == false) 
 			return false;
 
-		const uint32 boneCount = static_cast<uint32>(_skeleton->getBoneArr().size());
-		DKVector<float4x4> animationMatrices;
-		animationMatrices.resize(boneCount);
-		for (uint32 i = 0; i < boneCount; ++i)
-		{
-			const Bone& bone = _skeleton->getBoneArr()[i];
-			bone._transform.tofloat4x4(animationMatrices[i]);
-		}
-
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		_currentAnimationBufferCS = renderModule.createUploadBuffer(sizeof(decltype(animationMatrices[0])) * static_cast<uint32>(animationMatrices.size()), L"SkinnedMesh_Skeleton_Cbuffer");
+		_currentAnimationBufferCS = renderModule.createConstantBuffer(sizeof(float4x4) * Bone::kMaxBoneCount, L"SkinnedMesh_Skeleton_Cbuffer");
 		if (_currentAnimationBufferCS == nullptr)
 			return false;
 
@@ -85,19 +76,17 @@ namespace DK
 		currentCharacterSpaceBoneAnimation.resize(boneCount);
 		for (uint32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 		{
-			float4x4 animationMatrix1 = boneAnimations[boneIndex]._animation[frameIndex];
-			float4x4 animationMatrix2 = boneAnimations[boneIndex]._animation[nextFrameIndex];
-			currentCharacterSpaceBoneAnimation[boneIndex] = animationMatrix1; // float4x4::slerp(animationMatrix1, animationMatrix2, lerp);
+			const float4x4& animationMatrix1 = boneAnimations[boneIndex]._animation[frameIndex];
+			const float4x4& animationMatrix2 = boneAnimations[boneIndex]._animation[nextFrameIndex];
+			currentCharacterSpaceBoneAnimation[boneIndex] = float4x4::slerp(animationMatrix1, animationMatrix2, lerp);
 			if (boneArr[boneIndex]._parentBoneIndex != Bone::kInvalidBoneIndex)
 				currentCharacterSpaceBoneAnimation[boneIndex] = currentCharacterSpaceBoneAnimation[boneIndex] * currentCharacterSpaceBoneAnimation[boneArr[boneIndex]._parentBoneIndex];
 		}
 
 		// Build Skinning Matrix(Bone)
 		_currentCharacterSpaceBoneAnimation.clear();
-		_currentCharacterSpaceBoneAnimation.resize(boneCount);
+		_currentCharacterSpaceBoneAnimation.resize(Bone::kMaxBoneCount);
 		for (uint32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
-		{
 			_currentCharacterSpaceBoneAnimation[boneIndex] = characterSpaceInvertBoneMatrix[boneIndex] * currentCharacterSpaceBoneAnimation[boneIndex];
-		}
 	}
 }

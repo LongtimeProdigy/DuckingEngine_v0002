@@ -1,4 +1,5 @@
 #pragma once
+#include "Resource/Material/SkinningLimits.h"
 
 namespace DK
 {
@@ -6,21 +7,18 @@ namespace DK
 	{
 	public:
 		static constexpr uint32 kInvalidBoneIndex = 0xffffffff;
+		static constexpr uint32 kMaxBoneCount = DK_MAX_BONE_COUNT;
 
 	public:
 		Bone(const DKString& boneName, const DKString& parentBoneName, const uint32 parentBoneIndex, const Transform& transform)
-#if defined(_DK_DEBUG_)
 			: _boneName(boneName)
 			, _parentBoneName(parentBoneName)
-#endif
 			, _parentBoneIndex(parentBoneIndex)
 			, _transform(transform)
 		{}
 
-#if defined(_DK_DEBUG_)
 		DKString _boneName;
 		DKString _parentBoneName;
-#endif
 		uint32 _parentBoneIndex;
 		Transform _transform = Transform::Identity;
 	};
