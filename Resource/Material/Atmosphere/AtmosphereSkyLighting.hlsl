@@ -2,7 +2,7 @@
 #define ATMOSPHERE_SKY_LIGHTING_HLSL
 #include "CommonTexture.hlsl"
 #include "CommonMathConstant.hlsl"
-#include "AtmosphereParameters.hlsl"
+#include "Atmosphere/AtmosphereParameters.hlsl"
 static const uint SKY_WIDTH = 64u;
 static const uint SKY_HEIGHT = 32u;
 static const uint SKY_BANDS = 6u; // 0..4: GGX roughness, 5: diffuse irradiance.

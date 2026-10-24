@@ -1,5 +1,6 @@
 #ifndef ATMOSPHERE_ABSORPTION_CORE_HLSL
 #define ATMOSPHERE_ABSORPTION_CORE_HLSL
+
 // Bounded shell quadrature below the density transition. Rayleigh/Mie keep their analytic core.
 float2 atmosphereAbsorptionSphereHits(float height, float radialDot, float radius)
 {

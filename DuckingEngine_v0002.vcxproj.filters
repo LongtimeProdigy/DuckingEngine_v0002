@@ -296,4 +296,7 @@
   <ItemGroup>
     <Natvis Include="Common.natvis" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
 </Project>

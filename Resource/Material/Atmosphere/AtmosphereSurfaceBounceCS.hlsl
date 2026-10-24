@@ -1,6 +1,6 @@
 #define ATMOSPHERE_FORCE_LUT
-#include "AtmosphereTransmittance.hlsl"
-#include "AtmosphereSurfaceLighting.hlsl"
+#include "Atmosphere/AtmosphereTransmittance.hlsl"
+#include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
 #include "CommonMathConstant.hlsl"
 cbuffer SurfaceBounceOutputConstants : register(b2)
 {

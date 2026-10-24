@@ -1,7 +1,7 @@
 #ifndef ATMOSPHERE_SURFACE_LIGHTING_HLSL
 #define ATMOSPHERE_SURFACE_LIGHTING_HLSL
 #include "CommonTexture.hlsl"
-#include "AtmosphereParameters.hlsl"
+#include "Atmosphere/AtmosphereParameters.hlsl"
 static const uint SURFACE_BOUNCE_GRID = 16u;
 float3 atmosphereSurfaceCoordinates(float3 p)
 {

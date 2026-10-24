@@ -1,5 +1,5 @@
 #include "PostProcessCommon.hlsl"
-#include "AtmosphereParameters.hlsl"
+#include "Atmosphere/AtmosphereParameters.hlsl"
 
 float bloomWeight(int offset, int radius)
 {

@@ -1,21 +1,19 @@
 #ifndef ATMOSPHERE_GEOMETRY_HLSL
 #define ATMOSPHERE_GEOMETRY_HLSL
 #include "CommonMathConstant.hlsl"
-#include "AtmosphereParameters.hlsl"
+#include "Atmosphere/AtmosphereParameters.hlsl"
 
-// All positions in this shader are relative to the camera. The CPU supplies
-// camera altitude in double precision; this form preserves small surface heights.
 float atmosphereHeight(float3 cameraRelativePosition)
 {
-    // 원래는 아래식을 구하는 게 전부이지만, float 정밀도를 개선하기 식을 변형함
+    // 이 함수는 아래식을 구하는 게 전부이지만, float 정밀도를 개선하기 식을 변형함
     // length(cameraRadial + cameraRelativePosition) - _densityReferenceRadius
+
     const float3 cameraRadial = -_planetCentre;
     const float3 radial = cameraRadial + cameraRelativePosition;
-    // The rational expression is accurate near the camera, but at orbital
-    // distances its large terms cancel. Use the centre-relative radius there.
     const float nearCameraRange = 0.1f * _densityReferenceRadius;
     if (dot(cameraRelativePosition, cameraRelativePosition) > nearCameraRange * nearCameraRange)
         return length(radial) - _densityReferenceRadius;
+        
     const float numerator = dot(cameraRelativePosition, cameraRelativePosition) + 2.0f * dot(cameraRelativePosition, cameraRadial) + _cameraAltitude * (2.0f * _densityReferenceRadius + _cameraAltitude);
     return numerator / max(length(cameraRadial + cameraRelativePosition) + _densityReferenceRadius, 1.0f);
 }

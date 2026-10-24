@@ -3,10 +3,10 @@
 
 #include "CommonRendering.hlsl"
 #include "CommonTexture.hlsl"
-#include "AtmosphereParameters.hlsl"
-#include "AtmosphereTransmittance.hlsl"
-#include "AtmosphereSurfaceLighting.hlsl"
-#include "AtmosphereMultipleScattering.hlsl"
+#include "Atmosphere/AtmosphereParameters.hlsl"
+#include "Atmosphere/AtmosphereTransmittance.hlsl"
+#include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
+#include "Atmosphere/AtmosphereMultipleScattering.hlsl"
 
 cbuffer AtmosphereInputConstants : register(b2)
 {

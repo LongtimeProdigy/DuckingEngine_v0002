@@ -1,5 +1,5 @@
 #define ATMOSPHERE_FORCE_LUT
-#include "AtmosphereMultipleScattering.hlsl"
+#include "Atmosphere/AtmosphereMultipleScattering.hlsl"
 cbuffer MultipleScatteringOutputConstants : register(b2)
 {
     uint _multipleOutputUav;

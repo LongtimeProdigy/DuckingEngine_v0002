@@ -129,8 +129,9 @@ namespace DK
 #include <d3dcompiler.h>
 #include "d3dx12.h"
 #pragma region DXC
-#pragma comment(lib, "lib/dxc_2025_07_14/lib/x64/dxcompiler.lib")
-#include "lib/dxc_2025_07_14/inc/dxcapi.h"
+#pragma comment(lib, "lib/dxc_2026_08_11/lib/x64/dxcompiler.lib")
+#include "lib/dxc_2026_08_11/inc/dxcapi.h"
+#define SUPPORT_HLGL_DEBUGBREAK
 #pragma endregion
 #endif
 

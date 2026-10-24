@@ -1,7 +1,7 @@
 #ifndef ATMOSPHERE_TRANSMITTANCE_CS_HLSL
 #define ATMOSPHERE_TRANSMITTANCE_CS_HLSL
 
-#include "AtmosphereTransmittance.hlsl"
+#include "Atmosphere/AtmosphereTransmittance.hlsl"
 
 cbuffer AtmosphereLutOutputConstants : register(b2)
 {
@@ -14,7 +14,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (id.x >= ATMOSPHERE_LUT_WIDTH || id.y >= ATMOSPHERE_LUT_HEIGHT) 
         return;
 
-    // uv.x의 의미는 방사방향은 1, 방사방향과 수직은 0.5, 행성 중심방향은 0을 가리킴
+    // uv.x의 의미는 방사방향과 rayDir의 내적 mu이다. 1은 방사방향, 0.5는 방사방향과 수직, 0은 행성 중심방향 (rayDir은 sunDir을 시뮬레이션 한 방향)
     // uv.y의 의미는 transitionRadius가 0, atmosphereRadius가 1이라고 할때 그 사이의 높이
     // 따라서 output texture의 x축 한 줄(0~1로 이동)이 의미하는 바는 uv.y * (atmosphereRadius - transitionRadius) 높이에서 sunDir이 행성 중심방향에서 -> 방사방향으로 이동할때 OpticalDepth의 값
 
@@ -27,7 +27,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     const float height = _densityReferenceRadius + heightAtReference;
     const float radialDot = height * parameters.y;
     const float pathLength = atmosphereTopDistance(heightAtReference, radialDot);
-    const AtmosphereOpticalDepth optical = integrateAtmosphereOpticalDepth(heightAtReference, radialDot, pathLength, _opticalDepthPointCount);
+    const AtmosphereOpticalDepth optical = integrateAtmosphereOpticalDepth(heightAtReference, radialDot, pathLength);
 
     const RWTexture2D<float4> output = getTextureRW(_atmosphereLutUav);
     output[id.xy] = optical.value;

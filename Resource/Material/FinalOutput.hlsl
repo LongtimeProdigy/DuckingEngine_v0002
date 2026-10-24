@@ -2,7 +2,7 @@
 #define FINAL_OUTPUT_HLSL
 
 #include "PostProcessCommon.hlsl"
-#include "AtmosphereParameters.hlsl"
+#include "Atmosphere/AtmosphereParameters.hlsl"
 
 cbuffer FinalOutputConstants : register(b2)
 {

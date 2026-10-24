@@ -1,8 +1,8 @@
 #define ATMOSPHERE_FORCE_LUT
-#include "AtmosphereTransmittance.hlsl"
-#include "AtmosphereSkyLighting.hlsl"
-#include "AtmosphereSurfaceLighting.hlsl"
-#include "AtmosphereMultipleScattering.hlsl"
+#include "Atmosphere/AtmosphereTransmittance.hlsl"
+#include "Atmosphere/AtmosphereSkyLighting.hlsl"
+#include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
+#include "Atmosphere/AtmosphereMultipleScattering.hlsl"
 cbuffer SkyLightingOutputConstants : register(b2)
 {
     uint _skyOutputUav;

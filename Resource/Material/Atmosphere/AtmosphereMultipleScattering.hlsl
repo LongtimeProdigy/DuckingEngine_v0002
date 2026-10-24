@@ -1,6 +1,6 @@
 #ifndef ATMOSPHERE_MULTIPLE_SCATTERING_HLSL
 #define ATMOSPHERE_MULTIPLE_SCATTERING_HLSL
-#include "AtmosphereTransmittance.hlsl"
+#include "Atmosphere/AtmosphereTransmittance.hlsl"
 static const uint ATMOSPHERE_MS_WIDTH = 32u;
 static const uint ATMOSPHERE_MS_HEIGHT = 32u;
 

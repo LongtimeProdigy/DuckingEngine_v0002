@@ -3,10 +3,10 @@
 
 #include "PostProcessCommon.hlsl"
 #define ATMOSPHERE_FORCE_LUT
-#include "AtmosphereTransmittance.hlsl"
+#include "Atmosphere/AtmosphereTransmittance.hlsl"
 #include "GBufferCommon.hlsl"
-#include "AtmosphereSkyLighting.hlsl"
-#include "AtmosphereSurfaceLighting.hlsl"
+#include "Atmosphere/AtmosphereSkyLighting.hlsl"
+#include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
 #include "CommonMathConstant.hlsl"
 
 cbuffer GBufferConstants : register(b2)

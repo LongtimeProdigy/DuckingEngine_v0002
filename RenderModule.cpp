@@ -508,6 +508,16 @@ namespace DK
 			}
 		}
 
+#if defined(SUPPORT_HLGL_DEBUGBREAK)
+		D3D12_FEATURE_DATA_DEBUG_BREAK debugBreakSupport = {};
+		HRESULT debugBreakHr = _device->CheckFeatureSupport(D3D12_FEATURE_DEBUG_BREAK, &debugBreakSupport, sizeof(debugBreakSupport));
+		if (FAILED(debugBreakHr) || debugBreakSupport.HaltSupported == false)
+		{
+			DK_ASSERT_LOG(false, "GPU DebugBreak halt is unsupported.");
+			return false;
+		}
+#endif
+
 #if defined(_DK_DEBUG_)
 		_device->SetName(L"Duckingengine D3D12 Device");
 
@@ -532,7 +542,7 @@ namespace DK
 			D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = {};
 
 #if defined(NTDDI_WIN10_VB) && (NTDDI_VERSION >= NTDDI_WIN10_VB)
-			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_6;
+			shaderModel.HighestShaderModel = D3D_HIGHEST_SHADER_MODEL;
 #elif defined(NTDDI_WIN10_19H1) && (NTDDI_VERSION >= NTDDI_WIN10_19H1)
 			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_5;
 #elif defined(NTDDI_WIN10_RS5) && (NTDDI_VERSION >= NTDDI_WIN10_RS5)
@@ -1227,6 +1237,9 @@ namespace DK
 			psoDesc.NumRenderTargets = pipelineCreateInfo._gbufferOutput ? kGBufferCount : 1;
 			psoDesc.DepthStencilState = depthStencilDesc;
 			psoDesc.DSVFormat = gDepthStencilFormat;
+#if defined(SUPPORT_HLGL_DEBUGBREAK)
+			psoDesc.Flags |= D3D12_PIPELINE_STATE_FLAG_DEBUG_BREAK_ALWAYS_HALT;
+#endif
 
 			ID3D12PipelineState* pso;
 			HRESULT hr = _device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
@@ -1265,6 +1278,9 @@ namespace DK
 			cpsoDesc.pRootSignature = inoutPipeline._rootSignature.get();
 			cpsoDesc.CS = computeShaderView;
 			cpsoDesc.NodeMask = 0;
+#if defined(SUPPORT_HLGL_DEBUGBREAK)
+			cpsoDesc.Flags |= D3D12_PIPELINE_STATE_FLAG_DEBUG_BREAK_ALWAYS_HALT;
+#endif
 
 			ID3D12PipelineState* pso;
 			HRESULT hr = _device->CreateComputePipelineState(&cpsoDesc, IID_PPV_ARGS(&pso));
@@ -1462,6 +1478,14 @@ namespace DK
 			subobjects[libCount + 2].pDesc = &pipelineConfig;
 			subobjects[libCount + 3].Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 			subobjects[libCount + 3].pDesc = &globalRoot;
+#if defined(SUPPORT_HLGL_DEBUGBREAK)
+			D3D12_STATE_OBJECT_CONFIG debugConfig = {};
+			debugConfig.Flags = D3D12_STATE_OBJECT_FLAG_DEBUG_BREAK_ALWAYS_HALT;
+			D3D12_STATE_SUBOBJECT debugSubobject = {};
+			debugSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_STATE_OBJECT_CONFIG;
+			debugSubobject.pDesc = &debugConfig;
+			subobjects.push_back(debugSubobject);
+#endif
 
 			// StateObject
 			D3D12_STATE_OBJECT_DESC stateObjectDesc = {};

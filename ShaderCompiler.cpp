@@ -83,16 +83,16 @@ namespace DK
 		switch (shaderType)
 		{
 		case ShaderType::VertexShader:
-			arguments.push_back(L"vs_6_2");
+			arguments.push_back(L"vs_6_10");
 			break;
 		case ShaderType::PixelShader:
-			arguments.push_back(L"ps_6_2");
+			arguments.push_back(L"ps_6_10");
 			break;
 		case ShaderType::ComputeShader:
-			arguments.push_back(L"cs_6_2");
+			arguments.push_back(L"cs_6_10");
 			break;
 		case ShaderType::Raytracing:
-			arguments.push_back(L"lib_6_5");
+			arguments.push_back(L"lib_6_10");
 			//arguments.push_back(L"-HV");
 			//arguments.push_back(L"2021");	// HLSL 2021로 컴파일 하란 뜻
 			break;

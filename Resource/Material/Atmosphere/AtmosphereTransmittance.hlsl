@@ -1,8 +1,8 @@
 #ifndef ATMOSPHERE_TRANSMITTANCE_HLSL
 #define ATMOSPHERE_TRANSMITTANCE_HLSL
 #include "CommonTexture.hlsl"
-#include "AtmosphereIntegration.hlsl"
-#include "AtmosphereGeometry.hlsl"
+#include "Atmosphere/AtmosphereIntegration.hlsl"
+#include "Atmosphere/AtmosphereGeometry.hlsl"
 
 // Match SceneRenderer's allocation. Float columns avoid losing small transmittances.
 static const uint ATMOSPHERE_LUT_WIDTH = 512u;
@@ -37,7 +37,7 @@ float2 atmosphereLutParameters(float2 uv)
     // uv.y의 0은 transitionradius 높이를 가리키기 때문에 referenceheight로 변환하기 위해서는 atmosphereTransitionHeight()를 더해야함
     const float heightAtReference = atmosphereTransitionHeight() + uv.y * uv.y * (_atmosphereRadius - _densityTransitionRadius); //uv.y²로 높이를 배치해 전환 경계 근처에 샘플이 집중됨
 
-    const float horizon = atmosphereHorizonCosine(heightAtReference);
+    const float horizon = atmosphereHorizonCosine(heightAtReference);   // heightAtReference에서 transitionRadius구에 접선하는 선분과 방사방향과의 mu
     const float s = 2.0f * uv.x - 1.0f;
     // 아래는 mu = dot(normalize(p - planetCentre), sunDir); 를 변형한 것 - 여기서 sunDir을 uv.x에 따라 0(방사방향)~180(pranetCentre방향)도로 확장한거임
     const float mu = s >= 0.0f ? lerp(horizon, 1.0f, s * s) : lerp(horizon, -1.0f, s * s);   // s²를 이용해서 접선부근(uv.x == 0.5)에서 샘플이 집중됨, s==0은 구에 접함
@@ -69,7 +69,7 @@ AtmosphereOpticalDepth atmosphereSunOpticalDepthOutsideCore(float height, float 
     height = clamp(height, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius);
 #else
     if (!atmosphereUsesLut(allowReference) || height < atmosphereTransitionHeight() || height > _atmosphereRadius - _densityReferenceRadius)
-        return integrateAtmosphereOpticalDepth(height, radialDot, pathLength, _opticalDepthPointCount);
+        return integrateAtmosphereOpticalDepth(height, radialDot, pathLength);
 #endif
 
     const float mu = clamp(radialDot / max(_densityReferenceRadius + height, 1e-10f), -1.0f, 1.0f);
@@ -113,8 +113,7 @@ AtmosphereOpticalDepth atmosphereSunOpticalDepth(float height, float radialDot, 
     result.limitReached = 0u;
     if (coreLength < pathLength)
     {
-        const AtmosphereOpticalDepth outer = atmosphereSunOpticalDepthOutsideCore(
-            atmosphereTransitionHeight(), max(radialDot + coreLength, 0.0f), pathLength - coreLength, allowReference);
+        const AtmosphereOpticalDepth outer = atmosphereSunOpticalDepthOutsideCore(atmosphereTransitionHeight(), max(radialDot + coreLength, 0.0f), pathLength - coreLength, allowReference);
         result.value += outer.value;
         result.limitReached = outer.limitReached;
     }
@@ -134,8 +133,7 @@ float3 getSunTransmittance(float3 cameraRelativePosition, float3 sunDir)
     // Outside surfaces start integration at the atmosphere entry, not in vacuum.
     const float3 origin = cameraRelativePosition + sunDir * hit.x;
     const float height = hit.x > 0.0f ? _atmosphereRadius - _densityReferenceRadius : atmosphereHeight(origin);
-    const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(
-        height, dot(origin - _planetCentre, sunDir), hit.y);
+    const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(height, dot(origin - _planetCentre, sunDir), hit.y);
     const float3 betaR = atmosphereRayleighScattering();
     const float3 betaM = atmosphereMieExtinction();
     return exp(-atmosphereOpticalExtinction(optical.value));
