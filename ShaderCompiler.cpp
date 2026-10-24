@@ -130,10 +130,27 @@ namespace DK
 			arguments.push_back(define.c_str());
 		}
 
+#if defined(_DK_DEBUG_)
+		IDxcBlobUtf8* utf8Blob = nullptr;
+		hr = _utils->GetBlobAsUtf8(sourceBlob.get(), &utf8Blob);
+		if (FAILED(hr))
+			return false;
+
+		RenderResourcePtr<IDxcBlobUtf8> utf8Source = utf8Blob;
+
+		DKString source = "#include \"Assert.hlsl\"\n#line 1\n";
+		source.append(utf8Source->GetStringPointer(), utf8Source->GetStringLength());
+
+		DxcBuffer sourceBuffer{};
+		sourceBuffer.Ptr = source.data();
+		sourceBuffer.Size = source.size();
+		sourceBuffer.Encoding = DXC_CP_UTF8;
+#else
 		DxcBuffer sourceBuffer{};
 		sourceBuffer.Ptr = sourceBlob->GetBufferPointer();
 		sourceBuffer.Size = sourceBlob->GetBufferSize();
 		sourceBuffer.Encoding = DXC_CP_ACP;
+#endif
 
 		IDxcIncludeHandler* handler;
 		hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->CreateDefaultIncludeHandler(&handler);
