@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <cstdlib>
 
+extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = 721; }
+extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = u8".\\D3D12\\"; }
+
 #pragma region Lib
 #define USE_WINCODEC
 #ifdef USE_WINCODEC
@@ -230,6 +233,38 @@ namespace DK
 		if (createRenderTarget(width, height) == false)
 			return false;
 
+#if defined(_DK_DEBUG_)
+		const uint32 debugHangData[2] = { 0, 0 };
+		const uint32 debugHangBufferSize = sizeof(debugHangData);
+		const CD3DX12_HEAP_PROPERTIES debugHangHeap(D3D12_HEAP_TYPE_DEFAULT);
+		const auto debugHangDesc = CD3DX12_RESOURCE_DESC::Buffer( debugHangBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		ID3D12Resource* debugHangResource = nullptr;
+		HRESULT debugHangHr = _device->CreateCommittedResource(&debugHangHeap, D3D12_HEAP_FLAG_NONE, &debugHangDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&debugHangResource));
+		if (FAILED(debugHangHr))
+			return false;
+
+		IBufferRef debugHangUpload = createUploadBuffer(debugHangBufferSize, L"DebugHangBuffer Upload");
+		if (debugHangUpload == nullptr || debugHangUpload->isValid() == false)
+			return false;
+
+		_debugHangBuffer = IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(debugHangResource), debugHangBufferSize, D3D12_RESOURCE_STATE_COPY_DEST));
+		debugHangResource->SetName(L"DebugHangBuffer");
+
+		void* debugHangMapped = nullptr;
+		const D3D12_RANGE noRead = { 0, 0 };
+		debugHangHr = debugHangUpload->_buffer->Map(0, &noRead, &debugHangMapped);
+		if (FAILED(debugHangHr))
+			return false;
+
+		memcpy(debugHangMapped, debugHangData, debugHangBufferSize);
+		const D3D12_RANGE writtenRange = { 0, debugHangBufferSize };
+		debugHangUpload->_buffer->Unmap(0, &writtenRange);
+
+		_commandList->CopyBufferRegion(debugHangResource, 0, debugHangUpload->_buffer.get(), 0, debugHangBufferSize);
+
+		resourceBarrierTransition(*_debugHangBuffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+#endif
+
 		execute();
 		waitFenceAndResetCommandList();
 		_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
@@ -394,6 +429,9 @@ namespace DK
 	void RenderModule::destroy()
 	{
 		_renderPassMap.clear();
+#if defined(_DK_DEBUG_)
+		_debugHangBuffer.reset();
+#endif
 		_textureDescriptorHeap.release();
 		DK_ASSERT_LOG(_textureContainer.empty(), "");
 
@@ -455,7 +493,7 @@ namespace DK
 
 		// Activate DebugLayer
 		{
-#if 0 && !defined(USE_PIX)
+#if defined(_DK_DEBUG_)
 			//실험적 기능 목록을 사용하도록 설정합니다.
 			const GUID D3D12ExperimentalShaderModelsID = { /* 76f5573e-f13a-40f5-b297-81ce9e18933f */
 				0x76f5573e,
@@ -983,14 +1021,17 @@ namespace DK
 				case D3D_SIT_CBUFFER:
 				case D3D_SIT_STRUCTURED:
 				case D3D_SIT_RTACCELERATIONSTRUCTURE:
+				case D3D_SIT_UAV_RWBYTEADDRESS:
 				{
 					const uint32 rootIndex = static_cast<uint32>(rootParameters.size());
 
 					CD3DX12_ROOT_PARAMETER root;
-					if (resource._type != D3D_SIT_CBUFFER)
-						root.InitAsShaderResourceView(resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
-					else
+					if (resource._type == D3D_SIT_CBUFFER)
 						root.InitAsConstantBufferView(resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
+					else if (resource._type == D3D_SIT_UAV_RWBYTEADDRESS)
+						root.InitAsUnorderedAccessView(resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
+					else
+						root.InitAsShaderResourceView(resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
 					rootParameters.push_back(root);
 
 					ShaderParameter parameter;
@@ -2737,6 +2778,22 @@ namespace DK
 				_commandList->IASetPrimitiveTopology(convertPrimitiveTopology(pipeline._primitiveTopologyType));
 			}
 		}
+
+#if defined(_DK_DEBUG_)
+		DKHashMap<DKString, ShaderParameter>::const_iterator debugHangParameter = pipeline._shaderParameterMap.find("DebugHangBuffer");
+		if (debugHangParameter != pipeline._shaderParameterMap.end())
+		{
+			if (_debugHangBuffer == nullptr || !_debugHangBuffer->isValid())
+				return false;
+
+			const uint32 rootIndex = debugHangParameter->second._rootParameterIndex;
+			const D3D12_GPU_VIRTUAL_ADDRESS address = _debugHangBuffer->_buffer->GetGPUVirtualAddress();
+			if (type == Pipeline::Type::GRAPHIC)
+				_commandList->SetGraphicsRootUnorderedAccessView(rootIndex, address);
+			else
+				_commandList->SetComputeRootUnorderedAccessView(rootIndex, address);
+		}
+#endif
 
 		return true;
 	}

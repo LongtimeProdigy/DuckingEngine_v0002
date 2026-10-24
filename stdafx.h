@@ -131,7 +131,9 @@ namespace DK
 #pragma region DXC
 #pragma comment(lib, "lib/dxc_2026_08_11/lib/x64/dxcompiler.lib")
 #include "lib/dxc_2026_08_11/inc/dxcapi.h"
-#define SUPPORT_HLGL_DEBUGBREAK
+#if defined(_DK_DEBUG_)
+//#define SUPPORT_HLGL_DEBUGBREAK
+#endif
 #pragma endregion
 #endif
 

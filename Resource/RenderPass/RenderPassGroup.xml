@@ -103,30 +103,30 @@
     <RenderPass Name="AtmosphereTransmittancePass">
         <ComputePipeline Name="AtmosphereTransmittancePipeline">
             <RootConstant Buffer="AtmosphereLutOutputConstants"/>
-            <Shader Entry="CSMain">Material/AtmosphereTransmittanceCS.hlsl</Shader>
+            <Shader Entry="CSMain">Material/Atmosphere/AtmosphereTransmittanceCS.hlsl</Shader>
         </ComputePipeline>
     </RenderPass>
 
     <RenderPass Name="AtmosphereMultipleScatteringPass">
         <ComputePipeline Name="AtmosphereMultipleScatteringPipeline">
             <RootConstant Buffer="MultipleScatteringOutputConstants"/>
-            <Shader Entry="CSMain">Material/AtmosphereMultipleScatteringCS.hlsl</Shader>
+            <Shader Entry="CSMain">Material/Atmosphere/AtmosphereMultipleScatteringCS.hlsl</Shader>
         </ComputePipeline>
     </RenderPass>
     <RenderPass Name="AtmosphereSurfaceBouncePass">
         <ComputePipeline Name="AtmosphereSurfaceBouncePipeline">
             <RootConstant Buffer="SurfaceBounceOutputConstants"/>
-            <Shader Entry="CSMain">Material/AtmosphereSurfaceBounceCS.hlsl</Shader>
+            <Shader Entry="CSMain">Material/Atmosphere/AtmosphereSurfaceBounceCS.hlsl</Shader>
         </ComputePipeline>
     </RenderPass>
 	<RenderPass Name="AtmosphereSkyLightingPass">
         <ComputePipeline Name="AtmosphereSkyRadiancePipeline">
             <RootConstant Buffer="SkyLightingOutputConstants"/>
-            <Shader Entry="CSRadiance">Material/AtmosphereSkyLightingCS.hlsl</Shader>
+            <Shader Entry="CSRadiance">Material/Atmosphere/AtmosphereSkyLightingCS.hlsl</Shader>
         </ComputePipeline>
         <ComputePipeline Name="AtmosphereSkyFilterPipeline">
             <RootConstant Buffer="SkyLightingOutputConstants"/>
-            <Shader Entry="CSFilter">Material/AtmosphereSkyLightingCS.hlsl</Shader>
+            <Shader Entry="CSFilter">Material/Atmosphere/AtmosphereSkyLightingCS.hlsl</Shader>
         </ComputePipeline>
     </RenderPass>
     <RenderPass Name="AtmosphereRenderPass">
@@ -135,8 +135,8 @@
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
-			<VertexShader Entry="VSMain">Material\Atmosphere.hlsl</VertexShader>
-			<PixelShader Entry="PSMain">Material\Atmosphere.hlsl</PixelShader>
+			<VertexShader Entry="VSMain">Material\Atmosphere\Atmosphere.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\Atmosphere\Atmosphere.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
 

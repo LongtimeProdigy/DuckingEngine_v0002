@@ -662,7 +662,8 @@ do{ \
 #endif
 
 	private:
-		// Gpu Timings
+#if defined(_DK_DEBUG_)
+		//Gpu Timings
         RenderResourcePtr<ID3D12QueryHeap> _gpuTimestampHeap;
         RenderResourcePtr<ID3D12Resource> _gpuTimestampReadback;
         uint64 _gpuTimestampFrequency = 0;
@@ -672,6 +673,10 @@ do{ \
         bool _gpuTimingRecorded = false;
         double _gpuMilliseconds[5] = { -1, -1, -1, -1, -1 };
         double _gpuPeakMilliseconds[5] = { 0, 0, 0, 0, 0 };
+
+		//GPU Assert
+		IBufferRef _debugHangBuffer;
+#endif
 
 		// resource
         bool _useWarpDevice = false;
