@@ -1,4 +1,4 @@
-#ifndef DK_CLIPMAP_COMMON_HLSL
+﻿#ifndef DK_CLIPMAP_COMMON_HLSL
 #define DK_CLIPMAP_COMMON_HLSL
 
 // 현재 엔진의 바인딩 이름을 유지한다.

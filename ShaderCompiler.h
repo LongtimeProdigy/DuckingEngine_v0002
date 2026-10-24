@@ -6,6 +6,7 @@ struct IDxcCompiler3;
 
 enum _D3D_SHADER_INPUT_TYPE : int;
 enum _D3D_SRV_DIMENSION : int;
+enum D3D_SHADER_MODEL;
 
 namespace DK
 {
@@ -43,12 +44,13 @@ namespace DK
 	class ShaderCompiler
 	{
 	public:
-		ShaderCompiler();
+		explicit ShaderCompiler(const D3D_SHADER_MODEL shaderModel);
 
 		const bool compileShader(const char* shaderPath, const char* entry, const ShaderType shaderType, const DKVector<DKString>& defines, RenderResourcePtr<IDxcBlob>& shader, D3D12_SHADER_BYTECODE& outShader, DKVector<ShaderResourceReflection>& outResources, uint32* outThreadGroupSize = nullptr);
 
 	private:
 		bool _initialized = false;
+		D3D_SHADER_MODEL _shaderModel;
 		RenderResourcePtr<IDxcUtils> _utils = nullptr;
 		RenderResourcePtr<IDxcCompiler3> _compiler3 = nullptr;
 	};

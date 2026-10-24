@@ -1,48 +1,46 @@
-#ifndef ATMOSPHERE_TRANSMITTANCE_HLSL
+﻿#ifndef ATMOSPHERE_TRANSMITTANCE_HLSL
 #define ATMOSPHERE_TRANSMITTANCE_HLSL
 #include "CommonTexture.hlsl"
 #include "Atmosphere/AtmosphereIntegration.hlsl"
 #include "Atmosphere/AtmosphereGeometry.hlsl"
 
-// Match SceneRenderer's allocation. Float columns avoid losing small transmittances.
 static const uint ATMOSPHERE_LUT_WIDTH = 512u;
 static const uint ATMOSPHERE_LUT_HEIGHT = 128u;
 
 // heightAtReference부터 rayDir방향으로 쏠 때 atmosphereRadius구를 벗어나는 path length룰 반환함
-// heightAtReference위치 점 p + t * rayDir라고 가정하면, (p + t*rayDir)² == atmosphereRadius²를 만족하는 t를 구하면 된다
-// 이는 t를 매개로 하는 2차방정식 풀이이다. (t² + 2*p*t + p² - amotsphereRadius² == 0)
 float atmosphereTopDistance(float heightAtReference, float radialDot)
 {
-    const float altitude = heightAtReference - (_atmosphereRadius - _densityReferenceRadius);   // atmosphereRadius가 고도 0이라고 했을때, heightAtRenference의 상대 높이
-    const float c = altitude * (2.0f * _atmosphereRadius + altitude);   // 구하고자하는 건  (행성 중심부터 p까지)² - _atmosphereRadius²이지만 float 정밀도 개선을 위해 다음과 같은 식을 사용
+    GPUASSERT(heightAtReference <= _atmosphereRadius);
 
-    // -radialDot은 기하적으로 보면 heightAtReference(점 p)에서 dir방향의 선분에 행성중심에서 수선을 발을 내려 만든 직각삼각형의 밑변 길이가 된다
-    // 이때 root의 기하적 의미는 수선의 발을 내린 점에서 선분이 구에 접하는 두 점 사이의 거리이다. (두 점과 수선의 발 사이의 거리는 같다) (피타고라스를 이용하면 나옴)
-    // 따라서 t0 = -radialdot - root, t1 = -radialdot + root가된다
-    const float root = sqrt(max(radialDot * radialDot - c, 0.0f));
-    const float q = -radialDot - (radialDot >= 0.0f ? root : -root);    // radialDot이 양수라는 것은 방사방향과 rayDir이 90도 이하라는 것. 따라서 root를 더해야 대기표면 점이 나옴
-    return max(max(q, abs(q) > 1e-10f ? c / q : -radialDot), 0.0f);     // 정밀도를 올리기 위해 q를 바로 return하지 않음. t1*p = c를 이용해서 t2를 구함, q가  0에 근사하면 접선이므로 -radialDot 사용
+    const float heightAtAtmosphere = (heightAtReference + _densityReferenceRadius) - _atmosphereRadius;
+
+    // 구하고자하는 건  방사방향² - _atmosphereRadius²이지만 float 정밀도 개선을 위해 다음과 같은 식을 사용
+    const float c = heightAtAtmosphere * (2.0f * _atmosphereRadius + heightAtAtmosphere);
+    // abs(radialDot)은 기하적으로 보면 heightAtReference(점 p)에서 dir방향의 선분에 행성중심에서 수선을 발을 내려 만든 직각삼각형의 밑변 길이가 된다
+    // 이때 root의 기하적 의미는 수선의 발을 내린 점에서 선분이 구에 접하는 두 점부터 수선의 발 점까지 거리이다.
+    GPUASSERT(radialDot * radialDot - c >= 0);
+    const float root = sqrt(radialDot * radialDot - c);
+    // 근의 공식에 따르면 t1, t2는 각각 -radialDot ± √root 이지만 정밀도 문제로 q를 사용함
+    const float t1 = -radialDot - (radialDot >= 0.0f ? root : -root);   // 같은 부호끼리 더해 근을 더해 정밀도를 최소화 하기 위해 root선택
+    const float t2 = abs(t1) > 1e-10f ? c / t1 : -radialDot;            // t1값이 0에 가깝다는 건 height가 atmosphereRadius근처이므로 -radialDot이 길이가 된다.
+    const float t = max(t1, t2);    // rayDir방향으로 나가는 출구인 점을 찾기 때문에 무조건 양수를 찾아야합니다.
+    GPUASSERT(t >= 0);
+    return t;
 }
 
 // 방사방향(heightAtReference - pranetCentre)와 heightAtReference에서 transtionRadius구의 접선이 이루는 각도 theta의 cos값을 반환
 float atmosphereHorizonCosine(float heightAtReference)
 {
     const float heightAtTransition = heightAtReference - atmosphereTransitionHeight();
-    return -sqrt(max(heightAtTransition * (2.0f * _densityTransitionRadius + heightAtTransition), 0.0f)) / max(_densityReferenceRadius + heightAtReference, 1e-10f);
-}
+    const float heightAtCentre = _densityTransitionRadius + heightAtTransition;
 
-// uv를 실제 값으로 변경.
-float2 atmosphereLutParameters(float2 uv)
-{
-    // uv.y의 0은 transitionradius 높이를 가리키기 때문에 referenceheight로 변환하기 위해서는 atmosphereTransitionHeight()를 더해야함
-    const float heightAtReference = atmosphereTransitionHeight() + uv.y * uv.y * (_atmosphereRadius - _densityTransitionRadius); //uv.y²로 높이를 배치해 전환 경계 근처에 샘플이 집중됨
+    GPUASSERT(heightAtCentre > 1e-10f); // height는 항상 transitionRadius보다 위에 있음을 보장
+    GPUASSERT(heightAtTransition >= 0);
 
-    const float horizon = atmosphereHorizonCosine(heightAtReference);   // heightAtReference에서 transitionRadius구에 접선하는 선분과 방사방향과의 mu
-    const float s = 2.0f * uv.x - 1.0f;
-    // 아래는 mu = dot(normalize(p - planetCentre), sunDir); 를 변형한 것 - 여기서 sunDir을 uv.x에 따라 0(방사방향)~180(pranetCentre방향)도로 확장한거임
-    const float mu = s >= 0.0f ? lerp(horizon, 1.0f, s * s) : lerp(horizon, -1.0f, s * s);   // s²를 이용해서 접선부근(uv.x == 0.5)에서 샘플이 집중됨, s==0은 구에 접함
-
-    return float2(heightAtReference, mu);
+    // 아래는 cos(theta) = root(heightAtCentre² - transitionRadius²) / heightAtCentre와 동치
+    // 단, float 정밀도 때문에 heightAtCentre² - transitionRadius²를 heightAtTransition * (2 * transitionRadius + heightAtTransition)으로 계산한다
+    // height가 항상 transitionRadius보다 위에 있기 때문에 맨 앞에 -를 곱해주어야함
+    return -sqrt(heightAtTransition * (2.0f * _densityTransitionRadius + heightAtTransition)) / heightAtCentre;
 }
 
 // atmosphereLutParameters의 역함수
@@ -95,6 +93,50 @@ AtmosphereOpticalDepth atmosphereSunOpticalDepthOutsideCore(float height, float 
     result.limitReached = max(max(f0, f1), max(f2, f3)) > 0.0f ? 1u : 0u;
     return result;
 }
+
+float atmosphereAbsorptionGauss(float height, float radialDot, float a, float b, uint layer)
+{
+    if (b <= a) return 0.0f;
+    const float nodes[4] = { -0.8611363116f, -0.3399810436f, 0.3399810436f, 0.8611363116f };
+    const float weights[4] = { 0.3478548451f, 0.6521451549f, 0.6521451549f, 0.3478548451f };
+    const float middle = 0.5f * (a + b), halfWidth = 0.5f * (b - a);
+    float sum = 0.0f;
+    [unroll] for (uint i = 0u; i < 4u; ++i)
+        sum += weights[i] * atmosphereAbsorptionDensity(atmosphereHeightOnRay(height, radialDot, middle + halfWidth * nodes[i]), layer);
+    return max(sum * halfWidth, 0.0f);
+}
+float atmosphereAbsorptionShell(float height, float radialDot, float length, float innerRadius, float outerRadius, uint layer)
+{
+    if (outerRadius <= innerRadius || outerRadius <= 0.0f) return 0.0f;
+    const float2 outer = atmosphereAbsorptionSphereHits(height, radialDot, outerRadius);
+    const float a = max(outer.x, 0.0f), b = min(outer.y, length);
+    if (b <= a) return 0.0f;
+    const float2 inner = atmosphereAbsorptionSphereHits(height, radialDot, innerRadius);
+    const float leftEnd = min(b, max(a, inner.x));
+    const float rightStart = max(a, min(b, inner.y));
+    if (inner.y > a && inner.x < b)
+        return atmosphereAbsorptionGauss(height, radialDot, a, leftEnd, layer)
+             + atmosphereAbsorptionGauss(height, radialDot, rightStart, b, layer);
+    // Split at closest approach so a central ray has no unresolved absolute-value corner.
+    const float middle = clamp(-radialDot, a, b);
+    return atmosphereAbsorptionGauss(height, radialDot, a, middle, layer)
+         + atmosphereAbsorptionGauss(height, radialDot, middle, b, layer);
+}
+float2 atmosphereInteriorAbsorptionDepth(float height, float radialDot, float length)
+{
+    float2 result = 0.0f;
+    [unroll] for (uint layer = 0u; layer < 2u; ++layer)
+    {
+        if (!any(atmosphereAbsorptionExtinction(layer) > 0.0f)) continue;
+        const float peak = max(_absorptionLayers[layer].peakRadius, 0.0f);
+        result[layer] = atmosphereAbsorptionShell(height, radialDot, length,
+            max(peak - _absorptionLayers[layer].lowerWidth, 0.0f), peak, layer)
+            + atmosphereAbsorptionShell(height, radialDot, length, peak,
+                peak + max(_absorptionLayers[layer].upperWidth, 0.0f), layer);
+    }
+    return result;
+}
+
 // Integrate the quadratic interior density analytically, then reuse the
 // outward surface LUT. This avoids nested per-pixel integration in production.
 AtmosphereOpticalDepth atmosphereSunOpticalDepth(float height, float radialDot, float pathLength, bool allowReference = true)
@@ -108,8 +150,7 @@ AtmosphereOpticalDepth atmosphereSunOpticalDepth(float height, float radialDot, 
     const float exitDistance = radialDot >= 0.0f ? -c / max(root + radialDot, 1e-10f) : root - radialDot;
     const float coreLength = min(max(exitDistance, 0.0f), pathLength);
     AtmosphereOpticalDepth result;
-    result.value = float4(atmosphereInteriorOpticalDepth(height, radialDot, coreLength),
-        atmosphereInteriorAbsorptionDepth(height, radialDot, coreLength));
+    result.value = float4(atmosphereInteriorOpticalDepth(height, radialDot, coreLength), atmosphereInteriorAbsorptionDepth(height, radialDot, coreLength));
     result.limitReached = 0u;
     if (coreLength < pathLength)
     {

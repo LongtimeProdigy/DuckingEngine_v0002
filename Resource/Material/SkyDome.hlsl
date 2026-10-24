@@ -1,4 +1,4 @@
-#ifndef __DEFINE_SKYDOME_HLSL__
+﻿#ifndef __DEFINE_SKYDOME_HLSL__
 #define __DEFINE_SKYDOME_HLSL__
 
 #include "CommonRendering.hlsl"

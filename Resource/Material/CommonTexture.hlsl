@@ -1,4 +1,4 @@
-#ifndef __DEFINE_COMMON_HLSL__
+﻿#ifndef __DEFINE_COMMON_HLSL__
 #define __DEFINE_COMMON_HLSL__
 
 SamplerState pointSampler : register(s0);

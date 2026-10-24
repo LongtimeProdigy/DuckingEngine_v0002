@@ -6,7 +6,8 @@
 
 namespace DK
 {
-	ShaderCompiler::ShaderCompiler()
+	ShaderCompiler::ShaderCompiler(const D3D_SHADER_MODEL shaderModel)
+		: _shaderModel(shaderModel)
 	{
 		IDxcUtils* utils;
 		HRESULT hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&utils));
@@ -79,20 +80,21 @@ namespace DK
 		}
 
 		//-T for the target profile (eg. ps_6_2)
+		DKStringW targetProfile;
 		arguments.push_back(L"-T");
 		switch (shaderType)
 		{
 		case ShaderType::VertexShader:
-			arguments.push_back(L"vs_6_10");
+			targetProfile = L"vs_";
 			break;
 		case ShaderType::PixelShader:
-			arguments.push_back(L"ps_6_10");
+			targetProfile = L"ps_";
 			break;
 		case ShaderType::ComputeShader:
-			arguments.push_back(L"cs_6_10");
+			targetProfile = L"cs_";
 			break;
 		case ShaderType::Raytracing:
-			arguments.push_back(L"lib_6_10");
+			targetProfile = L"lib_";
 			//arguments.push_back(L"-HV");
 			//arguments.push_back(L"2021");	// HLSL 2021로 컴파일 하란 뜻
 			break;
@@ -100,6 +102,13 @@ namespace DK
 			DK_ASSERT_LOG(false, "지원하지 않는 ShaderType입니다.");
 			return false;
 		}
+		targetProfile += std::to_wstring(static_cast<uint32>(_shaderModel) >> 4);
+		targetProfile += L"_";
+		targetProfile += std::to_wstring(static_cast<uint32>(_shaderModel) & 0xf);
+		arguments.push_back(targetProfile.c_str());
+		// Preserve legacy payload semantics; SM 6.7+ enables access qualifiers by default.
+		if (shaderType == ShaderType::Raytracing && _shaderModel >= D3D_SHADER_MODEL_6_7)
+			arguments.push_back(L"-disable-payload-qualifiers");
 
 #ifndef _DK_DEBUG_
 		// HLSL Object파일에 Reflect, PBD파일을 제거하는 옵션
@@ -134,7 +143,10 @@ namespace DK
 		IDxcBlobUtf8* utf8Blob = nullptr;
 		hr = _utils->GetBlobAsUtf8(sourceBlob.get(), &utf8Blob);
 		if (FAILED(hr))
+		{
+			DK_ASSERT_LOG(false, "Debug GetBlobAsUtf8 실패");
 			return false;
+		}
 
 		RenderResourcePtr<IDxcBlobUtf8> utf8Source = utf8Blob;
 

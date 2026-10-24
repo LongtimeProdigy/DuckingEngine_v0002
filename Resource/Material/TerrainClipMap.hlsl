@@ -1,4 +1,4 @@
-#ifndef __DEFINE_TERRAINCLIPMAP__HLSL__
+﻿#ifndef __DEFINE_TERRAINCLIPMAP__HLSL__
 #define __DEFINE_TERRAINCLIPMAP__HLSL__
 
 #include "CommonTexture.hlsl"

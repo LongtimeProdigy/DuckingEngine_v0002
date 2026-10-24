@@ -1,4 +1,4 @@
-#ifndef __DEFINE_COMPUTEOCEANNORMAL_HLSL__
+﻿#ifndef __DEFINE_COMPUTEOCEANNORMAL_HLSL__
 #define __DEFINE_COMPUTEOCEANNORMAL_HLSL__
 
 #include "CommonTexture.hlsl"

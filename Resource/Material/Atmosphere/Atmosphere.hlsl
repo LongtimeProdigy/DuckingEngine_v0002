@@ -1,4 +1,4 @@
-#ifndef __DEFINE_ATMOSPHERE_HLSL__
+﻿#ifndef __DEFINE_ATMOSPHERE_HLSL__
 #define __DEFINE_ATMOSPHERE_HLSL__
 
 #include "CommonRendering.hlsl"
@@ -118,8 +118,6 @@ AtmosphereSegment calculateAtmosphere(float3 rayOrigin, float3 rayDir, float ray
     const uint requestedSeeds = clamp(_numInScatteringPoints, 1u, 128u);
     // Keep a denser direct reference while production lets the error estimator allocate work.
     const uint seeds = atmosphereUsesLut(allowReference) ? requestedSeeds : max(requestedSeeds, 32u);
-    const uint maxDepth = min(_integrationMaxDepth, 10u);
-    const float relativeTolerance = max(_integrationRelativeTolerance, 1e-5f);
     const float height = atmosphereHeight(rayOrigin);
     const float radialDot = dot(rayOrigin - _planetCentre, rayDir);
 
@@ -157,13 +155,13 @@ AtmosphereSegment calculateAtmosphere(float3 rayOrigin, float3 rayDir, float ray
             const AtmosphereSegment fine = composeAtmosphereIntervals(left, right);
 
             const float fraction = (end - start) / rayLength;
-            const bool transmittanceError = any(abs(fine.transmittance - coarse.transmittance) > 1e-5f * fraction + relativeTolerance * abs(fine.transmittance));
-            const bool radianceError = any(abs(fine.inScattering - coarse.inScattering) > 1e-5f * max(_sunIrradiance, 1.0f) * fraction + relativeTolerance * abs(fine.inScattering));
+            const bool transmittanceError = any(abs(fine.transmittance - coarse.transmittance) > 1e-5f * fraction + _integrationRelativeTolerance * abs(fine.transmittance));
+            const bool radianceError = any(abs(fine.inScattering - coarse.inScattering) > 1e-5f * max(_sunIrradiance, 1.0f) * fraction + _integrationRelativeTolerance * abs(fine.inScattering));
             // Two nearly-zero midpoint estimates can otherwise miss all near-end light
             // in an optically thick interval. Keep each accepted optical step small.
             const bool opticallyThick = any(coarse.transmittance < 0.60653066f); // exp(-0.5)
             const bool needsSplit = geometrySplit >= 0.0f || transmittanceError || radianceError || opticallyThick;
-            if (needsSplit && depth < maxDepth && split > start && split < end && visitedNodes + size + (seeds - seed - 1u) + 2u <= nodeBudget)
+            if (needsSplit && depth < _integrationMaxDepth && split > start && split < end && visitedNodes + size + (seeds - seed - 1u) + 2u <= nodeBudget)
             {
                 estimateStack[size] = right;
                 stack[size++] = float3(split, end, depth + 1u);

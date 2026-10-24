@@ -239,7 +239,7 @@ namespace DK
 		const CD3DX12_HEAP_PROPERTIES debugHangHeap(D3D12_HEAP_TYPE_DEFAULT);
 		const auto debugHangDesc = CD3DX12_RESOURCE_DESC::Buffer( debugHangBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		ID3D12Resource* debugHangResource = nullptr;
-		HRESULT debugHangHr = _device->CreateCommittedResource(&debugHangHeap, D3D12_HEAP_FLAG_NONE, &debugHangDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&debugHangResource));
+		HRESULT debugHangHr = _device->CreateCommittedResource(&debugHangHeap, D3D12_HEAP_FLAG_NONE, &debugHangDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&debugHangResource));
 		if (FAILED(debugHangHr))
 			return false;
 
@@ -247,7 +247,7 @@ namespace DK
 		if (debugHangUpload == nullptr || debugHangUpload->isValid() == false)
 			return false;
 
-		_debugHangBuffer = IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(debugHangResource), debugHangBufferSize, D3D12_RESOURCE_STATE_COPY_DEST));
+		_debugHangBuffer = IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(debugHangResource), debugHangBufferSize, D3D12_RESOURCE_STATE_COMMON));
 		debugHangResource->SetName(L"DebugHangBuffer");
 
 		void* debugHangMapped = nullptr;
@@ -260,6 +260,7 @@ namespace DK
 		const D3D12_RANGE writtenRange = { 0, debugHangBufferSize };
 		debugHangUpload->_buffer->Unmap(0, &writtenRange);
 
+		resourceBarrierTransition(*_debugHangBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
 		_commandList->CopyBufferRegion(debugHangResource, 0, debugHangUpload->_buffer.get(), 0, debugHangBufferSize);
 
 		resourceBarrierTransition(*_debugHangBuffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -575,21 +576,11 @@ namespace DK
 		pInfoQueue->Release();
 #endif
 
-		// Find ShaderModel (현재 어디서도 쓰지 않음) (아마 컴파일 셰이더할때 쓸 수 있을듯)
+		// Query the device limit used by shader compilation, including shader reloads.
 		{
 			D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = {};
 
-#if defined(NTDDI_WIN10_VB) && (NTDDI_VERSION >= NTDDI_WIN10_VB)
-			shaderModel.HighestShaderModel = D3D_HIGHEST_SHADER_MODEL;
-#elif defined(NTDDI_WIN10_19H1) && (NTDDI_VERSION >= NTDDI_WIN10_19H1)
-			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_5;
-#elif defined(NTDDI_WIN10_RS5) && (NTDDI_VERSION >= NTDDI_WIN10_RS5)
-			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_4;
-#elif defined(NTDDI_WIN10_RS4) && (NTDDI_VERSION >= NTDDI_WIN10_RS4)
-			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_2;
-#else
-			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_0;
-#endif
+			shaderModel.HighestShaderModel = D3D_SHADER_MODEL_6_10;
 
 			hr = _device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel));
 			while (hr == E_INVALIDARG && shaderModel.HighestShaderModel > D3D_SHADER_MODEL_6_0)
@@ -598,8 +589,13 @@ namespace DK
 				hr = _device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel));
 			}
 
-			if (FAILED(hr))
-				shaderModel.HighestShaderModel = D3D_SHADER_MODEL_5_1;
+			if (FAILED(hr) || shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_0)
+			{
+				DK_LOG("Shader Model 6.0 or higher is required (query HRESULT: 0x%08X).", static_cast<unsigned int>(hr));
+				return false;
+			}
+			_shaderModel = shaderModel.HighestShaderModel;
+			DK_LOG("Shader target model: %u.%u", static_cast<uint32>(_shaderModel) >> 4, static_cast<uint32>(_shaderModel) & 0xf);
 		}
 
 		// Create CommandQueue
@@ -1277,7 +1273,7 @@ namespace DK
 			psoDesc.BlendState = blendDesc;
 			psoDesc.NumRenderTargets = pipelineCreateInfo._gbufferOutput ? kGBufferCount : 1;
 			psoDesc.DepthStencilState = depthStencilDesc;
-			psoDesc.DSVFormat = gDepthStencilFormat;
+			psoDesc.DSVFormat = (depthStencilDesc.DepthEnable || depthStencilDesc.StencilEnable) ? gDepthStencilFormat : DXGI_FORMAT_UNKNOWN;
 #if defined(SUPPORT_HLGL_DEBUGBREAK)
 			psoDesc.Flags |= D3D12_PIPELINE_STATE_FLAG_DEBUG_BREAK_ALWAYS_HALT;
 #endif
@@ -1663,7 +1659,7 @@ namespace DK
 		// Called before recording any pipeline bindings for the new frame.
 		if (gCurrentBindedRenderPass != nullptr || gCurrentBindedPipeline != nullptr)
 			return false;
-		ShaderCompiler shaderCompiler;
+		ShaderCompiler shaderCompiler(_shaderModel);
 		DKVector<DKPair<Pipeline*, Pipeline>> replacements;
 
 		for (DKHashMap<DKString, RenderPass>::iterator iter = _renderPassMap.begin(); iter != _renderPassMap.end(); ++iter)
@@ -2534,7 +2530,7 @@ namespace DK
             const CD3DX12_HEAP_PROPERTIES props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK);
             const CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(10 * sizeof(uint64));
             ID3D12Resource* resource = nullptr;
-            if (FAILED(_device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&resource))))
+            if (FAILED(_device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource))))
 				return;
 
             _gpuTimestampReadback = resource;

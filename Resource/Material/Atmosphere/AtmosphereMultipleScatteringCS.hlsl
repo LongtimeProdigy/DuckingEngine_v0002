@@ -16,7 +16,9 @@ float3 msDirection(uint i)
 [numthreads(8, 8, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= ATMOSPHERE_MS_WIDTH || id.y >= ATMOSPHERE_MS_HEIGHT) return;
+    if (id.x >= ATMOSPHERE_MS_WIDTH || id.y >= ATMOSPHERE_MS_HEIGHT) 
+        return;
+        
     const float height = atmosphereMsHeight(float(id.y) / (ATMOSPHERE_MS_HEIGHT - 1u));
     const float radius = max(_densityReferenceRadius + height, 0.0f);
     const float muSun = 2.0f * float(id.x) / (ATMOSPHERE_MS_WIDTH - 1u) - 1.0f;

@@ -1,4 +1,4 @@
-#ifndef ATMOSPHERE_GEOMETRY_HLSL
+﻿#ifndef ATMOSPHERE_GEOMETRY_HLSL
 #define ATMOSPHERE_GEOMETRY_HLSL
 #include "CommonMathConstant.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"

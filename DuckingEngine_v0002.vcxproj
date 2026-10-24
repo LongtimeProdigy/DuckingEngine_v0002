@@ -304,6 +304,20 @@
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyDxcRuntime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
+    <ItemGroup>
+      <DxcRuntime Include="$(ProjectDir)lib\dxc_2026_08_11\bin\x64\dxcompiler.dll" />
+      <DxcRuntime Include="$(ProjectDir)lib\dxc_2026_08_11\bin\x64\dxil.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DxcRuntime)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyD3D12Runtime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
+    <ItemGroup>
+      <D3D12Runtime Include="$(ProjectDir)packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\bin\x64\D3D12Core.dll" />
+      <D3D12Runtime Include="$(ProjectDir)packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\bin\x64\d3d12SDKLayers.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(D3D12Runtime)" DestinationFolder="$(TargetDir)D3D12\" SkipUnchangedFiles="true" />
+  </Target>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\Microsoft.Direct3D.D3D12.targets" Condition="Exists('packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\Microsoft.Direct3D.D3D12.targets')" />
   </ImportGroup>

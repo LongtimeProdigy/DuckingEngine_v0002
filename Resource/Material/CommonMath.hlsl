@@ -1,4 +1,4 @@
-#ifndef __DEFINE_COMMONMATH_HLSL__
+﻿#ifndef __DEFINE_COMMONMATH_HLSL__
 #define __DEFINE_COMMONMATH_HLSL__
 
 #include "CommonMathConstant.hlsl"

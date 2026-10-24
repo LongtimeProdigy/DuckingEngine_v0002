@@ -1,4 +1,4 @@
-#ifndef __DEFINE_FFTBUTTERFLY_HLSL__
+﻿#ifndef __DEFINE_FFTBUTTERFLY_HLSL__
 #define __DEFINE_FFTBUTTERFLY_HLSL__
 
 #include "CommonTexture.hlsl"

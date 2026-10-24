@@ -1,4 +1,4 @@
-#ifndef __DEFINE_SPECTRUMUPDATE_HLSL__
+﻿#ifndef __DEFINE_SPECTRUMUPDATE_HLSL__
 #define __DEFINE_SPECTRUMUPDATE_HLSL__
 
 #include "CommonMath.hlsl"

@@ -11,6 +11,7 @@ struct ID3D12GraphicsCommandList4;
 enum D3D12_RESOURCE_STATES;
 enum D3D12_RESOURCE_BARRIER_TYPE;
 enum D3D12_HEAP_TYPE;
+enum D3D_SHADER_MODEL;
 struct ID3D12CommandQueue;
 struct ID3D12Fence;
 struct ID3D12QueryHeap;
@@ -561,6 +562,7 @@ do{ \
 		~RenderModule();
 
 		bool initialize(const HWND hwnd, const uint32 width, const uint32 height);
+		D3D_SHADER_MODEL getShaderModel() const { return _shaderModel; }
 
 		const bool resize(const uint32 width, const uint32 height);
 
@@ -681,6 +683,7 @@ do{ \
 		// resource
         bool _useWarpDevice = false;
 		RenderResourcePtr<ID3D12Device8> _device = nullptr;
+		D3D_SHADER_MODEL _shaderModel = D3D_SHADER_MODEL_6_0;
 		RenderResourcePtr<ID3D12CommandQueue> _commandQueue;
 		DKCommandList _commandList;
 		uint32 _fenceValues[kFrameCount] = { 0, };

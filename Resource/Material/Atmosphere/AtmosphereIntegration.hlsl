@@ -1,4 +1,4 @@
-#ifndef ATMOSPHERE_INTEGRATION_HLSL
+﻿#ifndef ATMOSPHERE_INTEGRATION_HLSL
 #define ATMOSPHERE_INTEGRATION_HLSL
 #include "Atmosphere/AtmosphereParameters.hlsl"
 
@@ -6,30 +6,48 @@ static const float3 gStandardBetaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
 static const float3 gStandardBetaM = float3(21e-6f, 21e-6f, 21e-6f);
 
 // Rayleigh의 산란계수 또는 소멸계수 (레일리는 흡수계수가 0이므로 사실상 소멸계수 == 산란계수)
-float3 atmosphereRayleighScattering() { return gStandardBetaR * max(_scatteringScale, 0.0f) * max(_rayleighScale, 0.0f); }
+float3 atmosphereRayleighScattering() 
+{ 
+    GPUASSERT(_scatteringScale >= 0);
+    GPUASSERT(_rayleighScale >= 0);
+    return gStandardBetaR * _scatteringScale * _rayleighScale; 
+}
 // Mie의 산란계수
-float3 atmosphereMieScattering() { return gStandardBetaM * max(_scatteringScale, 0.0f) * max(_mieScale, 0.0f); }
+float3 atmosphereMieScattering() 
+{ 
+    GPUASSERT(_scatteringScale >= 0);
+    GPUASSERT(_mieScale >= 0);
+    return gStandardBetaM * _scatteringScale * _mieScale; 
+}
 // Mie의 소멸계수 (산란계수 + 소멸계수)
 float3 atmosphereMieExtinction()
 {
-    return gStandardBetaM * max(_scatteringScale, 0.0f) * (max(_mieScale, 0.0f) + max(_mieAbsorptionScale, 0.0f));
+    GPUASSERT(_scatteringScale >= 0);
+    GPUASSERT(_mieScale >= 0);
+    GPUASSERT(_mieAbsorptionScale >= 0);
+    return gStandardBetaM * _scatteringScale * (_mieScale + _mieAbsorptionScale);
 }
 // 흡수 레이어의 소멸계수, 순수 흡수 성분 (ex. 오존층)
 float3 atmosphereAbsorptionExtinction(uint layer)
 {
-    return max(_absorptionLayers[layer].extinction, 0.0f) * max(_absorptionLayers[layer].strength, 0.0f) * max(_scatteringScale, 0.0f);
+    GPUASSERT(_scatteringScale >= 0);
+    GPUASSERT(all(_absorptionLayers[layer].extinction >= 0));
+    GPUASSERT(_absorptionLayers[layer].strength >= 0);
+    return _absorptionLayers[layer].extinction * _absorptionLayers[layer].strength * _scatteringScale;
 }
-float atmosphereAbsorptionDensity(float height, uint layer)
+// 흡수층에서 흡수밀도의 비율을 높이에 따라 반환 (흡수율이 아님!)
+float atmosphereAbsorptionDensity(float heightAtReference, uint layer)
 {
-    const float peakHeight = _absorptionLayers[layer].peakRadius - _densityReferenceRadius;
-    const float delta = height - peakHeight;
+    GPUASSERT(_absorptionLayers[layer].lowerWidth > 0);
+    GPUASSERT(_absorptionLayers[layer].upperWidth > 0);
+    const float peakHeightAtReference = _absorptionLayers[layer].peakRadius - _densityReferenceRadius;
+    const float delta = heightAtReference - peakHeightAtReference;
     const float width = delta < 0.0f ? _absorptionLayers[layer].lowerWidth : _absorptionLayers[layer].upperWidth;
-    return saturate(1.0f - abs(delta) / max(width, 1e-6f));
+    return saturate(1.0f - (abs(delta) / width));
 }
 float3 atmosphereOpticalExtinction(float4 columns)
 {
-    return atmosphereRayleighScattering() * columns.x + atmosphereMieExtinction() * columns.y
-        + atmosphereAbsorptionExtinction(0u) * columns.z + atmosphereAbsorptionExtinction(1u) * columns.w;
+    return atmosphereRayleighScattering() * columns.x + atmosphereMieExtinction() * columns.y + atmosphereAbsorptionExtinction(0u) * columns.z + atmosphereAbsorptionExtinction(1u) * columns.w;
 }
 
 float atmosphereRayleighPhase(float mu) { return 3.0f / (16.0f * 3.14159265359f) * (1.0f + mu * mu); }
@@ -53,25 +71,33 @@ float3 atmosphereIntervalWeight(float3 tau)
 // _densityReferenceRadius을 기준으로 _densityTransitionRadius의 높이를 반환
 float atmosphereTransitionHeight()
 {
+    GPUASSERT(_densityTransitionRadius < _densityReferenceRadius);
     return _densityTransitionRadius - _densityReferenceRadius;
 }
 
+// rayleigh, mie 밀도 반환
 float2 atmosphereExponentialDensity(float height)
 {
-    // A numerical ceiling protects extreme editor values from exponential overflow.
-    return exp(min(-height / max(float2(_rayleighHeight, _mieHeight), 1e-6f), 50.0f));
+    GPUASSERT(_rayleighHeight > 0);
+    GPUASSERT(_mieHeight > 0);
+    return exp(min(-height / float2(_rayleighHeight, _mieHeight), 50.0f));
 }
 
-float4 atmosphereDensity(float height)
+// 주어진 고도에서 Rayleigh·Mie·두 흡수층의 상대 밀도를 반환합니다.
+// x : Rayleigh 밀도, y : Mie 밀도, z : 흡수층 0의 밀도, w : 흡수층 1의 밀도
+float4 atmosphereDensity(float heightAtReference)
 {
     const float transitionHeight = atmosphereTransitionHeight();
-    if (height >= transitionHeight)
-        return float4(atmosphereExponentialDensity(height), atmosphereAbsorptionDensity(height, 0u), atmosphereAbsorptionDensity(height, 1u));
+    // transitionRadius 이상이면 투과율 적분 계산
+    if (heightAtReference >= transitionHeight)
+        return float4(atmosphereExponentialDensity(heightAtReference), atmosphereAbsorptionDensity(heightAtReference, 0u), atmosphereAbsorptionDensity(heightAtReference, 1u));
 
-    const float radius = max(_densityTransitionRadius, 1e-6f);
-    const float depth = clamp(transitionHeight - height, 0.0f, radius);
-    const float2 compression = 1.0f + depth * (1.0f - 0.5f * depth / radius) / max(float2(_rayleighHeight, _mieHeight), 1e-6f);
-    return float4(atmosphereExponentialDensity(transitionHeight) * compression, atmosphereAbsorptionDensity(height, 0u), atmosphereAbsorptionDensity(height, 1u));
+    GPUASSERT(_densityTransitionRadius > 0);
+
+    // transtionRadius 미만이면 근사식으로 계산. 근사식 : transitionRadius위치의 밀도 * (1 + heightAtTransition / H - heightAtTransition² / (2 * H * _densityTransitionRadius)); H는 각각 _rayleighHeight, _mieHeight이다.
+    const float heightAtTransition = clamp(transitionHeight - heightAtReference, 0.0f, _densityTransitionRadius);
+    const float2 compression = 1.0f + heightAtTransition * (1.0f - 0.5f * heightAtTransition / _densityTransitionRadius) / float2(_rayleighHeight, _mieHeight);
+    return float4(atmosphereExponentialDensity(transitionHeight) * compression, atmosphereAbsorptionDensity(heightAtReference, 0u), atmosphereAbsorptionDensity(heightAtReference, 1u));
 }
 
 // Exact integral of the interior profile, matched to the density at the boundary.
@@ -86,12 +112,12 @@ float2 atmosphereInteriorOpticalDepth(float height, float radialDot, float pathL
         * (1.0f + meanCompression / max(float2(_rayleighHeight, _mieHeight), 1e-6f));
 }
 
-// radialDot = dot(origin - planetCentre, unitDirection).
-// This rational form avoids losing small heights next to a large planet.
-float atmosphereHeightOnRay(float startHeight, float radialDot, float t)
+// 광선 원점에서 t만큼 이동한 위치의 고도를 계산합니다. 고도 기준은 _densityReferenceRadius입니다.
+float atmosphereHeightOnRay(float heightAtReference, float radialDot, float t)
 {
-    const float numerator = startHeight * (2.0f * _densityReferenceRadius + startHeight)
-        + t * (2.0f * radialDot + t);
+    // 반환값 : h(t), 광선 원점에서 t만큼 이동한 고도 : r(t), 기준 반지름 : R (여기선 _densityReferenceRadius)
+    // h(t) = r(t)-R를 구하는 게 다지만 정밀도 문제로 (r(t)²-R²) / (r(t)+R) 형태로 변환해서 계산
+    const float numerator = heightAtReference * (2.0f * _densityReferenceRadius + heightAtReference) + t * (2.0f * radialDot + t);
     const float radius = sqrt(max(_densityReferenceRadius * _densityReferenceRadius + numerator, 0.0f));
     return numerator / max(radius + _densityReferenceRadius, 1e-10f);
 }
@@ -99,6 +125,9 @@ float atmosphereHeightOnRay(float startHeight, float radialDot, float t)
 #include "Atmosphere/AtmosphereAbsorptionCore.hlsl"
 
 // 적분 구간 안에서 밀도 변화의 중요한 지점을 찾아, 분할할 위치 t를 반환
+// 1순위 : radialDot이 있으면 그곳을 반환 (radialDot은 rayOrigin과 행성 중심에서 ray에 수선의 발을 내려서 직교하는 점까지의 거리)
+// 2순위 : transitionRadius와 접점 near -> far 순서로 반환
+// 3순위 : absortionLayer 검사 후 접점 near -> far 순서로 반환
 float atmosphereSplitPoint(float heightAtReference, float radialDot, float startPos, float endPos)
 {
     // radialDot은 방사방향을 rayDir로 투영했을 때의 거리 == 행성 중심에서 rayDir에 수선의 발을 내렸을때 만나는 지점까지의 거리
@@ -108,31 +137,39 @@ float atmosphereSplitPoint(float heightAtReference, float radialDot, float start
     if (-radialDot > startPos + margin && -radialDot < endPos - margin) // 구간 내에 radialDot이 있으면 그게 밀도가 가장 높은 부분이므로 바로 반환
         return -radialDot;
 
+    // _densityTransitionRadius 구와 접하는 점 구하기
     const float heightAtTransition = heightAtReference - atmosphereTransitionHeight();
     const float c = heightAtTransition * (2.0f * _densityTransitionRadius + heightAtTransition); // 정밀도 때문에 이렇게 계산
     const float det = radialDot * radialDot - c;
     if (det >= 0.0f)    // TransitionRadius 구와 rayDir이 겹치는 점이 1~2개가 있음
     {
         const float root = sqrt(det);
-        const float q = -radialDot - (radialDot >= 0.0f ? root : -root);
+        const float q = -radialDot - (radialDot >= 0.0f ? root : -root);    // 정밀도 문제로 부호가 같은 것끼리 빼주기위함
         const float t0 = q;
         const float t1 = abs(q) > 1e-10f ? c / q : -radialDot;
         const float nearT = min(t0, t1);
         const float farT = max(t0, t1);
-        if (nearT > startPos + margin && nearT < endPos - margin) 
+
+        // start부터 점진적으로 segment를 나누며 진행하기 때문에 near를 먼저 검사후 내보냄
+        if (nearT > startPos + margin && nearT < endPos - margin)   // near가 segment내에 있으면 반환
             return nearT;
-        if (farT > startPos + margin && farT < endPos - margin) 
+        if (farT > startPos + margin && farT < endPos - margin)     // far가 segment내에 있으면 반환
             return farT;
     }
 
+    // peak - lowerWidth  // 흡수가 시작되는 아래 경계
+    // peak               // 흡수 밀도가 최대인 위치
+    // peak + upperWidth  // 흡수가 끝나는 위 경계
     [unroll] 
     for (uint layer = 0u; layer < 2u; ++layer)
     {
-        if (!any(atmosphereAbsorptionExtinction(layer) > 0.0f)) 
+        if (all(atmosphereAbsorptionExtinction(layer) <= 0.0f))
             continue;
 
+        GPUASSERT(_absorptionLayers[layer].peakRadius >= 0);
         const float peak = _absorptionLayers[layer].peakRadius;
-        const float radii[3] = { max(0.0f, peak - _absorptionLayers[layer].lowerWidth), peak, peak + _absorptionLayers[layer].upperWidth };
+        GPUASSERT(peak - _absorptionLayers[layer].lowerWidth >= 0);
+        const float radii[3] = { peak - _absorptionLayers[layer].lowerWidth, peak, peak + _absorptionLayers[layer].upperWidth };
         [unroll]
         for (uint boundary = 0u; boundary < 3u; ++boundary)
         {
@@ -153,6 +190,7 @@ struct AtmosphereOpticalDepth
     uint limitReached;
 };
 
+// pathLength를 진행하여 밀도의 차이에 따라 길이를 줄이고 늘려가며 opticalDepth의 적분값을 반환
 AtmosphereOpticalDepth integrateAtmosphereOpticalDepth(float heightAtReference, float radialDot, float pathLength)
 {
     AtmosphereOpticalDepth result;
@@ -162,46 +200,52 @@ AtmosphereOpticalDepth integrateAtmosphereOpticalDepth(float heightAtReference, 
     if (pathLength <= 0.0f) 
         return result;
 
-    const uint maxDepth = min(_integrationMaxDepth, 10u);
-    const float relTolerance = max(_integrationRelativeTolerance, 1e-5f);
     const float3 betaR = atmosphereRayleighScattering();
     const float3 betaM = atmosphereMieExtinction();
     const float3 absorption0 = atmosphereAbsorptionExtinction(0u);
     const float3 absorption1 = atmosphereAbsorptionExtinction(1u);
-    const float4 betaMax = float4(max(betaR.x, max(betaR.y, betaR.z)), max(betaM.x, max(betaM.y, betaM.z)), 
-        max(absorption0.x, max(absorption0.y, absorption0.z)), max(absorption1.x, max(absorption1.y, absorption1.z)));
-    const uint nodeBudget = clamp(_opticalNodeBudget, 64u, 128u);
+    const float4 betaMax = float4(
+        max(betaR.x, max(betaR.y, betaR.z)), max(betaM.x, max(betaM.y, betaM.z)), 
+        max(absorption0.x, max(absorption0.y, absorption0.z)), max(absorption1.x, max(absorption1.y, absorption1.z))
+        );
+        
     uint visitedNodes = 0u;
     float3 stack[12];   // x는 startpoint, y는 nextpoint, z는 depth
     [loop]
     for (uint seed = 0u; seed < _opticalDepthPointCount; ++seed)
     {
-        uint size = 1u;
+        uint remainStackCount = 1u;
         stack[0] = float3(pathLength * (float(seed) / _opticalDepthPointCount), pathLength * (float(seed + 1u) / _opticalDepthPointCount), 0.0f);
         [loop]
-        while (size > 0u)
+        while (remainStackCount > 0u)
         {
             ++visitedNodes;
-            const float3 node = stack[--size];
+            const float3 node = stack[--remainStackCount];
             const float startPos = node.x;
             const float endPos = node.y;
             const float midPos = 0.5f * (startPos + endPos);
-            const float width = endPos - startPos;
+            const float length = endPos - startPos;
             const uint depth = uint(node.z);
 
             const float geometrySplit = atmosphereSplitPoint(heightAtReference, radialDot, startPos, endPos);
-            const float4 coarse = atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, midPos)) * width;
+            const float4 densityAtMid = atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, midPos)) * length;
             const float split = geometrySplit >= 0.0f ? geometrySplit : midPos;
-            const float4 fine = 
-                atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, 0.5f * (startPos + split))) 
-                * (split - startPos) + atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, 0.5f * (split + endPos))) * (endPos - split);
-            const float4 error = abs(fine - coarse) * betaMax;
-            const float4 tolerance = 1e-5f * (width / pathLength) + relTolerance * abs(fine * betaMax);
-            const bool needsSplit = geometrySplit >= 0.0f || any(error > tolerance);
-            if (needsSplit && depth < maxDepth && split > startPos && split < endPos && visitedNodes + size + (_opticalDepthPointCount - seed - 1u) + 2u <= nodeBudget)
+            const float4 fine = atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, 0.5f * (startPos + split)))  * (split - startPos) 
+                + atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, 0.5f * (split + endPos))) * (endPos - split);
+            GPUASSERT(all(fine > 0));
+
+            const float4 opticalDepthError = abs(fine - densityAtMid) * betaMax;
+
+            // 길이가 짧을수록 절대 허용 오차도 줄이고, opticalDepth의 값이 작을수록 절대 허용 오차도 줄인다. 즉, 값이 작을수록 오차도 엄격하게 적용한다.
+            // 첫항: 구간 길이에 비례해 배분한 절대 허용 오차, 둘째 항: 적분값 크기에 비례하는 상대 허용 오차
+            const float4 tolerance = 1e-5f * (length / pathLength) + _integrationRelativeTolerance * (fine * betaMax);
+            const bool needsSplit = geometrySplit >= 0.0f || any(opticalDepthError > tolerance);
+            // (_opticalDepthPointCount - seed - 1u) : 아직 시작하지 않은 sement 수
+            // + 2u : 이번에 추가 될 left, right node 2개
+            if (needsSplit && depth < _integrationMaxDepth && split > startPos && split < endPos && visitedNodes + remainStackCount + (_opticalDepthPointCount - seed - 1u) + 2u <= _opticalNodeBudget)
             {
-                stack[size++] = float3(split, endPos, depth + 1u);
-                stack[size++] = float3(startPos, split, depth + 1u);
+                stack[remainStackCount++] = float3(split, endPos, depth + 1u);
+                stack[remainStackCount++] = float3(startPos, split, depth + 1u);
             }
             else
             {

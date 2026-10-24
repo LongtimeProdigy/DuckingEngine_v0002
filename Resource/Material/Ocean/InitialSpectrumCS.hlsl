@@ -1,4 +1,4 @@
-#ifndef __DEFINE_INITIALSPECTRUM_HLSL__
+﻿#ifndef __DEFINE_INITIALSPECTRUM_HLSL__
 #define __DEFINE_INITIALSPECTRUM_HLSL__
 
 #include "CommonMath.hlsl"

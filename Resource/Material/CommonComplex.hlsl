@@ -1,4 +1,4 @@
-#ifndef __DEFINE_COMMONCOMPLEX_HLSL__
+﻿#ifndef __DEFINE_COMMONCOMPLEX_HLSL__
 #define __DEFINE_COMMONCOMPLEX_HLSL__
 
 float2 ComplexMul(float2 a, float2 b)
