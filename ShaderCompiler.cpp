@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "ShaderCompiler.h"
 #include "RenderModule.h"
+#include "GpuAssertDiagnostics.h"
 
 #include <d3d12shader.h>
 
@@ -139,7 +140,6 @@ namespace DK
 			arguments.push_back(define.c_str());
 		}
 
-#if defined(_DK_DEBUG_)
 		IDxcBlobUtf8* utf8Blob = nullptr;
 		hr = _utils->GetBlobAsUtf8(sourceBlob.get(), &utf8Blob);
 		if (FAILED(hr))
@@ -150,19 +150,19 @@ namespace DK
 
 		RenderResourcePtr<IDxcBlobUtf8> utf8Source = utf8Blob;
 
-		DKString source = "#include \"Assert.hlsl\"\n#line 1\n";
+		DKString source;
+#if defined(_DK_DEBUG_)
+		source = "#define DK_GPU_ASSERT_ENABLED 1\n#include \"Assert.hlsl\"\n";
+		source += wrapGpuAssertSource(gpuAssertUtf8Path(shaderPathW.c_str()), utf8Source->GetStringPointer(), utf8Source->GetStringLength());
+#else
+		source = "#include \"Assert.hlsl\"\n#line 1\n";
 		source.append(utf8Source->GetStringPointer(), utf8Source->GetStringLength());
+#endif
 
 		DxcBuffer sourceBuffer{};
 		sourceBuffer.Ptr = source.data();
 		sourceBuffer.Size = source.size();
 		sourceBuffer.Encoding = DXC_CP_UTF8;
-#else
-		DxcBuffer sourceBuffer{};
-		sourceBuffer.Ptr = sourceBlob->GetBufferPointer();
-		sourceBuffer.Size = sourceBlob->GetBufferSize();
-		sourceBuffer.Encoding = DXC_CP_ACP;
-#endif
 
 		IDxcIncludeHandler* handler;
 		hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->CreateDefaultIncludeHandler(&handler);
@@ -172,6 +172,20 @@ namespace DK
 			return false;
 		}
 		RenderResourcePtr<IDxcIncludeHandler> defaultIncludeHandler = handler;
+#if defined(_DK_DEBUG_)
+		DKString preprocessedSource;
+		DKString preprocessErrors;
+		hr = preprocessGpuAssertSource(_compiler3.get(), sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()),
+			handler, preprocessedSource, preprocessErrors);
+		if (FAILED(hr))
+		{
+			DK_ASSERT_LOG(false, "GPU assert preprocessing failed\nPath: %s\nHRESULT: 0x%08X\n%s", shaderPath, static_cast<unsigned int>(hr), preprocessErrors.c_str());
+			return false;
+		}
+		source = DK::move(preprocessedSource);
+		sourceBuffer.Ptr = source.data();
+		sourceBuffer.Size = source.size();
+#endif
 
 		IDxcResult* dxcResult;
 		hr = _compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(&dxcResult));

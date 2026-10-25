@@ -86,8 +86,8 @@ namespace DK
 			return false;
 		}
 
-		ShaderCompiler shaderCompiler;
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		ShaderCompiler shaderCompiler(renderModule.getShaderModel());
 		for (TiXmlElement* renderPassNode = rootNode->FirstChildElement(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSiblingElement())
 		{
 			DKString renderPassName = renderPassNode->Attribute("Name");
@@ -938,8 +938,11 @@ namespace DK
                             if (ImGui::Button("Earth ozone example (layer 0)"))
                             {
                                 auto& layer = atmosphere._absorptionLayers[0];
-                                layer.extinction[0] = 0.650e-6f; layer.extinction[1] = 1.881e-6f; layer.extinction[2] = 0.085e-6f;
-                                layer.strength = 1.0f; layer.peakRadius = atmosphere._densityReferenceRadius + 25000.0f;
+                                layer.extinction[0] = 0.650e-6f;
+								layer.extinction[1] = 1.881e-6f;
+								layer.extinction[2] = 0.085e-6f;
+                                layer.strength = 1.0f;
+								layer.peakRadius = atmosphere._densityReferenceRadius + 25000.0f;
                                 layer.lowerWidth = layer.upperWidth = 15000.0f;
                             }
                             for (uint32 i = 0; i < 2u; ++i)
@@ -950,12 +953,14 @@ namespace DK
                                 InspectorProperty("Amount", [&] { ImGui::DragFloat("##value", &layer.strength, 0.01f, 0.0f, 10.0f); });
                                 float inverseKm[3] = { layer.extinction[0] * 1000, layer.extinction[1] * 1000, layer.extinction[2] * 1000 };
                                 InspectorProperty("Absorption RGB (1/km)", [&] { ImGui::InputFloat3("##value", inverseKm, "%.6f"); });
-                                for (uint32 c = 0; c < 3u; ++c) layer.extinction[c] = Math::max(inverseKm[c], 0.0f) / 1000.0f;
                                 InspectorProperty("Peak radius (m)", [&] { ImGui::InputFloat("##value", &layer.peakRadius, 100, 1000, "%.1f"); });
                                 InspectorProperty("Lower width (m)", [&] { ImGui::InputFloat("##value", &layer.lowerWidth); });
                                 InspectorProperty("Upper width (m)", [&] { ImGui::InputFloat("##value", &layer.upperWidth); });
+								for (uint32 c = 0; c < 3u; ++c)
+									layer.extinction[c] = Math::max(inverseKm[c], 0.0f) / 1000.0f;
                                 layer.peakRadius = Math::max(layer.peakRadius, 0.0f);
-                                layer.lowerWidth = Math::max(layer.lowerWidth, 0.001f); layer.upperWidth = Math::max(layer.upperWidth, 0.001f);
+                                layer.lowerWidth = Math::max(layer.lowerWidth, 0.001f);
+								layer.upperWidth = Math::max(layer.upperWidth, 0.001f);
                                 ImGui::PopID();
                             }
                         }

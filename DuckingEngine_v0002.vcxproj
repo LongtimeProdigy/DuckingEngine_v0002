@@ -135,6 +135,7 @@
     <ClInclude Include="RenderableComponent.h" />
     <ClInclude Include="SceneManager.h" />
     <ClInclude Include="ShaderCompiler.h" />
+    <ClInclude Include="GpuAssertDiagnostics.h" />
     <ClInclude Include="StaticMeshComponent.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="SceneObject.h" />

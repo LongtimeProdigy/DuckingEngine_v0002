@@ -245,6 +245,9 @@
     <ClInclude Include="ShaderCompiler.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="GpuAssertDiagnostics.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="0. Common">

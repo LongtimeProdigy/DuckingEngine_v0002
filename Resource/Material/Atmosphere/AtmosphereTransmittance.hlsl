@@ -10,9 +10,9 @@ static const uint ATMOSPHERE_LUT_HEIGHT = 128u;
 // heightAtReference부터 rayDir방향으로 쏠 때 atmosphereRadius구를 벗어나는 path length룰 반환함
 float atmosphereTopDistance(float heightAtReference, float radialDot)
 {
-    GPUASSERT(heightAtReference <= _atmosphereRadius);
+    GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius), float4(heightAtReference, _atmosphereRadius, _densityReferenceRadius, _atmosphereRadius - _densityReferenceRadius));
 
-    const float heightAtAtmosphere = (heightAtReference + _densityReferenceRadius) - _atmosphereRadius;
+    const float heightAtAtmosphere = (heightAtReference - _atmosphereRadius) + _densityReferenceRadius; // (heightAtReference + _densityReferenceRadius) - _atmosphereRadius와 동치. 정밀도 때문에 -먼저 수행
 
     // 구하고자하는 건  방사방향² - _atmosphereRadius²이지만 float 정밀도 개선을 위해 다음과 같은 식을 사용
     const float c = heightAtAtmosphere * (2.0f * _atmosphereRadius + heightAtAtmosphere);

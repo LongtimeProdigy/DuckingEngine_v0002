@@ -657,6 +657,9 @@ do{ \
 		void resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState);
 
 		void waitFenceAndResetCommandList();
+#if defined(_DK_DEBUG_)
+		void reportGpuAssert();
+#endif
 
 #if defined(_DK_DEBUG_)
 	public:
@@ -677,7 +680,10 @@ do{ \
         double _gpuPeakMilliseconds[5] = { 0, 0, 0, 0, 0 };
 
 		//GPU Assert
-		IBufferRef _debugHangBuffer;
+		IBufferRef _gpuAssertBuffer;
+		IBufferRef _gpuAssertResetUpload;
+		RenderResourcePtr<ID3D12Resource> _gpuAssertReadback;
+		bool _gpuAssertReadbackPending = false;
 #endif
 
 		// resource

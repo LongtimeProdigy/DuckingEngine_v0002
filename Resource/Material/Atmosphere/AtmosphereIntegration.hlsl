@@ -232,7 +232,7 @@ AtmosphereOpticalDepth integrateAtmosphereOpticalDepth(float heightAtReference, 
             const float split = geometrySplit >= 0.0f ? geometrySplit : midPos;
             const float4 fine = atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, 0.5f * (startPos + split)))  * (split - startPos) 
                 + atmosphereDensity(atmosphereHeightOnRay(heightAtReference, radialDot, 0.5f * (split + endPos))) * (endPos - split);
-            GPUASSERT(all(fine > 0));
+            GPUASSERT(all(isfinite(fine)) && all(fine >= 0));
 
             const float4 opticalDepthError = abs(fine - densityAtMid) * betaMax;
 

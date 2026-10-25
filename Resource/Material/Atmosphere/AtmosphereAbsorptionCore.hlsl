@@ -10,7 +10,7 @@ float2 atmosphereAbsorptionSphereHits(float heightAtReference, float radialDot, 
     GPUASSERT(_densityReferenceRadius >= 0);
 
     const float height = _densityReferenceRadius + heightAtReference;
-    GPUASSERT(height - abs(radialDot) > 0);
+    GPUASSERT(height - abs(radialDot) >= 0);
     const float triangleHeight = sqrt((height - abs(radialDot)) * (height + abs(radialDot)));    // 파타고라스 정리
     if (triangleHeight > radius)    // transitionRadius와 접하지 않음
         return float2(1e30f, -1e30f);

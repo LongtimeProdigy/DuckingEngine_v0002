@@ -120,6 +120,7 @@ uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
 #include "DuckingEngine.h"
 #include "ResourceManager.h"
 #include "ShaderCompiler.h"
+#include "GpuAssertDiagnostics.h"
 #include "RaytracingRenderer.h"
 
 #include "Camera.h"
@@ -234,7 +235,7 @@ namespace DK
 			return false;
 
 #if defined(_DK_DEBUG_)
-		const uint32 debugHangData[2] = { 0, 0 };
+		const GpuAssertRecord debugHangData = {};
 		const uint32 debugHangBufferSize = sizeof(debugHangData);
 		const CD3DX12_HEAP_PROPERTIES debugHangHeap(D3D12_HEAP_TYPE_DEFAULT);
 		const auto debugHangDesc = CD3DX12_RESOURCE_DESC::Buffer( debugHangBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -247,8 +248,17 @@ namespace DK
 		if (debugHangUpload == nullptr || debugHangUpload->isValid() == false)
 			return false;
 
-		_debugHangBuffer = IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(debugHangResource), debugHangBufferSize, D3D12_RESOURCE_STATE_COMMON));
-		debugHangResource->SetName(L"DebugHangBuffer");
+		_gpuAssertResetUpload = debugHangUpload;
+		_gpuAssertBuffer = IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(debugHangResource), debugHangBufferSize, D3D12_RESOURCE_STATE_COMMON));
+		debugHangResource->SetName(L"GpuAssertBuffer");
+		const CD3DX12_HEAP_PROPERTIES readbackHeap(D3D12_HEAP_TYPE_READBACK);
+		const auto readbackDesc = CD3DX12_RESOURCE_DESC::Buffer(debugHangBufferSize);
+		ID3D12Resource* readback = nullptr;
+		if (FAILED(_device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
+			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&readback))))
+			return false;
+		_gpuAssertReadback = readback;
+		readback->SetName(L"GpuAssert Readback");
 
 		void* debugHangMapped = nullptr;
 		const D3D12_RANGE noRead = { 0, 0 };
@@ -256,14 +266,14 @@ namespace DK
 		if (FAILED(debugHangHr))
 			return false;
 
-		memcpy(debugHangMapped, debugHangData, debugHangBufferSize);
+		memcpy(debugHangMapped, &debugHangData, debugHangBufferSize);
 		const D3D12_RANGE writtenRange = { 0, debugHangBufferSize };
 		debugHangUpload->_buffer->Unmap(0, &writtenRange);
 
-		resourceBarrierTransition(*_debugHangBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
+		resourceBarrierTransition(*_gpuAssertBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
 		_commandList->CopyBufferRegion(debugHangResource, 0, debugHangUpload->_buffer.get(), 0, debugHangBufferSize);
 
-		resourceBarrierTransition(*_debugHangBuffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		resourceBarrierTransition(*_gpuAssertBuffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 #endif
 
 		execute();
@@ -431,7 +441,10 @@ namespace DK
 	{
 		_renderPassMap.clear();
 #if defined(_DK_DEBUG_)
-		_debugHangBuffer.reset();
+		_gpuAssertBuffer.reset();
+		_gpuAssertResetUpload.reset();
+		_gpuAssertReadback.release();
+		_gpuAssertReadbackPending = false;
 #endif
 		_textureDescriptorHeap.release();
 		DK_ASSERT_LOG(_textureContainer.empty(), "");
@@ -1735,10 +1748,24 @@ namespace DK
 				WaitForSingleObject(_fenceEvent, INFINITE);
 			}
 		}
+#if defined(_DK_DEBUG_)
+		reportGpuAssert();
+#endif
 	}
 
 	void RenderModule::execute(const bool isPresent)
 	{
+#if defined(_DK_DEBUG_)
+		if (_gpuAssertBuffer && _gpuAssertReadback && _gpuAssertResetUpload)
+		{
+			resourceBarrierTransition(*_gpuAssertBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE);
+			_commandList->CopyBufferRegion(_gpuAssertReadback.get(), 0, _gpuAssertBuffer->_buffer.get(), 0, sizeof(GpuAssertRecord));
+			resourceBarrierTransition(*_gpuAssertBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
+			_commandList->CopyBufferRegion(_gpuAssertBuffer->_buffer.get(), 0, _gpuAssertResetUpload->_buffer.get(), 0, sizeof(GpuAssertRecord));
+			resourceBarrierTransition(*_gpuAssertBuffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			_gpuAssertReadbackPending = true;
+		}
+#endif
 		_commandList->Close();
 
 		DKVector<ID3D12CommandList*> commandLists;
@@ -1789,7 +1816,34 @@ namespace DK
 			assert(SUCCEEDED(hr));
 			WaitForSingleObject(_fenceEvent, INFINITE);
 		}
+#if defined(_DK_DEBUG_)
+		reportGpuAssert();
+#endif
 	}
+
+#if defined(_DK_DEBUG_)
+	void RenderModule::reportGpuAssert()
+	{
+		if (!_gpuAssertReadbackPending || !_gpuAssertReadback)
+			return;
+		void* mapped = nullptr;
+		const D3D12_RANGE readRange = { 0, sizeof(GpuAssertRecord) };
+		const HRESULT hr = _gpuAssertReadback->Map(0, &readRange, &mapped);
+		DK_ASSERT_LOG(SUCCEEDED(hr), "GPU assert readback failed: 0x%08X", static_cast<unsigned int>(hr));
+		if (FAILED(hr)) return;
+		GpuAssertRecord record;
+		memcpy(&record, mapped, sizeof(record));
+		const D3D12_RANGE noWrites = { 0, 0 };
+		_gpuAssertReadback->Unmap(0, &noWrites);
+		_gpuAssertReadbackPending = false;
+		if (record.failed)
+		{
+			OutputDebugStringA(formatGpuAssert(record).c_str());
+			if (IsDebuggerPresent())
+				__debugbreak();
+		}
+	}
+#endif
 
 	void RenderModule::resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState)
 	{
@@ -2027,7 +2081,12 @@ namespace DK
 		uint32 _width;
 		uint32 _height;
 		uint32 _bitsPerPixel;
-		byte* _data;
+		byte* _data = nullptr;
+		// WIC decode buffers are local CPU owners; UpdateSubresources copies them.
+		TextureRaw() = default;
+		TextureRaw(const TextureRaw&) = delete;
+		TextureRaw& operator=(const TextureRaw&) = delete;
+		~TextureRaw() { std::free(_data); }
 		DXGI_FORMAT _format;
 	};
 	bool loadImageDataFromFile(const char* fileName, _OUT_ TextureRaw& textureRaw)
@@ -2036,9 +2095,9 @@ namespace DK
 
 		static IWICImagingFactory* wicFactory;
 
-		IWICBitmapDecoder* wicDecoder = NULL;
-		IWICBitmapFrameDecode* wicFrame = NULL;
-		IWICFormatConverter* wicConverter = NULL;
+		Microsoft::WRL::ComPtr<IWICBitmapDecoder> wicDecoder;
+		Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> wicFrame;
+		Microsoft::WRL::ComPtr<IWICFormatConverter> wicConverter;
 
 		bool imageConverted = false;
 
@@ -2057,11 +2116,11 @@ namespace DK
 			NULL,                            // This is a vendor ID, we do not prefer a specific one so set to null
 			GENERIC_READ,                    // We want to read from this file
 			WICDecodeMetadataCacheOnLoad,    // We will cache the metadata right away, rather than when needed, which might be unknown
-			&wicDecoder                      // the wic decoder to be created
+			wicDecoder.GetAddressOf()                      // the wic decoder to be created
 		);
 		if (FAILED(hr)) return false;
 
-		hr = wicDecoder->GetFrame(0, &wicFrame);
+		hr = wicDecoder->GetFrame(0, wicFrame.GetAddressOf());
 		if (FAILED(hr)) return false;
 
 		WICPixelFormatGUID pixelFormat;
@@ -2082,14 +2141,14 @@ namespace DK
 
 			dxgiFormat = GetDXGIFormatFromWICFormat(convertToPixelFormat);
 
-			hr = wicFactory->CreateFormatConverter(&wicConverter);
+			hr = wicFactory->CreateFormatConverter(wicConverter.GetAddressOf());
 			if (FAILED(hr)) return false;
 
 			BOOL canConvert = FALSE;
 			hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
 			if (FAILED(hr) || !canConvert) return false;
 
-			hr = wicConverter->Initialize(wicFrame, convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
+			hr = wicConverter->Initialize(wicFrame.Get(), convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
 			if (FAILED(hr)) return false;
 
 			imageConverted = true;
@@ -2099,7 +2158,8 @@ namespace DK
 		uint32 bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
 		uint32 imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
 
-		textureRaw._data = (BYTE*)malloc(imageSize);
+		textureRaw._data = static_cast<BYTE*>(std::malloc(imageSize));
+		if (textureRaw._data == nullptr) return false;
 		textureRaw._format = dxgiFormat;
 
 		if (imageConverted)
@@ -2107,7 +2167,7 @@ namespace DK
 			hr = wicConverter->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
 			if (FAILED(hr))
 			{
-				dk_delete_array(textureRaw._data);
+				// TextureRaw frees its malloc allocation on every return path.
 				return false;
 			}
 		}
@@ -2116,7 +2176,7 @@ namespace DK
 			hr = wicFrame->CopyPixels(0, bytesPerRow, imageSize, textureRaw._data);
 			if (FAILED(hr))
 			{
-				dk_delete_array(textureRaw._data);
+				// TextureRaw frees its malloc allocation on every return path.
 				return false;
 			}
 		}
@@ -2776,14 +2836,14 @@ namespace DK
 		}
 
 #if defined(_DK_DEBUG_)
-		DKHashMap<DKString, ShaderParameter>::const_iterator debugHangParameter = pipeline._shaderParameterMap.find("DebugHangBuffer");
+		DKHashMap<DKString, ShaderParameter>::const_iterator debugHangParameter = pipeline._shaderParameterMap.find("GpuAssertBuffer");
 		if (debugHangParameter != pipeline._shaderParameterMap.end())
 		{
-			if (_debugHangBuffer == nullptr || !_debugHangBuffer->isValid())
+			if (_gpuAssertBuffer == nullptr || !_gpuAssertBuffer->isValid())
 				return false;
 
 			const uint32 rootIndex = debugHangParameter->second._rootParameterIndex;
-			const D3D12_GPU_VIRTUAL_ADDRESS address = _debugHangBuffer->_buffer->GetGPUVirtualAddress();
+			const D3D12_GPU_VIRTUAL_ADDRESS address = _gpuAssertBuffer->_buffer->GetGPUVirtualAddress();
 			if (type == Pipeline::Type::GRAPHIC)
 				_commandList->SetGraphicsRootUnorderedAccessView(rootIndex, address);
 			else

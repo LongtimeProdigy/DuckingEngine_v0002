@@ -1,28 +1,40 @@
 ﻿#ifndef ASSERT_HLSL
 #define ASSERT_HLSL
 
-// SM 6.10 이상 + 해당 기능을 지원하는 컴파일러/런타임/드라이버
-// void GPUAssert(bool condition)
-// {
-//     if (!condition)
-//         DebugBreak();
-// }
+#if defined(DK_GPU_ASSERT_ENABLED)
+RWByteAddressBuffer GpuAssertBuffer : register(u0, space0);
 
-RWByteAddressBuffer DebugHangBuffer : register(u0, space0);
-void GPUAssert(bool condition)
+// Record the first failure, then let the submission finish for CPU readback.
+void GPUAssertRecordImpl(uint fileId, uint sourceLine, bool condition, uint4 data, uint dataType)
 {
     if (!condition)
     {
         uint previous;
-
-        [allow_uav_condition]
-        while (DebugHangBuffer.Load(0) == 0u)
+        GpuAssertBuffer.InterlockedCompareExchange(0, 0u, 1u, previous);
+        if (previous == 0u)
         {
-            DebugHangBuffer.InterlockedAdd(4, 1u, previous);
+            GpuAssertBuffer.Store3(4, uint3(fileId, sourceLine, dataType));
+            GpuAssertBuffer.Store4(16, data);
         }
     }
 }
 
-#define GPUASSERT(condition)
+// dataType matches GpuAssertDataType on the CPU. Preserve the payload bits.
+void GPUAssertImpl(uint fileId, uint sourceLine, bool condition, uint4 data = uint4(0, 0, 0, 0))
+{
+    GPUAssertRecordImpl(fileId, sourceLine, condition, data, 0u);
+}
+
+void GPUAssertImpl(uint fileId, uint sourceLine, bool condition, float4 data)
+{
+    GPUAssertRecordImpl(fileId, sourceLine, condition, asuint(data), 1u);
+}
+
+#define GPUAssert(...) GPUAssertImpl(GpuAssertFileId(__FILE__), __LINE__, __VA_ARGS__)
+#define GPUASSERT(...) GPUAssert(__VA_ARGS__)
+#else
+#define GPUAssert(...)
+#define GPUASSERT(...)
+#endif
 
 #endif
