@@ -1,8 +1,4 @@
 {
-  "root": true,
-  "hlsl.preprocessorDefinitions": {
-    "GPUASSERT": "all"
-  },
   "hlsl.additionalIncludeDirectories": [
     "Resource/Material"
   ]

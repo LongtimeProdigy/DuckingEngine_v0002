@@ -1,6 +1,8 @@
 ﻿#ifndef ATMOSPHERE_INTEGRATION_HLSL
 #define ATMOSPHERE_INTEGRATION_HLSL
+
 #include "Atmosphere/AtmosphereParameters.hlsl"
+#include "CommonMathConstant.hlsl"
 
 static const float3 gStandardBetaR = float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
 static const float3 gStandardBetaM = float3(21e-6f, 21e-6f, 21e-6f);
@@ -19,7 +21,7 @@ float3 atmosphereMieScattering()
     GPUASSERT(_mieScale >= 0);
     return gStandardBetaM * _scatteringScale * _mieScale; 
 }
-// Mie의 소멸계수 (산란계수 + 소멸계수)
+// Mie의 소멸계수 (산란계수 + 흡수계수)
 float3 atmosphereMieExtinction()
 {
     GPUASSERT(_scatteringScale >= 0);
@@ -45,16 +47,19 @@ float atmosphereAbsorptionDensity(float heightAtReference, uint layer)
     const float width = delta < 0.0f ? _absorptionLayers[layer].lowerWidth : _absorptionLayers[layer].upperWidth;
     return saturate(1.0f - (abs(delta) / width));
 }
+
+// columns가 한 지점의 밀도이면 소멸계수가 반환
+// comumns가 거리에 적분된 밀도이면 opticalDepth가 반환 (이유는 반환된 밀도를 거리로 적분하면 그게 opticalDepth이니까)
 float3 atmosphereOpticalExtinction(float4 columns)
 {
     return atmosphereRayleighScattering() * columns.x + atmosphereMieExtinction() * columns.y + atmosphereAbsorptionExtinction(0u) * columns.z + atmosphereAbsorptionExtinction(1u) * columns.w;
 }
 
-float atmosphereRayleighPhase(float mu) { return 3.0f / (16.0f * 3.14159265359f) * (1.0f + mu * mu); }
+float atmosphereRayleighPhase(float mu) { return 3.0f / (16.0f * PI) * (1.0f + mu * mu); }
 float atmosphereMiePhase(float mu)
 {
     const float g = clamp(_mieAnisotropy, -0.95f, 0.95f);
-    return (1.0f - g * g) / (4.0f * 3.14159265359f * pow(max(1.0f + g * g - 2.0f * g * mu, 1e-4f), 1.5f));
+    return (1.0f - g * g) / (4.0f * PI * pow(max(1.0f + g * g - 2.0f * g * mu, 1e-4f), 1.5f));
 }
 
 // Mean transmittance through a constant-extinction interval: integral_0^1 exp(-tau*u) du.
@@ -98,18 +103,6 @@ float4 atmosphereDensity(float heightAtReference)
     const float heightAtTransition = clamp(transitionHeight - heightAtReference, 0.0f, _densityTransitionRadius);
     const float2 compression = 1.0f + heightAtTransition * (1.0f - 0.5f * heightAtTransition / _densityTransitionRadius) / float2(_rayleighHeight, _mieHeight);
     return float4(atmosphereExponentialDensity(transitionHeight) * compression, atmosphereAbsorptionDensity(heightAtReference, 0u), atmosphereAbsorptionDensity(heightAtReference, 1u));
-}
-
-// Exact integral of the interior profile, matched to the density at the boundary.
-float2 atmosphereInteriorOpticalDepth(float height, float radialDot, float pathLength)
-{
-    const float radius = max(_densityTransitionRadius, 1e-6f);
-    const float localHeight = height - atmosphereTransitionHeight();
-    const float c = localHeight * (2.0f * radius + localHeight);
-    const float meanCompression = max(-(c + radialDot * pathLength
-        + pathLength * pathLength / 3.0f) / (2.0f * radius), 0.0f);
-    return atmosphereExponentialDensity(atmosphereTransitionHeight()) * pathLength
-        * (1.0f + meanCompression / max(float2(_rayleighHeight, _mieHeight), 1e-6f));
 }
 
 // 광선 원점에서 t만큼 이동한 위치의 고도를 계산합니다. 고도 기준은 _densityReferenceRadius입니다.

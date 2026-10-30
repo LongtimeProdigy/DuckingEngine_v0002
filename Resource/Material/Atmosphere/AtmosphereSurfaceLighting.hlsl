@@ -2,7 +2,9 @@
 #define ATMOSPHERE_SURFACE_LIGHTING_HLSL
 #include "CommonTexture.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"
+
 static const uint SURFACE_BOUNCE_GRID = 16u;
+
 float3 atmosphereSurfaceCoordinates(float3 p)
 {
     const float3 local = p - _surfaceOrigin.xyz;
@@ -10,11 +12,7 @@ float3 atmosphereSurfaceCoordinates(float3 p)
                   0.5f - 0.5f * dot(local, _surfaceUp.xyz) / max(_surfaceUp.w, 1e-6f),
                   dot(local, _surfaceForward.xyz) / max(_surfaceForward.w, 1e-6f));
 }
-float3 atmosphereSurfacePoint(float3 uvw)
-{
-    return _surfaceOrigin.xyz + _surfaceRight.xyz * ((2.0f * uvw.x - 1.0f) * _surfaceRight.w)
-        + _surfaceUp.xyz * ((1.0f - 2.0f * uvw.y) * _surfaceUp.w) + _surfaceForward.xyz * (uvw.z * _surfaceForward.w);
-}
+
 bool atmosphereInsideSurfaceCapture(float3 uvw)
 {
     return all(uvw >= 0.0f) && all(uvw <= 1.0f);

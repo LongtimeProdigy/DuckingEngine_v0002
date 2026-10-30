@@ -2576,6 +2576,8 @@ namespace DK
 
     void RenderModule::prepareGpuTimings()
     {
+        _gpuTimingRecorded = false;
+
         if (_gpuTimingsInitialized == false)
         {
             _gpuTimingsInitialized = true;
@@ -2601,8 +2603,13 @@ namespace DK
         if (_gpuTimestampHeap == nullptr || _gpuTimestampReadback == nullptr || _gpuTimestampFrequency == 0)
 			return;
 
-        // Never wait for profiling. Read only after the submission fence has completed.
-        if (_gpuTimingFence && _fences[_gpuTimingFenceIndex]->GetCompletedValue() >= _gpuTimingFence)
+        // Keep the single query/readback slot until its result is consumed.
+        // Skip profiling (not rendering) while the previous submission is pending;
+        // otherwise execute() would replace its fence before we can collect it.
+        if (_gpuTimingFence && _fences[_gpuTimingFenceIndex]->GetCompletedValue() < _gpuTimingFence)
+            return;
+
+        if (_gpuTimingFence)
         {
             D3D12_RANGE range = { 0, 10 * sizeof(uint64) };
             void* address = nullptr;
@@ -2617,6 +2624,11 @@ namespace DK
 
 				D3D12_RANGE written = { 0, 0 };
                 _gpuTimestampReadback->Unmap(0, &written);
+            }
+            else
+            {
+                // Preserve the completed sample for a later readback attempt.
+                return;
             }
 
             _gpuTimingFence = 0;

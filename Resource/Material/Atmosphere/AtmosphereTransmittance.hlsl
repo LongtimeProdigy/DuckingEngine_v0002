@@ -10,9 +10,9 @@ static const uint ATMOSPHERE_LUT_HEIGHT = 128u;
 // heightAtReference부터 rayDir방향으로 쏠 때 atmosphereRadius구를 벗어나는 path length룰 반환함
 float atmosphereTopDistance(float heightAtReference, float radialDot)
 {
-    GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius), float4(heightAtReference, _atmosphereRadius, _densityReferenceRadius, _atmosphereRadius - _densityReferenceRadius));
+    GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius));
 
-    const float heightAtAtmosphere = (heightAtReference - _atmosphereRadius) + _densityReferenceRadius; // (heightAtReference + _densityReferenceRadius) - _atmosphereRadius와 동치. 정밀도 때문에 -먼저 수행
+    const float heightAtAtmosphere = heightAtReference - (_atmosphereRadius - _densityReferenceRadius); // (heightAtReference + _densityReferenceRadius) - _atmosphereRadius와 동치. 정밀도 때문에 -먼저 수행
 
     // 구하고자하는 건  방사방향² - _atmosphereRadius²이지만 float 정밀도 개선을 위해 다음과 같은 식을 사용
     const float c = heightAtAtmosphere * (2.0f * _atmosphereRadius + heightAtAtmosphere);
@@ -28,7 +28,7 @@ float atmosphereTopDistance(float heightAtReference, float radialDot)
     return t;
 }
 
-// 방사방향(heightAtReference - pranetCentre)와 heightAtReference에서 transtionRadius구의 접선이 이루는 각도 theta의 cos값을 반환
+// heightAtReference에서 방사방향과 transtionRadius구의 접선이 이루는 각도 theta의 cos값을 반환
 float atmosphereHorizonCosine(float heightAtReference)
 {
     const float heightAtTransition = heightAtReference - atmosphereTransitionHeight();
@@ -44,14 +44,17 @@ float atmosphereHorizonCosine(float heightAtReference)
 }
 
 // atmosphereLutParameters의 역함수
-float2 atmosphereLutCoordinates(float height, float mu)
+float2 atmosphereLutCoordinates(float heightAtReference, float mu)
 {
-    const float horizon = atmosphereHorizonCosine(height);
-    const float s = mu >= horizon ? sqrt(saturate((mu - horizon) / max(1.0f - horizon, 1e-10f))) : -sqrt(saturate((horizon - mu) / max(1.0f + horizon, 1e-10f)));
-    return float2(0.5f * (s + 1.0f), sqrt(saturate((height - atmosphereTransitionHeight()) / max(_atmosphereRadius - _densityTransitionRadius, 1e-10f))));
+    const float horizon = atmosphereHorizonCosine(heightAtReference);
+    GPUASSERT(abs(horizon) < 1);    // horizon이 -1이면 0으로 나눗셈이 되므로 0도 예외해야함
+    const float s = mu >= horizon ? sqrt(saturate((mu - horizon) / (1.0f - horizon))) : -sqrt(saturate((horizon - mu) / (1.0f + horizon)));
+    GPUASSERT(_atmosphereRadius - _densityTransitionRadius > 0);    // 0이면 zero-divice이므로 예외해야함
+    return float2(0.5f * (s + 1.0f), sqrt(saturate((heightAtReference - atmosphereTransitionHeight()) / (_atmosphereRadius - _densityTransitionRadius))));
 }
 
-AtmosphereOpticalDepth atmosphereSunOpticalDepthOutsideCore(float height, float radialDot, float pathLength, bool allowReference = true)
+// heightAtReference에서 태양 방향으로 _atmosphereRadius까지의 ‘성분별 밀도 적분값’을 반환
+AtmosphereOpticalDepth atmosphereSunOpticalDepthOutsideTransitionRadius(float heightAtReference, float radialDot, float pathLength, bool allowReference = true)
 {
     if (pathLength <= 0.0f)
     {
@@ -61,30 +64,38 @@ AtmosphereOpticalDepth atmosphereSunOpticalDepthOutsideCore(float height, float 
         return empty;
     }
 
-    // The LUT covers the exponential region, including negative reference altitudes.
 #if defined(ATMOSPHERE_FORCE_LUT)
-    // Probe generation never falls back to nested adaptive integration.
-    height = clamp(height, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius);
+    GPUASSERT(heightAtReference >= atmosphereTransitionHeight() && heightAtReference <= _atmosphereRadius - _densityReferenceRadius);
+    heightAtReference = clamp(heightAtReference, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius);
 #else
-    if (!atmosphereUsesLut(allowReference) || height < atmosphereTransitionHeight() || height > _atmosphereRadius - _densityReferenceRadius)
-        return integrateAtmosphereOpticalDepth(height, radialDot, pathLength);
+    if (atmosphereUsesLut(allowReference) == false || heightAtReference < atmosphereTransitionHeight() || heightAtReference > _atmosphereRadius - _densityReferenceRadius)
+    {
+        GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius), float4(heightAtReference, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius, allowReference ? 1 : 0));
+        return integrateAtmosphereOpticalDepth(heightAtReference, radialDot, pathLength);
+    }
 #endif
 
-    const float mu = clamp(radialDot / max(_densityReferenceRadius + height, 1e-10f), -1.0f, 1.0f);
-    const float2 grid = atmosphereLutCoordinates(height, mu) * float2(ATMOSPHERE_LUT_WIDTH - 1u, ATMOSPHERE_LUT_HEIGHT - 1u);
-    const uint2 p0 = uint2(grid);
+    const float radius = _densityReferenceRadius + heightAtReference;
+    GPUASSERT(isfinite(radius) && radius >= 1e-10f, float4(radius, heightAtReference, _densityReferenceRadius, radialDot));
+    GPUASSERT(abs(radialDot) <= radius, float4(radialDot, _densityReferenceRadius, heightAtReference, radialDot / radius));
+    const float mu = radialDot / radius; // radialDot은 (_densityReferenceRadius + heightAtReference) * cos이므로, 정밀도 문제로 clamp처리
+    const float2 texel = atmosphereLutCoordinates(heightAtReference, clamp(mu, -1, 1)) * float2(ATMOSPHERE_LUT_WIDTH - 1u, ATMOSPHERE_LUT_HEIGHT - 1u);
+    const uint2 p0 = uint2(texel);
     const uint2 p1 = min(p0 + 1u, uint2(ATMOSPHERE_LUT_WIDTH - 1u, ATMOSPHERE_LUT_HEIGHT - 1u));
-    const float2 blend = frac(grid);
-    const Texture2D<float4> lut = getTexture(_transmittanceLutIndex);
+    const float2 blend = frac(texel);
 
-    // Explicit clamped bilinear loads avoid the engine's repeat-address sampler.
+    const Texture2D<float4> lut = getTexture(_transmittanceLutIndex);
+    // 직접 clamp sampler를 수행. 추후에 clamp sampler롤 바인딩하고 sampling하는 것 고려
     const float4 a = lut.Load(int3(p0, 0));
     const float4 b = lut.Load(int3(p1.x, p0.y, 0));
     const float4 c = lut.Load(int3(p0.x, p1.y, 0));
     const float4 d = lut.Load(int3(p1, 0));
+
     // Keep production lookup bounded even when the LUT generation exhausted its budget.
     AtmosphereOpticalDepth result;
-    result.value = max(lerp(lerp(a, b, blend.x), lerp(c, d, blend.x), blend.y), 0.0f);
+    result.value = lerp(lerp(a, b, blend.x), lerp(c, d, blend.x), blend.y);
+    GPUASSERT(all(result.value >= 0));
+
     const int2 flags = int2(0, ATMOSPHERE_LUT_HEIGHT);
     const float f0 = lut.Load(int3(int2(p0) + flags, 0)).x;
     const float f1 = lut.Load(int3(int2(p1.x, p0.y) + flags, 0)).x;
@@ -122,46 +133,73 @@ float atmosphereAbsorptionShell(float height, float radialDot, float length, flo
     return atmosphereAbsorptionGauss(height, radialDot, a, middle, layer)
          + atmosphereAbsorptionGauss(height, radialDot, middle, b, layer);
 }
-float2 atmosphereInteriorAbsorptionDepth(float height, float radialDot, float length)
+
+// Exact integral of the interior profile, matched to the density at the boundary.
+// Core 내부 밀도 모델의 해석적 적분
+float2 atmosphereInteriorOpticalDepth(float heightAtTransition, float radialDot, float pathLength)
+{
+    GPUASSERT(_densityTransitionRadius > 1e-6f);
+    const float c = heightAtTransition * (2.0f * _densityTransitionRadius + heightAtTransition);
+    const float meanCompression = max(-(c + radialDot * pathLength + pathLength * pathLength / 3.0f) / (2.0f * _densityTransitionRadius), 0.0f);
+    return atmosphereExponentialDensity(atmosphereTransitionHeight()) * pathLength * (1.0f + meanCompression / max(float2(_rayleighHeight, _mieHeight), 1e-6f));
+}
+// 흡수층 구간을 나누고 Gauss 수치 적분
+float2 atmosphereInteriorAbsorptionDepth(float heightAtReference, float radialDot, float length)
 {
     float2 result = 0.0f;
-    [unroll] for (uint layer = 0u; layer < 2u; ++layer)
+    [unroll] 
+    for (uint layer = 0u; layer < 2u; ++layer)
     {
-        if (!any(atmosphereAbsorptionExtinction(layer) > 0.0f)) continue;
+        if (any(atmosphereAbsorptionExtinction(layer) > 0.0f) == false) 
+            continue;
+
         const float peak = max(_absorptionLayers[layer].peakRadius, 0.0f);
-        result[layer] = atmosphereAbsorptionShell(height, radialDot, length,
-            max(peak - _absorptionLayers[layer].lowerWidth, 0.0f), peak, layer)
-            + atmosphereAbsorptionShell(height, radialDot, length, peak,
-                peak + max(_absorptionLayers[layer].upperWidth, 0.0f), layer);
+        result[layer] = atmosphereAbsorptionShell(heightAtReference, radialDot, length, max(peak - _absorptionLayers[layer].lowerWidth, 0.0f), peak, layer) 
+            + atmosphereAbsorptionShell(heightAtReference, radialDot, length, peak, peak + max(_absorptionLayers[layer].upperWidth, 0.0f), layer);
     }
     return result;
 }
-
-// Integrate the quadratic interior density analytically, then reuse the
-// outward surface LUT. This avoids nested per-pixel integration in production.
-AtmosphereOpticalDepth atmosphereSunOpticalDepth(float height, float radialDot, float pathLength, bool allowReference = true)
+// heightAtReference에서 태양 방향으로 나아가는 경로의 성분별 밀도 적분값을 반환
+AtmosphereOpticalDepth atmosphereSunOpticalDepth(float heightAtReference, float radialDot, float pathLength, bool allowReference = true)
 {
-    if (height >= atmosphereTransitionHeight() || pathLength <= 0.0f)
-        return atmosphereSunOpticalDepthOutsideCore(height, radialDot, pathLength, allowReference);
+    // TransitionRadius 밖일 때
+    if (heightAtReference >= atmosphereTransitionHeight() || pathLength <= 0.0f)
+        return atmosphereSunOpticalDepthOutsideTransitionRadius(heightAtReference, radialDot, pathLength, allowReference);
 
-    const float localHeight = height - atmosphereTransitionHeight();
-    const float c = localHeight * (2.0f * _densityTransitionRadius + localHeight);
-    const float root = sqrt(max(radialDot * radialDot - c, 0.0f));
-    const float exitDistance = radialDot >= 0.0f ? -c / max(root + radialDot, 1e-10f) : root - radialDot;
-    const float coreLength = min(max(exitDistance, 0.0f), pathLength);
-    AtmosphereOpticalDepth result;
-    result.value = float4(atmosphereInteriorOpticalDepth(height, radialDot, coreLength), atmosphereInteriorAbsorptionDepth(height, radialDot, coreLength));
-    result.limitReached = 0u;
-    if (coreLength < pathLength)
+    // TransitionRadius 안일 때
+    const float heightAtTransition = heightAtReference - atmosphereTransitionHeight();
+    const float c = heightAtTransition * (2.0f * _densityTransitionRadius + heightAtTransition);
+    GPUASSERT(radialDot * radialDot - c >= 0);
+    const float root = clamp(sqrt(radialDot * radialDot - c), -(_densityTransitionRadius + heightAtTransition), _densityTransitionRadius + heightAtTransition); // root == sunRadialDot과 같아짐. radialDot은 무조건 height보다 작아야함
+    float exitDistance;
+    if (radialDot >= 0.0f)
     {
-        const AtmosphereOpticalDepth outer = atmosphereSunOpticalDepthOutsideCore(atmosphereTransitionHeight(), max(radialDot + coreLength, 0.0f), pathLength - coreLength, allowReference);
+        const float denominator = root + radialDot;
+        GPUASSERT(isfinite(denominator) && denominator > 0.0f, float4(root, radialDot, c, heightAtTransition));
+        exitDistance = -c / denominator;
+    }
+    else
+    {
+        exitDistance = root - radialDot;
+    }
+    GPUASSERT(isfinite(exitDistance) && exitDistance >= 0.0f, float4(exitDistance, root, radialDot, c));
+    const float coreLength = min(exitDistance, pathLength); // pathLength가 Core안에서 끝나는 경우 pathLength를 보내줘야하니 min연산
+    AtmosphereOpticalDepth result;
+    result.value = float4(atmosphereInteriorOpticalDepth(heightAtTransition, radialDot, coreLength), atmosphereInteriorAbsorptionDepth(heightAtReference, radialDot, coreLength));
+    result.limitReached = 0u;
+
+    if (coreLength < pathLength)    // Core 바깥으로 이어지는 구간이 있으면 더함
+    {
+        GPUASSERT(root >= 0);
+        GPUASSERT(root <= _densityTransitionRadius, float4(root, _densityTransitionRadius, allowReference ? 1 : 0, 0));
+        const AtmosphereOpticalDepth outer = atmosphereSunOpticalDepthOutsideTransitionRadius(atmosphereTransitionHeight(), root, pathLength - coreLength, allowReference);
         result.value += outer.value;
         result.limitReached = outer.limitReached;
     }
     return result;
 }
-// Gas attenuation only. sunDir must be a unit vector toward the sun.
-// Surface orientation, albedo and opaque occlusion belong to the caller.
+
+// cameraRelativePosition에서 sunDir방향으로의 투과율을 구함 (LUT 사용)
 float3 getSunTransmittance(float3 cameraRelativePosition, float3 sunDir)
 {
     if (_scatteringScale <= 0.0f)
@@ -171,12 +209,12 @@ float3 getSunTransmittance(float3 cameraRelativePosition, float3 sunDir)
     if (hit.y <= 0.0f)
         return float3(1, 1, 1);
 
-    // Outside surfaces start integration at the atmosphere entry, not in vacuum.
     const float3 origin = cameraRelativePosition + sunDir * hit.x;
-    const float height = hit.x > 0.0f ? _atmosphereRadius - _densityReferenceRadius : atmosphereHeight(origin);
-    const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(height, dot(origin - _planetCentre, sunDir), hit.y);
-    const float3 betaR = atmosphereRayleighScattering();
-    const float3 betaM = atmosphereMieExtinction();
+    // hit.x > 0은 대기밖에 cameraRelativePosition이 있으므로 heightAtReference가 대기의 높이임
+    const float heightAtReference = hit.x > 0.0f ? _atmosphereRadius - _densityReferenceRadius : atmosphereHeight(origin);
+    GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius), float4(heightAtReference, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius, 0));
+    GPUASSERT(abs(dot(origin - _planetCentre, sunDir)) <= _densityReferenceRadius + heightAtReference, float4(length(origin), length(_planetCentre), length(origin - _planetCentre), dot(origin - _planetCentre, sunDir)));
+    const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(heightAtReference, dot(origin - _planetCentre, sunDir), hit.y);
     return exp(-atmosphereOpticalExtinction(optical.value));
 }
 #endif

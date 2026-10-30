@@ -6,12 +6,7 @@
 static const uint SKY_WIDTH = 64u;
 static const uint SKY_HEIGHT = 32u;
 static const uint SKY_BANDS = 6u; // 0..4: GGX roughness, 5: diffuse irradiance.
-float3 skyDirection(float2 uv)
-{
-    const float phi = uv.x * 2.0f * PI;
-    const float theta = uv.y * PI;
-    return float3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
-}
+
 float2 skyCoordinates(float3 direction)
 {
     return float2(frac(atan2(direction.z, direction.x) / (2.0f * PI)), acos(clamp(direction.y, -1.0f, 1.0f)) / PI);

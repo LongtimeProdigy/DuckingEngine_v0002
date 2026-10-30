@@ -78,25 +78,20 @@ AtmosphereSegment evaluateAtmosphereInterval(float3 origin, float3 direction, fl
     if (sunLength <= 0.0f) 
         return result;
 
+    //GPUASSERT(height <= (_atmosphereRadius - _densityReferenceRadius), float4(height, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius, allowReference ? 1 : 0));
+    GPUASSERT(height <= (_atmosphereRadius - _densityReferenceRadius), float4(length(p), (start + end) * 0.5, 0, 0));
+    GPUASSERT(abs(dot(p - _planetCentre, sunDir)) <= length(p - _planetCentre), float4(length(p), length(_planetCentre), length(p - _planetCentre), dot(p - _planetCentre, sunDir)));
     const AtmosphereOpticalDepth light = atmosphereSunOpticalDepth(height, dot(p - _planetCentre, sunDir), sunLength, allowReference);
     result.limitReached = light.limitReached;
 
     const float sunVisibility = atmosphereSurfaceSunVisibility(p);
     const float3 intervalWeight = atmosphereIntervalWeight(atmosphereOpticalExtinction(segmentDepth));
-#if defined(OPTIMZE_OPTICALDEPTH)
     const float3 attenuation = exp(-atmosphereOpticalExtinction(light.value)) * intervalWeight;
     result.inScattering = atmosphereSunIrradiance() * sunVisibility * attenuation * (betaR * phaseR * segmentDepth.x + betaMScattering * phaseM * segmentDepth.y);
-#else
-    const float3 sunTransmittanceR = exp(-betaR * light.value.x);
-    const float3 sunTransmittanceM = exp(-betaM * light.value.y);
-    const float3 scatteringWeightR = betaR * segmentDepth.x * phaseR;
-    const float3 scatteringWeightM = betaMScattering * segmentDepth.y * phaseM;
-    const float3 absorptionLight = exp(-atmosphereAbsorptionExtinction(0u) * light.value.z - atmosphereAbsorptionExtinction(1u) * light.value.w);
-    const float3 incidentLight = atmosphereSunIrradiance() * sunVisibility * sunTransmittanceR * sunTransmittanceM * absorptionLight;
-    result.inScattering = incidentLight * (scatteringWeightR + scatteringWeightM) * intervalWeight;
-#endif
 
     // Isotropic incident field from prior atmospheric scattering orders.
+    const float radius = max(_densityReferenceRadius + height, 0.0f);
+    GPUASSERT(abs(dot(p - _planetCentre, sunDir)) <= radius, float4(dot(p - _planetCentre, sunDir), radius, dot(p - _planetCentre, sunDir) / radius, 0));
     const float3 multipleIncident = atmosphereMultipleIncident(height, dot(p - _planetCentre, sunDir));
     result.inScattering += intervalWeight * multipleIncident * (betaR * segmentDepth.x + betaMScattering * segmentDepth.y);
 

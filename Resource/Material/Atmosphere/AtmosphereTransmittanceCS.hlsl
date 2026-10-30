@@ -12,13 +12,16 @@ cbuffer AtmosphereLutOutputConstants : register(b2)
 float2 atmosphereLutParameters(float2 uv)
 {
     // uv.y의 0은 transitionradius 높이를 가리키기 때문에 referenceheight로 변환하기 위해서는 atmosphereTransitionHeight()를 더해야함
+    GPUASSERT(_densityTransitionRadius - _densityReferenceRadius <= 2000);
+    GPUASSERT(uv.y * uv.y <= 1.0f);
+    GPUASSERT(_atmosphereRadius - _densityTransitionRadius <= 32000);
     const float heightAtReference = atmosphereTransitionHeight() + uv.y * uv.y * (_atmosphereRadius - _densityTransitionRadius); //uv.y²로 높이를 배치해 전환 경계 근처에 샘플이 집중됨
+    GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius));
 
     const float horizon = atmosphereHorizonCosine(heightAtReference);   // heightAtReference에서 transitionRadius구에 접선하는 선분과 방사방향과의 mu
     const float s = 2.0f * uv.x - 1.0f;
+    // uv.x < 0.5인 구간은 horizon~180까지 보간, uv.x >= 0.5인 구간은 0~horizon 까지 보간
     // 아래는 mu = dot(normalize(p - planetCentre), rayDir);
-    // uv.x >= 0.5인 구간은 0~90 까지 보간 
-    // uv.x < 0.5인 구간은 90~180까지 보간
     const float mu = s >= 0.0f ? lerp(horizon, 1.0f, s * s) : lerp(horizon, -1.0f, s * s);   // s²를 이용해서 접선부근(uv.x == 0.5)에서 샘플이 집중됨, s==0은 구에 접함
 
     return float2(heightAtReference, mu);

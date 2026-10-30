@@ -3,14 +3,25 @@
 #include "Atmosphere/AtmosphereSkyLighting.hlsl"
 #include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
 #include "Atmosphere/AtmosphereMultipleScattering.hlsl"
+
 cbuffer SkyLightingOutputConstants : register(b2)
 {
     uint _skyOutputUav;
 };
+
+float3 skyDirection(float2 uv)
+{
+    const float phi = uv.x * 2.0f * PI;
+    const float theta = uv.y * PI;
+    return float3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
+}
+
 [numthreads(8, 8, 1)]
 void CSRadiance(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= SKY_WIDTH || id.y >= SKY_HEIGHT) return;
+    if (id.x >= SKY_WIDTH || id.y >= SKY_HEIGHT) 
+        return;
+
     const float3 dir = skyDirection((float2(id.xy) + 0.5f) / float2(SKY_WIDTH, SKY_HEIGHT));
     const float2 hit = raySphere(_planetCentre, _atmosphereRadius, 0.0f, dir);
     const float3 betaR = atmosphereRayleighScattering();
@@ -39,6 +50,10 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
                 tau.x < 1e-3f ? width * (1.0f - tau.x * 0.5f) : (1.0f - segmentT.x) / max(sigma.x, 1e-30f),
                 tau.y < 1e-3f ? width * (1.0f - tau.y * 0.5f) : (1.0f - segmentT.y) / max(sigma.y, 1e-30f),
                 tau.z < 1e-3f ? width * (1.0f - tau.z * 0.5f) : (1.0f - segmentT.z) / max(sigma.z, 1e-30f));
+
+            const float radius = max(_densityReferenceRadius + atmosphereHeight(p), 0.0f);
+            GPUASSERT(abs(dot(p - _planetCentre, sunDir)) <= radius, float4(dot(p - _planetCentre, sunDir), length(p - _planetCentre), atmosphereHeight(p), length(p)));
+
             const float3 source = atmosphereSunIrradiance() * getSunTransmittance(p, sunDir) * atmosphereSurfaceSunVisibility(p)
                 * (betaR * density.x * phaseR + betaM * density.y * phaseM)
                 + atmosphereSurfaceBounce(p) * (betaR * density.x + betaM * density.y) / (4.0f * PI)
@@ -52,7 +67,12 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
     const RWTexture2D<float4> output = getTextureRW(_skyOutputUav);
     output[id.xy] = float4(radiance, 1);
 }
-float radicalInverse(uint bits) { return float(reversebits(bits)) * 2.3283064365386963e-10f; }
+
+float radicalInverse(uint bits) 
+{ 
+    return float(reversebits(bits)) * 2.3283064365386963e-10f; 
+}
+
 [numthreads(8, 8, 1)]
 void CSFilter(uint3 id : SV_DispatchThreadID)
 {

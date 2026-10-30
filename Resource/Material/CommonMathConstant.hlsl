@@ -3,6 +3,7 @@
 
 //based on google's omni-directional stereo rendering thread
 #define FLOAT_EPSILON (1e-6)
+#define FLOAT_EPSILON_MIN (1e-30)
 #define FLOAT_MAX (3.402823466e+38F)
 
 #define PI (3.14159265358979)

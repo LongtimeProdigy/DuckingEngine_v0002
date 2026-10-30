@@ -152,10 +152,9 @@ namespace DK
 
 		DKString source;
 #if defined(_DK_DEBUG_)
-		source = "#define DK_GPU_ASSERT_ENABLED 1\n#include \"Assert.hlsl\"\n";
+		source = "#define DK_GPU_ASSERT_ENABLED 1\n";
 		source += wrapGpuAssertSource(gpuAssertUtf8Path(shaderPathW.c_str()), utf8Source->GetStringPointer(), utf8Source->GetStringLength());
 #else
-		source = "#include \"Assert.hlsl\"\n#line 1\n";
 		source.append(utf8Source->GetStringPointer(), utf8Source->GetStringLength());
 #endif
 
