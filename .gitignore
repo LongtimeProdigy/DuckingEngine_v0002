@@ -340,6 +340,10 @@ ASALocalRun/
 healthchecksdb
 *.ini
 
+# resource
+/Resource/meshai/
+/DKBlenderAddnos/MapAssets/
+
 # except lib
 !lib/dxc_2025_07_14/[Bb]in/[Aa]rm64
 !lib/dxc_2025_07_14/[Bb]in/x86
