@@ -111,7 +111,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                 tau.y < FLOAT_EPSILON ? width * (1.0f - 0.5f * tau.y) : (1.0f - transmittance.y) / sigma.y,
                 tau.z < FLOAT_EPSILON ? width * (1.0f - 0.5f * tau.z) : (1.0f - transmittance.z) / sigma.z);
             
-            const float radialSun = clamp(height * sunDir.y + mid * dot(dir, sunDir), -heightAtReference2 + _densityReferenceRadius, heightAtReference2 + _densityReferenceRadius); // 샘플 위치 Q = float3(0, height, 0) + mid * dir 를 태양 방향으로 투영한 값: dot(Q, sunDir)
+            const float radialSun = clamp(height * sunDir.y + mid * dot(dir, sunDir), -(heightAtReference2 + _densityReferenceRadius), heightAtReference2 + _densityReferenceRadius); // 샘플 위치 Q = float3(0, height, 0) + mid * dir 를 태양 방향으로 투영한 값: dot(Q, sunDir)
             //GPUASSERT(abs(radialSun) <= heightAtReference2 + _densityReferenceRadius, float4(radialSun, heightAtReference2, _densityReferenceRadius, 0));
             //GPUASSERT(abs(radialSun) <= heightAtReference2 + _densityReferenceRadius, float4(height, sunDir.y, mid, dot(dir, sunDir)));
             GPUASSERT(abs(radialSun) <= heightAtReference2 + _densityReferenceRadius, float4(height * sunDir.y, mid, dot(dir, sunDir), mid * dot(dir, sunDir)));

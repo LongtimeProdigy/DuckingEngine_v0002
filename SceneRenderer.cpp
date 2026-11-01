@@ -1062,6 +1062,28 @@ namespace DK
     void SceneRenderer::prepareSurfaceCapture(const float3& cameraPosition)
     {
 		AtmosphereConstantBuffer& atmosphereData = _atmosphereConstantBufferData;
+
+#if defined(_DK_DEBUG_)
+		// HLSL의 SURFACE_BOUNCE_GRID와 반드시 동일해야 합니다.
+		constexpr uint32 kSurfaceBounceGrid = 16u;
+		const uint32 mapSize = atmosphereData._surfaceMapSize;
+		// 격자 중심이 텍셀 경계에 위치하도록 강제합니다. 예: 512 / 16 = 32 → 짝수이므로 유효.
+		const bool validGrid = mapSize > 0u && mapSize % (2u * kSurfaceBounceGrid) == 0u;
+		// 셰이더가 사용하는 해상도와 실제 텍스처 해상도 일치.
+		const bool validMapSize = mapSize == _surfaceMap.size;
+		const bool validCapture = std::isfinite(_surfaceCaptureExtent) && _surfaceCaptureExtent > 0.0f && std::isfinite(_surfaceCaptureDepth) && _surfaceCaptureDepth > 0.0f;
+		const bool valid = validGrid && validMapSize && validCapture;
+		DK_ASSERT_LOG(valid, "Invalid surface capture: map size must match the texture and be an even multiple of the bounce grid.");
+
+		// Assert가 비활성화된 빌드에서도 잘못된 설정을 사용하지 않습니다.
+		if (!valid)
+		{
+			atmosphereData._surfaceMapEnabled = 0u;
+			_surfaceTransportValid = false;
+			return;
+		}
+#endif
+
         atmosphereData._surfaceMapEnabled = _renderLocalScene && (atmosphereData._surfaceShadowStrength > 0 || atmosphereData._surfaceBounceStrength > 0) ? 1u : 0u;
 
         const float depth = Math::max(_surfaceCaptureDepth, 1.0f);

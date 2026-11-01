@@ -56,7 +56,7 @@ namespace DK
 		const DKStringW shaderPathW = StringUtil::convertCtoWC(shaderFullPath.c_str());
 		const DKStringW shaderEntryW = StringUtil::convertCtoWC(entry);
 
-		IDxcBlobEncoding* blob;
+		IDxcBlobEncoding* blob = nullptr;
 		HRESULT hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->LoadFile(shaderPathW.c_str(), nullptr, &blob);
 		if (FAILED(hr) == true)
 		{
@@ -64,6 +64,23 @@ namespace DK
 			return false;
 		}
 		RenderResourcePtr<IDxcBlobEncoding> sourceBlob = blob;
+		// Keep BOM detection, but treat BOM-less HLSL as UTF-8 instead of CP_ACP.
+		BOOL encodingKnown = FALSE;
+		UINT32 sourceCodePage = DXC_CP_ACP;
+		hr = sourceBlob->GetEncoding(&encodingKnown, &sourceCodePage);
+		if (FAILED(hr))
+			return false;
+		if (!encodingKnown || sourceCodePage == DXC_CP_ACP)
+		{
+			IDxcBlobEncoding* utf8Blob = nullptr;
+			hr = _utils->CreateBlob(sourceBlob->GetBufferPointer(), static_cast<UINT32>(sourceBlob->GetBufferSize()), DXC_CP_UTF8, &utf8Blob);
+			if (FAILED(hr))
+			{
+				DK_ASSERT_LOG(false, "UTF-8 source creation failed\nPath: %s\nHRESULT: 0x%08X", shaderPath, static_cast<unsigned int>(hr));
+				return false;
+			}
+			sourceBlob = utf8Blob;
+		}
 
 		// 참고: https://simoncoenen.com/blog/programming/graphics/DxcCompiling
 		DKVector<LPCWSTR> arguments;
@@ -144,7 +161,7 @@ namespace DK
 		hr = _utils->GetBlobAsUtf8(sourceBlob.get(), &utf8Blob);
 		if (FAILED(hr))
 		{
-			DK_ASSERT_LOG(false, "Debug GetBlobAsUtf8 실패");
+			DK_ASSERT_LOG(false, "GetBlobAsUtf8 failed\nPath: %s\nHRESULT: 0x%08X", shaderPath, static_cast<unsigned int>(hr));
 			return false;
 		}
 

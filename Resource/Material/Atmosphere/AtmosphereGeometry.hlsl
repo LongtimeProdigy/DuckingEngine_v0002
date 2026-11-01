@@ -17,8 +17,8 @@ float atmosphereHeight(float3 cameraRelativePosition)
     // 카메라 근처인 경우 정밀도가 중요해지니 정밀도를 고려한 계산한다.
     // _cameraAltitude가 매우큰 경우 cameraRelativePosition에서 이미 부동소수점 오차가 엄청나게 크게 나온다. 이에 따라 아래 계산식이 꽤 큰 오차율을 뱉을 수 있으므로 clamp를 한다.
     const float numerator = dot(cameraRelativePosition, cameraRelativePosition) + 2.0f * dot(cameraRelativePosition, cameraRadial) + _cameraAltitude * (2.0f * _densityReferenceRadius + _cameraAltitude);
-    GPUASSERT(length(radial) + _densityReferenceRadius >= 1);
-    return clamp(numerator / length(radial) + _densityReferenceRadius, 0, _atmosphereRadius - _densityReferenceRadius);
+    GPUASSERT(length(radial) + _densityReferenceRadius > 0.0f);
+    return numerator / (length(radial) + _densityReferenceRadius);//clamp(, 0, _atmosphereRadius - _densityReferenceRadius);
 }
 
 float2 raySphere(const float3 sphereCentre, const float sphereRadius, const float3 rayOrigin, const float3 rayDir)
