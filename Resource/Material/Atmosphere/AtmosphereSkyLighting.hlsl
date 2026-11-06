@@ -5,7 +5,6 @@
 #include "Atmosphere/AtmosphereParameters.hlsl"
 static const uint SKY_WIDTH = 64u;
 static const uint SKY_HEIGHT = 32u;
-static const uint SKY_BANDS = 6u; // 0..4: GGX roughness, 5: diffuse irradiance.
 
 float2 skyCoordinates(float3 direction)
 {
@@ -25,20 +24,5 @@ float3 sampleSkyBand(uint textureIndex, float3 direction, uint band)
     return lerp(lerp(source.Load(int3(x0, y0, 0)).rgb, source.Load(int3(x1, y0, 0)).rgb, f.x),
                 lerp(source.Load(int3(x0, y1, 0)).rgb, source.Load(int3(x1, y1, 0)).rgb, f.x), f.y);
 }
-float3 atmosphereSkyAmbient(float3 N, float3 V, float3 baseColor, float metallic, float roughness, float ao)
-{
-    if (_skyLightingStrength <= 0.0f) return 0.0f;
-    const float NoV = saturate(dot(N, V));
-    const float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), baseColor, metallic);
-    const float3 F = F0 + (max(1.0f - roughness, F0) - F0) * pow(1.0f - NoV, 5.0f);
-    const float3 irradiance = sampleSkyBand(_skyFilteredIndex, N, 5u);
-    const float level = saturate(roughness) * 4.0f;
-    const uint band0 = uint(level), band1 = min(band0 + 1u, 4u);
-    const float3 R = reflect(-V, N);
-    const float3 reflection = lerp(sampleSkyBand(_skyFilteredIndex, R, band0),
-                                  sampleSkyBand(_skyFilteredIndex, R, band1), frac(level));
-    // Local camera probe; approximate specular IBL (no local visibility or multiscattering).
-    return ((1.0f - F) * (1.0f - metallic) * baseColor * irradiance / PI + F * reflection)
-        * saturate(ao) * max(_skyLightingStrength, 0.0f);
-}
+
 #endif

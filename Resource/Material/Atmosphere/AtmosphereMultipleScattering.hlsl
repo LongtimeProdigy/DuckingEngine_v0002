@@ -19,6 +19,10 @@ float2 atmosphereMultipleScatteringCoordinates(float heightAtReference, float mu
         : 0.25f + 0.75f * sqrt(saturate(heightAtTransition / (_atmosphereRadius - _densityTransitionRadius)));
     return float2(0.5f * (mu + 1.0f), v);
 }
+
+// index에 해당하는 MultipleScattering Texture를 샘플링. 
+// 결과는 heightAtReference에서 태양이 특정방향(mu에 내포)에 해당하는 단위 태양 irradiance를 기준으로 계산한 전 방향 평균 입사 radiance
+// 단위 태양(sunIntensity가 1)란 뜻으로 이 함수 밖에서 실제 _sunIntensity를 곱해서 사용
 float3 sampleAtmosphereMultipleScattering(uint index, float heightAtReference, float mu)
 {
     const float2 texel = atmosphereMultipleScatteringCoordinates(heightAtReference, mu) * float2(ATMOSPHERE_MULTIPLESCATTERING_WIDTH - 1u, ATMOSPHERE_MULTIPLESCATTERING_HEIGHT - 1u);
@@ -32,15 +36,16 @@ float3 sampleAtmosphereMultipleScattering(uint index, float heightAtReference, f
     GPUASSERT(all(blend1 >= 0));
     return lerp(blend0, blend1, f.y);
 }
-float3 atmosphereMultipleIncident(float height, float radialDotSun)
+// 실제 태양 irradiance와 사용자 강도
+float3 atmosphereMultipleIncident(float heightAtReference, float radialDotSun)
 {
     if (_multipleScatteringStrength <= 0.0f || _multipleScatteringMaxOrder <= 1u) 
         return 0.0f;
 
-    GPUAssert(_densityReferenceRadius + height > 1e-3f);
-    const float radius = _densityReferenceRadius + height;
+    GPUASSERT(_densityReferenceRadius + heightAtReference > 1e-3f);
+    const float radius = _densityReferenceRadius + heightAtReference;
     GPUASSERT(abs(radialDotSun) <= radius, float4(radialDotSun, radius, radialDotSun / radius, 0));
-    const float mu = radialDotSun / radius;
-    return sampleAtmosphereMultipleScattering(_multipleScatteringLutIndex, height, clamp(mu, -1, 1)) * atmosphereSunIrradiance() * saturate(_multipleScatteringStrength);    // 정밀도 문제로 clamp
+    const float mu = clamp(radialDotSun / radius, -1, 1); // 정밀도 문제로 clamp
+    return sampleAtmosphereMultipleScattering(_multipleScatteringLutIndex, heightAtReference, mu) * atmosphereSunIrradiance() * _multipleScatteringStrength;
 }
 #endif

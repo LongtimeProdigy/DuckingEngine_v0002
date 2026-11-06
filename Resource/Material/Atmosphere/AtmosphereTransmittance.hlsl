@@ -217,4 +217,12 @@ float3 getSunTransmittance(float3 cameraRelativePosition, float3 sunDir)
     const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(heightAtReference, dot(origin - _planetCentre, sunDir), hit.y);
     return exp(-atmosphereOpticalExtinction(optical.value));
 }
+
+// 2.3283064365386963e-10: 1 / 2³²입니다. 0~1 값 반환
+// 의도: 연속된 샘플이 한쪽 각도에 몰리지 않도록 합니다. 난수를 매번 생성하는 방식은 아닙니다.
+float radicalInverse(uint bits) 
+{ 
+    return float(reversebits(bits)) * 2.3283064365386963e-10f; 
+}
+
 #endif
