@@ -2622,9 +2622,6 @@ namespace DK
         if (_gpuTimestampHeap == nullptr || _gpuTimestampReadback == nullptr || _gpuTimestampFrequency == 0)
 			return;
 
-        // Keep the single query/readback slot until its result is consumed.
-        // Skip profiling (not rendering) while the previous submission is pending;
-        // otherwise execute() would replace its fence before we can collect it.
         if (_gpuTimingFence && _fences[_gpuTimingFenceIndex]->GetCompletedValue() < _gpuTimingFence)
             return;
 
@@ -2646,14 +2643,12 @@ namespace DK
             }
             else
             {
-                // Preserve the completed sample for a later readback attempt.
                 return;
             }
 
             _gpuTimingFence = 0;
         }
 
-        // Initialize absent/cached scopes to zero-duration intervals.
         for (uint32 i = 0; i < 10; ++i)
 			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, i);
 

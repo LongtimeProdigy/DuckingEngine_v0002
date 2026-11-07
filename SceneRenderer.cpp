@@ -1834,7 +1834,6 @@ namespace DK
 	void SceneRenderer::updateRender() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		// Finish uploads after UI changes, before preRender closes the upload phase.
 		renderModule.preRender();
 
 		updateAtmosphereTransmittanceLut();
