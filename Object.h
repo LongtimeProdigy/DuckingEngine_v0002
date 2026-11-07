@@ -14,17 +14,22 @@ namespace DK
 	public:
 		Object() = default;
 		Object(Object&&) = default;
+		Object& operator=(Object&&) = default;
 		Object(const Object& rhs) = delete;
+		virtual ~Object() = default;
 
 		virtual void update(float deltaTime) = 0;
 
-		void addComponent(Component* component) noexcept
+		void addComponent(Component* component)
 		{
-			_components.push_back(Ptr<Component>(component));
+		    if (component)
+		        _components.push_back(Ptr<Component>(component));
 		}
+		const DKVector<Ptr<Component>>& getComponents() const noexcept { return _components; }
 
-	public:
-		DKVector<Ptr<Component>> _components;
 		DK_REFLECTION_PROPERTY(Transform, _worldTransform);
+
+	protected:
+		DKVector<Ptr<Component>> _components;
 	};
 }

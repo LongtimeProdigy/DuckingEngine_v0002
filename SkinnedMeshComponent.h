@@ -18,13 +18,19 @@ namespace DK
 
 	private:
 		DK_REFLECTION_PROPERTY(DKString, _skeletonPath);
-		DK_REFLECTION_PROPERTY(DKString, _animationPath);
 
-		DK_REFLECTION_PROPERTY(SkinnedMeshModelRef, _model);
+		SkinnedMeshModelRef _model;
+
 		SkeletonRef _skeleton;
-		AnimationRef _animation;
 
-		DK_REFLECTION_VECTOR_PROPERTY(float4x4, _currentCharacterSpaceBoneAnimation);
-		DK_REFLECTION_PROPERTY(IBufferRef, _currentAnimationBufferCS);
+		DKString _animationPath;
+		AnimationRef _animation;
+		double _animationTime = 0.0;
+		DKVector<uint32> _trackIndices;
+		DKVector<float4x4> _inverseBindPose;
+		DKVector<float4x4> _animatedPose;
+
+		DKVector<float4x4> _currentCharacterSpaceBoneAnimation;
+		IBufferRef _currentAnimationBufferCS;
 	};
 }

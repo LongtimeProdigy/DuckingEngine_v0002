@@ -55,8 +55,6 @@ typedef unsigned long long uint64;
 #include <Windows.h>	// for OutputDebugStringA
 /////////////////////// #todo- 나중에 꼭 삭제할 것 /////////////////////// 
 #endif
-namespace DK
-{
 #define BLOCK(category)
 
 #define MAX_LOG_BUFFER_LENGTH 32768
@@ -92,8 +90,13 @@ namespace DK
 		__debugbreak();													\
 	}																	\
 }
+#else
+#define BLOCK(category)
+#define DK_LOG(...) ((void)0)
+#define DK_WLOG(...) ((void)0)
+#define DK_ASSERT_LOG(...) ((void)0)
+#define DK_ASSERT_WLOG(...) ((void)0)
 #endif
-}
 
 /*
 * #todo- 외부 라이브러리 목록 (필요시 나중에 따로 자체제작 할 목록들)
@@ -607,9 +610,12 @@ namespace DK
 		}
 		dk_inline const RenderResourcePtr& operator=(RenderResourcePtr&& rhs)
 		{
-			release();
-			_ptr = rhs._ptr;
-			rhs._ptr = nullptr;
+			if (this != &rhs)
+			{
+				release();
+				_ptr = rhs._ptr;
+				rhs._ptr = nullptr;
+			}
 
 			return *this;
 		}
@@ -632,7 +638,7 @@ namespace DK
 		}
 		dk_inline const T* operator->() const noexcept
 		{
-			return operator->();
+			return _ptr;
 		}
 
 		dk_inline T* get() noexcept

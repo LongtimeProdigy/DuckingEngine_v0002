@@ -114,7 +114,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // 상한을 제한. 샘플 개수가 적을 때 가까운 밝은 표면 하나가 너무 큰 기여를 만드는 현상을 완화하기 위한 안전장치
     // 4는 이상적인 Lambert 표면의 최대 radiance E/π를 구 전체 입체각 4π에 걸쳐 적분하면 4E가 된다는 데서 해석할 수 있습니다
     // 어떤 위치(P)에 모든 방향(4PI)에 들어오는 모든 빛의 양은 4.0f * atmosphereSunIrradiance()이기 때문에 해당 값이 최대값이다
-    GPUASSERT(all(bounce >= 0.0f && bounce <= 4.0f * atmosphereSunIrradiance()));
+    GPUASSERT(all(bounce >= 0.0f) && all(bounce <= 4.0f * atmosphereSunIrradiance()));
     //bounce = min(max(bounce, 0.0f), 4.0f * atmosphereSunIrradiance());
 
     // P로 들어오는 표면 반사광을 방향에 대해 합친 값의 근사치

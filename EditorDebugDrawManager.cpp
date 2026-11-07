@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#if defined(_DK_DEBUG_)
 #include "EditorDebugDrawManager.h"
 
 #include "DuckingEngine.h"
@@ -118,3 +119,4 @@ namespace DK
 		_primitiveInfoLineArr.clear();
 	}
 }
+#endif

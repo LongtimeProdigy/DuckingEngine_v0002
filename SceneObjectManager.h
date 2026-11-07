@@ -18,7 +18,7 @@ namespace DK
 		const DKString _animationSetPath;
 		DKVector<ModelData> _modelDataArr;
 
-		AppearanceData(const DKString& skeletonPath, const DKString& animationSetPath, const DKVector<ModelData>&& modelDataArr)
+		AppearanceData(const DKString& skeletonPath, const DKString& animationSetPath, DKVector<ModelData>&& modelDataArr)
 			: _skeletonPath(skeletonPath), _animationSetPath(animationSetPath), _modelDataArr(DK::move(modelDataArr))
 		{}
 	};
@@ -28,13 +28,6 @@ namespace DK
 		float4x4 _worldMatrix;
 	};
 
-#define MAX_BONE_COUNT 55
-#define INVALID_TEXTURE_INDEX 0xffffffff
-	struct SkeletonConstantBufferStruct
-	{
-		float4x4 _skeletonMatrixBuffer[MAX_BONE_COUNT];
-	};
-
 	class SceneObject;
 
 	class SceneObjectManager
@@ -42,35 +35,26 @@ namespace DK
 	public:
 		SceneObject* loadGLTF(const char* path);
 
-		SceneObject* createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
+		SceneObject* createStaticMeshSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
 		SceneObject* createCharacter(const char* appearancePath);
 
 		void update(float deltaTime);
 
-		dk_inline const DKHashMap<uint32, SceneObject>& getSceneObjects() const
+		dk_inline const DKVector<SceneObject>& getSceneObjects() const
 		{
 			return _sceneObjectContainer;
 		}
-		dk_inline DKHashMap<uint32, SceneObject>& getSceneObjectsWritable()
-		{
-			return _sceneObjectContainer;
-		}
-
-		dk_inline const DKHashMap<uint32, SceneObject>& getCharacterSceneObjects() const
+		dk_inline const DKVector<SceneObject>& getCharacterSceneObjects() const
 		{
 			return _characterSceneObjectContainer;
 		}
-		dk_inline DKHashMap<uint32, SceneObject>& getCharacterSceneObjectsWritable()
-		{
-			return _characterSceneObjectContainer;
-		}
-
 	private:
+		SceneObject* publish(SceneObject&& object, DKVector<SceneObject>& objects);
 		const AppearanceDataRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
 
 	private:
 		DKHashMap<DKString, AppearanceDataRef> _appearanceRawContainers;
-		DKHashMap<uint32, SceneObject> _sceneObjectContainer;
-		DKHashMap<uint32, SceneObject> _characterSceneObjectContainer;
+		DKVector<SceneObject> _sceneObjectContainer;
+		DKVector<SceneObject> _characterSceneObjectContainer;
 	};
 }

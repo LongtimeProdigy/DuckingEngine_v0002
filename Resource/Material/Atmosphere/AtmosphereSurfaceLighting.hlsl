@@ -110,7 +110,7 @@ float3 atmosphereSurfaceBounce(float3 p)
         result += field.Load(int3(cell.x + cell.z * int(SURFACE_BOUNCE_GRID), cell.y, 0)).rgb * weight.x * weight.y * weight.z;
     }
 
-    GPUASSERT(all(result > 0.0f));
+    GPUASSERT(all(isfinite(result)) && all(result >= 0.0f), float4(result, _surfaceBounceStrength));
     return result * _surfaceBounceStrength;
 }
 #endif

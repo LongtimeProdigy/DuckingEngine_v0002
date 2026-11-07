@@ -26,7 +26,7 @@ namespace DK
 		//_sponza->set_worldTransform(Transform(float3(0, 0, 0), Quaternion::Identity, float3(0.05f, 0.05f, 0.05f)));
 
 		// Test Object
-		_testObjectSceneObject = DuckingEngine::getInstance().GetSceneObjectManagerWritable().createSceneObject(
+		_testObjectSceneObject = DuckingEngine::getInstance().GetSceneObjectManagerWritable().createStaticMeshSceneObject(
 			"Object/Model/StaticMeshStandard.dm", 
 			"Object/ModelProperty/StaticMeshStandard.xml"
 		);

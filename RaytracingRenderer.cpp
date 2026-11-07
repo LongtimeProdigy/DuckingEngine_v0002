@@ -24,17 +24,17 @@ namespace DK
 
         DKVector<RaytracingGeometry> geometries;
         DKVector<ITextureRef> textures;
-        for (auto& entry : DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable())
+        for (auto& entry : DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects())
         {
-            SceneObject& object = entry.second;
-            for (auto& component : object._components)
+            const SceneObject& object = entry.second;
+            for (auto& component : object.getComponents())
             {
-                auto* mesh = dynamic_cast<StaticMeshComponent*>(component.get());
-                if (mesh == nullptr || mesh->get_modelWritable() == nullptr)
+                auto* mesh = dynamic_cast<const StaticMeshComponent*>(component.get());
+                if (mesh == nullptr || mesh->get_model() == nullptr)
                     continue;
-                for (auto& submesh : mesh->get_modelWritable()->get_subMeshArrWritable())
+                for (auto& submesh : mesh->get_model()->get_subMeshArr())
                 {
-                    Material* material = submesh._material.get();
+                    const Material* material = submesh._material.get();
                     if (submesh._indices.empty() || submesh._vertices.empty() || material == nullptr)
                         continue;
                     // The current hit shader uses the StaticMeshStandard material layout.
@@ -45,7 +45,7 @@ namespace DK
                     RaytracingGeometry geometry;
                     geometry._vertices = submesh._vertexBuffer;
                     geometry._indices = submesh._indexBuffer;
-                    geometry._material = material->get_parameterBufferForGPUWritable();
+                    geometry._material = material->get_parameterBufferForGPU();
                     geometry._vertexCount = static_cast<uint32>(submesh._vertices.size());
                     geometry._vertexStride = sizeof(StaticMeshVertex);
                     geometry._indexCount = static_cast<uint32>(submesh._indices.size());
@@ -56,7 +56,7 @@ namespace DK
                     {
                         if (parameter->getType() == MaterialParameterType::TEXTURE)
                         {
-                            auto texture = static_cast<MaterialParameterTexture*>(parameter.get())->_value;
+                            auto texture = static_cast<const MaterialParameterTexture*>(parameter.get())->_value;
                             if (texture != nullptr)
                                 textures.push_back(DK::move(texture));
                         }

@@ -18,14 +18,12 @@
 #include "lib/tinyGLTF/tiny_gltf.h"
 #include <optional>
 #include "Model.h"
-#include "ResourceManager.h"
 #include "SceneRenderer.h"
-#include <iostream>
 #endif
 
 namespace DK
 {
-	bool createSceneObjectConstantBuffer(SceneObject& sceneObject)
+	const bool createSceneObjectConstantBuffer(SceneObject& sceneObject)
 	{
 		// for GPU resource
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
@@ -41,10 +39,6 @@ namespace DK
 		return true;
 	}
 
-	[[noreturn]] static void Fail(const std::string& message)
-	{
-		throw std::runtime_error("[glTF Loader] " + message);
-	}
 	template <typename T>
 	static T ReadUnaligned(const uint8_t* src)
 	{
@@ -87,28 +81,16 @@ namespace DK
 			loaded = loader.LoadASCIIFromFile(&gltfModel, &error, &warning, path);
 		else
 		{
-			DK_ASSERT_LOG(false, "확장자는 .gltf 또는 .glb여야 합니다.");
+			DK_LOG("Unsupported glTF file extension: %s", extension.c_str());
 			return nullptr;
 		}
-		if (!loaded)
+		if (loaded == false)
 		{
-			DK_ASSERT_LOG(false, "파일 로딩 실패: %s", error.c_str());
+			DK_LOG("glTF file load failed: %s", error.c_str());
 			return nullptr;
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-
-		//for (size_t i = 0; i < gltfModel.textures.size(); ++i)
-		//{
-		//	const auto& tex = gltfModel.textures[i];
-		//	DK_LOG("Textre[%d] -> Image[%d] : %s", i, tex.source, tex.name.c_str());
-		//}
-
-		//for (size_t i = 0; i < gltfModel.images.size(); ++i)
-		//{
-		//	const auto& image = gltfModel.images[i];
-		//	DK_LOG("Image[%d] : %s / %s / %dx%d component=%d", i, image.name.c_str(), image.uri.c_str(), image.width, image.height, image.component);
-		//}
 
 		DKVector<ITextureRef> textures;
 		textures.resize(gltfModel.textures.size());
@@ -117,15 +99,27 @@ namespace DK
 			const tinygltf::Texture& srcTexture = gltfModel.textures[i];
 			const int imageIndex = srcTexture.source;
 			if (imageIndex < 0 || imageIndex >= static_cast<int>(gltfModel.images.size()))
-				Fail("Invalid image index.");
+			{
+				DK_ASSERT_LOG(false, "Invalid image index.");
+				return false;
+			}
 
-			const tinygltf::Image& src =gltfModel.images[imageIndex];
+			const tinygltf::Image& src = gltfModel.images[imageIndex];
 			if (src.width <= 0 || src.height <= 0)
-				throw std::runtime_error("Invalid CpuImage size.");
+			{
+				DK_ASSERT_LOG(false, "Invalid image size.");
+				return false;
+			}
 			if (src.bits != 8)
-				throw std::runtime_error("Only 8-bit CpuImage is supported.");
+			{
+				DK_ASSERT_LOG(false, "Only 8-bit images are supported.");
+				return false;
+			}
 			if (src.component < 1 || src.component > 4)
-				throw std::runtime_error("CpuImage component must be 1~4. not 3");
+			{
+				DK_ASSERT_LOG(false, "Invalid image channel count.");
+				return false;
+			}
 
 			DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
 			switch (src.component)
@@ -140,43 +134,28 @@ namespace DK
 				format = DXGI_FORMAT_R8G8B8A8_UNORM;
 				break;
 			default:
-				throw std::runtime_error("CpuImage component must be 1~4. not 3");
-				break;
+			{
+				DK_ASSERT_LOG(false, "Unsupported image channel count.");
+				return false;
+			}
 			}
 
 			textures[i] = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
+			if (textures[i] == nullptr)
+				return nullptr;
 		}
-
-		//// Texture 추출
-		//result.model.textures.reserve(gltfModel.textures.size());
-
-		//for (const tinygltf::Texture& src : gltfModel.textures)
-		//{
-		//	CpuTexture dst;
-		//	dst.name = src.name;
-		//	dst.imageIndex = src.source;
-
-		//	if (dst.imageIndex >= static_cast<int>(result.model.images.size()))
-		//	{
-		//		Fail("texture가 존재하지 않는 image를 참조합니다.");
-		//	}
-
-		//	result.model.textures.push_back(std::move(dst));
-		//}
 
 		// Material 추출
 		struct TextureBinding
 		{
 			// CpuModel::textures 인덱스. 없으면 -1.
 			int textureIndex = -1;
-
-			// glTF material textureInfo.texCoord 값.
-			// 이 샘플 Vertex는 uv0, uv1만 보관합니다.
+			// glTF material textureInfo.texCoord 값. 이 샘플 Vertex는 uv0, uv1만 보관합니다.
 			int texCoord = 0;
 		};
 		struct CpuMaterial
 		{
-			std::string name;
+			DKString name;
 
 			// glTF metallic-roughness PBR
 			float4 baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -194,7 +173,7 @@ namespace DK
 			float occlusionStrength = 1.0f;
 
 			bool doubleSided = false;
-			std::string alphaMode = "OPAQUE"; // OPAQUE / MASK / BLEND
+			DKString alphaMode = "OPAQUE"; // OPAQUE / MASK / BLEND
 			float alphaCutoff = 0.5f;
 		};
 
@@ -206,13 +185,6 @@ namespace DK
 			TextureBinding result;
 			result.textureIndex = textureIndex;
 			result.texCoord = texCoord;
-
-			if (textureIndex < 0)
-				return result;
-
-			if (textureIndex >= static_cast<int>(model.textures.size()))
-				Fail("Material이 존재하지 않는 texture를 참조합니다.");
-
 			return result;
 		};
 		auto ConvertMaterial = [&MakeTextureBinding, &textures](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
@@ -234,6 +206,12 @@ namespace DK
 			//	CopyFactor(src.emissiveFactor, factor);
 			//	dst.emissiveFactor = { factor[0], factor[1], factor[2] };
 			//}
+
+			DK_ASSERT_LOG(src.pbrMetallicRoughness.baseColorTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
+			DK_ASSERT_LOG(src.pbrMetallicRoughness.metallicRoughnessTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
+			DK_ASSERT_LOG(src.normalTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
+			DK_ASSERT_LOG(src.occlusionTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
+			DK_ASSERT_LOG(src.emissiveTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
 
 			dst.baseColorTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.baseColorTexture.index, src.pbrMetallicRoughness.baseColorTexture.texCoord);
 			dst.metallicRoughnessTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.metallicRoughnessTexture.index, src.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
@@ -257,28 +235,9 @@ namespace DK
 			// RenderPass로부터 Parameter를 세팅
 			uint32 parameterBufferSize = 0;
 			const uint32 parameterCount = static_cast<uint32>(materialDefinition->_parameters.size());
-			Material* outMaterial = dk_new Material;
-			outMaterial->_materialName = "StaticMeshStandard";
-			outMaterial->_parameterArr.resize(parameterCount);
-			for (uint32 i = 0; i < parameterCount; ++i)
-			{
-				MaterialParameter* newParameter = MaterialParameter::createMaterialParameter(materialDefinition->_parameters[i]);
-				outMaterial->_parameterArr[i] = newParameter;
-
-				parameterBufferSize += outMaterial->_parameterArr[i]->getParameterSize();
-			}
-
-			// CPU 및 GPU 버퍼 생성 및 Parameter ValuePtr 세팅
-			uint32 offset = 0;
-			outMaterial->_parameterBufferForCPU.resize(parameterBufferSize);
-			for (uint32 i = 0; i < parameterCount; ++i)
-			{
-				outMaterial->_parameterArr[i]->setParameterValuePtr(&outMaterial->_parameterBufferForCPU[offset]);
-				offset += outMaterial->_parameterArr[i]->getParameterSize();
-			}
-
-			RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-			outMaterial->_parameterBufferForGPU = renderModule.createConstantBuffer(parameterBufferSize, L"Material_CBuffer");
+			Ptr<Material> outMaterial = Material::createMaterial("StaticMeshStandard");
+			if (outMaterial.get() == nullptr)
+				return nullptr;
 
 			const ITextureRef& baseColorTexture = textures[dst.baseColorTexture.textureIndex];
 			for (uint32 i = 0; i < parameterCount; ++i)
@@ -294,10 +253,16 @@ namespace DK
 
 			outMaterial->_parameterBufferForGPU->upload(outMaterial->_parameterBufferForCPU.data());
 
-			return outMaterial;
+			return outMaterial.relocate();
 		};
 		for (const tinygltf::Material& src : gltfModel.materials)
-			materials.push_back(ConvertMaterial(gltfModel, src));
+		{
+			Ptr<Material> material(ConvertMaterial(gltfModel, src));
+			if (material.get() == nullptr)
+				return nullptr;
+
+			materials.push_back(DK::move(material));
+		}
 
 		// Mesh Primitive -> VertexBuffer / IndexBuffer 변환
 		auto FindAttributeAccessor = [](const tinygltf::Primitive& primitive, const char* semantic)->int
@@ -323,28 +288,49 @@ namespace DK
 		auto GetAccessorSpan = [](const tinygltf::Model& model, int accessorIndex)->AccessorSpan
 		{
 			if (accessorIndex < 0 || accessorIndex >= static_cast<int>(model.accessors.size()))
-				Fail("잘못된 accessor 인덱스");
+			{
+				DK_ASSERT_LOG(false, "잘못된 accessor 인덱스");
+				return AccessorSpan();
+			}
 
 			const tinygltf::Accessor& accessor = model.accessors[accessorIndex];
 
 			// Sparse accessor는 base buffer data 위에 patch를 적용해야 합니다.
 			// 이 예제는 명시적으로 거부합니다.
 			if (accessor.sparse.isSparse)
-				Fail("Sparse accessor는 이 샘플에서 지원하지 않습니다.");
+			{
+				DK_ASSERT_LOG(false, "Sparse accessor는 이 샘플에서 지원하지 않습니다.");
+				return AccessorSpan();
+			}
 			if (accessor.bufferView < 0 || accessor.bufferView >= static_cast<int>(model.bufferViews.size()))
-				Fail("accessor에 유효한 bufferView가 없습니다.");
+			{
+				DK_ASSERT_LOG(false, "accessor에 유효한 bufferView가 없습니다.");
+				return AccessorSpan();
+			}
 
 			const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
 			if (view.buffer < 0 || view.buffer >= static_cast<int>(model.buffers.size()))
-				Fail("bufferView가 잘못된 buffer를 참조합니다.");
+			{
+				DK_ASSERT_LOG(false, "bufferView가 잘못된 buffer를 참조합니다.");
+				return AccessorSpan();
+			}
 			if (view.byteStride < 0)
-				Fail("음수 byteStride는 허용되지 않습니다.");
+			{
+				DK_ASSERT_LOG(false, "음수 byteStride는 허용되지 않습니다.");
+				return AccessorSpan();
+			}
 			if (accessor.byteOffset > view.byteLength)
-				Fail("accessor byteOffset이 bufferView 범위를 벗어났습니다.");
+			{
+				DK_ASSERT_LOG(false, "accessor byteOffset이 bufferView 범위를 벗어났습니다.");
+				return AccessorSpan();
+			}
 
 			const tinygltf::Buffer& buffer = model.buffers[view.buffer];
 			if (view.byteOffset > buffer.data.size() || view.byteLength > buffer.data.size() - view.byteOffset)
-				Fail("bufferView 범위가 buffer 범위를 벗어났습니다.");
+			{
+				DK_ASSERT_LOG(false, "bufferView 범위가 buffer 범위를 벗어났습니다.");
+				return AccessorSpan();
+			}
 
 			size_t componentSize, componentCount;
 			switch (accessor.componentType)
@@ -362,7 +348,10 @@ namespace DK
 				componentSize = 4;
 				break;
 			default:
-				Fail("지원하지 않는 accessor componentType");
+			{
+				DK_ASSERT_LOG(false, "지원하지 않는 accessor componentType");
+				return AccessorSpan();
+			}
 			}
 			switch (accessor.type)
 			{
@@ -371,24 +360,36 @@ namespace DK
 			case TINYGLTF_TYPE_VEC3:   componentCount = 3; break;
 			case TINYGLTF_TYPE_VEC4:   componentCount = 4; break;
 			default:
-				Fail("SCALAR/VEC2/VEC3/VEC4 이외 accessor는 이 로더에서 지원하지 않습니다.");
+			{
+				DK_ASSERT_LOG(false, "SCALAR/VEC2/VEC3/VEC4 이외 accessor는 이 로더에서 지원하지 않습니다.");
+				return AccessorSpan();
+			}
 			}
 
 			const size_t elementSize = componentSize * componentCount;
 			const size_t stride = (view.byteStride != 0) ? static_cast<size_t>(view.byteStride) : elementSize;
 			if (stride < elementSize)
-				Fail("byteStride가 element size보다 작습니다.");
+			{
+				DK_ASSERT_LOG(false, "byteStride가 element size보다 작습니다.");
+				return AccessorSpan();
+			}
 
 			const size_t availableBytes = view.byteLength - accessor.byteOffset;
 			if (accessor.count > 0)
 			{
 				if (elementSize > availableBytes)
-					Fail("accessor element가 bufferView 범위를 벗어났습니다.");
+				{
+					DK_ASSERT_LOG(false, "accessor element가 bufferView 범위를 벗어났습니다.");
+					return AccessorSpan();
+				}
 
 				const size_t remainingBytes = availableBytes - elementSize;
 				const size_t elementCountAfterFirst = accessor.count - 1;
 				if (elementCountAfterFirst > remainingBytes / stride)
-					Fail("accessor 데이터가 bufferView 범위를 벗어났습니다.");
+				{
+					DK_ASSERT_LOG(false, "accessor 데이터가 bufferView 범위를 벗어났습니다.");
+					return AccessorSpan();
+				}
 			}
 
 			AccessorSpan result;
@@ -404,78 +405,87 @@ namespace DK
 
 			return result;
 		};
-		auto ComponentByteSize = [](int componentType)->size_t
+		auto ReadFloatComponent = [](const AccessorSpan& accessor, size_t elementIndex, size_t componentIndex)->float
 		{
-			switch (componentType)
+			if (elementIndex >= accessor.count || componentIndex >= accessor.componentCount)
+			{
+				DK_ASSERT_LOG(false, "accessor read 범위 초과");
+				return 0;
+			}
+
+			size_t componentSize = 0;
+			switch (accessor.componentType)
 			{
 			case TINYGLTF_COMPONENT_TYPE_BYTE:
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-				return 1;
-
+				componentSize = 1;
+				break;
 			case TINYGLTF_COMPONENT_TYPE_SHORT:
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-				return 2;
-
+				componentSize = 2;
+				break;
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
 			case TINYGLTF_COMPONENT_TYPE_FLOAT:
-				return 4;
-
+				componentSize = 4;
+				break;
 			default:
-				Fail("지원하지 않는 accessor componentType");
+			{
+				DK_ASSERT_LOG(false, "지원하지 않는 accessor componentType");
+				return 0;
 			}
-		};
-		auto ReadComponentAsFloat = [](const uint8_t* ptr, int componentType, bool normalized)->float
-		{
-			switch (componentType)
+			}
+
+			const uint8_t* ptr = accessor.data + elementIndex * accessor.stride + componentIndex * componentSize;
+
+			float returnValue = 0;
+			switch (accessor.componentType)
 			{
 			case TINYGLTF_COMPONENT_TYPE_BYTE:
 			{
 				const float value = static_cast<float>(ReadUnaligned<int8_t>(ptr));
-				return normalized ? std::max(-1.0f, value / 127.0f) : value;
+				returnValue = accessor.normalized ? std::max(-1.0f, value / 127.0f) : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
 			{
 				const float value = static_cast<float>(ReadUnaligned<uint8_t>(ptr));
-				return normalized ? value / 255.0f : value;
+				returnValue = accessor.normalized ? value / 255.0f : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_SHORT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<int16_t>(ptr));
-				return normalized ? std::max(-1.0f, value / 32767.0f) : value;
+				returnValue = accessor.normalized ? std::max(-1.0f, value / 32767.0f) : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<uint16_t>(ptr));
-				return normalized ? value / 65535.0f : value;
+				returnValue = accessor.normalized ? value / 65535.0f : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<uint32_t>(ptr));
-				return normalized ? value / 4294967295.0f : value;
+				returnValue = accessor.normalized ? value / 4294967295.0f : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_FLOAT:
-				return ReadUnaligned<float>(ptr);
+				returnValue = ReadUnaligned<float>(ptr);
 			default:
-				Fail("float으로 변환할 수 없는 componentType");
+			{
+				DK_ASSERT_LOG(false, "float으로 변환할 수 없는 componentType");
+				return 0;
 			}
-		};
-		auto ReadFloatComponent = [&ComponentByteSize, &ReadComponentAsFloat](const AccessorSpan& accessor, size_t elementIndex, size_t componentIndex)->float
-		{
-			if (elementIndex >= accessor.count || componentIndex >= accessor.componentCount)
-				Fail("accessor read 범위 초과");
-
-			const size_t componentSize = ComponentByteSize(accessor.componentType);
-
-			const uint8_t* ptr = accessor.data + elementIndex * accessor.stride + componentIndex * componentSize;
-
-			return ReadComponentAsFloat(ptr, accessor.componentType, accessor.normalized);
+			}
 		};
 		auto ReadIndex = [](const AccessorSpan& accessor, size_t index)->uint32_t
 		{
 			if (accessor.componentCount != 1)
-				Fail("Index accessor는 SCALAR여야 합니다.");
+			{
+				DK_ASSERT_LOG(false, "Index accessor는 SCALAR여야 합니다.");
+				return UINT32_MAX;
+			}
 			if (index >= accessor.count)
-				Fail("Index accessor 범위 초과");
+			{
+				DK_ASSERT_LOG(false, "Index accessor 범위 초과");
+				return UINT32_MAX;
+			}
 
 			const uint8_t* ptr = accessor.data + index * accessor.stride;
 			switch (accessor.componentType)
@@ -487,24 +497,34 @@ namespace DK
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
 				return ReadUnaligned<uint32_t>(ptr);
 			default:
-				Fail("Index accessor는 UNSIGNED_BYTE/SHORT/INT만 지원합니다.");
+			{
+				DK_ASSERT_LOG(false, "Index accessor는 UNSIGNED_BYTE/SHORT/INT만 지원합니다.");
+				return UINT32_MAX;
+			}
 			}
 		};
-		auto ConvertToTriangleList = [](const DKVector<uint32_t>& sourceIndices, int primitiveMode)->DKVector<uint32_t>
+		auto ConvertToTriangleList = [](const DKVector<uint32_t>& sourceIndices, int primitiveMode, DKVector<uint32_t>& result)->bool
 		{
 			switch (primitiveMode)
 			{
 			case TINYGLTF_MODE_TRIANGLES:
 			{
 				if ((sourceIndices.size() % 3) != 0)
-					Fail("TRIANGLES index 개수는 3의 배수여야 합니다.");
-				return sourceIndices;
+				{
+					DK_ASSERT_LOG(false, "TRIANGLES index 개수는 3의 배수여야 합니다.");
+					return false;
+				}
+
+				result = sourceIndices;
+				return true;
 			}
 			case TINYGLTF_MODE_TRIANGLE_STRIP:
 			{
-				DKVector<uint32_t> result;
 				if (sourceIndices.size() < 3)
-					return result;
+				{
+					DK_ASSERT_LOG(false, "TRIANGLES index 개수는 3의 배수여야 합니다.");
+					return false;
+				}
 
 				result.reserve((sourceIndices.size() - 2) * 3);
 				for (size_t i = 0; i + 2 < sourceIndices.size(); ++i)
@@ -524,13 +544,15 @@ namespace DK
 					}
 				}
 
-				return result;
+				return true;
 			}
 			case TINYGLTF_MODE_TRIANGLE_FAN:
 			{
-				DKVector<uint32_t> result;
 				if (sourceIndices.size() < 3)
-					return result;
+				{
+					DK_ASSERT_LOG(false, "TRIANGLES index 개수는 3의 배수여야 합니다.");
+					return false;
+				}
 
 				result.reserve((sourceIndices.size() - 2) * 3);
 				for (size_t i = 1; i + 1 < sourceIndices.size(); ++i)
@@ -540,21 +562,30 @@ namespace DK
 					result.push_back(sourceIndices[i + 1]);
 				}
 
-				return result;
+				return true;
 			}
 			default:
-				Fail("POINTS/LINES 계열 primitive는 이 로더에서 지원하지 않습니다.");
+			{
+				DK_ASSERT_LOG(false, "POINTS/LINES 계열 primitive는 이 로더에서 지원하지 않습니다.");
+				return false;
+			}
 			}
 		};
-		auto ConvertPrimitive = [&FindAttributeAccessor, &GetAccessorSpan, &ReadFloatComponent, &ReadIndex, &ConvertToTriangleList](const tinygltf::Model& model, const tinygltf::Primitive& primitive, uint32_t meshIndex, uint32_t primitiveIndex)->CpuPrimitive<StaticMeshModel::SubMeshType::VertexType>
+		auto ConvertPrimitive = [&FindAttributeAccessor, &GetAccessorSpan, &ReadFloatComponent, &ReadIndex, &ConvertToTriangleList](const tinygltf::Model& model, const tinygltf::Primitive& primitive, uint32_t meshIndex, uint32_t primitiveIndex, CpuPrimitive<StaticMeshModel::SubMeshType::VertexType>& result)->bool
 		{
 			const int positionAccessorIndex = FindAttributeAccessor(primitive, "POSITION");
 			if (positionAccessorIndex < 0)
-				Fail("glTF primitive에 POSITION attribute가 없습니다.");
+			{
+				DK_ASSERT_LOG(false, "glTF primitive에 POSITION attribute가 없습니다.");
+				return false;
+			}
 
 			const AccessorSpan positions = GetAccessorSpan(model, positionAccessorIndex);
 			if (positions.componentCount != 3)
-				Fail("POSITION은 VEC3여야 합니다.");
+			{
+				DK_ASSERT_LOG(false, "POSITION은 VEC3여야 합니다.");
+				return false;
+			}
 
 			const size_t vertexCount = positions.count;
 
@@ -569,22 +600,30 @@ namespace DK
 			{
 				normals = GetAccessorSpan(model, normalAccessorIndex);
 				if (normals->componentCount != 3 || normals->count != vertexCount)
-					Fail("NORMAL accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
+				{
+					DK_ASSERT_LOG(false, "NORMAL accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
+					return false;
+				}
 			}
 			if (uv0AccessorIndex >= 0)
 			{
 				uv0 = GetAccessorSpan(model, uv0AccessorIndex);
 				if (uv0->componentCount != 2 || uv0->count != vertexCount)
-					Fail("TEXCOORD_0 accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
+				{
+					DK_ASSERT_LOG(false, "TEXCOORD_0 accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
+					return false;
+				}
 			}
 			if (uv1AccessorIndex >= 0)
 			{
 				uv1 = GetAccessorSpan(model, uv1AccessorIndex);
 				if (uv1->componentCount != 2 || uv1->count != vertexCount)
-					Fail("TEXCOORD_1 accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
+				{
+					DK_ASSERT_LOG(false, "TEXCOORD_1 accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
+					return false;
+				}
 			}
 
-			CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> result;
 			//result.name = primitive.name;
 			result.sourceMeshIndex = meshIndex;
 			result.sourcePrimitiveIndex = primitiveIndex;
@@ -610,14 +649,20 @@ namespace DK
 			{
 				const AccessorSpan indexAccessor = GetAccessorSpan(model, primitive.indices);
 				if (indexAccessor.componentCount != 1)
-					Fail("Index accessor는 SCALAR 타입이어야 합니다.");
+				{
+					DK_ASSERT_LOG(false, "Index accessor는 SCALAR 타입이어야 합니다.");
+					return false;
+				}
 
 				sourceIndices.resize(indexAccessor.count);
 				for (size_t i = 0; i < indexAccessor.count; ++i)
 				{
 					const uint32_t index = ReadIndex(indexAccessor, i);
 					if (index >= vertexCount)
-						Fail("IndexBuffer가 VertexBuffer 범위를 벗어났습니다.");
+					{
+						DK_ASSERT_LOG(false, "IndexBuffer가 VertexBuffer 범위를 벗어났습니다.");
+						return false;
+					}
 
 					sourceIndices[i] = index;
 				}
@@ -627,15 +672,20 @@ namespace DK
 				//// index accessor가 없는 glTF primitive도 유효합니다.
 				//sourceIndices.resize(vertexCount);
 				//std::iota(sourceIndices.begin(), sourceIndices.end(), 0u);
-				Fail("");
+				DK_ASSERT_LOG(false, "");
+				return false;
 			}
 
-			result.indices = ConvertToTriangleList( sourceIndices, primitive.mode);
+			if (ConvertToTriangleList(sourceIndices, primitive.mode, result.indices) == false)
+				return false;
 
 			if (primitive.material >= 0)
 			{
 				if (primitive.material >= static_cast<int>(model.materials.size()))
-					Fail("primitive가 존재하지 않는 material을 참조합니다.");
+				{
+					DK_ASSERT_LOG(false, "primitive가 존재하지 않는 material을 참조합니다.");
+					return false;
+				}
 
 				// CpuModel::materials[0]은 기본 material.
 				result.materialIndex = static_cast<uint32_t>(primitive.material);
@@ -643,10 +693,11 @@ namespace DK
 			else
 			{
 				//result.materialIndex = 0;
-				Fail("");
+				DK_ASSERT_LOG(false, "");
+				return false;
 			}
 
-			return result;
+			return true;
 		};
 
 		SceneObject newSceneObject;
@@ -656,6 +707,7 @@ namespace DK
 			const tinygltf::Mesh& mesh = gltfModel.meshes[meshIndex];
 
 			StaticMeshComponent* staticMeshComponent = dk_new StaticMeshComponent;
+			newSceneObject.addComponent(staticMeshComponent);
 			staticMeshComponent->set_modelPath(mesh.name);
 			staticMeshComponent->set_modelPropertyPath("GLTF_ModelProeprty");
 
@@ -664,7 +716,10 @@ namespace DK
 			for (uint32_t primitiveIndex = 0; primitiveIndex < static_cast<uint32_t>(mesh.primitives.size()); ++primitiveIndex)
 			{
 				const tinygltf::Primitive& primitive = mesh.primitives[primitiveIndex];
-				CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> cpuPrimitive = ConvertPrimitive(gltfModel, primitive, meshIndex, primitiveIndex);
+				CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> cpuPrimitive;
+				if (ConvertPrimitive(gltfModel, primitive, meshIndex, primitiveIndex, cpuPrimitive) == false)
+					return false;
+
 				//result.model.primitives.push_back();
 
 				VertexBufferViewRef vertexBufferView;
@@ -690,55 +745,32 @@ namespace DK
 				subMeshArr.push_back(DK::move(subMesh));
 			}
 
-			// TODO:  For문이 중간에 실패하면 container에서 지워줘야하는데, 현재는 GC가 없으니 일단 두자
-			ResourceManager& resourceManager = DuckingEngine::getInstance().GetResourceManagerWritable();
-			auto insertResult = resourceManager._staticMeshModelContainer.insert(DKPair<DKString, StaticMeshModelRef>(path, dk_new StaticMeshModel(DK::move(subMeshArr))));
-			if (insertResult.second == false)
-			{
-				DK_ASSERT_LOG(false, "Container Insert Failed!");
-				return nullptr;
-			}
-
-			staticMeshComponent->set_model(insertResult.first->second);
-			if (staticMeshComponent->get_model() == nullptr)
-				return nullptr;
-
-			newSceneObject.addComponent(staticMeshComponent);
+			staticMeshComponent->set_model(std::make_shared<StaticMeshModel>(DK::move(subMeshArr)));
 		}
-
-		if (createSceneObjectConstantBuffer(newSceneObject) == false)
+		if (gltfModel.meshes.empty())
 			return nullptr;
 
-		const uint32 key = static_cast<uint32>(_sceneObjectContainer.size());
-		auto [iter, inserted] = _sceneObjectContainer.try_emplace(key, DK::move(newSceneObject));
-		if (inserted == false)
-			return nullptr;
-
-		return &iter->second;
+		return publish(DK::move(newSceneObject), _sceneObjectContainer);
 	}
 
-	SceneObject* SceneObjectManager::createSceneObject(const DKString& modelPath, const DKString& modelPropertyPath)
+	SceneObject* SceneObjectManager::publish(SceneObject&& object, DKVector<SceneObject>& objects)
 	{
-		SceneObjectManager& thisXXX = DuckingEngine::getInstance().GetSceneObjectManagerWritable();
+		if (createSceneObjectConstantBuffer(object) == false)
+			return nullptr;
+		return &objects.emplace_back(DK::move(object));
+	}
 
+	SceneObject* SceneObjectManager::createStaticMeshSceneObject(const DKString& modelPath, const DKString& modelPropertyPath)
+	{
 		SceneObject newSceneObject;
-		StaticMeshComponent* staticMeshComponent = dk_new StaticMeshComponent;
-		staticMeshComponent->set_modelPath(modelPath);
-		staticMeshComponent->set_modelPropertyPath(modelPropertyPath);
-		if (staticMeshComponent->loadResource() == false)
+		StaticMeshComponent* component = dk_new StaticMeshComponent;
+		newSceneObject.addComponent(component);
+		component->set_modelPath(modelPath);
+		component->set_modelPropertyPath(modelPropertyPath);
+		if (component->loadResource() == false)
 			return nullptr;
 
-		newSceneObject.addComponent(staticMeshComponent);
-
-		if (createSceneObjectConstantBuffer(newSceneObject) == false)
-			return nullptr;
-
-		const uint32 key = static_cast<uint32>(thisXXX._sceneObjectContainer.size());
-		auto success = thisXXX._sceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, DK::move(newSceneObject)));
-		if (success.second == false)
-			return nullptr;
-
-		return &success.first->second;
+		return publish(DK::move(newSceneObject), _sceneObjectContainer);
 	}
 
 	const AppearanceDataRef SceneObjectManager::loadCharacter_LoadAppearanceFile(const char* appearancePath)
@@ -777,17 +809,12 @@ namespace DK
 			modelDataArr.push_back(AppearanceData::ModelData(modelPath, modelPropertyPath));
 		}
 
-		auto insertResult = _appearanceRawContainers.insert(
-			DKPair<const char*, AppearanceDataRef>(appearancePath, dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr)))
-		);
-
+		auto insertResult = _appearanceRawContainers.insert(DKPair<const char*, AppearanceDataRef>(appearancePath, dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr))));
 		return insertResult.first->second;
 	}
 	SceneObject* SceneObjectManager::createCharacter(const char* appearancePath)
 	{
-		SceneObjectManager& thisXXX = DuckingEngine::getInstance().GetSceneObjectManagerWritable();
-
-		const AppearanceDataRef& appearanceData = thisXXX.loadCharacter_LoadAppearanceFile(appearancePath);
+		const AppearanceDataRef& appearanceData = loadCharacter_LoadAppearanceFile(appearancePath);
 		if (appearanceData == nullptr)
 			return nullptr;
 
@@ -801,7 +828,7 @@ namespace DK
 			if (i == 0)	// MainSkinnedMesh
 			{
 				skinnedMeshComponent->set_skeletonPath(appearanceData->_skeletonPath);
-				skinnedMeshComponent->set_animationPath(appearanceData->_animationSetPath);	// #todo- 나중에 AnimationSet으로 변경(AnimationController 만든 후에)
+				skinnedMeshComponent->_animationPath = appearanceData->_animationSetPath;	// #todo- 나중에 AnimationSet으로 변경(AnimationController 만든 후에)
 			}
 			if (skinnedMeshComponent->loadResource() == false)
 				return nullptr;
@@ -809,25 +836,14 @@ namespace DK
 			newSceneObject.addComponent(skinnedMeshComponent);
 		}
 
-		if (createSceneObjectConstantBuffer(newSceneObject) == false)
-			return nullptr;
-
-		const uint32 key = static_cast<uint32>(thisXXX._characterSceneObjectContainer.size());
-		auto success = thisXXX._characterSceneObjectContainer.insert(DKPair<uint32, SceneObject>(key, DK::move(newSceneObject)));
-		if (success.second == false)
-			return nullptr;
-
-		return &success.first->second;
+		return publish(DK::move(newSceneObject), _characterSceneObjectContainer);
 	}
 
 	void SceneObjectManager::update(float deltaTime)
 	{
-		for (auto iter = _characterSceneObjectContainer.begin(); iter != _characterSceneObjectContainer.end(); ++iter)
-		{
-			SceneObject& sceneObject = iter->second;
-			uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
-			for (uint32 i = 0; i < componentCount; ++i)
-				sceneObject._components[i]->update(deltaTime);
-		}
+		for (SceneObject& entry : _sceneObjectContainer)
+			entry.update(deltaTime);
+		for (SceneObject& entry : _characterSceneObjectContainer)
+			entry.update(deltaTime);
 	}
 }

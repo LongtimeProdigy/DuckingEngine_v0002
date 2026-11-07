@@ -208,108 +208,6 @@ namespace DK
 
 		return true;
 	}
-	const bool LoadAnimationInternal(const DKString& animationPath, const SkeletonRef& skeleton, AnimationRef& outAnimation)
-	{
-		ScopeString<DK_MAX_PATH> animationFullPath = GlobalPath::makeResourceFullPath(animationPath);
-
-		TiXmlDocument doc;
-		doc.LoadFile(animationFullPath.c_str());
-		TiXmlElement* rootNode = doc.FirstChildElement("Animation");
-		if (rootNode == nullptr)
-		{
-			DK_ASSERT_LOG(false, "Animation XML의 RootNode가 Animation이 아닙니다.");
-			return false;
-		}
-
-		TiXmlAttribute* frameCountAttr = rootNode->FirstAttribute();
-		if (frameCountAttr == nullptr)
-		{
-			DK_ASSERT_LOG(false, "Animation Data의 FrameCount Attribute를 찾을 수 없습니다.");
-			return false;
-		}
-
-		const uint32 frameCount = atoi(frameCountAttr->Value());
-		if (frameCount == 0)
-			return false;
-			
-		outAnimation->SetFrameCount(frameCount);
-
-		const DKVector<Bone>& bones = skeleton->getBoneArr();
-		DKVector<Animation::BoneAnimation> boneAnimations;
-		boneAnimations.resize(bones.size());
-
-		const uint32 boneCount = static_cast<uint32>(bones.size());
-
-		for (TiXmlNode* boneNode = rootNode->FirstChild(); boneNode != nullptr; boneNode = boneNode->NextSibling())
-		{
-			DKString boneName = boneNode->ToElement()->FirstAttribute()->Value();
-			int boneIndex = -1;
-			for (uint32 i = 0; i < boneCount; ++i)
-			{
-				if (boneName == bones[i]._boneName)
-				{
-					boneIndex = static_cast<int>(i);
-					break;
-				}
-			}
-
-			if (boneIndex == -1)
-			{
-				DK_ASSERT_LOG(false, "Animation이 Skeleton에 없는 본을 가지고 있습니다. BoneName: %s", boneName.c_str());
-				return false;
-			}
-			else
-			{
-				Animation::BoneAnimation& boneAnimation = boneAnimations[boneIndex];
-#if defined(_DK_DEBUG_)
-				boneAnimation._boneName = boneName;
-#endif
-				boneAnimation._animation.resize(frameCount);
-
-				uint32 boneFrameCount = 0;
-				for (TiXmlNode* transformNode = boneNode->FirstChild(); transformNode != nullptr; transformNode = transformNode->NextSibling())
-				{
-					TiXmlNode* positionNode = transformNode->FirstChild("Position");
-					TiXmlNode* rotationNode = transformNode->FirstChild("Rotation");
-					TiXmlNode* scaleNode = transformNode->FirstChild("Scale");
-					if (positionNode == nullptr || rotationNode == nullptr || scaleNode == nullptr)
-					{
-						DK_ASSERT_LOG(false, "Transform노드를 Decompose할 수 없습니다.");
-						return false;
-					}
-
-					DKString positionStr = positionNode->FirstChild()->Value();
-					DKString rotationStr = rotationNode->FirstChild()->Value();
-					DKString scaleStr = scaleNode->FirstChild()->Value();
-
-					float3 position = parseFloat3FromString(positionStr);
-					Quaternion rotation = parseQuaternionFromString(rotationStr);
-					float3 scale = parseFloat3FromString(scaleStr);
-
-					if (boneFrameCount >= frameCount)
-					{
-						DK_ASSERT_LOG(false, "FrameCount와 BoneFrameCount가 다릅니다. %d / %d", boneFrameCount, frameCount);
-						return false;
-					}
-						
-					Transform animation(position, rotation, scale);
-					animation.tofloat4x4(boneAnimation._animation[boneFrameCount]);
-
-					++boneFrameCount;
-				}
-
-				if (frameCount != boneFrameCount)
-				{
-					DK_ASSERT_LOG(false, "FrameCount와 BoneFrameCount가 다릅니다. %d / %d", boneFrameCount, frameCount);
-					return false;
-				}
-			}
-		}
-
-		outAnimation->SetBoneAnimations(boneAnimations);
-
-		return true;
-	}
 
 	const ModelPropertyRef ResourceManager::loadModelProperty(const DKString& modelPropertyPath)
 	{
@@ -597,7 +495,7 @@ namespace DK
 		outSkeleton = success.first->second;
 		return true;
 	}
-	const bool ResourceManager::loadAnimation(const DKString& animationPath, SkeletonRef& skeleton, AnimationRef& outAnimation)
+	const bool ResourceManager::loadAnimation(const DKString& animationPath, AnimationRef& outAnimation)
 	{
 		if (checkResourcePathEmpty(animationPath) == true)
 			return false;
@@ -610,9 +508,7 @@ namespace DK
 			return true;
 		}
 
-		AnimationRef& animation = success.first->second;
-
-		if (LoadAnimationInternal(animationPath, skeleton, animation) == false)
+		if (success.first->second->loadAnimatoin(animationPath) == false)
 		{
 			DK_ASSERT_LOG(true, "Animation Loading Failed. path: %s", animationPath.c_str());
 			_animationContainer.erase(animationPath);

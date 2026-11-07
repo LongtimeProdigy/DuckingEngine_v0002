@@ -378,15 +378,25 @@ do{ \
 
 	private:
 		ITexture() = default;
+#if defined(_DK_DEBUG_)
 		ITexture(const DKString& path, const uint8 mipLevelCount, const DXGI_FORMAT format, IBuffer&& textureBuffer)
 			: _path(path)
 			, _mipLevelCount(mipLevelCount)
+#else
+		ITexture(const uint8 mipLevelCount, const DXGI_FORMAT format, IBuffer&& textureBuffer)
+			: _mipLevelCount(mipLevelCount)
+#endif
 			, _format(format)
 			, _textureBuffer(DK::move(textureBuffer))
 		{}
+#if defined(_DK_DEBUG_)
 		ITexture(const DKString& path, const uint8 mipLevelCount, const DXGI_FORMAT format, IBufferRef&& textureBuffer)
 			: _path(path)
 			, _mipLevelCount(mipLevelCount)
+#else
+		ITexture(const uint8 mipLevelCount, const DXGI_FORMAT format, IBufferRef&& textureBuffer)
+			 : _mipLevelCount(mipLevelCount)
+#endif
 			, _format(format)
 			, _textureBuffer(DK::move(*textureBuffer.get()))
 		{
@@ -399,10 +409,12 @@ do{ \
 	public:
 		~ITexture();
 
+#if defined(_DK_DEBUG_)
 		dk_inline const DKString& getPath() const
 		{
 			return _path;
 		}
+#endif
 		dk_inline const uint8 getMipLevelCount() const
 		{
 			return _mipLevelCount;
@@ -432,11 +444,11 @@ do{ \
 
 	public:
 #if defined(_DK_DEBUG_)
+		/*const*/ DKString _path = "";
 		bool _inContainer = false;
 #endif
 
 	private:
-		/*const*/ DKString _path = "";
 		/*const*/ uint8 _mipLevelCount = 1;
 		/*const*/ DXGI_FORMAT _format = DXGI_FORMAT_FORCE_UINT;
 		/*const*/ IBuffer _textureBuffer;
@@ -657,6 +669,8 @@ do{ \
 		void resourceBarrierTransition(IBufferRef& buffer, const D3D12_RESOURCE_STATES afterState);
 
 		void waitFenceAndResetCommandList();
+		void waitForFence(uint32 frameIndex);
+		void resetCommandList();
 #if defined(_DK_DEBUG_)
 		void reportGpuAssert();
 #endif
@@ -692,9 +706,10 @@ do{ \
 		D3D_SHADER_MODEL _shaderModel = D3D_SHADER_MODEL_6_0;
 		RenderResourcePtr<ID3D12CommandQueue> _commandQueue;
 		DKCommandList _commandList;
-		uint32 _fenceValues[kFrameCount] = { 0, };
+		uint64 _fenceValues[kFrameCount] = {};
+		bool _frameSubmitted = false;
 		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
-		HANDLE _fenceEvent;
+		HANDLE _fenceEvent = nullptr;
 		Ptr<D3D12_VIEWPORT> _viewport;
 		Ptr<D3D12_RECT> _scissorRect;
 		RenderResourcePtr<IDXGISwapChain4> _swapChain = nullptr;

@@ -278,8 +278,7 @@ namespace DK
 
 		execute();
 		waitFenceAndResetCommandList();
-		_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
-		_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
+		resetCommandList();
 
 		return true;
 	}
@@ -297,8 +296,10 @@ namespace DK
 		depthOptimizedClearValue.DepthStencil.Stencil = 0;
 #if defined(_DK_DEBUG_)
 		ScopeString<DK_MAX_BUFFER> dsvTextureName("DepthStencilTexture");
-#endif
 		IBufferRef buffer = createBuffer2DInternal(width, height, 1, GetDepthResourceFormat(gDepthStencilFormat), D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &depthOptimizedClearValue, StringUtil::convertCtoWC(dsvTextureName.c_str()).c_str());
+#else
+		IBufferRef buffer = createBuffer2DInternal(width, height, 1, GetDepthResourceFormat(gDepthStencilFormat), D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &depthOptimizedClearValue, nullptr);
+#endif
 		if (buffer == nullptr)
 			return false;
 
@@ -310,7 +311,11 @@ namespace DK
 		dsv = dsvHandle;
 		dsvHandle.ptr += _depthStencilViewSize;
 
+#if defined(_DK_DEBUG_)
 		ITexture depthStencilTexture(DKString(dsvTextureName.c_str()), 1, GetDepthSRVFormat(gDepthStencilFormat), DK::move(buffer));
+#else
+		ITexture depthStencilTexture(1, GetDepthSRVFormat(gDepthStencilFormat), DK::move(buffer));
+#endif
 		if (allocateTextureSRV(depthStencilTexture, 0) == false)
 			return false;
 
@@ -334,8 +339,10 @@ namespace DK
 			StringUtil::itoa(i, indexString.data(), indexString.capacity());
 			ScopeString<DK_MAX_BUFFER> rtvTextureName("RenderTargetTexture_");
 			rtvTextureName.append(indexString.c_str());
-#endif
 			IBufferRef buffer = createBuffer2DInternal(width, height, 1, format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, StringUtil::convertCtoWC(rtvTextureName.c_str()).c_str());
+#else
+			IBufferRef buffer = createBuffer2DInternal(width, height, 1, format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, kResourceState, &clearValue, nullptr);
+#endif
 			if (buffer == nullptr)
 				return false;
 
@@ -343,7 +350,11 @@ namespace DK
 			rtvs[i] = rtvHandle;
 			rtvHandle.ptr += _renderTargetViewSize;
 
+#if defined(_DK_DEBUG_)
 			renderTargets[i] = ITexture(DKString(rtvTextureName.c_str()), 1, format, DK::move(buffer));
+#else
+			renderTargets[i] = ITexture(1, format, DK::move(buffer));
+#endif
 			if (allocateTextureSRV(renderTargets[i], 1 + i) == false)
 				return false;
 		}
@@ -376,7 +387,11 @@ namespace DK
 			backbuverViews[i] = rtvHandle;
 			rtvHandle.ptr += _renderTargetViewSize;
 
+#if defined(_DK_DEBUG_)
 			backBuffers[i] = ITexture(StringUtil::convertWCtoC(resourceName.c_str()).c_str(), 1, gRenderTargetFormat, DK::move(backBuffer));
+#else
+			backBuffers[i] = ITexture(1, gRenderTargetFormat, DK::move(backBuffer));
+#endif
 		}
 
 		_renderTargetArr[0] = RenderTarget(DK::move(renderTargets[0]), DK::move(depthStencilTexture), rtvs[0], dsv, false, true);
@@ -410,6 +425,9 @@ namespace DK
 
 	const bool RenderModule::resize(const uint32 width, const uint32 height)
 	{
+		if (width == 0 || height == 0)
+			return false;
+			
 		waitAllGPU();
 
 		DXGI_SWAP_CHAIN_DESC1 desc{};
@@ -431,10 +449,8 @@ namespace DK
 			return false;
 		}
 
-		if (createRenderTarget(width, height) == false)
-			return false;
-
-		return true;
+		kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
+		return createRenderTarget(width, height);
 	}
 
 	void RenderModule::destroy()
@@ -472,7 +488,9 @@ namespace DK
 		_commandQueue.release();
 
 		_device.release();
+#if defined(_DK_DEBUG_)
 		ReportLiveObjects();
+#endif
 	}
 
 	bool CheckTearingSupport(RenderResourcePtr<IDXGIFactory4>& factory)
@@ -480,10 +498,13 @@ namespace DK
 		HRESULT hr;
 		BOOL allowTearing = FALSE;
 		{
-			IDXGIFactory5* factory5;
+			IDXGIFactory5* factory5 = nullptr;
 			hr = factory->QueryInterface(IID_PPV_ARGS(&factory5));
 			if (SUCCEEDED(hr))
+			{
 				hr = factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing));
+				factory5->Release();
+			}
 		}
 		return SUCCEEDED(hr) && allowTearing;
 	}
@@ -523,10 +544,12 @@ namespace DK
 #ifdef _DK_DEBUG_
 			// CreateDevice이전에 실행해야합니다. Device생성 이후에 호출하면 Device Remove가 발생함.
 			// Enable the D3D12 debug layer.
-			ID3D12Debug* debugController;
+			ID3D12Debug* debugController = nullptr;
 			if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+			{
 				debugController->EnableDebugLayer();
-			debugController->Release();
+				debugController->Release();
+			}
 #endif
 		}
 
@@ -1718,39 +1741,40 @@ namespace DK
 	}
 #endif
 
-	bool isExecuted = false;
+	void RenderModule::waitForFence(uint32 frameIndex)
+	{
+		DK_ASSERT_LOG(_fences[frameIndex].get() != nullptr, "");
+			
+		const uint64 completed = _fences[frameIndex]->GetCompletedValue();
+		DK_ASSERT_LOG(completed != UINT64_MAX, "");
+		if (completed >= _fenceValues[frameIndex]) 
+			return;
+			
+		if (
+			FAILED(_fences[frameIndex]->SetEventOnCompletion(_fenceValues[frameIndex], _fenceEvent))
+			|| WaitForSingleObject(_fenceEvent, INFINITE) != WAIT_OBJECT_0
+			|| _fences[frameIndex]->GetCompletedValue() == UINT64_MAX)
+			throw std::runtime_error("D3D12 frame fence wait failed");
+	}
+
 	void RenderModule::waitAllGPU()
 	{
-		//if (gSerializeRender)
-		//{
-		//	_commandList->Close();
-
-		//	DKVector<ID3D12CommandList*> commandLists;
-		//	commandLists.push_back(_commandList._commandList.get());
-		//	_commandQueue->ExecuteCommandLists(static_cast<uint32>(commandLists.size()), commandLists.data());
-
-		//	++_fenceValues[kCurrentFrameIndex];
-		//	HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
-		//	assert(SUCCEEDED(hr));
-		//}
-		//else
-		//{
-		//	++_fenceValues[kCurrentFrameIndex];
-		//	HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
-		//	assert(SUCCEEDED(hr));
-		//}
-
 		for (uint32 i = 0; i < kFrameCount; ++i)
-		{
-			if (static_cast<uint32>(_fences[i]->GetCompletedValue()) < _fenceValues[i])
-			{
-				_fences[i]->SetEventOnCompletion(_fenceValues[i], _fenceEvent);
-				WaitForSingleObject(_fenceEvent, INFINITE);
-			}
-		}
+			waitForFence(i);
 #if defined(_DK_DEBUG_)
 		reportGpuAssert();
 #endif
+	}
+
+	void RenderModule::resetCommandList()
+	{
+		auto* allocator = _commandList._commandAllocators[kCurrentBackBufferIndex].get();
+		if (FAILED(allocator->Reset()) || FAILED(_commandList->Reset(allocator, nullptr)))
+		{
+			DK_ASSERT_LOG(false, "D3D12 command list reset failed");
+		}
+
+		_commandList._lastResetIndex = kCurrentBackBufferIndex;
 	}
 
 	void RenderModule::execute(const bool isPresent)
@@ -1766,7 +1790,10 @@ namespace DK
 			_gpuAssertReadbackPending = true;
 		}
 #endif
-		_commandList->Close();
+		if (FAILED(_commandList->Close()))
+		{
+			DK_ASSERT_LOG(false, "D3D12 command list close failed");
+		}
 
 		DKVector<ID3D12CommandList*> commandLists;
 		commandLists.push_back(_commandList._commandList.get());
@@ -1789,9 +1816,13 @@ namespace DK
 			kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
 		}
 
-		++_fenceValues[kCurrentFrameIndex];
-		HRESULT hr = _commandQueue->Signal(_fences[kCurrentFrameIndex].get(), _fenceValues[kCurrentFrameIndex]);
-		assert(SUCCEEDED(hr));
+		const uint64 fenceValue = _fenceValues[kCurrentFrameIndex] + 1;
+		if (FAILED(_commandQueue->Signal(_fences[kCurrentFrameIndex].get(), fenceValue)))
+		{
+			DK_ASSERT_LOG(false, "D3D12 queue signal failed");
+		}
+
+		_fenceValues[kCurrentFrameIndex] = fenceValue;
 
         if (_gpuTimingRecorded)
         {
@@ -1799,23 +1830,16 @@ namespace DK
             _gpuTimingFenceIndex = kCurrentFrameIndex;
             _gpuTimingRecorded = false;
         }
-		isExecuted = true;
+		_frameSubmitted = true;
 	}
+
 	void RenderModule::waitFenceAndResetCommandList()
 	{
-		if (isExecuted == false)
+		if (!_frameSubmitted)
 			return;
-		isExecuted = false;
 
-		kCurrentFrameIndex = 0;
-
-		const uint32 completeFenceValue = static_cast<uint32>(_fences[kCurrentFrameIndex]->GetCompletedValue());
-		if (completeFenceValue < _fenceValues[kCurrentFrameIndex])
-		{
-			HRESULT hr = _fences[kCurrentFrameIndex]->SetEventOnCompletion(_fenceValues[kCurrentFrameIndex], _fenceEvent);
-			assert(SUCCEEDED(hr));
-			WaitForSingleObject(_fenceEvent, INFINITE);
-		}
+		waitForFence(kCurrentFrameIndex);
+		_frameSubmitted = false;
 #if defined(_DK_DEBUG_)
 		reportGpuAssert();
 #endif
@@ -2403,8 +2427,10 @@ namespace DK
 		ScopeStringW<DK_MAX_PATH> textureName(L"Texture(");
 		textureName.append(StringUtil::convertCtoWC(path.c_str()).c_str());
 		textureName.append(L")");
-#endif
 		IBufferRef textureResource = createBuffer2DInternal(width, height, mipLevelCount, format, flags, D3D12_HEAP_TYPE_DEFAULT, initialState, nullptr, textureName.c_str());
+#else
+		IBufferRef textureResource = createBuffer2DInternal(width, height, mipLevelCount, format, flags, D3D12_HEAP_TYPE_DEFAULT, initialState, nullptr, nullptr);
+#endif
 		if (textureResource == nullptr)
 			return nullptr;
 
@@ -2472,8 +2498,10 @@ namespace DK
 			ScopeStringW<DK_MAX_PATH> uploadName(L"UploadTexture(");
 			uploadName.append(StringUtil::convertCtoWC(path.c_str()).c_str());
 			uploadName.append(L")");
-#endif
 			IBufferRef uploadBuffer = createUploadBuffer(uploadSize, uploadName.c_str());
+#else
+			IBufferRef uploadBuffer = createUploadBuffer(uploadSize, nullptr);
+#endif
 			if (uploadBuffer == nullptr)
 				return nullptr;
 
@@ -2500,8 +2528,7 @@ namespace DK
 
 			execute();
 			waitFenceAndResetCommandList();
-			_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
-			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
+			resetCommandList();
 		}
 
 		ITexture* texture = dk_new ITexture(path, mipLevelCount, format, DK::move(textureResource));
@@ -2658,10 +2685,11 @@ namespace DK
 		_blockCopy = true;
 #endif
 
-		if (gSerializeRender == false && isExecuted)
+		if (gSerializeRender == false && _frameSubmitted)
 		{
-			_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
-			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
+			if (_commandList._lastResetIndex == kCurrentBackBufferIndex)
+				waitFenceAndResetCommandList();
+			resetCommandList();
 		}
 
         prepareGpuTimings();
@@ -2999,8 +3027,7 @@ namespace DK
 		if (gSerializeRender)
 		{
 			waitFenceAndResetCommandList();
-			_commandList._commandAllocators[kCurrentBackBufferIndex]->Reset();
-			_commandList->Reset(_commandList._commandAllocators[kCurrentBackBufferIndex].get(), nullptr);
+			resetCommandList();
 		}
 
 #if defined(_DK_DEBUG_)

@@ -444,9 +444,7 @@ namespace DK
 		using FindResult = DKHashMap<DKString, MaterialDefinition>::const_iterator;
 		FindResult findResult = _materialDefinitionMap.find(materialName);
 		if (findResult == _materialDefinitionMap.end())
-		{
 			return nullptr;
-		}
 
 		return &findResult->second;
 	}
@@ -642,10 +640,12 @@ namespace DK
 		}
 
 		// Upload SceneObject
-		DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-		for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+		const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects();
+		for (DKHashMap<uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 		{
-			SceneObject& sceneObject = iter->second;
+			const SceneObject& sceneObject = iter->second;
+			if (sceneObject._sceneObjectConstantBuffer == nullptr)
+				continue;
 
 			SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 			sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
@@ -653,30 +653,31 @@ namespace DK
 		}
 
 		// Render SkinnedMesh SceneObject
-		DKHashMap<uint32, SceneObject>& characterSceneObjectArr = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
-		for (DKHashMap<const uint32, SceneObject>::iterator iter = characterSceneObjectArr.begin(); iter != characterSceneObjectArr.end(); ++iter)
+		const DKHashMap<uint32, SceneObject>& characterSceneObjectArr = DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects();
+		for (const SceneObject* iter : DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects())
 		{
-			SceneObject& sceneObject = iter->second;
+			const SceneObject& sceneObject = iter->second;
+			if (sceneObject._sceneObjectConstantBuffer == nullptr)
+				continue;
 
 			SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 			sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
 			sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
 
-			uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+			uint32 componentCount = static_cast<uint32>(sceneObject.getComponents().size());
 			for (uint32 i = 0; i < componentCount; ++i)
 			{
 				// #todo- component 완전 개편 필요해보임.
 				// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
 				// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-				SkinnedMeshComponent* skinnedMeshComponent = static_cast<SkinnedMeshComponent*>(sceneObject._components[i].get());
+				const auto* skinnedMeshComponent = static_cast<const SkinnedMeshComponent*>(sceneObject.getComponents()[i].get());
 
-				// SkinnedMesh ConstantBuffer
-				const DKVector<float4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->get_currentCharacterSpaceBoneAnimation();
+				if (skinnedMeshComponent == nullptr || skinnedMeshComponent->_currentAnimationBufferCS == nullptr)
+					continue;
+
+				const DKVector<float4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->_currentCharacterSpaceBoneAnimation;
 				if (currentCharacterSpaceBoneAnimation.empty() == false)
-				{
-					IBufferRef& skeletonBuffer = skinnedMeshComponent->get_currentAnimationBufferCSWritable();
-					skeletonBuffer->upload(currentCharacterSpaceBoneAnimation.data());
-				}
+					skinnedMeshComponent->_currentAnimationBufferCS->upload(currentCharacterSpaceBoneAnimation.data());
 			}
 		}
 
@@ -1316,27 +1317,31 @@ namespace DK
 			{
 				setConstantBuffer("SceneConstantBuffer", sceneConstants);
 
-				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getSceneObjectsWritable();
-				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects();
+				for (DKHashMap<uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 				{
-					SceneObject& sceneObject = iter->second;
+					const SceneObject& sceneObject = iter->second;
+					if (sceneObject._sceneObjectConstantBuffer == nullptr)
+						continue;
+
 					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
 
-					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+					uint32 componentCount = static_cast<uint32>(sceneObject.getComponents().size());
 					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 					{
 						// #todo- component 완전 개편 필요해보임.
 						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
 						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-						StaticMeshComponent* staticMeshComponent = dynamic_cast<StaticMeshComponent*>(sceneObject._components[componentIndex].get());
-                        if (!staticMeshComponent || !staticMeshComponent->get_modelWritable()) continue;
+						const StaticMeshComponent* staticMeshComponent = dynamic_cast<const StaticMeshComponent*>(sceneObject.getComponents()[componentIndex].get());
+						if (staticMeshComponent == nullptr || staticMeshComponent->get_model() == nullptr)
+							continue;
 
-						DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+						const DKVector<StaticMeshModel::SubMeshType>& subMeshes = staticMeshComponent->get_model()->get_subMeshArr();
 						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
 						{
-							StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+							const StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
-							Material* material = subMesh._material.get();
+							const Material* material = subMesh._material.get();
 							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
 
 							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
@@ -1352,29 +1357,33 @@ namespace DK
 			{
 				setConstantBuffer("SceneConstantBuffer", sceneConstants);
 
-				DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManagerWritable().getCharacterSceneObjectsWritable();
-				for (DKHashMap<const uint32, SceneObject>::iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects();
+				for (DKHashMap<uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
 				{
-					SceneObject& sceneObject = iter->second;
+					const SceneObject& sceneObject = iter->second;
+					if (sceneObject._sceneObjectConstantBuffer == nullptr)
+						continue;
+
 					setConstantBuffer("SceneObjectConstantBuffer", sceneObject._sceneObjectConstantBuffer);
 
-					uint32 componentCount = static_cast<uint32>(sceneObject._components.size());
+					uint32 componentCount = static_cast<uint32>(sceneObject.getComponents().size());
 					for (uint32 componentIndex = 0; componentIndex < componentCount; ++componentIndex)
 					{
 						// #todo- component 완전 개편 필요해보임.
 						// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
 						// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-						SkinnedMeshComponent* skinnedMeshComponent = dynamic_cast<SkinnedMeshComponent*>(sceneObject._components[componentIndex].get());
-                        if (!skinnedMeshComponent || !skinnedMeshComponent->get_modelWritable()) continue;
+						const SkinnedMeshComponent* skinnedMeshComponent = static_cast<const SkinnedMeshComponent*>(sceneObject.getComponents()[componentIndex].get());
+						if (skinnedMeshComponent == nullptr || skinnedMeshComponent->_model == nullptr)
+							continue;
 
-						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->get_currentAnimationBufferCS());
+						setConstantBuffer("SkeletonConstantBuffer", skinnedMeshComponent->_currentAnimationBufferCS);
 
-						DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->get_modelWritable()->get_subMeshArrWritable();
+						const DKVector<SkinnedMeshModel::SubMeshType>& subMeshes = skinnedMeshComponent->_model->get_subMeshArr();
 						for (uint32 subMeshIndex = 0; subMeshIndex < subMeshes.size(); ++subMeshIndex)
 						{
-							SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
+							const SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
-							Material* material = subMesh._material.get();
+							const Material* material = subMesh._material.get();
 							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
 
 							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());

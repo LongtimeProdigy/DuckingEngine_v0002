@@ -17,31 +17,12 @@ namespace DK
 			DKVector<float4x4> _animation;
 		};
 
-		dk_inline void SetBoneAnimations(DKVector<BoneAnimation>& boneAnimations) noexcept
-		{
-			_boneAnimations = boneAnimations;
-		}
+		const bool loadAnimatoin(const DKString& animationPath);
 
 		dk_inline const DKVector<BoneAnimation>& getBoneAnimation() const noexcept
 		{
 			return _boneAnimations;
 		}
-
-		dk_inline float getCurrentAnimationTime() const noexcept
-		{
-			return _currentAnimationTime;
-		}
-
-		dk_inline void setCurrentAnimationTime(float animationTime) noexcept
-		{
-			_currentAnimationTime = animationTime;
-		}
-
-		dk_inline void SetFrameCount(uint32 frameCount) noexcept
-		{
-			_frameCount = frameCount;
-		}
-
 		dk_inline uint32 getFrameCount() const noexcept
 		{
 			return _frameCount;
@@ -49,7 +30,6 @@ namespace DK
 
 	private:
 		DKVector<BoneAnimation> _boneAnimations;
-		float _currentAnimationTime = 0.0f;
 		uint32 _frameCount = 0;
 	};
 }

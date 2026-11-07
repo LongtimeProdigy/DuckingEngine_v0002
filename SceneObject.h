@@ -16,7 +16,7 @@ namespace DK
 		SceneObject(SceneObject&& rhs) = default;
 		SceneObject& operator=(SceneObject&&) noexcept = default;
 
-		virtual void update(float deltaTime) override final {}
+		void update(float deltaTime) override final;
 
 	public:
 		IBufferRef _sceneObjectConstantBuffer;
