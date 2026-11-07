@@ -49,6 +49,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // uv.y 높이에서 태양이 이 방향(uv.x)에 있을 때, 주변 대기에서 산란되어 들어오는 빛이 평균적으로 얼마나 되는지를 계산
     // uv.y는 heightAtReference를 담당 (0~_atmosphereRadius 까지)
     // uv.x는 sunDirection을 담당 (방사방향 기준 0~180도 까지)
+    // output은 전 방향 평균 입사 radiance
         
     const float heightAtReference = atmosphereMultipleScatteringHeightAtReference(float(id.y) / (ATMOSPHERE_MULTIPLESCATTERING_HEIGHT - 1u));
     GPUASSERT(_densityReferenceRadius > 0);

@@ -8,7 +8,7 @@ cbuffer SurfaceBounceOutputConstants : register(b2)
     uint _surfaceBounceOutputUav;
 };
 
-// 카메라 기준 공간 위치
+// uvw를 카메라 포지션 + 월드 회전축 공간의 좌표로 변환
 float3 atmosphereSurfacePoint(float3 uvw)
 {
     return _surfaceOrigin.xyz + _surfaceRight.xyz * ((2.0f * uvw.x - 1.0f) * _surfaceRight.w)
@@ -16,8 +16,7 @@ float3 atmosphereSurfacePoint(float3 uvw)
 }
 
 // 3점 Gauss–Legendre 적분입니다. 임의로 고른 위치와 가중치가 아니라, 적은 샘플로 적분을 근사하도록 정해진 조합
-// column은 한 지점의 밀도가 아니라 경로 전체에 걸쳐 누적한 성분별 밀도 적분값
-// 투과율 반환
+// 3점의 소멸계수를 더한 투과율을 반환
 float3 surfaceSegmentTransmission(float3 a, float3 b)
 {
     const float3 dir = b - a;
@@ -36,15 +35,15 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
 
     // 지형이나 물체가 반사한 태양빛이 주변 대기에 얼마나 도달하는지 미리 계산
-    // 현재 구현의 주요 한계는 Q → P 사이에 다른 지형이나 물체가 가로막는지 검사하지 않는다는 점
     // 방향 정보를 저장하지 않으므로, 추후 Atmosphere에서 사용하는 이 반사광의 산란에는 모든 방향으로 동일하게 퍼진다는 **등방성 근사 1 / (4π)**를 사용
+
+    // TODO
+    // 현재 구현의 주요 한계는 Q → P 사이에 다른 지형이나 물체가 가로막는지 검사하지 않는다는 점, 그림자맵을 먼저 만들면 할 수 있지않나? -> P가 근처를 대표하는거라 힘들지도?
 
     const uint3 cell = uint3(id.x % SURFACE_BOUNCE_GRID, id.y, id.x / SURFACE_BOUNCE_GRID);
     const float3 uvw = (float3(cell) + 0.5f) / SURFACE_BOUNCE_GRID;
     const float3 p = atmosphereSurfacePoint(uvw);
-    //const float angle = radians(_sunDegree);
-    //const float3 sunDir = float3(0, sin(angle), cos(angle));
-    const float3 sunDir = -normalize(_surfaceForward.xyz);
+    const float3 sunDir = -normalize(_surfaceForward.xyz);  //const float angle = radians(_sunDegree); const float3 sunDir = float3(0, sin(angle), cos(angle));
     GPUASSERT(_surfaceBounceSamples <= 64);
     const float scale = 2.0f * max(_surfaceRight.w, _surfaceUp.w) / SURFACE_BOUNCE_GRID;    // 긴 축 기준 격자 셀 한 칸의 크기입니다.
     GPUASSERT(scale >= 0.01);
@@ -59,13 +58,11 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             const float u = (float(i) + 0.5f) / _surfaceBounceSamples;
             GPUASSERT((1.0f - u) > FLOAT_EPSILON);
 
-            // 2.3283064365386963e-10: 1 / 2³²입니다. 이를 곱해 0~1 값으로 바꾸고, 2π를 곱해 각도로 바꿉니다.
-            // 의도: 연속된 샘플이 한쪽 각도에 몰리지 않도록 합니다. 난수를 매번 생성하는 방식은 아닙니다.
-            const float phi = 2.0f * PI * (float(reversebits(i)) * 2.3283064365386963e-10f);
+            const float phi = 2.0f * PI * radicalInverse(i);
             // u = r²/(scale²+r²)를 r에 대하여 푼 것. 가까울 수록 많이 멀수록 덜 샘플링하는 식 (단 최대가 제한은 없음)
             const float radius = scale * sqrt(u / (1.0f - u));
             const float2 sampleUV = uvw.xy + float2(cos(phi), sin(phi)) * radius / (2.0f * float2(_surfaceRight.w, _surfaceUp.w));
-            if (any(sampleUV < 0.0f) || any(sampleUV >= 1.0f)) 
+            if (any(sampleUV < 0.0f) || any(sampleUV >= 1.0f))  // 샘플링 방식이 무한대거리까지 하므로 희박하지만 벗어날 수 있음
                 continue;
 
             GPUASSERT(all(uint2(sampleUV * _surfaceMapSize) <= _surfaceMapSize - 1u));  // 위 if에서 걸러졌어야함
@@ -94,13 +91,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             GPUASSERT(distanceSQ > 0.0f);
             const float cosine = saturate(dot(normal, dir * rsqrt(distanceSQ)));
             // radius인 원의 면적에 대한 u의 식으로 변형하면 u = r² / (s² + r2)이고, u가 0~1까지 100% 확률이므로
-            // 반지금 r 이내에 샘플이 들어갈 확률 cdf(r) = r² / (s² + r2)이 됨 (실제로 r을 s로 두면 50%)
+            // 반지름 r 이내에 샘플이 들어갈 확률 cdf(r) = u = r² / (s² + r2)이 된다고 바꿔생각할 수 있음 (r을 s로 두면 50%)
             // cdf를 미분하면 pdf가 되고 r² = A/PI를 이용하면 아래식을 유도할 수 있음
             const float inversePdf = PI * scale * scale / ((1.0f - u) * (1.0f - u));
             const float3 diffuseFlux = 
                 atmosphereSunIrradiance()           // 도달한 태양 조사량
                 * getSunTransmittance(q, sunDir)    // 태양에서 q까지의 투과율
-                //* sunCosine                         // q에 들어가는 태양 조사량을 각도에 영향을 받게
+                //* sunCosine                       // q에 들어가는 태양 조사량을 각도에 영향
                 * (albedo.rgb / PI)                 // q에서 Lambert 확산 반사
                 * (1.0f - metallic);                // 금속의 확산 반사 기여를 감소
             bounce += diffuseFlux 
@@ -117,7 +114,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // 상한을 제한. 샘플 개수가 적을 때 가까운 밝은 표면 하나가 너무 큰 기여를 만드는 현상을 완화하기 위한 안전장치
     // 4는 이상적인 Lambert 표면의 최대 radiance E/π를 구 전체 입체각 4π에 걸쳐 적분하면 4E가 된다는 데서 해석할 수 있습니다
     // 어떤 위치(P)에 모든 방향(4PI)에 들어오는 모든 빛의 양은 4.0f * atmosphereSunIrradiance()이기 때문에 해당 값이 최대값이다
-    bounce = min(max(bounce, 0.0f), 4.0f * atmosphereSunIrradiance());
+    GPUASSERT(all(bounce >= 0.0f && bounce <= 4.0f * atmosphereSunIrradiance()));
+    //bounce = min(max(bounce, 0.0f), 4.0f * atmosphereSunIrradiance());
 
     // P로 들어오는 표면 반사광을 방향에 대해 합친 값의 근사치
     const RWTexture2D<float4> output = getTextureRW(_surfaceBounceOutputUav);

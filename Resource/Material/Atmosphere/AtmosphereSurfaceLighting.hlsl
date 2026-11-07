@@ -79,43 +79,38 @@ float atmosphereCascadedVisibility(float3 p, bool filtered)
 }
 float atmosphereSurfaceSunVisibility(float3 p)
 {
-    if (_surfaceMapEnabled == 0u || _surfaceShadowStrength <= 0.0f) return 1.0f;
+    if (_surfaceMapEnabled == 0u || _surfaceShadowStrength <= 0.0f) 
+        return 1.0f;
     if (_shadowCascadeCount > 0u)
         return lerp(1.0f, atmosphereCascadedVisibility(p, false), saturate(_surfaceShadowStrength));
     return lerp(1.0f, atmosphereSurfaceShadowTap(atmosphereSurfaceCoordinates(p)), saturate(_surfaceShadowStrength));
 }
-float atmosphereSurfaceSunVisibilityFiltered(float3 p, float3 normal)
-{
-    if (_surfaceMapEnabled == 0u || _surfaceShadowStrength <= 0.0f) return 1.0f;
-    if (_shadowCascadeCount > 0u)
-        return lerp(1.0f, atmosphereCascadedVisibility(p + normal * max(_surfaceBias, 0.0f), true), saturate(_surfaceShadowStrength));
-    const float3 uvw = atmosphereSurfaceCoordinates(p + normal * max(_surfaceBias, 0.0f));
-    const float delta = 0.5f / max(float(_surfaceMapSize), 1.0f);
-    float visibility = 0.0f;
-    [unroll] for (uint i = 0u; i < 4u; ++i)
-    {
-        const float2 offset = float2((i & 1u) != 0u ? delta : -delta, (i & 2u) != 0u ? delta : -delta);
-        visibility += atmosphereSurfaceShadowTap(uvw + float3(offset, 0));
-    }
-    return lerp(1.0f, visibility * 0.25f, saturate(_surfaceShadowStrength));
-}
+
+// p위치에서 태양에 의한 지면 반사광을 반환
 float3 atmosphereSurfaceBounce(float3 p)
 {
-    if (_surfaceMapEnabled == 0u || _surfaceBounceStrength <= 0.0f) return 0.0f;
+    if (_surfaceMapEnabled == 0u || _surfaceBounceStrength <= 0.0f) 
+        return 0.0f;
+
     const float3 uvw = atmosphereSurfaceCoordinates(p);
-    if (!atmosphereInsideSurfaceCapture(uvw)) return 0.0f;
+    if (atmosphereInsideSurfaceCapture(uvw) == false) 
+        return 0.0f;
+
     const float3 grid = uvw * SURFACE_BOUNCE_GRID - 0.5f;
     const int3 base = int3(floor(grid));
     const float3 f = frac(grid);
     float3 result = 0.0f;
     const Texture2D<float4> field = getTexture(_surfaceBounceIndex);
-    [unroll] for (uint i = 0u; i < 8u; ++i)
+    [unroll]
+    for (uint i = 0u; i < 8u; ++i)
     {
-        const int3 corner = int3(i & 1u, (i >> 1u) & 1u, (i >> 2u) & 1u);
-        const int3 cell = clamp(base + corner, 0, int(SURFACE_BOUNCE_GRID) - 1);
-        const float3 weight = lerp(1.0f - f, f, float3(corner));
+        const int3 offset = int3(i & 1u, (i >> 1u) & 1u, (i >> 2u) & 1u);
+        const int3 cell = clamp(base + offset, 0, int(SURFACE_BOUNCE_GRID) - 1);
+        const float3 weight = lerp(1.0f - f, f, float3(offset));
         result += field.Load(int3(cell.x + cell.z * int(SURFACE_BOUNCE_GRID), cell.y, 0)).rgb * weight.x * weight.y * weight.z;
     }
-    return max(result, 0.0f) * max(_surfaceBounceStrength, 0.0f);
+
+    GPUASSERT(all(result > 0.0f));
+    return result * _surfaceBounceStrength;
 }
 #endif

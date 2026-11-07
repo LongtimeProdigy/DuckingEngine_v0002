@@ -3,6 +3,7 @@
 #include "CommonMathConstant.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"
 
+// cameraRelativePosition을 _densityReferenceRadius기준의 높이로 변경
 float atmosphereHeight(float3 cameraRelativePosition)
 {
     // 이 함수는 아래식을 구하는 게 전부이지만, float 정밀도를 개선하기 식을 변형함
