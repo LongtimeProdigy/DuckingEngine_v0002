@@ -640,10 +640,8 @@ namespace DK
 		}
 
 		// Upload SceneObject
-		const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects();
-		for (DKHashMap<uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+		for (const SceneObject& sceneObject : DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects())
 		{
-			const SceneObject& sceneObject = iter->second;
 			if (sceneObject._sceneObjectConstantBuffer == nullptr)
 				continue;
 
@@ -653,10 +651,8 @@ namespace DK
 		}
 
 		// Render SkinnedMesh SceneObject
-		const DKHashMap<uint32, SceneObject>& characterSceneObjectArr = DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects();
-		for (const SceneObject* iter : DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects())
+		for (const SceneObject& sceneObject : DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects())
 		{
-			const SceneObject& sceneObject = iter->second;
 			if (sceneObject._sceneObjectConstantBuffer == nullptr)
 				continue;
 
@@ -1317,10 +1313,8 @@ namespace DK
 			{
 				setConstantBuffer("SceneConstantBuffer", sceneConstants);
 
-				const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects();
-				for (DKHashMap<uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				for (const SceneObject& sceneObject : DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects())
 				{
-					const SceneObject& sceneObject = iter->second;
 					if (sceneObject._sceneObjectConstantBuffer == nullptr)
 						continue;
 
@@ -1357,10 +1351,8 @@ namespace DK
 			{
 				setConstantBuffer("SceneConstantBuffer", sceneConstants);
 
-				const DKHashMap<uint32, SceneObject>& sceneObjects = DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects();
-				for (DKHashMap<uint32, SceneObject>::const_iterator iter = sceneObjects.begin(); iter != sceneObjects.end(); ++iter)
+				for (const SceneObject& sceneObject : DuckingEngine::getInstance().GetSceneObjectManager().getCharacterSceneObjects())
 				{
-					const SceneObject& sceneObject = iter->second;
 					if (sceneObject._sceneObjectConstantBuffer == nullptr)
 						continue;
 

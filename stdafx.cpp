@@ -2,6 +2,42 @@
 
 namespace DK
 {
+	DKVector<DKString> StringUtil::split(const DKString& str, const DKString& delimiter)
+	{
+		DKVector<DKString> tokens;
+		if (delimiter.empty())
+			return tokens;
+
+		DKString::size_type start = 0;
+		while (start < str.length())
+		{
+			const auto end = str.find(delimiter, start);
+			if (end == DKString::npos)
+			{
+				tokens.emplace_back(str.substr(start));
+				break;
+			}
+			if (end > start)
+				tokens.emplace_back(str.substr(start, end - start));
+			start = end + delimiter.length();
+		}
+		return tokens;
+	}
+
+	float3 StringUtil::parseFloat3FromString(const DKString& str)
+	{
+		const auto tokens = split(str, " ");
+		DK_ASSERT_LOG(tokens.size() >= 3, "A float3 requires three components.");
+		return float3(atof(tokens[0].c_str()), atof(tokens[1].c_str()), atof(tokens[2].c_str()));
+	}
+
+	Quaternion StringUtil::parseQuaternionFromString(const DKString& str)
+	{
+		const auto tokens = split(str, " ");
+		DK_ASSERT_LOG(tokens.size() >= 4, "A quaternion requires four components.");
+		return Quaternion(atof(tokens[0].c_str()), atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+	}
+
 	DKString GlobalPath::kResourcePathA;
 	DKStringW GlobalPath::kResourcePathW;
 

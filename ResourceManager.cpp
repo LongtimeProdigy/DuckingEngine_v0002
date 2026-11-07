@@ -88,45 +88,12 @@ namespace DK
 		return true;
 	}
 
-	DKVector<std::string> split(const std::string& str, const std::string& delim)
+	float2 parseFloat2FromString(const DKString& str)
 	{
-		DKVector<std::string> tokens;
-		size_t prev = 0, pos = 0;
-		do
-		{
-			pos = str.find(delim, prev);
-			if (pos == std::string::npos) pos = str.length();
-			std::string token = str.substr(prev, pos - prev);
-			if (!token.empty()) tokens.push_back(token);
-			prev = pos + delim.length();
-		} while (pos < str.length() && prev < str.length());
-		return tokens;
-	}
-	float2 parseFloat2FromString(const std::string& str)
-	{
-		DKVector<std::string> tokens = split(str, " ");
+		const auto tokens = StringUtil::split(str, " ");
 		return float2(
 			StringUtil::atof(tokens[0].c_str()),
 			StringUtil::atof(tokens[1].c_str())
-		);
-	}
-	float3 parseFloat3FromString(const std::string& str)
-	{
-		DKVector<std::string> tokens = split(str, " ");
-		return float3(
-			StringUtil::atof(tokens[0].c_str()),
-			StringUtil::atof(tokens[1].c_str()),
-			StringUtil::atof(tokens[2].c_str())
-		);
-	}
-	Quaternion parseQuaternionFromString(const std::string& str)
-	{
-		DKVector<std::string> tokens = split(str, " ");
-		return Quaternion(
-			StringUtil::atof(tokens[0].c_str()),
-			StringUtil::atof(tokens[1].c_str()),
-			StringUtil::atof(tokens[2].c_str()),
-			StringUtil::atof(tokens[3].c_str())
 		);
 	}
 	const bool LoadSkeletonInternal(const DKString& skeletonPath, SkeletonRef& outSkeleton)
@@ -181,9 +148,9 @@ namespace DK
 			DKString rotationStr = rotationNode->GetText();
 			DKString scaleStr = scaleNode->GetText();
 
-			float3 position = parseFloat3FromString(positionStr);
-			float3 scale = parseFloat3FromString(scaleStr);
-			Quaternion rotation = parseQuaternionFromString(rotationStr);
+			float3 position = StringUtil::parseFloat3FromString(positionStr);
+			float3 scale = StringUtil::parseFloat3FromString(scaleStr);
+			Quaternion rotation = StringUtil::parseQuaternionFromString(rotationStr);
 
 			uint32 currentBoneCount = static_cast<uint32>(bones.size());
 			uint32 parentBoneIndex = -1;

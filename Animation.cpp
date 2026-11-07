@@ -3,40 +3,6 @@
 
 namespace DK
 {
-	DKVector<std::string> split(const std::string& str, const std::string& delim)
-	{
-		DKVector<std::string> tokens;
-		size_t prev = 0, pos = 0;
-		do
-		{
-			pos = str.find(delim, prev);
-			if (pos == std::string::npos) pos = str.length();
-			std::string token = str.substr(prev, pos - prev);
-			if (!token.empty()) tokens.push_back(token);
-			prev = pos + delim.length();
-		} while (pos < str.length() && prev < str.length());
-		return tokens;
-	}
-	float3 parseFloat3FromString(const std::string& str)
-	{
-		DKVector<std::string> tokens = split(str, " ");
-		return float3(
-			StringUtil::atof(tokens[0].c_str()),
-			StringUtil::atof(tokens[1].c_str()),
-			StringUtil::atof(tokens[2].c_str())
-		);
-	}
-	Quaternion parseQuaternionFromString(const std::string& str)
-	{
-		DKVector<std::string> tokens = split(str, " ");
-		return Quaternion(
-			StringUtil::atof(tokens[0].c_str()),
-			StringUtil::atof(tokens[1].c_str()),
-			StringUtil::atof(tokens[2].c_str()),
-			StringUtil::atof(tokens[3].c_str())
-		);
-	}
-
 	const bool Animation::loadAnimatoin(const DKString& animationPath)
 	{
 		ScopeString<DK_MAX_PATH> animationFullPath = GlobalPath::makeResourceFullPath(animationPath);
@@ -95,9 +61,9 @@ namespace DK
 				DKString rotationStr = rotationNode->FirstChild()->Value();
 				DKString scaleStr = scaleNode->FirstChild()->Value();
 
-				float3 position = parseFloat3FromString(positionStr);
-				Quaternion rotation = parseQuaternionFromString(rotationStr);
-				float3 scale = parseFloat3FromString(scaleStr);
+				float3 position = StringUtil::parseFloat3FromString(positionStr);
+				Quaternion rotation = StringUtil::parseQuaternionFromString(rotationStr);
+				float3 scale = StringUtil::parseFloat3FromString(scaleStr);
 
 				if (boneFrameCount >= frameCount)
 				{

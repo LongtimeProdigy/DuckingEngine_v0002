@@ -24,10 +24,9 @@ namespace DK
 
         DKVector<RaytracingGeometry> geometries;
         DKVector<ITextureRef> textures;
-        for (auto& entry : DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects())
+        for (const SceneObject& object : DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects())
         {
-            const SceneObject& object = entry.second;
-            for (auto& component : object.getComponents())
+            for (const Ptr<Component>& component : object.getComponents())
             {
                 auto* mesh = dynamic_cast<const StaticMeshComponent*>(component.get());
                 if (mesh == nullptr || mesh->get_model() == nullptr)

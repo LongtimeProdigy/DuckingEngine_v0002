@@ -224,9 +224,16 @@ namespace DK
 #define DK_MAX_PATH MAX_PATH
 #define DK_MAX_BUFFER 1024
 
+	struct float3;
+	struct Quaternion;
+
 	class StringUtil
 	{
 	public:
+		static DKVector<DKString> split(const DKString& str, const DKString& delimiter);
+		static float3 parseFloat3FromString(const DKString& str);
+		static Quaternion parseQuaternionFromString(const DKString& str);
+
 		static char* itoa(const uint32 value, char* buffer, int radix) noexcept
 		{
 #pragma warning(push)

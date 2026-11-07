@@ -107,7 +107,9 @@
     <ClCompile Include="EditorModule.cpp" />
     <ClCompile Include="GameModule.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="SceneObjectManager.cpp" />
+    <ClCompile Include="SceneObjectManager.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/source-charset:utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="SceneRenderer.cpp" />
     <ClCompile Include="Skeleton.cpp" />
     <ClCompile Include="SkinnedMeshComponent.cpp" />

@@ -101,24 +101,24 @@ namespace DK
 			if (imageIndex < 0 || imageIndex >= static_cast<int>(gltfModel.images.size()))
 			{
 				DK_ASSERT_LOG(false, "Invalid image index.");
-				return false;
+				return nullptr;
 			}
 
 			const tinygltf::Image& src = gltfModel.images[imageIndex];
 			if (src.width <= 0 || src.height <= 0)
 			{
 				DK_ASSERT_LOG(false, "Invalid image size.");
-				return false;
+				return nullptr;
 			}
 			if (src.bits != 8)
 			{
 				DK_ASSERT_LOG(false, "Only 8-bit images are supported.");
-				return false;
+				return nullptr;
 			}
 			if (src.component < 1 || src.component > 4)
 			{
 				DK_ASSERT_LOG(false, "Invalid image channel count.");
-				return false;
+				return nullptr;
 			}
 
 			DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -136,7 +136,7 @@ namespace DK
 			default:
 			{
 				DK_ASSERT_LOG(false, "Unsupported image channel count.");
-				return false;
+				return nullptr;
 			}
 			}
 
@@ -718,7 +718,7 @@ namespace DK
 				const tinygltf::Primitive& primitive = mesh.primitives[primitiveIndex];
 				CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> cpuPrimitive;
 				if (ConvertPrimitive(gltfModel, primitive, meshIndex, primitiveIndex, cpuPrimitive) == false)
-					return false;
+					return nullptr;
 
 				//result.model.primitives.push_back();
 
