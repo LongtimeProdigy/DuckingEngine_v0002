@@ -11,6 +11,8 @@
 cbuffer AtmosphereInputConstants : register(b2)
 {
     uint _materialIndex;
+    uint _lightingIndex;
+    uint _sceneDepthIndex;
 };
 
 struct AtmosphereSegment
@@ -201,8 +203,8 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float3 rayOrigin = float3(0, 0, 0);
     const float3 rayDirWS = normalize(rayDirToNearPlaneWS);
 
-    const Texture2D<float4> renderTexture = getRenderTargetTexture(_frameIndex.x, 0);
-    const Texture2D<float4> depthTexture = getDepthStencilTexture(_frameIndex.x, 0);
+    const Texture2D<float4> renderTexture = getTexture(_lightingIndex);
+    const Texture2D<float4> depthTexture = getTexture(_sceneDepthIndex);
     const float4 originalCol = renderTexture.Load(uint3(input.uv * _resolution, 0));
     // Debug primitives use the unlit channel and must survive sky/ground composition.
     if (getTexture(_materialIndex).Load(uint3(input.uv * _resolution, 0)).z > 0.5f)

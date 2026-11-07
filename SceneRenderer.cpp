@@ -27,9 +27,90 @@ namespace DK
 	{
 		if (initialize_createRenderPass() == false) 
 			return false;
-		if (initialize_createMaterialDefinition() == false)
+		if (initialize_renderPassHandles() == false || initialize_createMaterialDefinition() == false)
 			return false;
-		if (initialize_createSceneConstantBuffer() == false) 
+		return initialize_createSceneConstantBuffer();
+	}
+
+	bool SceneRenderer::initialize_renderPassHandles()
+	{
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+
+		_transmittancePass = renderModule.findRenderPass("AtmosphereTransmittancePass");
+		_multipleScatteringPass = renderModule.findRenderPass("AtmosphereMultipleScatteringPass");
+		_surfaceBouncePass = renderModule.findRenderPass("AtmosphereSurfaceBouncePass");
+		_skyLightingPass = renderModule.findRenderPass("AtmosphereSkyLightingPass");
+		_oceanPass = renderModule.findRenderPass("OceanRenderPass");
+		_gbufferResolvePass = renderModule.findRenderPass("GBufferRenderPass");
+		_atmospherePass = renderModule.findRenderPass("AtmosphereRenderPass");
+		_bloomHorizontalPass = renderModule.findRenderPass("BloomHorizontalRenderPass");
+		_bloomVerticalPass = renderModule.findRenderPass("BloomVerticalRenderPass");
+		_finalOutputPass = renderModule.findRenderPass("FinalOutputRenderPass");
+
+		_mainGeometryPass = renderModule.findRenderPass("MainRenderPass");
+		_mainGeometryClearPass = renderModule.findRenderPassInstance("MainGeometryClearPass");
+		_surfaceCapturePass = renderModule.findRenderPassInstance("SurfaceCapturePass");
+
+		const char* nearShadowPassNames[] = { "NearShadowPass0", "NearShadowPass1", "NearShadowPass2" };
+		for (uint32 i = 0; i < DK_COUNT_OF(nearShadowPassNames); ++i)
+		{
+			_nearShadowPasses[i] = renderModule.findRenderPassInstance(nearShadowPassNames[i]);
+			if (_nearShadowPasses[i] == nullptr)
+				return false;
+		}
+
+		if (_transmittancePass == nullptr || _multipleScatteringPass == nullptr ||
+			_surfaceBouncePass == nullptr || _skyLightingPass == nullptr || _oceanPass == nullptr ||
+			_gbufferResolvePass == nullptr || _atmospherePass == nullptr || _bloomHorizontalPass == nullptr ||
+			_bloomVerticalPass == nullptr || _finalOutputPass == nullptr || _mainGeometryPass == nullptr ||
+			_mainGeometryClearPass == nullptr || _surfaceCapturePass == nullptr)
+			return false;
+
+		using Size = RenderTargetDefinition::Size;
+		const auto hasGeometryOutputs = [](const RenderTarget* target)
+		{
+			if (target == nullptr)
+				return false;
+
+			const RenderTargetDefinition& definition = target->_definition;
+			return definition._colorCount == 3 && definition._depth._srv &&
+				definition._colors[0]._name == "Albedo" && definition._colors[0]._srv &&
+				definition._colors[1]._name == "Normal" && definition._colors[1]._srv &&
+				definition._colors[2]._name == "Material" && definition._colors[2]._srv;
+		};
+		const auto isCapture = [&](const RenderPassInstance& pass)
+		{
+			const RenderTarget* target = pass._binding._target;
+			return hasGeometryOutputs(target) && target->_definition._size == Size::Fixed
+				&& target->_targets._width == target->_targets._height && pass._binding._store == RenderPassStoreAction::ShaderRead;
+		};
+		const RenderTarget* gbuffer = _mainGeometryPass->_binding._target;
+		if (hasGeometryOutputs(gbuffer) == false || gbuffer->_definition._size != Size::Window || _oceanPass->_binding._target != gbuffer
+			|| _mainGeometryClearPass->_binding._target != gbuffer || isCapture(*_surfaceCapturePass) == false || _surfaceCapturePass->_binding._target->_targets._width % 32u != 0)
+			return false;
+
+		for (const RenderPassInstance* pass : _nearShadowPasses)
+		{
+			if (isCapture(*pass) == false)
+				return false;
+		}
+
+		const RenderPass* postProcess[] = { _gbufferResolvePass, _atmospherePass, _bloomHorizontalPass, _bloomVerticalPass };
+		for (const RenderPass* pass : postProcess)
+		{
+			const RenderTarget* target = pass->_binding._target;
+			if (target == nullptr || target->_definition._size != Size::Window || target->_definition._colorCount != 1 || target->_definition._colors[0]._srv == false || target == gbuffer)
+				return false;
+		}
+		const RenderTarget* lighting = _gbufferResolvePass->_binding._target;
+		const RenderTarget* atmosphere = _atmospherePass->_binding._target;
+		const RenderTarget* horizontal = _bloomHorizontalPass->_binding._target;
+		const RenderTarget* vertical = _bloomVerticalPass->_binding._target;
+		if (lighting == atmosphere || horizontal == atmosphere || vertical == atmosphere || vertical == horizontal)
+			return false;
+
+		const RenderTarget* finalTarget = _finalOutputPass->_binding._target;
+		if (finalTarget == nullptr || finalTarget->_definition._size != Size::SwapChain)
 			return false;
 
 		return true;
@@ -73,46 +154,225 @@ namespace DK
 		return true;
 	}
 
+	static bool parseTargetExtent(const char* text, uint32& extent)
+	{
+		if (text == nullptr || *text == '\0')
+			return false;
+
+		uint32 value = 0;
+		for (; *text != '\0'; ++text)
+		{
+			if (*text < '0' || *text > '9')
+				return false;
+			value = value * 10 + (*text - '0');
+			if (value > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION)
+				return false;
+		}
+		extent = value;
+		return extent != 0;
+	}
+
+	static bool parseTargetAttachment(const TiXmlElement& node, bool depth, RenderTargetDefinition::Attachment& attachment)
+	{
+		const char* format = node.Attribute("Format");
+		if (format == nullptr)
+			return false;
+
+		struct FormatEntry { const char* name; DXGI_FORMAT format; bool depth; };
+		const FormatEntry formats[] = {
+			{ "R8G8B8A8_UNORM", DXGI_FORMAT_R8G8B8A8_UNORM, false },
+			{ "R16G16B16A16_FLOAT", DXGI_FORMAT_R16G16B16A16_FLOAT, false },
+			{ "R32G32B32A32_FLOAT", DXGI_FORMAT_R32G32B32A32_FLOAT, false },
+			{ "R11G11B10_FLOAT", DXGI_FORMAT_R11G11B10_FLOAT, false },
+			{ "D16_UNORM", DXGI_FORMAT_D16_UNORM, true },
+			{ "D24_UNORM_S8_UINT", DXGI_FORMAT_D24_UNORM_S8_UINT, true },
+			{ "D32_FLOAT", DXGI_FORMAT_D32_FLOAT, true },
+			{ "D32_FLOAT_S8X24_UINT", DXGI_FORMAT_D32_FLOAT_S8X24_UINT, true },
+		};
+		for (const FormatEntry& entry : formats)
+		{
+			if (entry.depth == depth && StringUtil::strcmp(entry.name, format) == 0)
+			{
+				attachment._format = entry.format;
+				break;
+			}
+		}
+
+		if (attachment._format == DXGI_FORMAT_UNKNOWN)
+			return false;
+
+		const char* srv = node.Attribute("SRV");
+		if (srv != nullptr)
+		{
+			if (StringUtil::strcmp(srv, "True") == 0)
+				attachment._srv = true;
+			else if (StringUtil::strcmp(srv, "False") != 0)
+				return false;
+		}
+
+		return true;
+	}
+
+	static bool parseRenderTarget(const TiXmlElement& node, RenderTargetDefinition& definition)
+	{
+		using Size = RenderTargetDefinition::Size;
+		const char* source = node.Attribute("Source");
+		const char* size = node.Attribute("Size");
+		const char* width = node.Attribute("Width");
+		const char* height = node.Attribute("Height");
+		if (source != nullptr)
+		{
+			definition._size = Size::SwapChain;
+			return StringUtil::strcmp(source, "SwapChain") == 0 && size == nullptr &&
+				width == nullptr && height == nullptr && node.FirstChildElement() == nullptr;
+		}
+		if (size != nullptr)
+		{
+			if (StringUtil::strcmp(size, "Window") != 0 || width != nullptr || height != nullptr)
+				return false;
+		}
+		else
+		{
+			definition._size = Size::Fixed;
+			if (parseTargetExtent(width, definition._width) == false || parseTargetExtent(height, definition._height) == false)
+				return false;
+		}
+
+		for (const TiXmlElement* child = node.FirstChildElement(); child != nullptr; child = child->NextSiblingElement())
+		{
+			if (StringUtil::strcmp(child->Value(), "Color") == 0)
+			{
+				const char* name = child->Attribute("Name");
+				if (name == nullptr || *name == '\0' || definition._colorCount >= DK_COUNT_OF(definition._colors))
+					return false;
+
+				for (uint32 i = 0; i < definition._colorCount; ++i)
+				{
+					if (definition._colors[i]._name == name)
+						return false;
+				}
+
+				RenderTargetDefinition::Attachment& color = definition._colors[definition._colorCount++];
+				color._name = name;
+				if (parseTargetAttachment(*child, false, color) == false)
+					return false;
+			}
+			else if (StringUtil::strcmp(child->Value(), "Depth") == 0)
+			{
+				if (definition._depth._format != DXGI_FORMAT_UNKNOWN || parseTargetAttachment(*child, true, definition._depth) == false)
+					return false;
+			}
+			else
+				return false;
+		}
+
+		return definition._colorCount != 0 || definition._depth._format != DXGI_FORMAT_UNKNOWN;
+	}
+
+	static bool parseRenderPassBinding(const TiXmlElement& node, const RenderModule& renderModule, RenderPassBinding& binding)
+	{
+		const char* target = node.Attribute("Target");
+		const char* load = node.Attribute("Load");
+		const char* store = node.Attribute("Store");
+		if (target == nullptr)
+			return load == nullptr && store == nullptr;
+
+		binding._target = renderModule.findRenderTarget(target);
+		if (binding._target == nullptr)
+			return false;
+
+		if (load != nullptr)
+		{
+			if (StringUtil::strcmp(load, "Clear") == 0)
+				binding._load = RenderPassLoadAction::Clear;
+			else if (StringUtil::strcmp(load, "Load") != 0)
+				return false;
+		}
+
+		if (store != nullptr && StringUtil::strcmp(store, "Keep") != 0)
+		{
+			if (StringUtil::strcmp(store, "ShaderRead") != 0)
+				return false;
+
+			const RenderTargetDefinition& definition = binding._target->_definition;
+			for (uint32 i = 0; i < definition._colorCount; ++i)
+			{
+				if (definition._colors[i]._srv == false)
+					return false;
+			}
+
+			if (definition._depth._format != DXGI_FORMAT_UNKNOWN && definition._depth._srv == false)
+				return false;
+
+			binding._store = RenderPassStoreAction::ShaderRead;
+		}
+
+		return true;
+	}
+
 	bool SceneRenderer::initialize_createRenderPass()
 	{
 		ScopeString<DK_MAX_PATH> renderPassGroupPath = GlobalPath::makeResourceFullPath("RenderPass/RenderPassGroup.xml");
 
 		TiXmlDocument doc;
-		doc.LoadFile(renderPassGroupPath.c_str());
+		if (doc.LoadFile(renderPassGroupPath.c_str()) == false)
+			return false;
+
 		TiXmlElement* rootNode = doc.FirstChildElement("RenderPassGroup");
 		if (rootNode == nullptr)
-		{
-			DK_ASSERT_LOG(false, "");
 			return false;
-		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		const TiXmlElement* targetGroup = rootNode->FirstChildElement("RenderTargets");
+		if (targetGroup == nullptr || targetGroup->NextSiblingElement("RenderTargets") != nullptr)
+			return false;
+
+		for (const TiXmlElement* node = targetGroup->FirstChildElement(); node != nullptr; node = node->NextSiblingElement())
+		{
+			const char* name = node->Attribute("Name");
+			RenderTargetDefinition definition;
+			if (StringUtil::strcmp(node->Value(), "RenderTarget") != 0 || name == nullptr || *name == '\0' || parseRenderTarget(*node, definition) == false || renderModule.createRenderTarget(name, DK::move(definition)) == false)
+			{
+				DK_LOG("Invalid render target definition: %s", name != nullptr ? name : "(unnamed)");
+				return false;
+			}
+		}
+
 		ShaderCompiler shaderCompiler(renderModule.getShaderModel());
 		for (TiXmlElement* renderPassNode = rootNode->FirstChildElement(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSiblingElement())
 		{
-			DKString renderPassName = renderPassNode->Attribute("Name");
+			const char* nodeType = renderPassNode->Value();
+			if (renderPassNode == targetGroup || StringUtil::strcmp(nodeType, "RenderPassInstance") == 0)
+				continue;
+			if (StringUtil::strcmp(nodeType, "RenderPass") != 0)
+				return false;
+
+			const char* renderPassName = renderPassNode->Attribute("Name");
+			if (renderPassName == nullptr || renderPassName[0] == '\0')
+				return false;
 
 			RenderPass::CreateInfo renderPassCreateInfo;
+			if (parseRenderPassBinding(*renderPassNode, renderModule, renderPassCreateInfo._binding) == false)
+			{
+				DK_LOG("Invalid output binding for render pass %s", renderPassName);
+				return false;
+			}
 			for (TiXmlElement* renderPassChildNode = renderPassNode->FirstChildElement(); renderPassChildNode != nullptr; renderPassChildNode = renderPassChildNode->NextSiblingElement())
 			{
 				DKString renderPassChildNodeName = renderPassChildNode->Value();
 				if (renderPassChildNodeName == "Pipeline")
 				{
+					const RenderPassBinding& binding = renderPassCreateInfo._binding;
+					if (binding._target == nullptr)
+						return false;
 					Pipeline::CreateInfo pipelineCreateInfo;
 					DKString pipelineName = renderPassChildNode->Attribute("Name");
-					const char* targetFormat = renderPassChildNode->Attribute("RenderTargetFormat");
-					const char* gbufferOutput = renderPassChildNode->Attribute("GBufferOutput");
-					pipelineCreateInfo._gbufferOutput = gbufferOutput != nullptr && StringUtil::strcmp(gbufferOutput, "True") == 0;
-					if (targetFormat != nullptr)
-					{
-						if (StringUtil::strcmp(targetFormat, "LDR") == 0)
-							pipelineCreateInfo._hdrRenderTarget = false;
-						else if (StringUtil::strcmp(targetFormat, "HDR") != 0)
-							return false;
-					}
+					pipelineCreateInfo._target = binding._target;
 					pipelineCreateInfo._primitiveTopologyType = renderPassChildNode->Attribute("PrimitiveTopologyType");
 					const char* depthEnable = renderPassChildNode->Attribute("DepthEnable");
 					pipelineCreateInfo._depthEnable = depthEnable == nullptr || StringUtil::strcmp(depthEnable, "True") != 0 ? false : true;
+					if (pipelineCreateInfo._depthEnable && binding._target->_definition._depth._format == DXGI_FORMAT_UNKNOWN)
+						return false;
 					const char* fillMode = renderPassChildNode->Attribute("FillMode");
 					pipelineCreateInfo._fillMode = fillMode == nullptr || StringUtil::strcmp(fillMode, "WireFrame") != 0 ? Pipeline::CreateInfo::FillMode::SOLID : Pipeline::CreateInfo::FillMode::WIREFRAME;
 					const char* cullMode = renderPassChildNode->Attribute("CullMode");
@@ -303,6 +563,23 @@ namespace DK
 				return false;
 		}
 
+		for (const TiXmlElement* instance = rootNode->FirstChildElement("RenderPassInstance"); instance != nullptr; instance = instance->NextSiblingElement("RenderPassInstance"))
+		{
+			const char* name = instance->Attribute("Name");
+			const char* definitionName = instance->Attribute("Pass");
+			if (name == nullptr || name[0] == '\0' || definitionName == nullptr || definitionName[0] == '\0')
+				return false;
+
+			RenderPassBinding binding;
+			if (parseRenderPassBinding(*instance, renderModule, binding) == false ||
+				(binding._target == nullptr) ||
+				renderModule.createRenderPassInstance(name, definitionName, binding) == false)
+			{
+				DK_LOG("Invalid render pass instance %s", name);
+				return false;
+			}
+		}
+
 		return true;
 	}
 	bool SceneRenderer::initialize_createMaterialDefinition()
@@ -315,6 +592,7 @@ namespace DK
 			DK_ASSERT_LOG(false, "MaterialDefinition XML 파일의 경로가 올바르지 않습니다.");
 			return false;
 		}
+
 		TiXmlElement* materialDefinitionRootNode = materialDefinitionDocument.RootElement();
 		for (TiXmlElement* materialNode = materialDefinitionRootNode->FirstChildElement(); materialNode != nullptr; materialNode = materialNode->NextSiblingElement())
 		{
@@ -416,24 +694,24 @@ namespace DK
         if (_surfaceBounce == nullptr)
 			return false;
 
-        if (renderModule.createReflectiveSurfaceMap(_surfaceMap, 512u) == false)
-			return false;
-		for (uint32 i = 0; i < 3; ++i)
+		for (uint32 i = 0; i < DK_COUNT_OF(_nearShadowSceneConstants); ++i)
 		{
 			_nearShadowSceneConstants[i] = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), L"ShadowCascadeSceneConstants");
-			if (_nearShadowSceneConstants[i] == nullptr || renderModule.createReflectiveSurfaceMap(_nearShadowMaps[i], 512u) == false)
+			if (_nearShadowSceneConstants[i] == nullptr)
 				return false;
 		}
 
 		AtmosphereConstantBuffer& surface = _atmosphereConstantBufferData;
+		const auto& capture = _surfaceCapturePass->_binding._target->_targets;
+		surface._surfaceMapSize = capture._width;
 		surface._transmittanceLutIndex = _atmosphereTransmittanceLut->getSRV();
         surface._multipleScatteringLutIndex = _multipleScatteringLut[0]->getSRV();
         surface._skyRadianceIndex = _skyRadiance->getSRV();
         surface._skyFilteredIndex = _skyFiltered->getSRV();
-        surface._surfaceAlbedoIndex = _surfaceMap.attributes[0]->getSRV();
-        surface._surfaceNormalIndex = _surfaceMap.attributes[1]->getSRV();
-        surface._surfaceMaterialIndex = _surfaceMap.attributes[2]->getSRV();
-        surface._surfaceDepthIndex = _surfaceMap.depth->getSRV();
+        surface._surfaceAlbedoIndex = capture._colors[0]._texture->getSRV();
+        surface._surfaceNormalIndex = capture._colors[1]._texture->getSRV();
+        surface._surfaceMaterialIndex = capture._colors[2]._texture->getSRV();
+        surface._surfaceDepthIndex = capture._depth._texture->getSRV();
         surface._surfaceBounceIndex = _surfaceBounce->getSRV();
 
 		return true;
@@ -1067,7 +1345,7 @@ namespace DK
 		// 격자 중심이 텍셀 경계에 위치하도록 강제합니다. 예: 512 / 16 = 32 → 짝수이므로 유효.
 		const bool validGrid = mapSize > 0u && mapSize % (2u * kSurfaceBounceGrid) == 0u;
 		// 셰이더가 사용하는 해상도와 실제 텍스처 해상도 일치.
-		const bool validMapSize = mapSize == _surfaceMap.size;
+		const bool validMapSize = mapSize == _surfaceCapturePass->_binding._target->_targets._width;
 		const bool validCapture = std::isfinite(_surfaceCaptureExtent) && _surfaceCaptureExtent > 0.0f && std::isfinite(_surfaceCaptureDepth) && _surfaceCaptureDepth > 0.0f;
 		const bool valid = validGrid && validMapSize && validCapture;
 		DK_ASSERT_LOG(valid, "Invalid surface capture: map size must match the texture and be an even multiple of the bounce grid.");
@@ -1102,7 +1380,9 @@ namespace DK
         {
             // Nested light-space coverage also serves off-screen atmospheric samples.
             const float extent = Math::max(_surfaceCaptureExtent, 1.0f) / float(1u << (3u - cascadeIndex));
-            const float cell = 2.0f * extent / atmosphereData._surfaceMapSize;
+            const auto* pass = cascadeIndex == 3u ? _surfaceCapturePass : _nearShadowPasses[cascadeIndex];
+            const auto& map = pass->_binding._target->_targets;
+            const float cell = 2.0f * extent / map._width;
             const float snapRight = std::round(doublePrecisionDot(cameraPosition, right) / cell) * cell - doublePrecisionDot(cameraPosition, right);
             const float snapUp = std::round(doublePrecisionDot(cameraPosition, up) / cell) * cell - doublePrecisionDot(cameraPosition, up);
             const float snapForward = std::round(doublePrecisionDot(cameraPosition, directionalLightDir) / (depth / 16.0)) * (depth / 16.0) - doublePrecisionDot(cameraPosition, directionalLightDir);
@@ -1128,7 +1408,8 @@ namespace DK
 
 			// cascade constant buffer에 덮어 씌울 것이기 때문에 복사한다음 cascade로 upload 수행
             SceneConstantBuffer scene = _sceneConstantBufferData;
-            scene._resolution[0] = scene._resolution[1] = atmosphereData._surfaceMapSize;
+            scene._resolution[0] = map._width;
+            scene._resolution[1] = map._height;
             scene._cameraWorldMatrixInv = float4x4(
 				right.x, up.x, directionalLightDir.x, 0,
 				right.y, up.y, directionalLightDir.y, 0,
@@ -1147,10 +1428,10 @@ namespace DK
             memcpy(cascade.forward, atmosphereData._surfaceForward, sizeof(cascade.forward));
             memcpy(cascade.origin, atmosphereData._surfaceOrigin, sizeof(cascade.origin));
 
-			ReflectiveSurfaceMap& map = cascadeIndex == 3u ? _surfaceMap : _nearShadowMaps[cascadeIndex];
-            cascade.albedoIndex = map.attributes[0]->getSRV();
-			cascade.depthIndex = map.depth->getSRV();
-			cascade.mapSize = map.size;
+
+            cascade.albedoIndex = map._colors[0]._texture->getSRV();
+			cascade.depthIndex = map._depth._texture->getSRV();
+			cascade.mapSize = map._width;
         } // Keep the outermost capture in the legacy fields for bounce transport.
     }
     void SceneRenderer::updateSurfaceTransport()
@@ -1170,26 +1451,23 @@ namespace DK
 
         RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
         renderModule.beginGpuTiming(4);
-        startRenderPass(renderModule, "MainRenderPass", 0xffffffffu);
+		if (surface._surfaceShadowStrength > 0.0f)
 		{
-			if (surface._surfaceShadowStrength > 0.0f)
+			for (uint32 i = 0; i < DK_COUNT_OF(_nearShadowPasses); ++i)
 			{
-				for (uint32 i = 0; i < 3u; ++i)
-				{
-					renderModule.beginReflectiveSurfaceMap(_nearShadowMaps[i]);
-					drawSceneGeometry(renderModule, _nearShadowSceneConstants[i], false);
-					renderModule.endReflectiveSurfaceMap(_nearShadowMaps[i]);
-				}
+				startRenderPass(renderModule, *_nearShadowPasses[i]);
+				drawSceneGeometry(renderModule, _nearShadowSceneConstants[i], false);
+				endRenderPass();
 			}
-			renderModule.beginReflectiveSurfaceMap(_surfaceMap);
-			drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, false);
-			renderModule.endReflectiveSurfaceMap(_surfaceMap);
 		}
-        endRenderPass();
+
+		startRenderPass(renderModule, *_surfaceCapturePass);
+		drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, false);
+		endRenderPass();
 
         if (updateBounce && _atmosphereConstantBufferData._surfaceBounceStrength > 0.0f)
         {
-            startRenderPass(renderModule, "AtmosphereSurfaceBouncePass", 0xffffffffu);
+            startRenderPass(renderModule, *_surfaceBouncePass);
 			{
 				startPipeline("AtmosphereSurfaceBouncePipeline");
 				{
@@ -1450,7 +1728,7 @@ namespace DK
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		renderModule.beginGpuTiming(0);
-        startRenderPass(renderModule, "AtmosphereTransmittancePass", 0);
+        startRenderPass(renderModule, *_transmittancePass);
 		{
 			startPipeline("AtmosphereTransmittancePipeline");
 			{
@@ -1481,7 +1759,7 @@ namespace DK
 			return;
 
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
-        startRenderPass(rm, "AtmosphereMultipleScatteringPass", 0);
+        startRenderPass(rm, *_multipleScatteringPass);
         for (uint32 iteration = 0; iteration < p._multipleScatteringMaxOrder - 1u; ++iteration)
         {
 			const uint32 output = iteration & 1u;
@@ -1526,7 +1804,7 @@ namespace DK
 
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
         rm.beginGpuTiming(1);
-        startRenderPass(rm, "AtmosphereSkyLightingPass", 0);
+        startRenderPass(rm, *_skyLightingPass);
 		{
 			startPipeline("AtmosphereSkyRadiancePipeline");
 			{
@@ -1571,11 +1849,15 @@ namespace DK
         //if (raytraced)
         //    raytracingRenderer.dispatchRay(renderModule, _sceneConstantBuffer);
         //if (!raytraced)
+		const auto& gbuffer = _mainGeometryPass->_binding._target->_targets;
+		const auto& lighting = _gbufferResolvePass->_binding._target->_targets._colors[0]._texture;
+		const auto& atmosphere = _atmospherePass->_binding._target->_targets._colors[0]._texture;
+		const auto& horizontal = _bloomHorizontalPass->_binding._target->_targets._colors[0]._texture;
+		const auto& vertical = _bloomVerticalPass->_binding._target->_targets._colors[0]._texture;
         {
-#if 1
 		if (_renderLocalScene)
 		{
-		startRenderPass(renderModule, "OceanRenderPass", RenderModule::kGBufferStart);
+		startRenderPass(renderModule, *_oceanPass);
 		{
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::Ocean& ocean = sceneManager.getOceanWritable();
@@ -1689,26 +1971,28 @@ namespace DK
 		}
 		endRenderPass();
 		}
-#endif
 
 		// MainRender
-		startRenderPass(renderModule, "MainRenderPass", RenderModule::kGBufferStart);
-        drawSceneGeometry(renderModule, _sceneConstantBuffer, true);
-		endRenderPass();
+		if (_renderLocalScene)
+			renderModule.beginRenderPass(*_mainGeometryPass);
+		else
+			renderModule.beginRenderPass(*_mainGeometryClearPass);
+		drawSceneGeometry(renderModule, _sceneConstantBuffer, true);
+		renderModule.finishRenderPass();
 
 		// Resolve material attributes to HDR radiance before atmosphere and bloom.
 		renderModule.beginGpuTiming(2);
-        startRenderPass(renderModule, "GBufferRenderPass", 0);
+        startRenderPass(renderModule, *_gbufferResolvePass);
 		{
 			startPipeline("GBufferPipeline");
 			{
-				for (uint32 i = 0; i < RenderModule::kGBufferCount; ++i)
-					renderModule.resourceBarrierTransition(renderModule.getRenderTarget(RenderModule::kGBufferStart + i)._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				renderModule.resourceBarrierTransition(renderModule.getRenderTarget(0)._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				setRootConstantParameter("_baseColorIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart)._renderTarget.getSRV());
-				setRootConstantParameter("_normalRoughnessIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 1)._renderTarget.getSRV());
-				setRootConstantParameter("_materialIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 2)._renderTarget.getSRV());
-				setRootConstantParameter("_depthIndex", renderModule.getRenderTarget(0)._depthStencil.getSRV());
+				for (uint32 i = 0; i < gbuffer._colorCount; ++i)
+					renderModule.resourceBarrierTransition(gbuffer._colors[i]._texture->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				renderModule.resourceBarrierTransition(gbuffer._depth._texture->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				setRootConstantParameter("_baseColorIndex", gbuffer._colors[0]._texture->getSRV());
+				setRootConstantParameter("_normalRoughnessIndex", gbuffer._colors[1]._texture->getSRV());
+				setRootConstantParameter("_materialIndex", gbuffer._colors[2]._texture->getSRV());
+				setRootConstantParameter("_depthIndex", gbuffer._depth._texture->getSRV());
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 				SceneManager::PostProcess& postProcess = DuckingEngine::getInstance().getSceneManagerWritable().getPostProcessWritable();
@@ -1722,14 +2006,14 @@ namespace DK
 		renderModule.endGpuTiming(2);
 
         renderModule.beginGpuTiming(3);
-        startRenderPass(renderModule, "AtmosphereRenderPass", 1);
+        startRenderPass(renderModule, *_atmospherePass);
 		{
 			startPipeline("AtmospherePipeline");
 			{
-				setRootConstantParameter("_materialIndex", renderModule.getRenderTarget(RenderModule::kGBufferStart + 2)._renderTarget.getSRV());
-				RenderTarget& rt = renderModule.getRenderTarget(0);
-				renderModule.resourceBarrierTransition(rt._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				renderModule.resourceBarrierTransition(rt._depthStencil.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				setRootConstantParameter("_materialIndex", gbuffer._colors[2]._texture->getSRV());
+				renderModule.resourceBarrierTransition(lighting->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				setRootConstantParameter("_lightingIndex", lighting->getSRV());
+				setRootConstantParameter("_sceneDepthIndex", gbuffer._depth._texture->getSRV());
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 
@@ -1747,14 +2031,14 @@ namespace DK
 
 		renderModule.endGpuTiming(3);
 
-        // RT0 is no longer needed by atmosphere; reuse it for horizontal HDR bloom.
+        // The horizontal pass can reuse the lighting output after atmosphere has read it.
 		if (_atmosphereConstantBufferData._bloomStrength > 0.0f)
 		{
 			SceneManager::PostProcess& postProcess = DuckingEngine::getInstance().getSceneManagerWritable().getPostProcessWritable();
-			startRenderPass(renderModule, "BloomHorizontalRenderPass", 0);
+			startRenderPass(renderModule, *_bloomHorizontalPass);
 			startPipeline("BloomHorizontalPipeline");
-			RenderTarget& hdr = renderModule.getRenderTarget(1);
-			renderModule.resourceBarrierTransition(hdr._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(atmosphere->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			setRootConstantParameter("_bloomSourceIndex", atmosphere->getSRV());
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
@@ -1763,10 +2047,12 @@ namespace DK
 			endPipeline();
 			endRenderPass();
 
-			// The second bloom pass blurs vertically and composes with original HDR into RT2.
-			startRenderPass(renderModule, "BloomVerticalRenderPass", 2);
+			// The second bloom pass blurs vertically and composes with the original HDR output.
+			startRenderPass(renderModule, *_bloomVerticalPass);
 			startPipeline("BloomVerticalPipeline");
-			renderModule.resourceBarrierTransition(renderModule.getRenderTarget(0)._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			renderModule.resourceBarrierTransition(horizontal->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			setRootConstantParameter("_bloomSourceIndex", horizontal->getSRV());
+			setRootConstantParameter("_originalHdrIndex", atmosphere->getSRV());
 			setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 			setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 			renderModule.setVertexBuffers(0, 1, postProcess._mesh._vertexBufferView.get());
@@ -1777,14 +2063,13 @@ namespace DK
 		}
 
 		// Final output only applies exposure and tone mapping to the selected HDR source.
-		startRenderPass(renderModule, "FinalOutputRenderPass", RenderModule::kRenderTargetTextureCount + RenderModule::kCurrentBackBufferIndex);
+		startRenderPass(renderModule, *_finalOutputPass);
 		{
 			startPipeline("FinalOutputPipeline");
 			{
-				const uint32 outputSourceSlot = _atmosphereConstantBufferData._bloomStrength > 0.0f ? 2u : 1u;
-				RenderTarget& rt = renderModule.getRenderTarget(outputSourceSlot);
-				renderModule.resourceBarrierTransition(rt._renderTarget.getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-				const uint32 outputSourceSRV = rt._renderTarget.getSRV();
+				const auto& source = _atmosphereConstantBufferData._bloomStrength > 0.0f ? vertical : atmosphere;
+				renderModule.resourceBarrierTransition(source->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+				const uint32 outputSourceSRV = source->getSRV();
 				setRootConstantParameter("_sourceTextureIndex", outputSourceSRV);
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);

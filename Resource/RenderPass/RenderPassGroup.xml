@@ -4,6 +4,49 @@
 <!-- RWTexture2D<float4> gBindlessTextureUAVArray[] : register(u0, BINDLESSTEXTUREARRAY_SPACE); -->
 
 <RenderPassGroup>
+	<RenderTargets>
+		<RenderTarget Name="GBuffer" Size="Window">
+			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="Lighting" Size="Window">
+			<Color Name="Color" Format="R32G32B32A32_FLOAT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="Atmosphere" Size="Window">
+			<Color Name="Color" Format="R32G32B32A32_FLOAT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="Bloom" Size="Window">
+			<Color Name="Color" Format="R32G32B32A32_FLOAT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="SurfaceCapture" Width="512" Height="512">
+			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="NearShadow0" Width="512" Height="512">
+			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="NearShadow1" Width="512" Height="512">
+			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="NearShadow2" Width="512" Height="512">
+			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
+			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+		</RenderTarget>
+		<RenderTarget Name="BackBuffer" Source="SwapChain"/>
+	</RenderTargets>
+
 	<RenderPass Name="PathTracing">
 		<RaytracingPipeline Name="BruteForce" HitGroup="HitGroup" MaxPayloadSize="24" MaxAttributeSize="8" MaxTraceRecursionDepth="3">
 			<Permutation Name="PATHTRACING_MODE" Values="0,1"/>
@@ -14,7 +57,7 @@
 		</RaytracingPipeline>
 	</RenderPass>
 
-	<RenderPass Name="OceanRenderPass">
+	<RenderPass Name="OceanRenderPass" Target="GBuffer" Load="Clear">
 		<ComputePipeline Name="InitialSpectrum">
 			<Shader Entry="main">Material/Ocean/InitialSpectrumCS.hlsl</Shader>
 		</ComputePipeline>
@@ -37,7 +80,7 @@
 			<RootConstant Buffer="ComputeOceanNormalCB"/>
 			<Shader Entry="main">Material/Ocean/ComputeOceanNormal.hlsl</Shader>
 		</ComputePipeline>
-		<Pipeline Name="RenderOcean" GBufferOutput="True" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="RenderOcean" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
@@ -46,15 +89,15 @@
 		</Pipeline>
 	</RenderPass>
 
-	<RenderPass Name="MainRenderPass">
-		<!-- <Pipeline Name="SkyDomePipeline" GBufferOutput="True" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Front">
+	<RenderPass Name="MainRenderPass" Target="GBuffer" Load="Load">
+		<!-- <Pipeline Name="SkyDomePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="WireFrame" CullMode="Front">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMain">Material/SkyDome.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material/SkyDome.hlsl</PixelShader>
 		</Pipeline> -->
-		<Pipeline Name="TerrainClipmapPipeline" GBufferOutput="True" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="TerrainClipmapPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
@@ -62,7 +105,7 @@
 			<PixelShader Entry="PSMain">Material\TerrainClipMap.hlsl</PixelShader>
 		</Pipeline>
 
-		<Pipeline Name="StaticMeshStandardPipeline" GBufferOutput="True" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="StaticMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 				<Element Type="float3">NORMAL</Element>
@@ -72,7 +115,7 @@
 			<PixelShader Entry="PSMain">Material\StaticMeshStandard.hlsl</PixelShader>
 		</Pipeline>
 
-		<Pipeline Name="SkinnedMeshStandardPipeline" GBufferOutput="True" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="SkinnedMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 				<Element Type="float3">NORMAL</Element>
@@ -84,14 +127,14 @@
 			<PixelShader Entry="PSMain">Material\SkinnedMeshStandard.hlsl</PixelShader>
 		</Pipeline>
 
-		<Pipeline Name="SpherePipeline" GBufferOutput="True" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMainSphere">Material\DebugDrawElement.hlsl</VertexShader>
 			<PixelShader Entry="PSMainSphere">Material\DebugDrawElement.hlsl</PixelShader>
 		</Pipeline>
-		<Pipeline Name="LinePipeline" GBufferOutput="True" PrimitiveTopologyType="Line" DepthEnable="False" FillMode="Solid" CullMode="None">
+		<Pipeline Name="LinePipeline" PrimitiveTopologyType="Line" DepthEnable="False" FillMode="Solid" CullMode="None">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
@@ -129,7 +172,7 @@
             <Shader Entry="CSFilter">Material/Atmosphere/AtmosphereSkyLightingCS.hlsl</Shader>
         </ComputePipeline>
     </RenderPass>
-    <RenderPass Name="AtmosphereRenderPass">
+    <RenderPass Name="AtmosphereRenderPass" Target="Atmosphere" Load="Load">
 		<Pipeline Name="AtmospherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
 			<RootConstant Buffer="AtmosphereInputConstants"/>
 			<LayoutInfo>
@@ -140,8 +183,8 @@
 		</Pipeline>
 	</RenderPass>
 
-	<RenderPass Name="FinalOutputRenderPass">
-		<Pipeline Name="FinalOutputPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="LDR">
+	<RenderPass Name="FinalOutputRenderPass" Target="BackBuffer" Load="Load">
+		<Pipeline Name="FinalOutputPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
 			<RootConstant Buffer="FinalOutputConstants"/>
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
@@ -150,8 +193,9 @@
 			<PixelShader Entry="PSMain">Material\FinalOutput.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
-	<RenderPass Name="BloomHorizontalRenderPass">
-		<Pipeline Name="BloomHorizontalPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="HDR">
+	<RenderPass Name="BloomHorizontalRenderPass" Target="Lighting" Load="Load">
+		<Pipeline Name="BloomHorizontalPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
+			<RootConstant Buffer="BloomInputConstants"/>
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
@@ -159,8 +203,9 @@
 			<PixelShader Entry="PSHorizontal">Material/Bloom.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
-	<RenderPass Name="BloomVerticalRenderPass">
-		<Pipeline Name="BloomVerticalPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="HDR">
+	<RenderPass Name="BloomVerticalRenderPass" Target="Bloom" Load="Load">
+		<Pipeline Name="BloomVerticalPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
+			<RootConstant Buffer="BloomInputConstants"/>
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
 			</LayoutInfo>
@@ -168,12 +213,18 @@
 			<PixelShader Entry="PSVertical">Material/Bloom.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
-	<RenderPass Name="GBufferRenderPass">
-		<Pipeline Name="GBufferPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" RenderTargetFormat="HDR">
+	<RenderPass Name="GBufferRenderPass" Target="Lighting" Load="Load">
+		<Pipeline Name="GBufferPipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
 			<RootConstant Buffer="GBufferConstants"/>
 			<LayoutInfo><Element Type="float2">POSITION</Element></LayoutInfo>
 			<VertexShader Entry="VSMain">Material/GBuffer.hlsl</VertexShader>
 			<PixelShader Entry="PSMain">Material/GBuffer.hlsl</PixelShader>
 		</Pipeline>
 	</RenderPass>
+
+	<RenderPassInstance Name="MainGeometryClearPass" Pass="MainRenderPass" Target="GBuffer" Load="Clear"/>
+	<RenderPassInstance Name="SurfaceCapturePass" Pass="MainRenderPass" Target="SurfaceCapture" Load="Clear" Store="ShaderRead"/>
+	<RenderPassInstance Name="NearShadowPass0" Pass="MainRenderPass" Target="NearShadow0" Load="Clear" Store="ShaderRead"/>
+	<RenderPassInstance Name="NearShadowPass1" Pass="MainRenderPass" Target="NearShadow1" Load="Clear" Store="ShaderRead"/>
+	<RenderPassInstance Name="NearShadowPass2" Pass="MainRenderPass" Target="NearShadow2" Load="Clear" Store="ShaderRead"/>
 </RenderPassGroup>

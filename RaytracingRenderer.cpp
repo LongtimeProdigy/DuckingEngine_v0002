@@ -12,9 +12,14 @@ namespace DK
     const bool RaytracingRenderer::initialize(RenderModule* renderModule, uint32 width, uint32 height)
     {
         _supported = renderModule->supportsRaytracing();
+        _pathTracingPass = renderModule->findRenderPass("PathTracing");
+        const RenderPass* atmospherePass = renderModule->findRenderPass("AtmosphereRenderPass");
+        if (_pathTracingPass == nullptr || atmospherePass == nullptr)
+            return false;
+        _displayTarget = atmospherePass->_binding._target;
         if (!_supported)
             DK_LOG("DXR unavailable; using raster rendering.");
-        return true;
+        return _displayTarget != nullptr;
     }
 
     bool RaytracingRenderer::updateRaytracingRenderer(RenderModule& renderModule)
@@ -101,7 +106,7 @@ namespace DK
                 "Raytracing Output",
                 _width, _height,
                 static_cast<const byte*>(nullptr),
-                DXGI_FORMAT_R8G8B8A8_UNORM,
+                _displayTarget->_definition._colors[0]._format,
                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                 false, true);
@@ -149,7 +154,7 @@ namespace DK
         renderModule.resourceBarrierTransition(_outputTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         renderModule.resourceBarrierTransition(_outputAccumulateTexture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-        startRenderPass(renderModule, "PathTracing", 0xffffffff);
+        startRenderPass(renderModule, *_pathTracingPass);
         {
             startPipelinePermutation("BruteForce", static_cast<uint32>(_mode));
             {
@@ -167,6 +172,6 @@ namespace DK
         }
         endRenderPass();
 
-        renderModule.copyTextureToRenderTarget(_outputTexture, 1);
+        renderModule.copyTextureToRenderTarget(_outputTexture, *_displayTarget->_targets._colors[0]._texture);
     }
 }

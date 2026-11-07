@@ -145,6 +145,7 @@ namespace DK
 
 	private:
 		bool initialize_createRenderPass();
+		bool initialize_renderPassHandles();
 		bool initialize_createMaterialDefinition();
 		bool initialize_createSceneConstantBuffer();
 		void updateAtmosphereTransmittanceLut();
@@ -159,6 +160,21 @@ namespace DK
         static constexpr uint32 kAtmosphereLutHeight = 128;
 
 		DKHashMap<DKString, MaterialDefinition> _materialDefinitionMap;
+
+		RenderPass* _transmittancePass = nullptr;
+		RenderPass* _multipleScatteringPass = nullptr;
+		RenderPass* _surfaceBouncePass = nullptr;
+		RenderPass* _skyLightingPass = nullptr;
+		RenderPass* _oceanPass = nullptr;
+		RenderPass* _gbufferResolvePass = nullptr;
+		RenderPass* _atmospherePass = nullptr;
+		RenderPass* _bloomHorizontalPass = nullptr;
+		RenderPass* _bloomVerticalPass = nullptr;
+		RenderPass* _finalOutputPass = nullptr;
+		RenderPass* _mainGeometryPass = nullptr;
+		const RenderPassInstance* _mainGeometryClearPass = nullptr;
+		const RenderPassInstance* _surfaceCapturePass = nullptr;
+		const RenderPassInstance* _nearShadowPasses[3] = {};
 
         // Debug
         bool _localGeometryEnabled = true;
@@ -199,8 +215,6 @@ namespace DK
         AtmosphereConstantBuffer _cachedSurfaceParameters;          // refresh flag를 설정하기 위한 prev저장용일뿐임
         float _surfaceCaptureExtent = 2000.0f;
         float _surfaceCaptureDepth = 8000.0f;
-        ReflectiveSurfaceMap _surfaceMap;
-        ReflectiveSurfaceMap _nearShadowMaps[3];
         IBufferRef _surfaceSceneConstantBuffer = nullptr;
         IBufferRef _nearShadowSceneConstants[3];
         ITextureRef _surfaceBounce = nullptr;

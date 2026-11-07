@@ -1,6 +1,12 @@
 #include "PostProcessCommon.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"
 
+cbuffer BloomInputConstants : register(b2)
+{
+    uint _bloomSourceIndex;
+    uint _originalHdrIndex;
+};
+
 float bloomWeight(int offset, int radius)
 {
     // A 3-sigma cutoff leaves 1.1% at the edge, visible as a box for solar HDR.
@@ -36,15 +42,15 @@ float3 blurBloom(Texture2D<float4> source, int2 pixel, int2 direction, bool extr
 
 float4 PSHorizontal(VS_OUTPUT input) : SV_TARGET
 {
-    const Texture2D<float4> source = getRenderTargetTexture(_frameIndex, 1);
+    const Texture2D<float4> source = getTexture(_bloomSourceIndex);
     const int2 pixel = int2(input.position.xy);
     return float4(blurBloom(source, pixel, int2(1, 0), true), 1);
 }
 
 float4 PSVertical(VS_OUTPUT input) : SV_TARGET
 {
-    const Texture2D<float4> source = getRenderTargetTexture(_frameIndex, 0);
-    const Texture2D<float4> originalHDR = getRenderTargetTexture(_frameIndex, 1);
+    const Texture2D<float4> source = getTexture(_bloomSourceIndex);
+    const Texture2D<float4> originalHDR = getTexture(_originalHdrIndex);
     const int2 pixel = int2(input.position.xy);
     const float3 bloom = blurBloom(source, pixel, int2(0, 1), false);
     return float4(max(loadClamped(originalHDR, pixel) + bloom * _bloomStrength, 0.0f), 1);

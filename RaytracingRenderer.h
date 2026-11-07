@@ -33,6 +33,8 @@ namespace DK
     private:
         uint32 _width = 0, _height = 0;
         bool _supported = false;
+        RenderPass* _pathTracingPass = nullptr;
+        const RenderTarget* _displayTarget = nullptr;
         ITextureRef _outputTexture;
         ITextureRef _outputAccumulateTexture;
         RaytracingAccelerationStructure _scene;

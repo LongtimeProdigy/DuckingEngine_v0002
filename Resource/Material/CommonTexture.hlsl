@@ -9,14 +9,6 @@ SamplerState bilinearRepeatSampler : register(s1);
 Texture2D<float4> gBindlessTextureSRVArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE);
 RWTexture2D<float4> gBindlessTextureUAVArray[] : register(u0, BINDLESSTEXTUREARRAY_SPACE);
 
-Texture2D<float4> getDepthStencilTexture(const uint frameIndex, const uint offset)
-{
-    return gBindlessTextureSRVArray[frameIndex * 3 + offset];
-}
-Texture2D<float4> getRenderTargetTexture(const uint frameIndex, const uint offset)
-{
-    return gBindlessTextureSRVArray[1 + frameIndex * 3 + offset]; // DepthStencil때문에 +1
-}
 Texture2D<float4> getTexture(const TextureParameter index)
 {
     return gBindlessTextureSRVArray[index];

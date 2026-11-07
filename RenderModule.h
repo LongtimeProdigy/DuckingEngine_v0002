@@ -85,6 +85,8 @@ namespace DK
 		ShaderBindingTable _sbt;
 	};
 
+	struct RenderTarget;
+
 	struct Pipeline
 	{
 	public:
@@ -126,8 +128,7 @@ namespace DK
 
 			DKString _primitiveTopologyType;
 			bool _depthEnable = false;
-			bool _hdrRenderTarget = true;
-			bool _gbufferOutput = false;
+			const RenderTarget* _target = nullptr;
 			FillMode _fillMode = FillMode::SOLID;
 			CullMode _cullMode = CullMode::NONE;
 			DKString _vertexShaderPath;
@@ -206,14 +207,67 @@ namespace DK
 		}
 	};
 
+	struct RenderTargetDefinition
+	{
+		enum class Size : uint8 { Window, Fixed, SwapChain };
+
+		struct Attachment
+		{
+			DKString _name;
+			DXGI_FORMAT _format = DXGI_FORMAT_UNKNOWN;
+			bool _srv = false;
+		};
+
+		Size _size = Size::Window;
+		uint32 _width = 0;
+		uint32 _height = 0;
+		uint32 _colorCount = 0;
+		Attachment _colors[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT];
+		Attachment _depth;
+	};
+
+	struct RenderPassAttachment
+	{
+		ITextureRef _texture;
+		D3D12_CPU_DESCRIPTOR_HANDLE _view = {};
+	};
+
+	struct RenderPassTargets
+	{
+		RenderResourcePtr<ID3D12DescriptorHeap> _rtvHeap, _dsvHeap;
+		RenderPassAttachment _colors[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT];
+		RenderPassAttachment _depth;
+		uint32 _colorCount = 0;
+		uint32 _width = 0;
+		uint32 _height = 0;
+	};
+
+	struct RenderTarget
+	{
+		RenderTargetDefinition _definition;
+		RenderPassTargets _targets;
+	};
+
+	enum class RenderPassLoadAction : uint8 { Load, Clear };
+	enum class RenderPassStoreAction : uint8 { Keep, ShaderRead };
+
+	struct RenderPassBinding
+	{
+		const RenderTarget* _target = nullptr;
+		RenderPassLoadAction _load = RenderPassLoadAction::Load;
+		RenderPassStoreAction _store = RenderPassStoreAction::Keep;
+	};
+
 	struct RenderPass
 	{
 		struct CreateInfo
 		{
 			DKVector<DKPair<DKString, Pipeline::CreateInfo>> _pipelineArr;
+			RenderPassBinding _binding;
 		};
 
 		DKHashMap<DKString, Pipeline> _pipelineMap;
+		RenderPassBinding _binding;
 
 		dk_inline Pipeline* getPipeline(const DKString& pipelineName, uint32 permutationIndex = 0)
 		{
@@ -224,6 +278,12 @@ namespace DK
 
 			return &iter->second;
 		}
+	};
+
+	struct RenderPassInstance
+	{
+		RenderPass* _definition = nullptr;
+		RenderPassBinding _binding;
 	};
 
 	extern RenderPass* gCurrentBindedRenderPass;
@@ -247,17 +307,13 @@ if (object == nullptr) \
 #define RENDERING_VERIFY(object, name)
 #endif
 
-#define startRenderPass(renderModule, renderPassName, rtvSlot) \
+#define startRenderPass(renderModule, pass) \
 do{ \
 	RenderModule& currentRenderModule = renderModule; \
-	RENDERING_ALREADY_BIND(gCurrentBindedRenderPass, renderPassName); \
-	static RenderPass* findRenderPass = currentRenderModule.getRenderPass(renderPassName); \
-	gCurrentBindedRenderPass = findRenderPass; \
-	RENDERING_VERIFY(gCurrentBindedRenderPass, renderPassName); \
-	currentRenderModule.bindRenderPass(rtvSlot)
+	currentRenderModule.beginRenderPass(pass)
 
 #define endRenderPass() \
-	gCurrentBindedRenderPass = nullptr; \
+	currentRenderModule.finishRenderPass(); \
 }while(false)
 
 #define startPipeline(pipelineName) startPipelinePermutation(pipelineName, 0)
@@ -371,7 +427,6 @@ do{ \
 	class ITexture : public std::enable_shared_from_this<ITexture>
 	{
 		friend class RenderModule;
-		friend struct RenderTarget;
 
 	public:
 		static constexpr TextureResourceViewType kErrorTextureResourceViewIndex = 0xffffffff;
@@ -457,44 +512,6 @@ do{ \
 		TextureResourceViewType _textureUAVIndex = kErrorTextureResourceViewIndex;
 	};
 
-    struct ReflectiveSurfaceMap
-    {
-        ITextureRef attributes[3]; // Same base color, normal and material layout as the main GBuffer.
-        ITextureRef depth;
-        RenderResourcePtr<ID3D12DescriptorHeap> rtvHeap, dsvHeap;
-        uint32 size = 0;
-    };
-
-	struct RenderTarget
-	{
-		RenderTarget() = default;
-		RenderTarget(ITexture&& renderTarget, ITexture&& depthStencil, D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv, const bool clearRenderTarget = false, const bool clearDepthStencil = false)
-			: _renderTarget(DK::move(renderTarget))
-			, _depthStencil(DK::move(depthStencil))
-			, _rtv(rtv)
-			, _dsv(dsv)
-			, _clearRenderTarget(clearRenderTarget)
-			, _clearDepthStencil(clearDepthStencil)
-			, _hasDepthStencil(true)
-		{}
-		RenderTarget(ITexture&& renderTarget, D3D12_CPU_DESCRIPTOR_HANDLE rtv, const bool clearRenderTarget = false)
-			: _renderTarget(DK::move(renderTarget))
-			, _rtv(rtv)
-			, _clearRenderTarget(clearRenderTarget)
-			, _hasDepthStencil(false)
-		{}
-
-		bool _hasDepthStencil = false;
-
-		bool _clearRenderTarget = false;
-		bool _clearDepthStencil = false;
-
-		ITexture _renderTarget;
-		ITexture _depthStencil;
-
-		D3D12_CPU_DESCRIPTOR_HANDLE _rtv = {};
-		D3D12_CPU_DESCRIPTOR_HANDLE _dsv = {};
-	};
 
 	static constexpr uint32 kFrameCount = 1;
 	static constexpr uint32 kBackBufferCount = 2;
@@ -566,9 +583,6 @@ do{ \
 		static uint32 kCurrentBackBufferIndex;
 		static uint32 kWidth;
 		static uint32 kHeight;
-		static constexpr uint32 kGBufferStart = 3 * kFrameCount;
-		static constexpr uint32 kGBufferCount = 3;
-		static constexpr uint32 kRenderTargetTextureCount = kGBufferStart + kGBufferCount;
 
 	public:
 		~RenderModule();
@@ -594,10 +608,13 @@ do{ \
         double gpuPeakMilliseconds(uint32 scope) const { return scope < 5 ? _gpuPeakMilliseconds[scope] : -1.0; }
         void resetGpuTimingPeaks() { for (auto& value : _gpuPeakMilliseconds) value = 0.0; }
         void prepareGpuTimings();
-        bool createReflectiveSurfaceMap(ReflectiveSurfaceMap& map, uint32 size);
-        void beginReflectiveSurfaceMap(ReflectiveSurfaceMap& map);
-        void endReflectiveSurfaceMap(ReflectiveSurfaceMap& map);
-		void bindRenderPass(const uint32 rtvSlot);
+		bool createRenderTarget(const DKString& name, RenderTargetDefinition&& definition);
+		const RenderTarget* findRenderTarget(const DKString& name) const;
+		void beginRenderPass(RenderPass& pass);
+		void beginRenderPass(const RenderPassInstance& instance);
+		void finishRenderPass();
+
+
 		bool bindPipeline(Pipeline& pipeline, const Pipeline::Type type);
 		void setRoot32BitConstants(const uint32 rootParameterIndex, const uint32 count, const void* data, uint32 offset, const Pipeline::Type type);
 		void bindConstantBuffer(const uint32 rootParameterIndex, const IBufferRef& buffer, const Pipeline::Type type);
@@ -609,7 +626,7 @@ do{ \
 		void dispatchRays(const uint32 width, const uint32 height, const uint32 depth = 1);
 		bool supportsRaytracing() const;
 		bool buildRaytracingScene(const DKVector<RaytracingGeometry>& geometries, RaytracingAccelerationStructure& result);
-		void copyTextureToRenderTarget(ITextureRef& source, const uint32 targetSlot);
+		void copyTextureToRenderTarget(ITextureRef& source, ITexture& target);
 		void endRender();
 
 		// helper 함수
@@ -628,36 +645,25 @@ do{ \
 		void resourceBarrierTransition(ITextureRef& texture, const D3D12_RESOURCE_STATES afterState);
 		void resourceBarrierTransition(IBuffer& buffer, const D3D12_RESOURCE_STATES afterState);
 
-		dk_inline RenderPass* getRenderPass(const DKString& renderPassName)
-		{
-			using FindResult = DKHashMap<DKString, RenderPass>::iterator;
-			FindResult find = _renderPassMap.find(renderPassName);
-			DK_ASSERT_LOG(find != _renderPassMap.end(), "Can't not find RenderPass named %s", renderPassName.c_str());
-#ifdef _DK_DEBUG_
-			if (find == _renderPassMap.end())
-				return nullptr;
-#endif
-
-			return &find->second;
-		}
-		dk_inline RenderTarget& getRenderTarget(const uint32 index)
-		{
-			return _renderTargetArr[index];
-		}
-
+		RenderPass* findRenderPass(const DKString& name);
+		const RenderPassInstance* findRenderPassInstance(const DKString& name) const;
+		bool createRenderPassInstance(const DKString& name, const DKString& definitionName, const RenderPassBinding& binding);
 		void waitAllGPU();
 
 	private:
 		bool initialize_createDeviceAndCommandQueueAndSwapChain(const HWND hwnd, const uint32 width, const uint32 height);
 		const bool createCommandList(DKCommandList& outCommandList);
 		bool initialize_createFence();
-		const bool createRenderTarget(const uint32 width, const uint32 height);
+		bool createBackBufferTargets(uint32 width, uint32 height);
+		bool createRenderPassTargets(const DKString& name, const RenderTargetDefinition& definition,
+			uint32 width, uint32 height, RenderPassTargets& targets);
+		void beginRenderPass(RenderPass& pass, const RenderPassBinding& binding);
+		void bindRenderPassTargets(const RenderPassTargets& targets, RenderPassLoadAction load, DXGI_FORMAT depthFormat);
 		bool createRootSignature(const Pipeline::CreateInfo& createInfo, const DKVector<ShaderResourceReflection>& resources, Pipeline& inoutPipeline);
 		bool createPipelineObjectState(ShaderCompiler& shaderCompiler, const Pipeline::CreateInfo& pipelineCreateInfo, Pipeline& inoutPipeline);
 		bool createShaderBindingTable(const Pipeline::CreateInfo& createInfo, RaytracingPipelineData& pipeline);
 
 		const bool allocateTextureSRV(ITexture& texture);
-		const bool allocateTextureSRV(ITexture& texture, const uint32 index);
 		const bool allocateTextureUAV(ITexture& texture);
 
 		IBufferRef createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);
@@ -710,16 +716,12 @@ do{ \
 		bool _frameSubmitted = false;
 		RenderResourcePtr<ID3D12Fence> _fences[kFrameCount];
 		HANDLE _fenceEvent = nullptr;
-		Ptr<D3D12_VIEWPORT> _viewport;
-		Ptr<D3D12_RECT> _scissorRect;
 		RenderResourcePtr<IDXGISwapChain4> _swapChain = nullptr;
 
 		uint32 _renderTargetViewSize = 0;
-		uint32 _depthStencilViewSize = 0;
 		uint32 _bindlessViewSize = 0;
 
-		RenderResourcePtr<ID3D12DescriptorHeap> _renderTargetDescriptorHeap = nullptr;
-		RenderResourcePtr<ID3D12DescriptorHeap> _depthStencilDescriptorHeap = nullptr;
+		RenderResourcePtr<ID3D12DescriptorHeap> _backBufferRtvHeap;
 #if defined(USE_IMGUI)
 		RenderResourcePtr<ID3D12DescriptorHeap> _imguiDescriptorHeap;
 		static constexpr uint32 kImGuiDescriptorCount = 64;
@@ -727,8 +729,9 @@ do{ \
 #endif
 
 		// RenderTarget + BackBuffer
-		RenderTarget _renderTargetArr[kRenderTargetTextureCount + kBackBufferCount];
-		uint32 _currentRenderTargetIndex = 0xffffffff;
+		DKHashMap<DKString, RenderTarget> _renderTargets;
+		RenderPassTargets _backBufferPassTargets[kBackBufferCount];
+		const RenderPassTargets* _passTargetsToTransition = nullptr;
 
 		// Texture
 		static constexpr const uint32 kMaxTextureSRVCount = 1024;
@@ -741,6 +744,7 @@ do{ \
 		RenderResourcePtr<ID3D12DescriptorHeap> _textureDescriptorHeap;
 
 		DKHashMap<DKString, RenderPass> _renderPassMap;
+		DKHashMap<DKString, RenderPassInstance> _renderPassInstances;
 
 #if defined(_DK_DEBUG_)
 	public:
