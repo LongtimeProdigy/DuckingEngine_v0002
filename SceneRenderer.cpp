@@ -571,9 +571,7 @@ namespace DK
 				return false;
 
 			RenderPassBinding binding;
-			if (parseRenderPassBinding(*instance, renderModule, binding) == false ||
-				(binding._target == nullptr) ||
-				renderModule.createRenderPassInstance(name, definitionName, binding) == false)
+			if (parseRenderPassBinding(*instance, renderModule, binding) == false || (binding._target == nullptr) || renderModule.createRenderPassInstance(name, definitionName, binding) == false)
 			{
 				DK_LOG("Invalid render pass instance %s", name);
 				return false;
@@ -702,7 +700,7 @@ namespace DK
 		}
 
 		AtmosphereConstantBuffer& surface = _atmosphereConstantBufferData;
-		const auto& capture = _surfaceCapturePass->_binding._target->_targets;
+		const RenderPassTargets& capture = _surfaceCapturePass->_binding._target->_targets;
 		surface._surfaceMapSize = capture._width;
 		surface._transmittanceLutIndex = _atmosphereTransmittanceLut->getSRV();
         surface._multipleScatteringLutIndex = _multipleScatteringLut[0]->getSRV();
@@ -944,7 +942,7 @@ namespace DK
 				// #todo- component 완전 개편 필요해보임.
 				// for문이 아니라 unity, unreal에서는 GetComponent<T>가 어떻게 작동하는지 보고 개편할 것
 				// 참고링크: https://stackoverflow.com/questions/44105058/implementing-component-system-from-unity-in-c
-				const auto* skinnedMeshComponent = static_cast<const SkinnedMeshComponent*>(sceneObject.getComponents()[i].get());
+				const SkinnedMeshComponent* skinnedMeshComponent = static_cast<const SkinnedMeshComponent*>(sceneObject.getComponents()[i].get());
 
 				if (skinnedMeshComponent == nullptr || skinnedMeshComponent->_currentAnimationBufferCS == nullptr)
 					continue;
@@ -1132,7 +1130,7 @@ namespace DK
                                 if (_compareExtendedAtmosphereTop)
                                 {
                                     float top = atmosphere._densityReferenceRadius + 12.0f * Math::max(atmosphere._rayleighHeight, atmosphere._mieHeight);
-									for (const auto& layer : atmosphere._absorptionLayers)
+									for (const AtmosphereAbsorptionLayer& layer : atmosphere._absorptionLayers)
 									{
 										if (layer.strength > 0.0f)
 											top = Math::max(top, layer.peakRadius + layer.upperWidth);
@@ -1212,7 +1210,7 @@ namespace DK
                             ImGui::TextWrapped("Independent RGB absorption shells. Radii are measured from the planet centre; zero amount disables a layer.");
                             if (ImGui::Button("Earth ozone example (layer 0)"))
                             {
-                                auto& layer = atmosphere._absorptionLayers[0];
+                                AtmosphereAbsorptionLayer& layer = atmosphere._absorptionLayers[0];
                                 layer.extinction[0] = 0.650e-6f;
 								layer.extinction[1] = 1.881e-6f;
 								layer.extinction[2] = 0.085e-6f;
@@ -1224,7 +1222,7 @@ namespace DK
                             {
                                 ImGui::PushID(static_cast<int>(i));
                                 ImGui::Text("Layer %u", i);
-                                auto& layer = atmosphere._absorptionLayers[i];
+                                AtmosphereAbsorptionLayer& layer = atmosphere._absorptionLayers[i];
                                 InspectorProperty("Amount", [&] { ImGui::DragFloat("##value", &layer.strength, 0.01f, 0.0f, 10.0f); });
                                 float inverseKm[3] = { layer.extinction[0] * 1000, layer.extinction[1] * 1000, layer.extinction[2] * 1000 };
                                 InspectorProperty("Absorption RGB (1/km)", [&] { ImGui::InputFloat3("##value", inverseKm, "%.6f"); });
@@ -1304,7 +1302,7 @@ namespace DK
 								rtRenderer.resetAccumulation();
 							}
 						}
-						auto& timing = DuckingEngine::getInstance().GetRenderModuleWritable();
+						RenderModule& timing = DuckingEngine::getInstance().GetRenderModuleWritable();
                         const char* scopeNames[] = { "Transmittance LUT", "Sky lighting", "Surface lighting", "Atmosphere", "Surface capture / bounce" };
                         for (uint32 scope = 0; scope < 5; ++scope)
                             ImGui::Text("%s: %.3f ms (peak %.3f)", scopeNames[scope], timing.gpuMilliseconds(scope), timing.gpuPeakMilliseconds(scope));
@@ -1380,8 +1378,8 @@ namespace DK
         {
             // Nested light-space coverage also serves off-screen atmospheric samples.
             const float extent = Math::max(_surfaceCaptureExtent, 1.0f) / float(1u << (3u - cascadeIndex));
-            const auto* pass = cascadeIndex == 3u ? _surfaceCapturePass : _nearShadowPasses[cascadeIndex];
-            const auto& map = pass->_binding._target->_targets;
+            const RenderPassInstance* pass = cascadeIndex == 3u ? _surfaceCapturePass : _nearShadowPasses[cascadeIndex];
+            const RenderPassTargets& map = pass->_binding._target->_targets;
             const float cell = 2.0f * extent / map._width;
             const float snapRight = std::round(doublePrecisionDot(cameraPosition, right) / cell) * cell - doublePrecisionDot(cameraPosition, right);
             const float snapUp = std::round(doublePrecisionDot(cameraPosition, up) / cell) * cell - doublePrecisionDot(cameraPosition, up);
@@ -1849,11 +1847,11 @@ namespace DK
         //if (raytraced)
         //    raytracingRenderer.dispatchRay(renderModule, _sceneConstantBuffer);
         //if (!raytraced)
-		const auto& gbuffer = _mainGeometryPass->_binding._target->_targets;
-		const auto& lighting = _gbufferResolvePass->_binding._target->_targets._colors[0]._texture;
-		const auto& atmosphere = _atmospherePass->_binding._target->_targets._colors[0]._texture;
-		const auto& horizontal = _bloomHorizontalPass->_binding._target->_targets._colors[0]._texture;
-		const auto& vertical = _bloomVerticalPass->_binding._target->_targets._colors[0]._texture;
+		const RenderPassTargets& gbuffer = _mainGeometryPass->_binding._target->_targets;
+		const ITextureRef& lighting = _gbufferResolvePass->_binding._target->_targets._colors[0]._texture;
+		const ITextureRef& atmosphere = _atmospherePass->_binding._target->_targets._colors[0]._texture;
+		const ITextureRef& horizontal = _bloomHorizontalPass->_binding._target->_targets._colors[0]._texture;
+		const ITextureRef& vertical = _bloomVerticalPass->_binding._target->_targets._colors[0]._texture;
         {
 		if (_renderLocalScene)
 		{
@@ -2067,7 +2065,7 @@ namespace DK
 		{
 			startPipeline("FinalOutputPipeline");
 			{
-				const auto& source = _atmosphereConstantBufferData._bloomStrength > 0.0f ? vertical : atmosphere;
+				const ITextureRef& source = _atmosphereConstantBufferData._bloomStrength > 0.0f ? vertical : atmosphere;
 				renderModule.resourceBarrierTransition(source->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				const uint32 outputSourceSRV = source->getSRV();
 				setRootConstantParameter("_sourceTextureIndex", outputSourceSRV);

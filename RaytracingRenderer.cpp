@@ -33,10 +33,10 @@ namespace DK
         {
             for (const Ptr<Component>& component : object.getComponents())
             {
-                auto* mesh = dynamic_cast<const StaticMeshComponent*>(component.get());
+                const StaticMeshComponent* mesh = dynamic_cast<const StaticMeshComponent*>(component.get());
                 if (mesh == nullptr || mesh->get_model() == nullptr)
                     continue;
-                for (auto& submesh : mesh->get_model()->get_subMeshArr())
+                for (const StaticMeshModel::SubMeshType& submesh : mesh->get_model()->get_subMeshArr())
                 {
                     const Material* material = submesh._material.get();
                     if (submesh._indices.empty() || submesh._vertices.empty() || material == nullptr)
@@ -56,11 +56,11 @@ namespace DK
                     geometry._materialStride = static_cast<uint32>(material->_parameterBufferForCPU.size());
                     object.get_worldTransform().tofloat4x4(geometry._world);
                     geometries.push_back(DK::move(geometry));
-                    for (auto& parameter : material->_parameterArr)
+                    for (const Ptr<MaterialParameter>& parameter : material->_parameterArr)
                     {
                         if (parameter->getType() == MaterialParameterType::TEXTURE)
                         {
-                            auto texture = static_cast<const MaterialParameterTexture*>(parameter.get())->_value;
+                            ITextureRef texture = static_cast<const MaterialParameterTexture*>(parameter.get())->_value;
                             if (texture != nullptr)
                                 textures.push_back(DK::move(texture));
                         }
@@ -74,8 +74,8 @@ namespace DK
         bool changed = geometries.size() != _geometries.size();
         for (size_t i = 0; !changed && i < geometries.size(); ++i)
         {
-            const auto& a = geometries[i];
-            const auto& b = _geometries[i];
+            const RaytracingGeometry& a = geometries[i];
+            const RaytracingGeometry& b = _geometries[i];
             changed = a._vertices != b._vertices || a._indices != b._indices || a._material != b._material ||
                 a._vertexCount != b._vertexCount || a._indexCount != b._indexCount ||
                 a._vertexStride != b._vertexStride || a._materialStride != b._materialStride ||
@@ -141,7 +141,7 @@ namespace DK
             _geometries = DK::move(geometries);
         }
         _materialTextures = DK::move(textures);
-        for (auto& texture : _materialTextures)
+        for (ITextureRef& texture : _materialTextures)
             renderModule.resourceBarrierTransition(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         return true;
     }

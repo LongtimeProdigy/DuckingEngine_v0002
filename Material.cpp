@@ -87,12 +87,12 @@ namespace DK
 			MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
 			if (parameter->getType() == MaterialParameterType::FLOAT)
 			{
-				auto* value = static_cast<MaterialParameterFloat*>(parameter);
+				MaterialParameterFloat* value = static_cast<MaterialParameterFloat*>(parameter);
 				value->setParameterValue(value->_value);
 			}
 			else if (parameter->getType() == MaterialParameterType::TEXTURE)
 			{
-				auto* value = static_cast<MaterialParameterTexture*>(parameter);
+				MaterialParameterTexture* value = static_cast<MaterialParameterTexture*>(parameter);
 				value->setParameterValue(value->_value);
 			}
 			offset += outMaterial->_parameterArr[i]->getParameterSize();

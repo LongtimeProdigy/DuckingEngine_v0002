@@ -606,7 +606,11 @@ do{ \
         void endGpuTiming(uint32 scope);
         double gpuMilliseconds(uint32 scope) const { return scope < 5 ? _gpuMilliseconds[scope] : -1.0; }
         double gpuPeakMilliseconds(uint32 scope) const { return scope < 5 ? _gpuPeakMilliseconds[scope] : -1.0; }
-        void resetGpuTimingPeaks() { for (auto& value : _gpuPeakMilliseconds) value = 0.0; }
+        void resetGpuTimingPeaks()
+        {
+            for (double& value : _gpuPeakMilliseconds)
+                value = 0.0;
+        }
         void prepareGpuTimings();
 		bool createRenderTarget(const DKString& name, RenderTargetDefinition&& definition);
 		const RenderTarget* findRenderTarget(const DKString& name) const;

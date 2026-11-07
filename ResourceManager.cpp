@@ -90,7 +90,7 @@ namespace DK
 
 	float2 parseFloat2FromString(const DKString& str)
 	{
-		const auto tokens = StringUtil::split(str, " ");
+		const DKVector<DKString> tokens = StringUtil::split(str, " ");
 		return float2(
 			StringUtil::atof(tokens[0].c_str()),
 			StringUtil::atof(tokens[1].c_str())
@@ -389,7 +389,7 @@ namespace DK
 			bufferOffset += vertexCount * sizeof(SkinnedMeshModel::SubMeshType::VertexType);
 
 #ifdef _DK_DEBUG_
-			for (auto vertex : vertexBufferData)
+			for (SkinnedMeshVertex vertex : vertexBufferData)
 			{
 				float sumWeight = 0.0f;
 				for (uint32 i = 0; i < MAX_SKINNING_COUNT; ++i)

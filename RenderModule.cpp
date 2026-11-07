@@ -220,7 +220,7 @@ namespace DK
 		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) 
 			return false;
 
-		if(createCommandList(_commandList) == false)
+		if (createCommandList(_commandList) == false)
 			return false;
 
 		if (initialize_createFence() == false) 
@@ -236,7 +236,7 @@ namespace DK
 		const GpuAssertRecord debugHangData = {};
 		const uint32 debugHangBufferSize = sizeof(debugHangData);
 		const CD3DX12_HEAP_PROPERTIES debugHangHeap(D3D12_HEAP_TYPE_DEFAULT);
-		const auto debugHangDesc = CD3DX12_RESOURCE_DESC::Buffer( debugHangBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		const CD3DX12_RESOURCE_DESC debugHangDesc = CD3DX12_RESOURCE_DESC::Buffer( debugHangBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		ID3D12Resource* debugHangResource = nullptr;
 		HRESULT debugHangHr = _device->CreateCommittedResource(&debugHangHeap, D3D12_HEAP_FLAG_NONE, &debugHangDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&debugHangResource));
 		if (FAILED(debugHangHr))
@@ -250,7 +250,7 @@ namespace DK
 		_gpuAssertBuffer = IBufferRef(dk_new IBuffer(IBuffer::Type::DEFAULT, RenderResourcePtr<ID3D12Resource>(debugHangResource), debugHangBufferSize, D3D12_RESOURCE_STATE_COMMON));
 		debugHangResource->SetName(L"GpuAssertBuffer");
 		const CD3DX12_HEAP_PROPERTIES readbackHeap(D3D12_HEAP_TYPE_READBACK);
-		const auto readbackDesc = CD3DX12_RESOURCE_DESC::Buffer(debugHangBufferSize);
+		const CD3DX12_RESOURCE_DESC readbackDesc = CD3DX12_RESOURCE_DESC::Buffer(debugHangBufferSize);
 		ID3D12Resource* readback = nullptr;
 		if (FAILED(_device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
 			D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&readback))))
@@ -321,29 +321,30 @@ namespace DK
 			ID3D12DescriptorHeap* rtvHeap = nullptr;
 			if (FAILED(_device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&rtvHeap))))
 				return false;
+
 			targets._rtvHeap = rtvHeap;
 
-			auto view = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+			D3D12_CPU_DESCRIPTOR_HANDLE view = rtvHeap->GetCPUDescriptorHandleForHeapStart();
 			for (uint32 i = 0; i < definition._colorCount; ++i)
 			{
-				const auto& color = definition._colors[i];
+				const RenderTargetDefinition::Attachment& color = definition._colors[i];
 				D3D12_CLEAR_VALUE clear{};
 				clear.Format = color._format;
-				auto buffer = createBuffer2DInternal(width, height, 1, color._format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-					D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, debugName.c_str());
+				IBufferRef buffer = createBuffer2DInternal(width, height, 1, color._format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, debugName.c_str());
 				if (buffer == nullptr)
 					return false;
 
 				_device->CreateRenderTargetView(buffer->_buffer.get(), nullptr, view);
-				auto& attachment = targets._colors[i];
+				RenderPassAttachment& attachment = targets._colors[i];
 				attachment = { ITextureRef(dk_new ITexture(name, 1, color._format, DK::move(buffer))), view };
 				if (color._srv && allocateTextureSRV(*attachment._texture) == false)
 					return false;
+
 				view.ptr += _renderTargetViewSize;
 			}
 		}
 
-		const auto& depth = definition._depth;
+		const RenderTargetDefinition::Attachment& depth = definition._depth;
 		if (depth._format == DXGI_FORMAT_UNKNOWN)
 			return true;
 
@@ -352,25 +353,24 @@ namespace DK
 		ID3D12DescriptorHeap* dsvHeap = nullptr;
 		if (FAILED(_device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&dsvHeap))))
 			return false;
+
 		targets._dsvHeap = dsvHeap;
 
 		D3D12_CLEAR_VALUE clear{};
 		clear.Format = depth._format;
 		clear.DepthStencil.Depth = 1.0f;
-		const auto flags = depth._srv ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
-			: D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-		const auto resourceFormat = depth._srv ? GetDepthResourceFormat(depth._format) : depth._format;
-		auto buffer = createBuffer2DInternal(width, height, 1, resourceFormat, flags, D3D12_HEAP_TYPE_DEFAULT,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, debugName.c_str());
+		const D3D12_RESOURCE_FLAGS flags = depth._srv ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+		const DXGI_FORMAT resourceFormat = depth._srv ? GetDepthResourceFormat(depth._format) : depth._format;
+		IBufferRef buffer = createBuffer2DInternal(width, height, 1, resourceFormat, flags, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, debugName.c_str());
 		if (buffer == nullptr)
 			return false;
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsv{};
 		dsv.Format = depth._format;
 		dsv.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-		const auto view = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		const D3D12_CPU_DESCRIPTOR_HANDLE view = dsvHeap->GetCPUDescriptorHandleForHeapStart();
 		_device->CreateDepthStencilView(buffer->_buffer.get(), &dsv, view);
-		const auto srvFormat = depth._srv ? GetDepthSRVFormat(depth._format) : depth._format;
+		const DXGI_FORMAT srvFormat = depth._srv ? GetDepthSRVFormat(depth._format) : depth._format;
 		targets._depth = { ITextureRef(dk_new ITexture(name, 1, srvFormat, DK::move(buffer))), view };
 		return depth._srv == false || allocateTextureSRV(*targets._depth._texture);
 	}
@@ -401,7 +401,7 @@ namespace DK
 
 	const RenderTarget* RenderModule::findRenderTarget(const DKString& name) const
 	{
-		const auto entry = _renderTargets.find(name);
+		const DKHashMap<DKString, RenderTarget>::const_iterator entry = _renderTargets.find(name);
 		return entry == _renderTargets.end() ? nullptr : &entry->second;
 	}
 
@@ -427,23 +427,27 @@ namespace DK
 			resized.emplace_back(&target, DK::move(targets));
 		}
 
-		for (auto& backBuffer : _backBufferPassTargets)
+		for (RenderPassTargets& backBuffer : _backBufferPassTargets)
 			backBuffer = RenderPassTargets{};
+
 		if (FAILED(_swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, desc.Flags)))
 		{
 			if (createBackBufferTargets(desc.Width, desc.Height) == false)
 				PostQuitMessage(-1);
+
 			kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
 			return false;
 		}
+
 		if (createBackBufferTargets(width, height) == false)
 		{
 			PostQuitMessage(-1);
 			return false;
 		}
 
-		for (auto& entry : resized)
+		for (DKPair<RenderTarget*, RenderPassTargets>& entry : resized)
 			entry.first->_targets = DK::move(entry.second);
+
 		kWidth = width;
 		kHeight = height;
 		kCurrentBackBufferIndex = _swapChain->GetCurrentBackBufferIndex();
@@ -468,7 +472,7 @@ namespace DK
 #endif
 
 		_renderTargets.clear();
-		for (auto& backBuffer : _backBufferPassTargets)
+		for (RenderPassTargets& backBuffer : _backBufferPassTargets)
 			backBuffer = RenderPassTargets{};
 		_backBufferRtvHeap.release();
 
@@ -626,6 +630,7 @@ namespace DK
 				DK_LOG("Shader Model 6.0 or higher is required (query HRESULT: 0x%08X).", static_cast<unsigned int>(hr));
 				return false;
 			}
+
 			_shaderModel = shaderModel.HighestShaderModel;
 			DK_LOG("Shader target model: %u.%u", static_cast<uint32>(_shaderModel) >> 4, static_cast<uint32>(_shaderModel) & 0xf);
 		}
@@ -638,6 +643,7 @@ namespace DK
 			ID3D12CommandQueue* commandQueue;
 			if (FAILED(_device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&commandQueue))))
 				return false;
+
 			_commandQueue = commandQueue;
 #if defined(_DK_DEBUG_)
 			_commandQueue->SetName(L"DuckingEngine CommandQueue");
@@ -671,6 +677,7 @@ namespace DK
 			ID3D12DescriptorHeap* rtvHeap = nullptr;
 			if (FAILED(_device->CreateDescriptorHeap(&heap, IID_PPV_ARGS(&rtvHeap))))
 				return false;
+
 			_backBufferRtvHeap = rtvHeap;
 			_renderTargetViewSize = _device->GetDescriptorHandleIncrementSize(heap.Type);
 		}
@@ -696,6 +703,7 @@ namespace DK
 			hr = factory->CreateSwapChainForHwnd(_commandQueue.get(), hwnd, &swapChainDesc, nullptr, nullptr, reinterpret_cast<IDXGISwapChain1**>(&swapChain));
 			if (FAILED(hr) == true)
 				return false;
+
 			_swapChain = swapChain;
 
 			kCurrentFrameIndex = 0;
@@ -722,7 +730,7 @@ namespace DK
 		io.Fonts->AddFontDefault(&fontConfig);
 
 		ImGui::StyleColorsDark();
-		auto& style = ImGui::GetStyle();
+		ImGuiStyle& style = ImGui::GetStyle();
 		style.FontSizeBase = 15.0f;
 		style.WindowPadding = ImVec2(12.0f, 12.0f);
 		style.FramePadding = ImVec2(8.0f, 5.0f);
@@ -781,7 +789,7 @@ namespace DK
 			initInfo.UserData = this;
 			initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cpu, D3D12_GPU_DESCRIPTOR_HANDLE* gpu)
 			{
-				auto& renderer = *static_cast<RenderModule*>(info->UserData);
+				RenderModule& renderer = *static_cast<RenderModule*>(info->UserData);
 				const UINT stride = info->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				for (uint32 i = 0; i < kImGuiDescriptorCount; ++i)
 				{
@@ -799,7 +807,7 @@ namespace DK
 			};
 			initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE)
 			{
-				auto& renderer = *static_cast<RenderModule*>(info->UserData);
+				RenderModule& renderer = *static_cast<RenderModule*>(info->UserData);
 				const UINT stride = info->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				const SIZE_T index = (cpu.ptr - info->SrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr) / stride;
 				assert(index < kImGuiDescriptorCount && renderer._imguiDescriptorUsed[index]);
@@ -975,7 +983,7 @@ namespace DK
 
 				inoutPipeline._rootConstant32BitParameterBuffer.push_back(DK::move(buffer));
 				void* storage = inoutPipeline._rootConstant32BitParameterBuffer.back().data();
-				for (const auto& variable : resource._variables)
+				for (const ShaderVariableReflection& variable : resource._variables)
 				{
 					RootConstant32BitParameterBindingInfo info;
 					info._rootParameterIndex = rootIndex;
@@ -1269,7 +1277,7 @@ namespace DK
 			psoDesc.PS = pixelShaderView;
 			psoDesc.PrimitiveTopologyType = inoutPipeline._primitiveTopologyType;
 			DK_ASSERT_LOG(pipelineCreateInfo._target != nullptr, "Graphics pipeline requires a render target");
-			const auto& target = pipelineCreateInfo._target->_definition;
+			const RenderTargetDefinition& target = pipelineCreateInfo._target->_definition;
 			for (uint32 i = 0; i < target._colorCount; ++i)
 				psoDesc.RTVFormats[i] = target._colors[i]._format;
 			psoDesc.SampleDesc = sampleDesc;
@@ -1656,6 +1664,7 @@ namespace DK
 
 		return true;
 	}
+
 	RenderPass* RenderModule::findRenderPass(const DKString& name)
 	{
 		const DKHashMap<DKString, RenderPass>::iterator entry = _renderPassMap.find(name);
@@ -1673,13 +1682,16 @@ namespace DK
 		RenderPass* definition = findRenderPass(definitionName);
 		if (definition == nullptr)
 			return false;
+
 		const RenderTarget* baseTarget = definition->_binding._target;
 		if (baseTarget == nullptr || binding._target == nullptr)
 			return false;
-		const auto& baseLayout = baseTarget->_definition;
-		const auto& layout = binding._target->_definition;
+
+		const RenderTargetDefinition& baseLayout = baseTarget->_definition;
+		const RenderTargetDefinition& layout = binding._target->_definition;
 		if (baseLayout._colorCount != layout._colorCount || baseLayout._depth._format != layout._depth._format)
 			return false;
+
 		for (uint32 i = 0; i < layout._colorCount; ++i)
 		{
 			if (baseLayout._colors[i]._format != layout._colors[i]._format)
@@ -1713,7 +1725,7 @@ namespace DK
 		}
 
 		waitAllGPU();
-		for (auto& replacement : replacements)
+		for (DKPair<Pipeline*, Pipeline>& replacement : replacements)
 			*replacement.first = DK::move(replacement.second);
 
 		DuckingEngine::getInstance().GetRaytracingRendererWritable().resetAccumulation();
@@ -1771,7 +1783,7 @@ namespace DK
 
 	void RenderModule::resetCommandList()
 	{
-		auto* allocator = _commandList._commandAllocators[kCurrentBackBufferIndex].get();
+		ID3D12CommandAllocator* allocator = _commandList._commandAllocators[kCurrentBackBufferIndex].get();
 		if (FAILED(allocator->Reset()) || FAILED(_commandList->Reset(allocator, nullptr)))
 		{
 			DK_ASSERT_LOG(false, "D3D12 command list reset failed");
@@ -2703,7 +2715,7 @@ namespace DK
 		const RenderPassTargets* targets = nullptr;
 		if (binding._target != nullptr)
 		{
-			const auto& definition = binding._target->_definition;
+			const RenderTargetDefinition& definition = binding._target->_definition;
 			targets = definition._size == RenderTargetDefinition::Size::SwapChain
 				? &_backBufferPassTargets[kCurrentBackBufferIndex]
 				: &binding._target->_targets;
@@ -2743,7 +2755,7 @@ namespace DK
 			resourceBarrierTransition(depth._texture->getTextureBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			if (load == RenderPassLoadAction::Clear)
 			{
-				const auto flags = depthFormat == DXGI_FORMAT_D24_UNORM_S8_UINT || depthFormat == DXGI_FORMAT_D32_FLOAT_S8X24_UINT
+				const D3D12_CLEAR_FLAGS flags = depthFormat == DXGI_FORMAT_D24_UNORM_S8_UINT || depthFormat == DXGI_FORMAT_D32_FLOAT_S8X24_UINT
 					? D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL : D3D12_CLEAR_FLAG_DEPTH;
 				_commandList->ClearDepthStencilView(depth._view, flags, 1.0f, 0, 0, nullptr);
 			}
@@ -2757,7 +2769,7 @@ namespace DK
 		if (_passTargetsToTransition != nullptr)
 		{
 			const RenderPassTargets& targets = *_passTargetsToTransition;
-			const auto state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+			const D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
 			for (uint32 i = 0; i < targets._colorCount; ++i)
 				resourceBarrierTransition(targets._colors[i]._texture->getTextureBuffer(), state);
 			if (targets._depth._texture != nullptr)
@@ -2991,8 +3003,8 @@ namespace DK
     {
         if (size == 0 || size > UINT32_MAX)
             return nullptr;
-        auto properties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        auto desc = CD3DX12_RESOURCE_DESC::Buffer(size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        CD3DX12_HEAP_PROPERTIES properties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+        CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
         ID3D12Resource* resource = nullptr;
         if (FAILED(_device->CreateCommittedResource(&properties, D3D12_HEAP_FLAG_NONE, &desc, state, nullptr, IID_PPV_ARGS(&resource))))
             return nullptr;
@@ -3010,11 +3022,11 @@ namespace DK
         result._bottomLevelScratch.reserve(count);
         for (uint32 i = 0; i < count; ++i)
         {
-            const auto& geometry = geometries[i];
+            const RaytracingGeometry& geometry = geometries[i];
             if (!geometry._vertices || !geometry._indices || !geometry._material ||
                 !geometry._vertices->isValid() || !geometry._indices->isValid() || !geometry._material->isValid())
                 return false;
-            auto& desc = descriptions[i];
+            D3D12_RAYTRACING_GEOMETRY_DESC& desc = descriptions[i];
             desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
             desc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
             desc.Triangles.VertexBuffer = { geometry._vertices->_buffer->GetGPUVirtualAddress(), geometry._vertexStride };
@@ -3031,8 +3043,8 @@ namespace DK
             inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
             _device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-            auto blas = createAccelerationBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
-            auto scratch = createAccelerationBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_STATE_COMMON);
+            IBufferRef blas = createAccelerationBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+            IBufferRef scratch = createAccelerationBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_STATE_COMMON);
             if (!blas || !scratch)
                 return false;
             instances[i].InstanceID = i;
@@ -3071,7 +3083,7 @@ namespace DK
         // Allocate everything before recording commands. Descriptors are replaced only after a GPU wait by the caller.
         for (uint32 i = 0; i < count; ++i)
         {
-            const auto& geometry = geometries[i];
+            const RaytracingGeometry& geometry = geometries[i];
             resourceBarrierTransition(*geometry._vertices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
             resourceBarrierTransition(*geometry._indices, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_INDEX_BUFFER);
             const IBufferRef buffers[] = { geometry._vertices, geometry._indices, geometry._material };
@@ -3084,7 +3096,7 @@ namespace DK
                 view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
                 view.Buffer.NumElements = counts[table];
                 view.Buffer.StructureByteStride = strides[table];
-                auto handle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
                 handle.ptr += static_cast<SIZE_T>(kMaxTextureSRVCount + kMaxTextureUAVCount + table * RaytracingRenderer::kRaytracingDescriptorCount + i) * _bindlessViewSize;
                 _device->CreateShaderResourceView(buffers[table]->_buffer.get(), &view, handle);
             }
@@ -3098,7 +3110,7 @@ namespace DK
             build.ScratchAccelerationStructureData = result._bottomLevelScratch[i]->_buffer->GetGPUVirtualAddress();
             resourceBarrierTransition(*result._bottomLevelScratch[i], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             _commandList->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
-            auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(result._bottomLevels[i]->_buffer.get());
+            CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::UAV(result._bottomLevels[i]->_buffer.get());
             _commandList->ResourceBarrier(1, &barrier);
         }
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
@@ -3107,7 +3119,7 @@ namespace DK
         build.ScratchAccelerationStructureData = result._scratch->_buffer->GetGPUVirtualAddress();
         resourceBarrierTransition(*result._scratch, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         _commandList->BuildRaytracingAccelerationStructure(&build, 0, nullptr);
-        auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(result._result->_buffer.get());
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::UAV(result._result->_buffer.get());
         _commandList->ResourceBarrier(1, &barrier);
         DK_LOG("DXR scene built: %u static mesh instances", count);
         return true;
@@ -3115,7 +3127,7 @@ namespace DK
 
     void RenderModule::copyTextureToRenderTarget(ITextureRef& source, ITexture& destination)
     {
-        auto& target = destination.getTextureBuffer();
+        IBuffer& target = destination.getTextureBuffer();
         resourceBarrierTransition(source, D3D12_RESOURCE_STATE_COPY_SOURCE);
         resourceBarrierTransition(target, D3D12_RESOURCE_STATE_COPY_DEST);
         _commandList->CopyResource(target._buffer.get(), source->getTextureBuffer()._buffer.get());
