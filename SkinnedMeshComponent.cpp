@@ -36,7 +36,10 @@ namespace DK
 		const DKVector<Bone>& bones = _skeleton->getBoneArr();
 		const DKVector<Animation::BoneAnimation>& tracks = clip->getBoneAnimation();
 		if (bones.empty() || bones.size() > Bone::kMaxBoneCount || bones.size() != tracks.size())
+		{
+			DK_ASSERT_LOG(false, "Skeleton, Animation Not Matching");
 			return false;
+		}
 
 		_trackIndices.resize(bones.size());
 		_inverseBindPose.resize(bones.size());
@@ -48,14 +51,20 @@ namespace DK
 				return candidate._boneName == bone._boneName;
 			});
 			if (track == tracks.end())
+			{
+				DK_ASSERT_LOG(false, "Skeleton, Animation Not Matching");
 				return false;
+			}
 
 			_trackIndices[i] = static_cast<uint32>(track - tracks.begin());
 			bone._transform.tofloat4x4(_animatedPose[i]);
 			if (bone._parentBoneIndex != Bone::kInvalidBoneIndex)
 			{
 				if (bone._parentBoneIndex >= i)
+				{
+					DK_ASSERT_LOG(false, "invalid parent bone index");
 					return false;
+				}
 
 				_animatedPose[i] = _animatedPose[i] * _animatedPose[bone._parentBoneIndex];
 			}

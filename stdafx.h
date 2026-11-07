@@ -1025,7 +1025,7 @@ namespace DK
 		static float4x4 slerp(const float4x4& lhs, const float4x4& rhs, const float ratio)
 		{
 #ifdef USE_DIRECTX_MATH
-			DirectX::XMMATRIX lMatrix = rhs.convertXMMATRIX();
+			DirectX::XMMATRIX lMatrix = lhs.convertXMMATRIX();
 			DirectX::XMVECTOR lTranslation, lQuaternion, lScale;
 			DirectX::XMMatrixDecompose(&lScale, &lQuaternion, &lTranslation, lMatrix);
 
@@ -1041,7 +1041,7 @@ namespace DK
 			DirectX::XMMATRIX lerpQuaternionMatrix = DirectX::XMMatrixRotationQuaternion(lerpQuaternion);
 			DirectX::XMMATRIX lerpScaleMatrix = DirectX::XMMatrixScalingFromVector(lerpScale);
 
-			DirectX::XMMATRIX lerpMatrix = lerpTranslationMatrix * lerpQuaternionMatrix * lerpScaleMatrix;
+			DirectX::XMMATRIX lerpMatrix = lerpScaleMatrix * lerpQuaternionMatrix * lerpTranslationMatrix;
 			
 			float4x4 outMatrix;
 			outMatrix.convertfloat4x4(lerpMatrix);

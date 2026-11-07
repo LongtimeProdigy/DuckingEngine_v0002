@@ -82,6 +82,8 @@ namespace DK
 				DK_ASSERT_LOG(false, "FrameCount와 BoneFrameCount가 다릅니다. %d / %d", boneFrameCount, frameCount);
 				return false;
 			}
+
+			++boneIndex;
 		}
 
 		_frameCount = frameCount;

@@ -1,4 +1,4 @@
-<Animation FrameCount=86>
+<Animation FrameCount=86 BoneCount=112>
 	<Bone Name=mixamorig:Hips>
 		<Transform Index=0>
 			<Position>0.031413 0.927104 0.026134</Position>
