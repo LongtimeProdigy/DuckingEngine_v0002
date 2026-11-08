@@ -105,6 +105,12 @@
 			<PixelShader Entry="PSMain">Material\TerrainClipMap.hlsl</PixelShader>
 		</Pipeline>
 
+		<Pipeline Name="GrassPatchPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="None">
+			<RootConstant Buffer="GrassPatchConstants"/>
+			<VertexShader Entry="VSMain">Material\GrassPatch.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\GrassPatch.hlsl</PixelShader>
+		</Pipeline>
+
 		<Pipeline Name="StaticMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>

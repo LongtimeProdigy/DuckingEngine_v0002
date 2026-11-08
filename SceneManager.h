@@ -146,6 +146,11 @@ namespace DK
 			Mesh _cross;
 			Mesh _seam;
 
+			static constexpr uint32 GRASS_BLADE_COUNT = 6;
+			static constexpr uint32 GRASS_INDEX_COUNT = GRASS_BLADE_COUNT * 15;
+
+			IBufferRef _grassIndexBuffer;
+			IndexBufferViewRef _grassIndexBufferView;
 			Ptr<Material> _material;
 			DKVector<IBufferRef> _terrainConstantBuffer;
 		};

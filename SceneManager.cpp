@@ -430,6 +430,17 @@ namespace DK
 		Material* newMaterial = Material::createMaterial(materialDefinitionArr[0]);
 		_clipmapTerrain._material.assign(newMaterial);
 
+		constexpr uint32 bladeIndices[] = { 0, 1, 2, 1, 3, 2, 2, 3, 4, 3, 5, 4, 4, 5, 6 };
+		uint32 grassIndices[ClipMapTerrain::GRASS_INDEX_COUNT];
+		for (uint32 blade = 0; blade < ClipMapTerrain::GRASS_BLADE_COUNT; ++blade)
+		{
+			for (uint32 index = 0; index < DK_COUNT_OF(bladeIndices); ++index)
+				grassIndices[blade * DK_COUNT_OF(bladeIndices) + index] = blade * 7 + bladeIndices[index];
+		}
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		_clipmapTerrain._grassIndexBuffer = renderModule.createIndexBuffer(
+			grassIndices, ClipMapTerrain::GRASS_INDEX_COUNT, _clipmapTerrain._grassIndexBufferView, L"GrassPatch_IndexBuffer");
+
 		// Cross(1) + (tile(4) + Filter(1) + Trim(1) + Seam(1)) * (level count)
 		const uint32 tileCountPerClipMap = 1 + (4 * 4 + 1 + 1 + 1) * ClipMapTerrain::NUM_CLIPMAP_LEVELS;
 		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);

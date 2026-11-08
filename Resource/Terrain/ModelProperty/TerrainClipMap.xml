@@ -2,8 +2,9 @@
 	<SubMeshArr Count="1">
 		<SubMesh Name="TerrainClipMap">
 			<Parameters>
-				<Parameter Name="_diffuseTexture" Type="Texture">Terrain/textures/coast_sand_rocks_02_diff_4k.png</Parameter>
-				<Parameter Name="_heightTexture" Type="Texture">Terrain/textures/coast_sand_rocks_02_disp_4k.png</Parameter>
+				<Parameter Name="_diffuseTexture" Type="Texture">Terrain/textures/forest_leaves_02_diffuse_2k.jpg</Parameter>
+				<Parameter Name="_heightTexture" Type="Texture">Terrain/textures/forest_valley_height_2k.png</Parameter>
+				<Parameter Name="_soilDiffuseTexture" Type="Texture">Terrain/textures/forest_valley_soil_diffuse_2k.png</Parameter>
 			</Parameters>
 		</SubMesh>
 	</SubMeshArr>

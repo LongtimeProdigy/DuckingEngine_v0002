@@ -1,0 +1,12 @@
+#ifndef GRASS_TILES_H
+#define GRASS_TILES_H
+
+#define GRASS_TILE_METERS 10.0f
+#define GRASS_TILE_GRID_SIDE 64u
+#define GRASS_LOD0_END 22.0f
+#define GRASS_LOD1_END 44.0f
+#define GRASS_LOD2_END 82.0f
+#define GRASS_LOD3_END 140.0f
+#define GRASS_LOD4_END 220.0f
+
+#endif

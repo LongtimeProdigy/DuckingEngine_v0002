@@ -14,7 +14,9 @@
 #include "EditorDebugDrawManager.h"
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
+#include "Resource/Material/GrassTiles.h"
 
+#include <DirectXCollision.h>
 #include <random>
 
 namespace DK
@@ -1701,6 +1703,84 @@ namespace DK
 		}
     }
 
+    void SceneRenderer::drawTerrainGrass(RenderModule& renderModule)
+    {
+        const SceneManager::ClipMapTerrain& terrain = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable();
+        if (terrain._grassIndexBuffer == nullptr)
+            return;
+
+        const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
+        // The current heightmap is 2048 samples at 1 meter per sample.
+        constexpr float mapHalfExtent = 1024.0f;
+        constexpr float tileMeters = GRASS_TILE_METERS;
+        constexpr float maxDistance = GRASS_LOD4_END;
+        const auto tileAt = [](float position) { return static_cast<int>(std::floor(position / tileMeters)); };
+        const float minX = std::max(-mapHalfExtent, camera.x - maxDistance);
+        const float minZ = std::max(-mapHalfExtent, camera.z - maxDistance);
+        const float maxX = std::min(mapHalfExtent, camera.x + maxDistance);
+        const float maxZ = std::min(mapHalfExtent, camera.z + maxDistance);
+        if (minX >= maxX || minZ >= maxZ)
+            return;
+
+        const auto toDirectXMatrix = [](const float4x4& matrix)
+        {
+            return DirectX::XMMATRIX(
+                matrix._11, matrix._12, matrix._13, matrix._14,
+                matrix._21, matrix._22, matrix._23, matrix._24,
+                matrix._31, matrix._32, matrix._33, matrix._34,
+                matrix._41, matrix._42, matrix._43, matrix._44);
+        };
+        DirectX::BoundingFrustum viewFrustum;
+        DirectX::BoundingFrustum::CreateFromMatrix(viewFrustum, toDirectXMatrix(_sceneConstantBufferData._cameraProjectionMatrix));
+        DirectX::BoundingFrustum worldFrustum;
+        viewFrustum.Transform(worldFrustum, toDirectXMatrix(_sceneConstantBufferData._cameraWorldMatrix));
+
+        constexpr float lodEnds[] = { GRASS_LOD0_END, GRASS_LOD1_END, GRASS_LOD2_END, GRASS_LOD3_END, GRASS_LOD4_END };
+        const int firstTileX = tileAt(minX);
+        const int lastTileX = tileAt(maxX);
+        const int firstTileZ = tileAt(minZ);
+        const int lastTileZ = tileAt(maxZ);
+        // Heights that admit grass lie between sea level and the top of the height encoding.
+        constexpr float maxGrassY = 113.2f;
+        constexpr float bladeOverhang = 1.2f;
+        RenderModule& currentRenderModule = renderModule;
+        startPipeline("GrassPatchPipeline");
+        setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
+        setConstantBuffer("TerrainClipMap", terrain._material->get_parameterBufferForGPU());
+        renderModule.setIndexBuffer(terrain._grassIndexBufferView.get());
+        for (int tileZ = firstTileZ; tileZ <= lastTileZ; ++tileZ)
+        {
+            for (int tileX = firstTileX; tileX <= lastTileX; ++tileX)
+            {
+                const float x = tileX * tileMeters;
+                const float z = tileZ * tileMeters;
+                const float dx = camera.x - std::clamp(camera.x, x, x + tileMeters);
+                const float dy = camera.y - std::clamp(camera.y, 0.0f, maxGrassY);
+                const float dz = camera.z - std::clamp(camera.z, z, z + tileMeters);
+                const float distanceSquared = dx * dx + dy * dy + dz * dz;
+                if (distanceSquared >= maxDistance * maxDistance)
+                    continue;
+
+                const DirectX::BoundingBox bounds(
+                    DirectX::XMFLOAT3(x + 0.5f * tileMeters, 0.5f * maxGrassY, z + 0.5f * tileMeters),
+                    DirectX::XMFLOAT3(0.5f * tileMeters + bladeOverhang, 0.5f * maxGrassY, 0.5f * tileMeters + bladeOverhang));
+                if (!worldFrustum.Intersects(bounds))
+                    continue;
+
+                uint32 lod = 0;
+                while (distanceSquared >= lodEnds[lod] * lodEnds[lod])
+                    ++lod;
+                const uint32 stride = 1u << lod;
+                const uint32 gridSide = GRASS_TILE_GRID_SIDE / stride;
+                setRootConstantParameter("_grassTileX", tileX);
+                setRootConstantParameter("_grassTileZ", tileZ);
+                setRootConstantParameter("_grassCellStride", stride);
+                renderModule.drawIndexedInstanced(SceneManager::ClipMapTerrain::GRASS_INDEX_COUNT, gridSide * gridSide, 0, 0, 0);
+            }
+        }
+        endPipeline();
+    }
+
 	void SceneRenderer::updateAtmosphereTransmittanceLut()
 	{
 		const AtmosphereConstantBuffer& p = _atmosphereConstantBufferData;
@@ -1975,6 +2055,8 @@ namespace DK
 		else
 			renderModule.beginRenderPass(*_mainGeometryClearPass);
 		drawSceneGeometry(renderModule, _sceneConstantBuffer, true);
+		if (_renderLocalScene)
+			drawTerrainGrass(renderModule);
 		renderModule.finishRenderPass();
 
 		// Resolve material attributes to HDR radiance before atmosphere and bloom.

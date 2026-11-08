@@ -2546,7 +2546,7 @@ namespace DK
 		// TODO : Miplevel이 생기면 1말고 Resource에서 가져올 수 있도록하자
 		ITextureRef newTexture = createTexture(
 			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format, 
-			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			true, false);
 
 		if (newTexture == nullptr)
