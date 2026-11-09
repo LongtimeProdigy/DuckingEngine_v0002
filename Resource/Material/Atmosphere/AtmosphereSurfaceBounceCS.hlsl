@@ -9,10 +9,11 @@ cbuffer SurfaceBounceOutputConstants : register(b2)
 };
 
 // uvw를 카메라 포지션 + 월드 회전축 공간의 좌표로 변환
+// Capture coordinates use reversed depth, including the bounce volume's Z axis.
 float3 atmosphereSurfacePoint(float3 uvw)
 {
     return _surfaceOrigin.xyz + _surfaceRight.xyz * ((2.0f * uvw.x - 1.0f) * _surfaceRight.w)
-        + _surfaceUp.xyz * ((1.0f - 2.0f * uvw.y) * _surfaceUp.w) + _surfaceForward.xyz * (uvw.z * _surfaceForward.w);
+        + _surfaceUp.xyz * ((1.0f - 2.0f * uvw.y) * _surfaceUp.w) + _surfaceForward.xyz * ((1.0f - uvw.z) * _surfaceForward.w);
 }
 
 // 3점 Gauss–Legendre 적분입니다. 임의로 고른 위치와 가중치가 아니라, 적은 샘플로 적분을 근사하도록 정해진 조합

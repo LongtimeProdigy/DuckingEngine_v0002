@@ -217,8 +217,10 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float3 sunRadiance = atmosphereSunIrradiance() * _sunRadianceScale / max(PI * sinRadius * sinRadius, 1e-8f);
     
     const float depth = depthTexture.Load(uint3(input.uv * _resolution, 0)).x;
-    // 기본적으로 depthTexture의 Value는 log된 값입니다. 이를 선형적 값으로 변환합니다. (카메라 위치로부터 z위치)
-    const float viewZ = (_nearDistance * _farDistance) / (_farDistance - depth * (_farDistance - _nearDistance));
+    // Infinite reversed Z stores near/viewZ; zero is the cleared sky.
+    // Skip reconstruction for sky so no division by zero enters integration.
+    const bool hasGeometry = depth > 0.0f;
+    const float viewZ = hasGeometry ? _cameraProjectionMatrix._43 / (depth - _cameraProjectionMatrix._33) : 0.0f;
     // 카메라 위치로부터의 z위치를 카메라 위치로부터 길이로 변환
     const float linearDepthDistance = viewZ / max(dot(rayDirWS, getViewForwardDirection()), 1e-6f);
 
@@ -226,14 +228,14 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float destToAtmosphere = hitInfo.x;   // 대기 near 거리 (만약 카메라가 대기 안에 있다면 0)
     const float lengthAtmosphere = hitInfo.y;   // 대기 관통 거리 (만약 카메라가 대기 안에 있다면 far - camerapos)
 
-    float3 backgroundRadiance = depth < 1.0f ? originalCol.rgb : /*float3(1, 1, 1) * */sunRadiance * sunCoverage;
+    float3 backgroundRadiance = hasGeometry ? originalCol.rgb : /*float3(1, 1, 1) * */sunRadiance * sunCoverage;
 
     // 우주공간
     if(lengthAtmosphere == 0)
         return float4(backgroundRadiance, 1);
 
     const float atmosphereEnd = destToAtmosphere + lengthAtmosphere;
-    const float rayEnd = depth < 1.0f ? min(linearDepthDistance, atmosphereEnd) : atmosphereEnd;
+    const float rayEnd = hasGeometry ? min(linearDepthDistance, atmosphereEnd) : atmosphereEnd;
     const float integrationLength = max(0.0f, rayEnd - destToAtmosphere);
     const float3 atmosphereStart = rayOrigin + rayDirWS * destToAtmosphere;
     

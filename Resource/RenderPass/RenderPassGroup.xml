@@ -9,7 +9,7 @@
 			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
-			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+			<Depth Format="D32_FLOAT_S8X24_UINT" SRV="True"/>
 		</RenderTarget>
 		<RenderTarget Name="Lighting" Size="Window">
 			<Color Name="Color" Format="R32G32B32A32_FLOAT" SRV="True"/>
@@ -24,25 +24,25 @@
 			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
-			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+			<Depth Format="D32_FLOAT_S8X24_UINT" SRV="True"/>
 		</RenderTarget>
 		<RenderTarget Name="NearShadow0" Width="512" Height="512">
 			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
-			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+			<Depth Format="D32_FLOAT_S8X24_UINT" SRV="True"/>
 		</RenderTarget>
 		<RenderTarget Name="NearShadow1" Width="512" Height="512">
 			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
-			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+			<Depth Format="D32_FLOAT_S8X24_UINT" SRV="True"/>
 		</RenderTarget>
 		<RenderTarget Name="NearShadow2" Width="512" Height="512">
 			<Color Name="Albedo" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Normal" Format="R16G16B16A16_FLOAT" SRV="True"/>
 			<Color Name="Material" Format="R16G16B16A16_FLOAT" SRV="True"/>
-			<Depth Format="D24_UNORM_S8_UINT" SRV="True"/>
+			<Depth Format="D32_FLOAT_S8X24_UINT" SRV="True"/>
 		</RenderTarget>
 		<RenderTarget Name="BackBuffer" Source="SwapChain"/>
 	</RenderTargets>

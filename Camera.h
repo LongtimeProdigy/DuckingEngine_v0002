@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "Object.h"
+#include <limits>
 
 namespace DK
 {
@@ -42,13 +43,10 @@ namespace DK
 				_moveSpeed = speed;
 		}
 
-		void setClipPlaneDistances(float nearDistance, float farDistance)
+		void setClipPlaneDistances(float nearDistance)
 		{
-			if (std::isfinite(nearDistance) && std::isfinite(farDistance) && nearDistance > 0.0f && farDistance > nearDistance)
-			{
+			if (std::isfinite(nearDistance) && nearDistance > 0.0f)
 				_nearPlaneDistance = nearDistance;
-				_farPlaneDistance = farDistance;
-			}
 		}
 
 		void setViewportSize(int width, int height)
@@ -77,7 +75,7 @@ namespace DK
 		}
 		void getCameraProjectionMatrix(float4x4& outMaterix)
 		{
-			//outMaterix.Identity;
+			outMaterix = float4x4::Identity;
 
 			// https://marmelo12.tistory.com/338 (h == 1 이라는 가정하게 설명하지만 더 자세하게 설명해줌)
 			// https://jw910911.tistory.com/19
@@ -96,17 +94,14 @@ namespace DK
 			outMaterix._22 = h;
 #endif
 
-			const float a = _farPlaneDistance / (_farPlaneDistance - _nearPlaneDistance);
-			const float b = -a * _nearPlaneDistance;
-			outMaterix._33 = a;
-			outMaterix._43 = b;
+			outMaterix._33 = 0.0f;
+			outMaterix._43 = _nearPlaneDistance;
 
 			outMaterix._34 = 1.0f;
 			outMaterix._44 = 0.0f;
 		}
 
 		dk_inline float getNearPlaneDistance() const { return _nearPlaneDistance; }
-		dk_inline float getFarPlaneDistance() const { return _farPlaneDistance; }
 
 	private:
 		float _halfFov = 45.0f * Math::kToRadian;
@@ -114,7 +109,6 @@ namespace DK
 		int _height = 1080;
 
 		float _nearPlaneDistance = 0.1f;
-		float _farPlaneDistance = 1000.0f;
 
 		/*	Component의 Transform을 직접 쓰지 않는 이유
 		*	- Transform.get_rotation으로 얻어온 quaternion이 pitch가 90도 근처에 있을 때, toEuler를 하는 순간 짐벌락같이 Yaw, Roll이 특정하기 어려운 순간이 온다.

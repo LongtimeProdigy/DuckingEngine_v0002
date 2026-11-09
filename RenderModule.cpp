@@ -358,7 +358,8 @@ namespace DK
 
 		D3D12_CLEAR_VALUE clear{};
 		clear.Format = depth._format;
-		clear.DepthStencil.Depth = 1.0f;
+		clear.DepthStencil.Depth = 0.0f;
+		clear.DepthStencil.Stencil = 0;
 		const D3D12_RESOURCE_FLAGS flags = depth._srv ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 		const DXGI_FORMAT resourceFormat = depth._srv ? GetDepthResourceFormat(depth._format) : depth._format;
 		IBufferRef buffer = createBuffer2DInternal(width, height, 1, resourceFormat, flags, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, debugName.c_str());
@@ -1262,7 +1263,7 @@ namespace DK
 			D3D12_DEPTH_STENCIL_DESC depthStencilDesc;
 			depthStencilDesc.DepthEnable = pipelineCreateInfo._depthEnable;
 			depthStencilDesc.DepthWriteMask = depthStencilDesc.DepthEnable ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
-			depthStencilDesc.DepthFunc = depthStencilDesc.DepthEnable ? D3D12_COMPARISON_FUNC_LESS : D3D12_COMPARISON_FUNC_NEVER;
+			depthStencilDesc.DepthFunc = depthStencilDesc.DepthEnable ? D3D12_COMPARISON_FUNC_GREATER : D3D12_COMPARISON_FUNC_NEVER;
 			depthStencilDesc.StencilEnable = FALSE;
 			depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
 			depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
@@ -2752,7 +2753,7 @@ namespace DK
 			{
 				const D3D12_CLEAR_FLAGS flags = depthFormat == DXGI_FORMAT_D24_UNORM_S8_UINT || depthFormat == DXGI_FORMAT_D32_FLOAT_S8X24_UINT
 					? D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL : D3D12_CLEAR_FLAG_DEPTH;
-				_commandList->ClearDepthStencilView(depth._view, flags, 1.0f, 0, 0, nullptr);
+				_commandList->ClearDepthStencilView(depth._view, flags, 0.0f, 0, 0, nullptr);
 			}
 		}
 		_commandList->OMSetRenderTargets(targets._colorCount, rtvs, FALSE, depth._texture != nullptr ? &depth._view : nullptr);

@@ -84,10 +84,12 @@ namespace DK
 		{
 			const RenderTarget* target = pass._binding._target;
 			return hasGeometryOutputs(target) && target->_definition._size == Size::Fixed
+				&& target->_definition._depth._format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT
 				&& target->_targets._width == target->_targets._height && pass._binding._store == RenderPassStoreAction::ShaderRead;
 		};
 		const RenderTarget* gbuffer = _mainGeometryPass->_binding._target;
 		if (hasGeometryOutputs(gbuffer) == false || gbuffer->_definition._size != Size::Window || _oceanPass->_binding._target != gbuffer
+			|| gbuffer->_definition._depth._format != DXGI_FORMAT_D32_FLOAT_S8X24_UINT
 			|| _mainGeometryClearPass->_binding._target != gbuffer || isCapture(*_surfaceCapturePass) == false || _surfaceCapturePass->_binding._target->_targets._width % 32u != 0)
 			return false;
 
@@ -741,7 +743,7 @@ namespace DK
 		// Keep camera controls positive even inside that radius.
 		const float altitude = static_cast<float>(std::max(distance - atmosphere._densityReferenceRadius, 0.0));
 		camera.setMoveSpeed(Math::clamp(altitude * 0.2f, 5.0f, 2000000.0f));
-		camera.setClipPlaneDistances(Math::max(0.1f, altitude * 0.00001f), Math::max(1000.0f, altitude * 4.0f));
+		camera.setClipPlaneDistances(Math::max(0.1f, altitude * 0.00001f));
 	}
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
@@ -766,7 +768,6 @@ namespace DK
 			_sceneConstantBufferData._resolution[1] = RenderModule::kHeight;
 			_sceneConstantBufferData._time += deltaTime;
 			_sceneConstantBufferData._nearDistance = Camera::gMainCamera->getNearPlaneDistance();
-			_sceneConstantBufferData._farDistance = Camera::gMainCamera->getFarPlaneDistance();
 			_sceneConstantBufferData._rngState = static_cast<uint32>(gen());
 
 			Camera::gMainCamera->get_worldTransform().tofloat4x4(_sceneConstantBufferData._cameraWorldMatrix);
@@ -1417,7 +1418,8 @@ namespace DK
 				float(-doublePrecisionDot(eye, right)), float(-doublePrecisionDot(eye, up)), float(-doublePrecisionDot(eye, directionalLightDir)), 1
 			);
             scene._cameraWorldMatrix = float4x4(right.x, right.y, right.z, 0, up.x, up.y, up.z, 0, directionalLightDir.x, directionalLightDir.y, directionalLightDir.z, 0, eye.x, eye.y, eye.z, 1);
-            scene._cameraProjectionMatrix = float4x4(1 / extent, 0, 0, 0, 0, 1 / extent, 0, 0, 0, 0, 1 / depth, 0, 0, 0, 0, 1);
+            // Orthographic reversed Z: capture near -> 1, far -> 0.
+            scene._cameraProjectionMatrix = float4x4(1 / extent, 0, 0, 0, 0, 1 / extent, 0, 0, 0, 0, -1 / depth, 0, 0, 0, 1, 1);
 
 			IBufferRef& surfaceSceneConstantBuffer = (cascadeIndex == 3u ? _surfaceSceneConstantBuffer : _nearShadowSceneConstants[cascadeIndex]);
 			surfaceSceneConstantBuffer->upload(&scene);
@@ -1714,7 +1716,9 @@ namespace DK
         constexpr float mapHalfExtent = 1024.0f;
         constexpr float tileMeters = GRASS_TILE_METERS;
         constexpr float maxDistance = GRASS_LOD4_END;
-        const auto tileAt = [](float position) { return static_cast<int>(std::floor(position / tileMeters)); };
+        // Heights that admit grass lie between sea level and the height encoding's top.
+        constexpr float maxGrassY = 113.2f;
+        const auto tileAt = [&](float position) { return static_cast<int>(std::floor(position / tileMeters)); };
         const float minX = std::max(-mapHalfExtent, camera.x - maxDistance);
         const float minZ = std::max(-mapHalfExtent, camera.z - maxDistance);
         const float maxX = std::min(mapHalfExtent, camera.x + maxDistance);
@@ -1731,7 +1735,14 @@ namespace DK
                 matrix._41, matrix._42, matrix._43, matrix._44);
         };
         DirectX::BoundingFrustum viewFrustum;
-        DirectX::BoundingFrustum::CreateFromMatrix(viewFrustum, toDirectXMatrix(_sceneConstantBufferData._cameraProjectionMatrix));
+        // Grass already has a finite distance budget. Build its culling volume
+        // explicitly: unprojecting depth zero from infinite reversed Z has w=0.
+        viewFrustum.RightSlope = 1.0f / _sceneConstantBufferData._cameraProjectionMatrix._11;
+        viewFrustum.LeftSlope = -viewFrustum.RightSlope;
+        viewFrustum.TopSlope = 1.0f / _sceneConstantBufferData._cameraProjectionMatrix._22;
+        viewFrustum.BottomSlope = -viewFrustum.TopSlope;
+        viewFrustum.Near = _sceneConstantBufferData._nearDistance;
+        viewFrustum.Far = maxDistance + 2.0f * maxGrassY + 4.0f * tileMeters;
         DirectX::BoundingFrustum worldFrustum;
         viewFrustum.Transform(worldFrustum, toDirectXMatrix(_sceneConstantBufferData._cameraWorldMatrix));
 
@@ -1740,8 +1751,6 @@ namespace DK
         const int lastTileX = tileAt(maxX);
         const int firstTileZ = tileAt(minZ);
         const int lastTileZ = tileAt(maxZ);
-        // Heights that admit grass lie between sea level and the top of the height encoding.
-        constexpr float maxGrassY = 113.2f;
         constexpr float bladeOverhang = 1.2f;
         RenderModule& currentRenderModule = renderModule;
         startPipeline("GrassPatchPipeline");
