@@ -2,6 +2,12 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="StringUtil.cpp">
+      <Filter>0. Common</Filter>
+    </ClCompile>
+    <ClCompile Include="FileUtil.cpp">
+      <Filter>0. Common</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="Object.cpp">
@@ -235,6 +241,18 @@
     </ClInclude>
     <ClInclude Include="SceneManager.h">
       <Filter>1. EngineCore</Filter>
+    </ClInclude>
+    <ClInclude Include="CommonLog.h">
+      <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="CommonTypes.h">
+      <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="StringUtil.h">
+      <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="FileUtil.h">
+      <Filter>0. Common</Filter>
     </ClInclude>
     <ClInclude Include="MeshUtil.h">
       <Filter>0. Common</Filter>

@@ -1,89 +1,94 @@
 ﻿#pragma once
 
-#include <string>
-#include <vector>
+#include "CommonTypes.h"
+#include "StringUtil.h"
+
 #include "lib/tinyXML/tinyxml.h"
 
 namespace DK
 {
 	// Index zero keeps the original name. The last XML dimension varies fastest.
-	inline std::string pipelinePermutationName(const std::string& name, unsigned int index)
+	dk_inline DKString pipelinePermutationName(const DKString& name, unsigned int index)
 	{
-		return index == 0 ? name : name + "[" + std::to_string(index) + "]";
+		return index == 0 ? name : name + "[" + StringUtil::toString(index) + "]";
 	}
 
-	inline bool parsePipelinePermutations(const TiXmlElement& pipeline, std::vector<std::vector<std::string>>& combinations, std::string& error)
+	dk_inline bool parsePipelinePermutations(const TiXmlElement& pipeline, DKVector<DKVector<DKString>>& combinations)
 	{
 		constexpr size_t maxCombinations = 4096;
+
 		combinations = { {} };
-		error.clear();
-		std::vector<std::string> names;
+		DKVector<DKString> names;
 		for (const TiXmlElement* node = pipeline.FirstChildElement("Permutation"); node; node = node->NextSiblingElement("Permutation"))
 		{
 			const char* nameAttribute = node->Attribute("Name");
 			const char* valuesAttribute = node->Attribute("Values");
-			if (!nameAttribute || !*nameAttribute || !valuesAttribute || !*valuesAttribute)
+			if (nameAttribute == nullptr || *nameAttribute == '\0' || valuesAttribute == nullptr || *valuesAttribute == '\0')
 			{
-				error = "Permutation requires non-empty Name and Values attributes.";
+				DK_ASSERT_LOG(false, "Permutation requires non-empty Name and Values attributes.");
 				return false;
 			}
-			const std::string name = nameAttribute;
+
+			const DKString name = nameAttribute;
 			for (size_t i = 0; i < name.size(); ++i)
 			{
 				const char c = name[i];
 				if ((c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (i > 0 && c >= '0' && c <= '9')) == false)
 				{
-					error = "Invalid permutation macro name: " + name;
+					DK_ASSERT_LOG(false, "Invalid permutation macro name: %s", name.c_str());
 					return false;
 				}
 			}
-			for (const std::string& previous : names)
+			for (const DKString& previous : names)
 			{
 				if (previous == name)
 				{
-					error = "Duplicate permutation name: " + name;
+					DK_ASSERT_LOG(false, "Duplicate permutation name: %s", name.c_str());
 					return false;
 				}
 			}
 			names.push_back(name);
-			std::vector<std::string> values;
-			const std::string list = valuesAttribute;
+
+			DKVector<DKString> values;
+			const DKString list = valuesAttribute;
 			size_t begin = 0;
 			do
 			{
 				const size_t end = list.find(',', begin);
-				std::string value = list.substr(begin, end == std::string::npos ? end : end - begin);
+				DKString value = list.substr(begin, end == DKString::npos ? end : end - begin);
 				const size_t first = value.find_first_not_of(" \t\r\n");
-				if (first == std::string::npos)
+				if (first == DKString::npos)
 				{
-					error = "Empty permutation value: " + name;
+					DK_ASSERT_LOG(false, "Empty permutation value: %s", name.c_str());
 					return false;
 				}
 				value = value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
-				for (const std::string& previous : values)
+				for (const DKString& previous : values)
 				{
 					if (previous == value)
 					{
-						error = "Duplicate permutation value: " + name + "=" + value;
+						DK_ASSERT_LOG(false, "Duplicate permutation value: %s = %s", name.c_str(), value.c_str());
 						return false;
 					}
 				}
 				values.push_back(value);
 				if (values.size() > maxCombinations / combinations.size())
 				{
-					error = "A pipeline may have at most 4096 permutation combinations.";
+					DK_ASSERT_LOG(false, "A pipeline may have at most 4096 permutation combinations.");
 					return false;
 				}
-				if (end == std::string::npos)
+
+				if (end == DKString::npos)
 					break;
+
 				begin = end + 1;
 			} while (true);
 
-			std::vector<std::vector<std::string>> expanded;
+			DKVector<DKVector<DKString>> expanded;
 			expanded.reserve(combinations.size() * values.size());
-			for (const std::vector<std::string>& combination : combinations)
+			for (const DKVector<DKString>& combination : combinations)
 			{
-				for (const std::string& value : values)
+				for (const DKString& value : values)
 				{
 					expanded.push_back(combination);
 					expanded.back().push_back(name + "=" + value);
@@ -91,6 +96,7 @@ namespace DK
 			}
 			combinations.swap(expanded);
 		}
+
 		return true;
 	}
 }

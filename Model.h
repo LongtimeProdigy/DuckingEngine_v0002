@@ -4,7 +4,6 @@ namespace DK
 {
 	class Material;
 	struct IBuffer;
-	using IBufferRef = std::shared_ptr<IBuffer>;
 
 	struct StaticMeshVertex
 	{

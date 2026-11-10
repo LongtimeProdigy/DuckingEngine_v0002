@@ -6,73 +6,87 @@
 #include "ComputerController.h"
 #include "DuckingEngine.h"
 #include "RaytracingRenderer.h"
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <limits>
-#include <locale>
+#include "FileUtil.h"
 
 namespace DK
 {
 	Camera* Camera::gMainCamera = nullptr;
 
-	namespace
+	static DKString cameraStatePath()
 	{
-		const std::filesystem::path& cameraStatePath()
-		{
-			// Independent of Visual Studio's working directory.
-			static const std::filesystem::path path = [] {
-				wchar_t executable[32768];
-				const DWORD length = GetModuleFileNameW(nullptr, executable, 32768);
-				if (length == 0 || length >= 32768)
-					return std::filesystem::path();
-
-				return std::filesystem::path(executable).parent_path() / L"camera-state.txt";
-			}();
-			return path;
-		}
+		return FileUtil::fromWidePath(GlobalPath::makeResourceFullPathW(L"editor/data/camera-state.txt").c_str());
 	}
 
 	bool Camera::loadViewState()
 	{
-		std::ifstream input(cameraStatePath());
-		input.imbue(std::locale::classic());
-
-		std::string signature;
+		const DKString path = cameraStatePath();
+		if (FileUtil::exist(path) == false)
+		{
+			return false;
+		}
+		FileReader reader;
+		if (reader.open(path) == false)
+		{
+			return false;
+		}
+		DKString text;
+		if (reader.readText(text) == false)
+		{
+			return false;
+		}
+		const DKVector<DKString> tokens = StringUtil::splitWhitespace(text);
+		if (tokens.size() != 7 || tokens[0] != "DuckingCamera")
+		{
+			DK_ASSERT_LOG(false, "Invalid camera state layout");
+			return false;
+		}
 		int version = 0;
 		float3 position;
 		float yaw = 0.0f, pitch = 0.0f;
-		if (!(input >> signature >> version >> position.x >> position.y >> position.z >> yaw >> pitch))
+		if (StringUtil::parseInt(tokens[1], version) == false || StringUtil::parseFloat(tokens[2], position.x) == false || StringUtil::parseFloat(tokens[3], position.y) == false || StringUtil::parseFloat(tokens[4], position.z) == false || StringUtil::parseFloat(tokens[5], yaw) == false || StringUtil::parseFloat(tokens[6], pitch) == false)
+		{
 			return false;
-		if (signature != "DuckingCamera" || version != 1 || !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) || !std::isfinite(yaw) || !std::isfinite(pitch) || std::abs(pitch) > Math::Half_PI)
+		}
+		if (version != 1 || Math::abs(pitch) > Math::Half_PI)
+		{
+			DK_ASSERT_LOG(false, "Invalid camera state");
 			return false;
-
+		}
 		_yaw = yaw;
 		_pitch = pitch;
 		set_worldTransform(Transform(position, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
-
 		return true;
 	}
 
-	void Camera::saveViewState()
+	bool Camera::saveViewState()
 	{
-		if (cameraStatePath().empty() /*|| !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) || !std::isfinite(_yaw) || !std::isfinite(_pitch)*/)
-			return;
-
-		const float3& position = get_worldTransform().get_translation();
-
-		// Replace only after a complete write, keeping the previous snapshot on failure.
-		const std::filesystem::path temporary = cameraStatePath().wstring() + L".tmp";
-		std::ofstream output(temporary, std::ios::trunc);
-		output.imbue(std::locale::classic());
-		output << std::setprecision(std::numeric_limits<float>::max_digits10) << "DuckingCamera 1\n" << position.x << ' ' << position.y << ' ' << position.z << '\n' << _yaw << ' ' << _pitch << '\n';
-		output.close();
-
-		if (!output || MoveFileExW(temporary.c_str(), cameraStatePath().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == false)
+		const DKString path = cameraStatePath();
+		if (FileUtil::createDirectory(FileUtil::parentPath(path)) == false)
 		{
-			DK_LOG("Camera state save failed.");
-			return;
+			return false;
 		}
+		const float3& position = get_worldTransform().get_translation();
+		if (std::isfinite(position.x) == false || std::isfinite(position.y) == false || std::isfinite(position.z) == false || std::isfinite(_yaw) == false || std::isfinite(_pitch) == false || Math::abs(_pitch) > Math::Half_PI)
+		{
+			DK_ASSERT_LOG(false, "Invalid camera state");
+			return false;
+		}
+		const DKString text = "DuckingCamera 1\n" + StringUtil::toString(position.x) + " " + StringUtil::toString(position.y) + " " + StringUtil::toString(position.z) + "\n" + StringUtil::toString(_yaw) + " " + StringUtil::toString(_pitch) + "\n";
+		const DKString temporary = path + ".tmp";
+		FileWriter writer;
+		if (writer.open(temporary) == false)
+		{
+			return false;
+		}
+		if (writer.write(text.data(), text.size()) == false)
+		{
+			return false;
+		}
+		if (writer.close() == false)
+		{
+			return false;
+		}
+		return FileUtil::rename(temporary, path, true);
 	}
 
 	void Camera::update(float deltaTime)

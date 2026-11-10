@@ -2,27 +2,6 @@
 
 namespace DK
 {
-	DKVector<DKString> StringUtil::split(const DKString& str, const DKString& delimiter)
-	{
-		DKVector<DKString> tokens;
-		if (delimiter.empty())
-			return tokens;
-
-		DKString::size_type start = 0;
-		while (start < str.length())
-		{
-			const DKString::size_type end = str.find(delimiter, start);
-			if (end == DKString::npos)
-			{
-				tokens.emplace_back(str.substr(start));
-				break;
-			}
-			if (end > start)
-				tokens.emplace_back(str.substr(start, end - start));
-			start = end + delimiter.length();
-		}
-		return tokens;
-	}
 
 	float3 StringUtil::parseFloat3FromString(const DKString& str)
 	{

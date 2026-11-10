@@ -264,7 +264,7 @@ namespace DK
 		if (FAILED(debugHangHr))
 			return false;
 
-		memcpy(debugHangMapped, &debugHangData, debugHangBufferSize);
+		DK::memcpy(debugHangMapped, &debugHangData, debugHangBufferSize);
 		const D3D12_RANGE writtenRange = { 0, debugHangBufferSize };
 		debugHangUpload->_buffer->Unmap(0, &writtenRange);
 
@@ -1610,7 +1610,7 @@ namespace DK
 			return false;
 		memset(mapped, 0, bufferSize);
 		for (uint32 i = 0; i < 3; ++i)
-			memcpy(static_cast<uint8*>(mapped) + tableSpacing * i, identifiers[i], D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+			DK::memcpy(static_cast<uint8*>(mapped) + tableSpacing * i, identifiers[i], D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		sbt._buffer->_buffer->Unmap(0, nullptr);
 		sbt._rayGeneration = { 0, recordSize, recordSize };
 		sbt._miss = { tableSpacing, recordSize, recordSize };
@@ -1721,7 +1721,7 @@ namespace DK
 				Pipeline replacement;
 				if (createPipelineObjectState(shaderCompiler, pipelineIter->second._createInfo, replacement) == false)
 					return false;
-				replacements.push_back(std::make_pair(&pipelineIter->second, DK::move(replacement)));
+				replacements.push_back(DKPair<Pipeline*, Pipeline>(&pipelineIter->second, DK::move(replacement)));
 			}
 		}
 
@@ -1872,7 +1872,7 @@ namespace DK
 		DK_ASSERT_LOG(SUCCEEDED(hr), "GPU assert readback failed: 0x%08X", static_cast<unsigned int>(hr));
 		if (FAILED(hr)) return;
 		GpuAssertRecord record;
-		memcpy(&record, mapped, sizeof(record));
+		DK::memcpy(&record, mapped, sizeof(record));
 		const D3D12_RANGE noWrites = { 0, 0 };
 		_gpuAssertReadback->Unmap(0, &noWrites);
 		_gpuAssertReadbackPending = false;
@@ -1998,7 +1998,7 @@ namespace DK
 		view.BufferLocation = outBuffer->_buffer->GetGPUVirtualAddress();
 		view.StrideInBytes = strideSize;
 		view.SizeInBytes = bufferSizeInBytes;
-		outView = std::make_shared<D3D12_VERTEX_BUFFER_VIEW>(view);
+		outView = DK::makeRef<D3D12_VERTEX_BUFFER_VIEW>(view);
 
 		return DK::move(outBuffer);
 	}
@@ -2013,7 +2013,7 @@ namespace DK
 		view.BufferLocation = outBuffer->_buffer->GetGPUVirtualAddress();
 		view.Format = DXGI_FORMAT_R32_UINT;
 		view.SizeInBytes = bufferSizeInBytes;
-		outView = std::make_shared<D3D12_INDEX_BUFFER_VIEW>(view);
+		outView = DK::makeRef<D3D12_INDEX_BUFFER_VIEW>(view);
 
 		return DK::move(outBuffer);
 	}
@@ -2968,7 +2968,7 @@ namespace DK
 			void* address = nullptr;
 			HRESULT hr = pending._target.get()->_buffer->Map(0, nullptr, &address);
 			DK_ASSERT_LOG(SUCCEEDED(hr), "Map에 실패하였습니다.");
-			memcpy(address, pending.getData(), pending._target->_bufferSize);
+			DK::memcpy(address, pending.getData(), pending._target->_bufferSize);
 			pending._target.get()->_buffer->Unmap(0, nullptr);
 		}
 		_commandList._prevUploadResourcePendingArray.swap(_commandList._uploadResourcePendingArray);
@@ -3061,7 +3061,7 @@ namespace DK
         D3D12_RANGE readRange = { 0, 0 };
         if (FAILED(result._instances->_buffer->Map(0, &readRange, &mapped)))
             return false;
-        memcpy(mapped, instances.data(), count * sizeof(instances[0]));
+        DK::memcpy(mapped, instances.data(), count * sizeof(instances[0]));
         result._instances->_buffer->Unmap(0, nullptr);
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS tlasInputs = {};
         tlasInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;

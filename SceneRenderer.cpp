@@ -139,12 +139,9 @@ namespace DK
 	bool appendPipelinePermutations(const TiXmlElement& node, const DKString& name, const Pipeline::CreateInfo& base, RenderPass::CreateInfo& renderPass)
 	{
 		DKVector<DKVector<DKString>> combinations;
-		DKString error;
-		if (!parsePipelinePermutations(node, combinations, error))
-		{
-			DK_ASSERT_LOG(false, "Pipeline %s: %s", name.c_str(), error.c_str());
+		if (parsePipelinePermutations(node, combinations) == false)
 			return false;
-		}
+
 		for (uint32 index = 0; index < combinations.size(); ++index)
 		{
 			Pipeline::CreateInfo variant = base;
@@ -153,7 +150,7 @@ namespace DK
 #if defined(_DK_DEBUG_)
 			variant._pipelineName = variantName;
 #endif
-			renderPass._pipelineArr.push_back(std::make_pair(variantName, DK::move(variant)));
+			renderPass._pipelineArr.push_back(DKPair<DKString, Pipeline::CreateInfo>(variantName, DK::move(variant)));
 		}
 		return true;
 	}
@@ -456,7 +453,7 @@ namespace DK
 						}
 					}
 
-					if (!appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo))
+					if (appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo) == false)
 						return false;
 				}
 				else if (renderPassChildNodeName == "ComputePipeline")
@@ -653,7 +650,7 @@ namespace DK
 			}
 
 			using InsertResult = DKPair<DKHashMap<DKString, MaterialDefinition>::iterator, bool>;
-			InsertResult insertResult = _materialDefinitionMap.insert(std::make_pair(materialName, DK::move(materialDefinition)));
+			InsertResult insertResult = _materialDefinitionMap.insert(DKPair<DKString, MaterialDefinition>(materialName, DK::move(materialDefinition)));
 			if (insertResult.second == false)
 			{
 				DK_ASSERT_LOG(false, "HashMap Insert 실패!");
@@ -1092,8 +1089,8 @@ namespace DK
 							const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 							const float sunAngle = atmosphere._sunDegree * Math::kToRadian;
 							const float earthAngle = sunAngle - 25.0f * Math::kToRadian;
-							const float3 earthDirection(0, std::sin(earthAngle), std::cos(earthAngle));
-							const float3 sunDirection(0, std::sin(sunAngle), std::cos(sunAngle));
+							const float3 earthDirection(0, Math::sin(earthAngle), Math::cos(earthAngle));
+							const float3 sunDirection(0, Math::sin(sunAngle), Math::cos(sunAngle));
 							const float3 center(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
 							Camera::gMainCamera->setView(center - earthDirection * (4.0f * atmosphere._atmosphereRadius), earthDirection + sunDirection);
 						}
@@ -1364,9 +1361,9 @@ namespace DK
 
         const float depth = Math::max(_surfaceCaptureDepth, 1.0f);
         const float directionalLightAngle = atmosphereData._sunDegree * Math::kToRadian;
-        const float3 directionalLightDir(0, -std::sin(directionalLightAngle), -std::cos(directionalLightAngle));
+        const float3 directionalLightDir(0, -Math::sin(directionalLightAngle), -Math::cos(directionalLightAngle));
 		const float4 directionalLightDir4 = float4(directionalLightDir.x, directionalLightDir.y, directionalLightDir.z, 0);
-        const float3 hint = std::abs(directionalLightDir.y) < 0.99f ? float3::Up : float3::Right;
+        const float3 hint = Math::abs(directionalLightDir.y) < 0.99f ? float3::Up : float3::Right;
 
 		float3 r3 = hint.cross(directionalLightDir);
 		r3.normalize();
@@ -1425,10 +1422,10 @@ namespace DK
 			surfaceSceneConstantBuffer->upload(&scene);
 
 			SurfaceShadowCascade& cascade = atmosphereData._shadowCascades[cascadeIndex];
-            memcpy(cascade.right, atmosphereData._surfaceRight, sizeof(cascade.right));
-            memcpy(cascade.up, atmosphereData._surfaceUp, sizeof(cascade.up));
-            memcpy(cascade.forward, atmosphereData._surfaceForward, sizeof(cascade.forward));
-            memcpy(cascade.origin, atmosphereData._surfaceOrigin, sizeof(cascade.origin));
+            DK::memcpy(cascade.right, atmosphereData._surfaceRight, sizeof(cascade.right));
+            DK::memcpy(cascade.up, atmosphereData._surfaceUp, sizeof(cascade.up));
+            DK::memcpy(cascade.forward, atmosphereData._surfaceForward, sizeof(cascade.forward));
+            DK::memcpy(cascade.origin, atmosphereData._surfaceOrigin, sizeof(cascade.origin));
 
 
             cascade.albedoIndex = map._colors[0]._texture->getSRV();
@@ -1763,9 +1760,9 @@ namespace DK
             {
                 const float x = tileX * tileMeters;
                 const float z = tileZ * tileMeters;
-                const float dx = camera.x - std::clamp(camera.x, x, x + tileMeters);
-                const float dy = camera.y - std::clamp(camera.y, 0.0f, maxGrassY);
-                const float dz = camera.z - std::clamp(camera.z, z, z + tileMeters);
+                const float dx = camera.x - Math::clamp(camera.x, x, x + tileMeters);
+                const float dy = camera.y - Math::clamp(camera.y, 0.0f, maxGrassY);
+                const float dz = camera.z - Math::clamp(camera.z, z, z + tileMeters);
                 const float distanceSquared = dx * dx + dy * dy + dz * dz;
                 if (distanceSquared >= maxDistance * maxDistance)
                     continue;

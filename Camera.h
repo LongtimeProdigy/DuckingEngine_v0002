@@ -26,14 +26,14 @@ namespace DK
 		virtual void update(float deltaTime) override final;
 
 		bool loadViewState();
-		void saveViewState();
+		bool saveViewState();
 
 		void setView(const float3& position, const float3& direction)
 		{
 			float3 forward = direction;
 			forward.normalize();
-			_yaw = std::atan2(forward.x, forward.z);
-			_pitch = -std::asin(Math::clamp(forward.y, -1.0f, 1.0f));
+			_yaw = Math::atan2(forward.x, forward.z);
+			_pitch = -Math::asin(Math::clamp(forward.y, -1.0f, 1.0f));
 			set_worldTransform(Transform(position, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
 		}
 

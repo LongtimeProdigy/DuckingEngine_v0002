@@ -30,16 +30,12 @@
 #include <sal.h>
 #define _IN_ _In_
 #define _OUT_ _Out_
-#define dk_inline inline
 
 /*
 * 타입 관련
 */
-typedef unsigned char byte;
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-typedef unsigned int uint32;
-typedef unsigned long long uint64;
+#include "CommonTypes.h"
+#include "StringUtil.h"
 #pragma warning(push)
 #pragma warning(disable : 4244)
 #pragma warning(disable : 4267)
@@ -47,56 +43,7 @@ typedef unsigned long long uint64;
 /*
 * Logger 관련
 */
-#ifdef _DK_DEBUG_
-#include <stdio.h>		// for sprintf_s(), strcat_s();
-#include <intrin.h>		// for __debugbreak();
-#ifdef _DK_WINDOW_
-/////////////////////// #todo- 나중에 꼭 삭제할 것 /////////////////////// 
-#include <Windows.h>	// for OutputDebugStringA
-/////////////////////// #todo- 나중에 꼭 삭제할 것 /////////////////////// 
-#endif
-#define BLOCK(category)
-
-#define MAX_LOG_BUFFER_LENGTH 32768
-#define DK_LOG(text, ...)																			\
-{																									\
-	char buffer[MAX_LOG_BUFFER_LENGTH];																\
-	sprintf_s(buffer, MAX_LOG_BUFFER_LENGTH, "%s(%d): " text "\n", __FILE__, __LINE__, __VA_ARGS__);\
-	OutputDebugStringA(buffer);																		\
-}
-
-#define DK_WLOG(text, ...)												\
-{																		\
-	wchar_t buffer[MAX_LOG_BUFFER_LENGTH];								\
-	swprintf_s(buffer, MAX_LOG_BUFFER_LENGTH, text, __VA_ARGS__);		\
-	wcscat_s(buffer, MAX_LOG_BUFFER_LENGTH, L"\n");						\
-	OutputDebugStringW(buffer);											\
-}
-
-#define DK_ASSERT_LOG(condition, text, ...)								\
-{																		\
-	if(!(condition))													\
-	{																	\
-		DK_LOG(text, __VA_ARGS__);										\
-		__debugbreak();													\
-	}																	\
-}
-
-#define DK_ASSERT_WLOG(condition, text, ...)							\
-{																		\
-	if(!(condition))													\
-	{																	\
-		DK_WLOG(text, __VA_ARGS__);										\
-		__debugbreak();													\
-	}																	\
-}
-#else
-#define BLOCK(category)
-#define DK_LOG(...) ((void)0)
-#define DK_WLOG(...) ((void)0)
-#define DK_ASSERT_LOG(...) ((void)0)
-#define DK_ASSERT_WLOG(...) ((void)0)
-#endif
+#include "CommonLog.h"
 
 /*
 * #todo- 외부 라이브러리 목록 (필요시 나중에 따로 자체제작 할 목록들)
@@ -140,16 +87,9 @@ typedef unsigned long long uint64;
 #pragma endregion
 #endif
 
-#include <vector>
-#include <unordered_map>
-#include <unordered_set>
 #include <memory>
 namespace DK
 {
-#define DKVector std::vector
-#define DKHashMap std::unordered_map
-#define DKHashSet std::unordered_set
-#define DKPair std::pair
 
 	template<typename T, uint32 SIZE>
 	class StaticArray
@@ -182,162 +122,22 @@ static_assert(false, "XML 파싱 Class 정의가 필요합니다.");
 namespace DK
 {
 #define DK_COUNT_OF ARRAYSIZE
-
-	template <typename T>
-	dk_inline void swap(T&& lhs, T&& rhs) noexcept
-	{
-		std::swap(lhs, rhs);
-	}
-
-	dk_inline void* memcpy(void* dest, void const* src, uint32 size)
-	{
-		return ::memcpy(dest, src, size);
-	}
-
-	template<typename T>
-	dk_inline T&& move(T& value)
-	{
-		return std::move(value);
-	}
-
-	dk_inline float atof(const char* string)
-	{
-		return static_cast<float>(::atof(string));
-	}
-
-	dk_inline int atoi(const char* string)
-	{
-		return ::atoi(string);
-	}
 }
 
 /*
 * String 함수
 */
-#include <filesystem>
+#include "FileUtil.h"
 #include <wchar.h>
 #include <stdlib.h>
 namespace DK
 {
-	using DKString = std::string;
-	using DKStringW = std::wstring;
 #define DK_MAX_PATH MAX_PATH
 #define DK_MAX_BUFFER 1024
 
 	struct float3;
 	struct Quaternion;
 
-	class StringUtil
-	{
-	public:
-		static DKVector<DKString> split(const DKString& str, const DKString& delimiter);
-		static float3 parseFloat3FromString(const DKString& str);
-		static Quaternion parseQuaternionFromString(const DKString& str);
-
-		static char* itoa(const uint32 value, char* buffer, int radix) noexcept
-		{
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#define _CRT_SECURE_NO_WARNINGS
-			return ::_itoa(value, buffer, radix);
-#undef _CRT_SECURE_NO_WARNINGS
-#pragma warning(pop)
-		}
-		static int atoi(const char* str) noexcept
-		{
-			return std::atoi(str);
-		}
-		static float atof(const char* str) noexcept
-		{
-			return static_cast<float>(std::atof(str));
-		}
-		static int strcmp(const char* str1, const char* str2) noexcept
-		{
-			return std::strcmp(str1, str2);
-		}
-		static int wcscmp(const wchar_t* str1, const wchar_t* str2) noexcept
-		{
-			return std::wcscmp(str1, str2);
-		}
-		static uint32 strlen(const char* str)
-		{
-			return static_cast<uint32>(std::strlen(str));
-		}
-		static uint32 strlen(const wchar_t* str)
-		{
-			return static_cast<uint32>(std::wcslen(str));
-		}
-		static char* strcpy(char* dest, const char* src)
-		{
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#define _CRT_SECURE_NO_WARNINGS
-			return ::strcpy(dest, src);
-#undef _CRT_SECURE_NO_WARNINGS
-#pragma warning(pop)
-		}
-		static wchar_t* strcpy(wchar_t* dest, const wchar_t* src)
-		{
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#define _CRT_SECURE_NO_WARNINGS
-			return ::wcscpy(dest, src);
-#undef _CRT_SECURE_NO_WARNINGS
-#pragma warning(pop)
-		}
-		static char* strcat(char* dest, const char* src)
-		{
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#define _CRT_SECURE_NO_WARNINGS
-			return ::strcat(dest, src);
-#undef _CRT_SECURE_NO_WARNINGS
-#pragma warning(pop)
-		}
-		static wchar_t* strcat(wchar_t* dest, const wchar_t* src)
-		{
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#define _CRT_SECURE_NO_WARNINGS
-			return ::wcscat(dest, src);
-#undef _CRT_SECURE_NO_WARNINGS
-#pragma warning(pop)
-		}
-
-		static DKString extension(const DKString& source)
-		{
-			std::filesystem::path p = source;
-			return p.extension().string();
-		}
-
-		static void lower(DKString& inoutString)
-		{
-			std::transform(inoutString.begin(), inoutString.end(), inoutString.begin(), [](unsigned char c) {
-				return std::tolower(c);
-				});
-		}
-
-		//wchar_t 에서 char 로의 형변환 함수
-		static DKString convertWCtoC(const wchar_t* str)
-		{
-			DKVector<char> pStr;
-			int strSize = WideCharToMultiByte(CP_ACP, 0, str, -1, NULL, 0, NULL, NULL);
-			pStr.resize(strSize);
-			WideCharToMultiByte(CP_ACP, 0, str, -1, pStr.data(), strSize, 0, 0);
-			return pStr.data();
-		}
-
-		///////////////////////////////////////////////////////////////////////
-		//char 에서 wchar_t 로의 형변환 함수
-		static DKStringW convertCtoWC(const char* str)
-		{
-			DKVector<wchar_t> pStr;
-			int strSize = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, NULL);
-			pStr.resize(strSize);
-			MultiByteToWideChar(CP_ACP, 0, str, strlen(str) + 1, pStr.data(), strSize);
-			return pStr.data();
-		}
-	};
 
 	class StringSplitter
 	{
@@ -499,8 +299,20 @@ public: \
 */
 namespace DK
 {
-#define DEFINE_REFCOUNTED_STRCUT(name) struct name; using name##Ref = std::shared_ptr<name>;
-#define DEFINE_REFCOUNTED(name) class name; using name##Ref = std::shared_ptr<name>;
+	template<typename T> using Ref = std::shared_ptr<T>;
+
+	template<typename T, typename... Args> dk_inline Ref<T> makeRef(Args&&... args)
+	{
+		return std::make_shared<T>(std::forward<Args>(args)...);
+	}
+
+#define DEFINE_REFCOUNTED_STRCUT(name) \
+	struct name; \
+	using name##Ref = Ref<name>;
+#define DEFINE_REFCOUNTED(name) \
+	class name; \
+	using name##Ref = Ref<name>;
+	DEFINE_REFCOUNTED_STRCUT(IBuffer);
 	DEFINE_REFCOUNTED_STRCUT(AppearanceData);
 	DEFINE_REFCOUNTED(ModelProperty);
 	DEFINE_REFCOUNTED(StaticMeshModel);
@@ -510,8 +322,8 @@ namespace DK
 	DEFINE_REFCOUNTED(ITexture);
 
 #ifdef USE_DIRECTX
-	using VertexBufferViewRef = std::shared_ptr<D3D12_VERTEX_BUFFER_VIEW>;
-	using IndexBufferViewRef = std::shared_ptr<D3D12_INDEX_BUFFER_VIEW>;
+	using VertexBufferViewRef = Ref<D3D12_VERTEX_BUFFER_VIEW>;
+	using IndexBufferViewRef = Ref<D3D12_INDEX_BUFFER_VIEW>;
 #endif
 
 	template <typename T>

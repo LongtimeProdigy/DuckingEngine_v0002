@@ -9,12 +9,12 @@
 #pragma comment(lib, "Shcore.lib")
 
 #if defined(USE_PIX)
-static std::wstring GetLatestWinPixGpuCapturerPath()
+static DK::DKStringW GetLatestWinPixGpuCapturerPath()
 {
     LPWSTR programFilesPath = nullptr;
     SHGetKnownFolderPath(FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, NULL, &programFilesPath);
 
-    std::wstring pixSearchPath = programFilesPath + std::wstring(L"\\Microsoft PIX\\*");
+    DK::DKStringW pixSearchPath = programFilesPath + DK::DKStringW(L"\\Microsoft PIX\\*");
 
     WIN32_FIND_DATA findData;
     bool foundPixInstallation = false;

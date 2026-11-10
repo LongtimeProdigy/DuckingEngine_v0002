@@ -16,7 +16,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/tinyGLTF/tiny_gltf.h"
-#include <optional>
 #include "Model.h"
 #include "SceneRenderer.h"
 #endif
@@ -43,7 +42,7 @@ namespace DK
 	static T ReadUnaligned(const uint8_t* src)
 	{
 		T value{};
-		std::memcpy(&value, src, sizeof(T));
+		DK::memcpy(&value, src, sizeof(T));
 		return value;
 	}
 	template <typename T>
@@ -193,7 +192,7 @@ namespace DK
 			dst.name = src.name;
 			
 			//{
-			//	std::array<float, 4> factor{ dst.baseColorFactor.x, dst.baseColorFactor.y, dst.baseColorFactor.z, dst.baseColorFactor.w };
+			//	DKArray<float, 4> factor{ dst.baseColorFactor.x, dst.baseColorFactor.y, dst.baseColorFactor.z, dst.baseColorFactor.w };
 			//	CopyFactor(src.pbrMetallicRoughness.baseColorFactor, factor);
 			//	dst.baseColorFactor = { factor[0], factor[1], factor[2], factor[3] };
 			//}
@@ -202,7 +201,7 @@ namespace DK
 			dst.roughnessFactor = static_cast<float>(src.pbrMetallicRoughness.roughnessFactor);
 			
 			//{
-			//	std::array<float, 3> factor{ dst.emissiveFactor.x, dst.emissiveFactor.y, dst.emissiveFactor.z };
+			//	DKArray<float, 3> factor{ dst.emissiveFactor.x, dst.emissiveFactor.y, dst.emissiveFactor.z };
 			//	CopyFactor(src.emissiveFactor, factor);
 			//	dst.emissiveFactor = { factor[0], factor[1], factor[2] };
 			//}
@@ -443,7 +442,7 @@ namespace DK
 			case TINYGLTF_COMPONENT_TYPE_BYTE:
 			{
 				const float value = static_cast<float>(ReadUnaligned<int8_t>(ptr));
-				returnValue = accessor.normalized ? std::max(-1.0f, value / 127.0f) : value;
+				returnValue = accessor.normalized ? Math::max(-1.0f, value / 127.0f) : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
 			{
@@ -453,7 +452,7 @@ namespace DK
 			case TINYGLTF_COMPONENT_TYPE_SHORT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<int16_t>(ptr));
-				returnValue = accessor.normalized ? std::max(-1.0f, value / 32767.0f) : value;
+				returnValue = accessor.normalized ? Math::max(-1.0f, value / 32767.0f) : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
 			{
@@ -589,9 +588,9 @@ namespace DK
 
 			const size_t vertexCount = positions.count;
 
-			std::optional<AccessorSpan> normals;
-			std::optional<AccessorSpan> uv0;
-			std::optional<AccessorSpan> uv1;
+			DKOptional<AccessorSpan> normals;
+			DKOptional<AccessorSpan> uv0;
+			DKOptional<AccessorSpan> uv1;
 
 			const int normalAccessorIndex = FindAttributeAccessor(primitive, "NORMAL");
 			const int uv0AccessorIndex = FindAttributeAccessor(primitive, "TEXCOORD_0");
@@ -745,7 +744,7 @@ namespace DK
 				subMeshArr.push_back(DK::move(subMesh));
 			}
 
-			staticMeshComponent->set_model(std::make_shared<StaticMeshModel>(DK::move(subMeshArr)));
+			staticMeshComponent->set_model(DK::makeRef<StaticMeshModel>(DK::move(subMeshArr)));
 		}
 		if (gltfModel.meshes.empty())
 			return nullptr;

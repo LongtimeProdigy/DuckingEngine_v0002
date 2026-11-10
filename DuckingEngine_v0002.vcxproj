@@ -57,6 +57,12 @@
     <ClCompile Include="RaytracingRenderer.cpp" />
     <ClCompile Include="RenderableComponent.cpp" />
     <ClCompile Include="SceneManager.cpp" />
+    <ClCompile Include="StringUtil.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="FileUtil.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="ShaderCompiler.cpp" />
     <ClCompile Include="StaticMeshComponent.cpp" />
     <ClCompile Include="Model.cpp" />
@@ -136,6 +142,10 @@
     <ClInclude Include="RaytracingRenderer.h" />
     <ClInclude Include="RenderableComponent.h" />
     <ClInclude Include="SceneManager.h" />
+    <ClInclude Include="CommonTypes.h" />
+    <ClInclude Include="CommonLog.h" />
+    <ClInclude Include="FileUtil.h" />
+    <ClInclude Include="StringUtil.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="GpuAssertDiagnostics.h" />
     <ClInclude Include="StaticMeshComponent.h" />

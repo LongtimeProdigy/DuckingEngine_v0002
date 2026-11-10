@@ -7,8 +7,7 @@ namespace DK
 	class Material;
 	struct IBuffer;
 
-	template<typename T>
-	class MaterialParameterTemplate;
+	template<typename T> class MaterialParameterTemplate;
 	using MaterialParameterTexture = MaterialParameterTemplate<ITextureRef>;
 
 	struct alignas(16) TerrainMeshConstantBuffer

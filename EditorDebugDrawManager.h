@@ -4,7 +4,6 @@ namespace DK
 {
 #ifdef _DK_DEBUG_
 	struct IBuffer;
-	using IBufferRef = std::shared_ptr<IBuffer>;
 
 	class EditorDebugDrawManager
 	{

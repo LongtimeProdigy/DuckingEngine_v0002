@@ -342,6 +342,8 @@ healthchecksdb
 
 # resource
 /Resource/meshai/
+/Resource/editor/data/camera-state.txt
+/Resource/editor/data/camera-state.txt.tmp
 /DKBlenderAddnos/MapAssets/
 
 # except lib

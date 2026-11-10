@@ -4,7 +4,6 @@
 namespace DK
 {
 	struct IBuffer;
-	using IBufferRef = std::shared_ptr<IBuffer>;
 }
 
 namespace DK

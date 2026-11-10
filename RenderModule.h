@@ -72,7 +72,7 @@ namespace DK
 
 	struct ShaderBindingTable
 	{
-		std::shared_ptr<IBuffer> _buffer;
+		IBufferRef _buffer;
 		ShaderTableRange _rayGeneration;
 		ShaderTableRange _miss;
 		ShaderTableRange _hitGroup;
@@ -409,7 +409,6 @@ do{ \
 
 		D3D12_RESOURCE_STATES _currentState;
 	};
-	using IBufferRef = std::shared_ptr<IBuffer>;
 
 	struct RaytracingGeometry
 	{

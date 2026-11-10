@@ -120,9 +120,9 @@ namespace DK
 			DK_ASSERT_LOG(false, "지원하지 않는 ShaderType입니다.");
 			return false;
 		}
-		targetProfile += std::to_wstring(static_cast<uint32>(_shaderModel) >> 4);
+		targetProfile += StringUtil::toWideString(static_cast<uint32>(_shaderModel) >> 4);
 		targetProfile += L"_";
-		targetProfile += std::to_wstring(static_cast<uint32>(_shaderModel) & 0xf);
+		targetProfile += StringUtil::toWideString(static_cast<uint32>(_shaderModel) & 0xf);
 		arguments.push_back(targetProfile.c_str());
 		// Preserve legacy payload semantics; SM 6.7+ enables access qualifiers by default.
 		if (shaderType == ShaderType::Raytracing && _shaderModel >= D3D_SHADER_MODEL_6_7)
