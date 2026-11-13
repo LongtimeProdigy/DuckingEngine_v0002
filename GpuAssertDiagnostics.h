@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CommonTypes.h"
 #include "StringUtil.h"
@@ -18,11 +18,11 @@ namespace DK
     // Matches Assert.hlsl. The first failing invocation owns the whole record.
     struct GpuAssertRecord
     {
-        uint32_t failed = 0;
-        uint32_t fileId = 0;
-        uint32_t line = 0;
-        GpuAssertDataType dataType = GpuAssertDataType::Uint4;
-        uint32_t data[4] = {};
+        uint32_t _failed = 0;
+        uint32_t _fileId = 0;
+        uint32_t _sourceLine = 0;
+        GpuAssertDataType _dataType = GpuAssertDataType::Uint4;
+        uint32_t _data[4] = {};
     };
     static_assert(sizeof(GpuAssertRecord) == 32, "GPU assert record layout mismatch");
 
@@ -69,14 +69,14 @@ namespace DK
     dk_inline DKString formatGpuAssert(const GpuAssertRecord& record)
     {
         DKString details;
-        if (record.dataType == GpuAssertDataType::Float4)
+        if (record._dataType == GpuAssertDataType::Float4)
         {
             float data[4];
-            DK::memcpy(data, record.data, sizeof(data));
+            DK::memcpy(data, record._data, sizeof(data));
             if (StringUtil::format(details, "): GPU assertion failed. float4(%.9g, %.9g, %.9g, %.9g)"
                 " [0x%08X, 0x%08X, 0x%08X, 0x%08X]\n",
                 data[0], data[1], data[2], data[3],
-                record.data[0], record.data[1], record.data[2], record.data[3]) == false)
+                record._data[0], record._data[1], record._data[2], record._data[3]) == false)
             {
                 return {};
             }
@@ -85,13 +85,13 @@ namespace DK
         {
             if (StringUtil::format(details, "): GPU assertion failed. uint4(%u, %u, %u, %u)"
                 " [0x%08X, 0x%08X, 0x%08X, 0x%08X]\n",
-                record.data[0], record.data[1], record.data[2], record.data[3],
-                record.data[0], record.data[1], record.data[2], record.data[3]) == false)
+                record._data[0], record._data[1], record._data[2], record._data[3],
+                record._data[0], record._data[1], record._data[2], record._data[3]) == false)
             {
                 return {};
             }
         }
-        return gpuAssertFilePath(record.fileId) + "(" + StringUtil::toString(record.line) + details;
+        return gpuAssertFilePath(record._fileId) + "(" + StringUtil::toString(record._sourceLine) + details;
     }
 
     // Resolve __FILE__ after DXC has expanded includes and macros. HLSL cannot store
@@ -100,65 +100,60 @@ namespace DK
         LPCWSTR* arguments, UINT32 argumentCount, IDxcIncludeHandler* includes,
         DKString& output, DKString& errors)
     {
-        try
+        DKVector<LPCWSTR> preprocessArguments(arguments, arguments + argumentCount);
+        preprocessArguments.push_back(L"-P");
+        Microsoft::WRL::ComPtr<IDxcResult> result;
+        HRESULT hr = compiler->Compile(&input, preprocessArguments.data(), static_cast<UINT32>(preprocessArguments.size()),
+            includes, IID_PPV_ARGS(&result));
+        if (FAILED(hr))
+            return hr;
+        HRESULT status;
+        hr = result->GetStatus(&status);
+        if (FAILED(hr))
+            return hr;
+        if (FAILED(status))
         {
-            DKVector<LPCWSTR> preprocessArguments(arguments, arguments + argumentCount);
-            preprocessArguments.push_back(L"-P");
-            Microsoft::WRL::ComPtr<IDxcResult> result;
-            HRESULT hr = compiler->Compile(&input, preprocessArguments.data(), static_cast<UINT32>(preprocessArguments.size()),
-                includes, IID_PPV_ARGS(&result));
-            if (FAILED(hr))
-                return hr;
-            HRESULT status;
-            hr = result->GetStatus(&status);
-            if (FAILED(hr))
-                return hr;
-            if (FAILED(status))
+            Microsoft::WRL::ComPtr<IDxcBlobUtf8> diagnostics;
+            if (SUCCEEDED(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&diagnostics), nullptr)) && diagnostics)
+                errors.assign(diagnostics->GetStringPointer(), diagnostics->GetStringLength());
+            return status;
+        }
+        Microsoft::WRL::ComPtr<IDxcBlobUtf8> text;
+        hr = result->GetOutput(DXC_OUT_HLSL, IID_PPV_ARGS(&text), nullptr);
+        if (FAILED(hr) || text.Get() == nullptr)
+            return FAILED(hr) ? hr : E_FAIL;
+        output.assign(text->GetStringPointer(), text->GetStringLength());
+        const DKString marker = "GpuAssertFileId(";
+        size_t start = 0;
+        while ((start = output.find(marker, start)) != DKString::npos)
+        {
+            size_t cursor = start + marker.size();
+            while (cursor < output.size() && StringUtil::isWhitespace(output[cursor]))
+                ++cursor;
+            if (cursor == output.size() || output[cursor++] != '"')
+                return E_INVALIDARG;
+            DKString filename;
+            bool closed = false;
+            while (cursor < output.size())
             {
-                Microsoft::WRL::ComPtr<IDxcBlobUtf8> diagnostics;
-                if (SUCCEEDED(result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&diagnostics), nullptr)) && diagnostics)
-                    errors.assign(diagnostics->GetStringPointer(), diagnostics->GetStringLength());
-                return status;
-            }
-            Microsoft::WRL::ComPtr<IDxcBlobUtf8> text;
-            hr = result->GetOutput(DXC_OUT_HLSL, IID_PPV_ARGS(&text), nullptr);
-            if (FAILED(hr) || text.Get() == nullptr)
-                return FAILED(hr) ? hr : E_FAIL;
-            output.assign(text->GetStringPointer(), text->GetStringLength());
-            const DKString marker = "GpuAssertFileId(";
-            size_t start = 0;
-            while ((start = output.find(marker, start)) != DKString::npos)
-            {
-                size_t cursor = start + marker.size();
-                while (cursor < output.size() && StringUtil::isWhitespace(output[cursor])) ++cursor;
-                if (cursor == output.size() || output[cursor++] != '"')
-                    return E_INVALIDARG;
-                DKString filename;
-                bool closed = false;
-                while (cursor < output.size())
+                char c = output[cursor++];
+                if (c == '"')
                 {
-                    char c = output[cursor++];
-                    if (c == '"')
-                    {
-                        closed = true;
-                        break;
-                    }
-                    if (c == '\\' && cursor < output.size())
-                        c = output[cursor++];
-                    filename += c;
+                    closed = true;
+                    break;
                 }
-                while (cursor < output.size() && StringUtil::isWhitespace(output[cursor])) ++cursor;
-                if (closed == false || cursor == output.size() || output[cursor++] != ')')
-                    return E_INVALIDARG;
-                const DKString id = StringUtil::toString(registerGpuAssertFile(filename)) + "u";
-                output.replace(start, cursor - start, id);
-                start += id.size();
+                if (c == '\\' && cursor < output.size())
+                    c = output[cursor++];
+                filename += c;
             }
-            return S_OK;
+            while (cursor < output.size() && StringUtil::isWhitespace(output[cursor]))
+                ++cursor;
+            if (closed == false || cursor == output.size() || output[cursor++] != ')')
+                return E_INVALIDARG;
+            const DKString id = StringUtil::toString(registerGpuAssertFile(filename)) + "u";
+            output.replace(start, cursor - start, id);
+            start += id.size();
         }
-        catch (...)
-        {
-            return E_OUTOFMEMORY;
-        }
+        return S_OK;
     }
 }

@@ -342,6 +342,7 @@ healthchecksdb
 
 # resource
 /Resource/meshai/
+/Resource/Terrain/Cooked/
 /Resource/editor/data/camera-state.txt
 /Resource/editor/data/camera-state.txt.tmp
 /DKBlenderAddnos/MapAssets/

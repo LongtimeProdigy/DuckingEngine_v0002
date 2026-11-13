@@ -9,7 +9,7 @@ void GPUAssert(bool condition, float4 data) {}
 
 #define GPUASSERT GPUAssert
 
-#elif defined(DK_GPU_ASSERT_ENABLED)
+#elif defined(DK_GPU_ASSERT_ENABLED) && 0
 
 static bool gGpuAssertAttempted = false;
 RWByteAddressBuffer GpuAssertBuffer : register(u0, space0);

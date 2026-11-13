@@ -63,6 +63,12 @@
     <ClCompile Include="FileUtil.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="TerrainData.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="TerrainStreaming.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="ShaderCompiler.cpp" />
     <ClCompile Include="StaticMeshComponent.cpp" />
     <ClCompile Include="Model.cpp" />
@@ -146,6 +152,8 @@
     <ClInclude Include="CommonLog.h" />
     <ClInclude Include="FileUtil.h" />
     <ClInclude Include="StringUtil.h" />
+    <ClInclude Include="TerrainData.h" />
+    <ClInclude Include="TerrainStreaming.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="GpuAssertDiagnostics.h" />
     <ClInclude Include="StaticMeshComponent.h" />

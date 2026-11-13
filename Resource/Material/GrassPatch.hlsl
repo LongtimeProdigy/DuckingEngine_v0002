@@ -74,12 +74,20 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const int2 worldCell = tile * int(GRASS_TILE_GRID_SIDE) + int2(tileCell);
     const uint seed = HashTerrainCell(worldCell);
     const float2 jitter = float2(GrassRandom(seed), GrassRandom(seed >> 16));
-    const float2 rootXZ = (float2(worldCell) + lerp(0.08f, 0.92f, jitter)) * (GRASS_TILE_METERS / GRASS_TILE_GRID_SIDE);
-    const float rootHeight = SampleTerrainHeight(rootXZ);
+    const float2 rootRelativeXZ = (float2(worldCell - int2(_terrainGrassAnchorX, _terrainGrassAnchorZ)) + lerp(0.08f, 0.92f, jitter)) * (GRASS_TILE_METERS / GRASS_TILE_GRID_SIDE) - float2(_terrainGrassOffsetX, _terrainGrassOffsetZ);
+    const float2 rootXZ = rootRelativeXZ + float2(_terrainAnchorX, _terrainAnchorZ) * _terrainSampleSpacing;
+    const float2 minimum = -float2(_terrainAnchorX, _terrainAnchorZ) * _terrainSampleSpacing;
+    const float2 maximum = float2(int2(_terrainCellsX, _terrainCellsZ) - int2(_terrainAnchorX, _terrainAnchorZ)) * _terrainSampleSpacing;
+    if (any(rootRelativeXZ < minimum) || any(rootRelativeXZ > maximum))
+    {
+        return output;
+    }
+    const float rootHeight = SampleTerrainHeightRelative(rootRelativeXZ);
     if (rootHeight < 0.09f)
         return output;
 
-    const float distanceToRoot = length(float3(rootXZ.x, rootHeight, rootXZ.y) - getViewPosition());
+    const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraX, _terrainCameraZ);
+    const float distanceToRoot = length(float3(rootRelativeXZ.x - viewRelativeXZ.x, rootHeight - getViewPosition().y, rootRelativeXZ.y - viewRelativeXZ.y));
     const float distanceFade = GrassDistanceFade(tileCell ^ phase, distanceToRoot);
     if (distanceFade <= 0.0f)
         return output;
@@ -89,8 +97,8 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
         return output;
 
     const float sampleStep = 0.5f;
-    const float2 slope = (float2(SampleTerrainHeight(rootXZ + float2(sampleStep, 0.0f)),
-                                 SampleTerrainHeight(rootXZ + float2(0.0f, sampleStep))) - rootHeight) / sampleStep;
+    const float2 slope = (float2(SampleTerrainHeightRelative(rootRelativeXZ + float2(sampleStep, 0.0f)),
+                                 SampleTerrainHeightRelative(rootRelativeXZ + float2(0.0f, sampleStep))) - rootHeight) / sampleStep;
     if (dot(slope, slope) > 0.64f)
         return output;
 
@@ -122,10 +130,11 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float gust = 0.57f + 0.28f * sin(1.85f * _time - 0.39f * dot(rootXZ, windDirection))
                      + 0.15f * sin(3.4f * _time + 0.27f * rootXZ.y + angle);
     const float2 bend = (heading * (profile.lean * height) + windDirection * (0.25f * height * gust)) * (t * t);
-    const float2 worldXZ = rootXZ + bladeRoot + side * (sideSign * width * 0.5f * bladeWidths[row]) + bend;
+    const float2 worldXZ = rootRelativeXZ + bladeRoot + side * (sideSign * width * 0.5f * bladeWidths[row]) + bend;
     const float rootDepth = lerp(0.018f, 0.12f, smoothstep(30.0f, 150.0f, distanceToRoot));
     const float worldY = rootHeight + dot(slope, bladeRoot) - rootDepth + height * t;
-    const float4 viewPosition = mul(float4(worldXZ.x, worldY, worldXZ.y, 1.0f), _cameraWorldMatrixInv);
+    const float3 relativeViewPosition = float3(worldXZ.x - viewRelativeXZ.x, worldY - getViewPosition().y, worldXZ.y - viewRelativeXZ.y);
+    const float4 viewPosition = float4(mul(relativeViewPosition, (float3x3)_cameraWorldMatrixInv), 1.0f);
     output.position = mul(viewPosition, _cameraProjectionMatrix);
 
     const float dry = saturate(profile.dryness + 0.28f * (GrassRandom(bladeSeed >> 11) - 0.5f)

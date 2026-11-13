@@ -48,19 +48,19 @@ namespace DK
 	template <typename T>
 	struct CpuPrimitive
 	{
-		DKString name;
+		DKString _name;
 
 		// 실질적인 VertexBuffer / IndexBuffer 데이터.
-		DKVector<T> vertices;
-		DKVector<uint32_t> indices;
+		DKVector<T> _vertices;
+		DKVector<uint32_t> _indices;
 
 		// CpuModel::materials 인덱스.
 		// 0은 glTF primitive에 material이 없을 때 사용하는 기본 material.
-		uint32_t materialIndex = 0;
+		uint32_t _materialIndex = 0;
 
 		// 원래 glTF mesh / primitive 위치
-		uint32_t sourceMeshIndex = 0;
-		uint32_t sourcePrimitiveIndex = 0;
+		uint32_t _sourceMeshIndex = 0;
+		uint32_t _sourcePrimitiveIndex = 0;
 	};
 	SceneObject* SceneObjectManager::loadGLTF(const char* path)
 	{
@@ -80,12 +80,12 @@ namespace DK
 			loaded = loader.LoadASCIIFromFile(&gltfModel, &error, &warning, path);
 		else
 		{
-			DK_LOG("Unsupported glTF file extension: %s", extension.c_str());
+			DK_ASSERT_LOG(false, "Unsupported glTF file extension: %s", extension.c_str());
 			return nullptr;
 		}
 		if (loaded == false)
 		{
-			DK_LOG("glTF file load failed: %s", error.c_str());
+			DK_ASSERT_LOG(false, "glTF file load failed: %s", error.c_str());
 			return nullptr;
 		}
 
@@ -148,80 +148,81 @@ namespace DK
 		struct TextureBinding
 		{
 			// CpuModel::textures 인덱스. 없으면 -1.
-			int textureIndex = -1;
+			int _textureIndex = -1;
 			// glTF material textureInfo.texCoord 값. 이 샘플 Vertex는 uv0, uv1만 보관합니다.
-			int texCoord = 0;
+			int _texCoord = 0;
 		};
 		struct CpuMaterial
 		{
-			DKString name;
+			DKString _name;
 
 			// glTF metallic-roughness PBR
-			float4 baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
-			float metallicFactor = 1.0f;
-			float roughnessFactor = 1.0f;
-			float4 emissiveFactor{ 0.0f, 0.0f, 0.0f };
+			float4 _baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
+			float _metallicFactor = 1.0f;
+			float _roughnessFactor = 1.0f;
+			float4 _emissiveFactor{ 0.0f, 0.0f, 0.0f };
 
-			TextureBinding baseColorTexture;
-			TextureBinding metallicRoughnessTexture;
-			TextureBinding normalTexture;
-			TextureBinding occlusionTexture;
-			TextureBinding emissiveTexture;
+			TextureBinding _baseColorTexture;
+			TextureBinding _metallicRoughnessTexture;
+			TextureBinding _normalTexture;
+			TextureBinding _occlusionTexture;
+			TextureBinding _emissiveTexture;
 
-			float normalScale = 1.0f;
-			float occlusionStrength = 1.0f;
+			float _normalScale = 1.0f;
+			float _occlusionStrength = 1.0f;
 
-			bool doubleSided = false;
-			DKString alphaMode = "OPAQUE"; // OPAQUE / MASK / BLEND
-			float alphaCutoff = 0.5f;
+			bool _doubleSided = false;
+			DKString _alphaMode = "OPAQUE"; // OPAQUE / MASK / BLEND
+			float _alphaCutoff = 0.5f;
 		};
 
 		DKVector<Ptr<Material>> materials;
 		materials.reserve(gltfModel.materials.size());
 
-		auto MakeTextureBinding = [](const tinygltf::Model & model, int textureIndex, int texCoord)->TextureBinding
+		TextureBinding (*const MakeTextureBinding)(const tinygltf::Model&, int, int) = [](const tinygltf::Model & model, int textureIndex, int texCoord)->TextureBinding
 		{
 			TextureBinding result;
-			result.textureIndex = textureIndex;
-			result.texCoord = texCoord;
+			result._textureIndex = textureIndex;
+			result._texCoord = texCoord;
 			return result;
 		};
-		auto ConvertMaterial = [&MakeTextureBinding, &textures](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
+		const DKFunction<Material*(const tinygltf::Model&, const tinygltf::Material&)> ConvertMaterial = [&MakeTextureBinding, &textures](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
 		{
 			CpuMaterial dst;
-			dst.name = src.name;
-			
+			dst._name = src.name;
+
 			//{
-			//	DKArray<float, 4> factor{ dst.baseColorFactor.x, dst.baseColorFactor.y, dst.baseColorFactor.z, dst.baseColorFactor.w };
+			//	DKArray<float, 4> factor{ dst._baseColorFactor.x, dst._baseColorFactor.y, dst._baseColorFactor.z, dst._baseColorFactor.w };
 			//	CopyFactor(src.pbrMetallicRoughness.baseColorFactor, factor);
-			//	dst.baseColorFactor = { factor[0], factor[1], factor[2], factor[3] };
+			//	dst._baseColorFactor = { factor[0], factor[1], factor[2], factor[3] };
 			//}
-			
-			dst.metallicFactor = static_cast<float>(src.pbrMetallicRoughness.metallicFactor);
-			dst.roughnessFactor = static_cast<float>(src.pbrMetallicRoughness.roughnessFactor);
-			
+
+			dst._metallicFactor = static_cast<float>(src.pbrMetallicRoughness.metallicFactor);
+			dst._roughnessFactor = static_cast<float>(src.pbrMetallicRoughness.roughnessFactor);
+
 			//{
-			//	DKArray<float, 3> factor{ dst.emissiveFactor.x, dst.emissiveFactor.y, dst.emissiveFactor.z };
+			//	DKArray<float, 3> factor{ dst._emissiveFactor.x, dst._emissiveFactor.y, dst._emissiveFactor.z };
 			//	CopyFactor(src.emissiveFactor, factor);
-			//	dst.emissiveFactor = { factor[0], factor[1], factor[2] };
+			//	dst._emissiveFactor = { factor[0], factor[1], factor[2] };
 			//}
 
-			DK_ASSERT_LOG(src.pbrMetallicRoughness.baseColorTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
-			DK_ASSERT_LOG(src.pbrMetallicRoughness.metallicRoughnessTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
-			DK_ASSERT_LOG(src.normalTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
-			DK_ASSERT_LOG(src.occlusionTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
-			DK_ASSERT_LOG(src.emissiveTexture.index >= static_cast<int>(model.textures.size()), "out-of-index BaseColorTexture");
+			const int textureCount = static_cast<int>(model.textures.size());
+			if (src.pbrMetallicRoughness.baseColorTexture.index < 0 || src.pbrMetallicRoughness.baseColorTexture.index >= textureCount || src.pbrMetallicRoughness.metallicRoughnessTexture.index < -1 || src.pbrMetallicRoughness.metallicRoughnessTexture.index >= textureCount || src.normalTexture.index < -1 || src.normalTexture.index >= textureCount || src.occlusionTexture.index < -1 || src.occlusionTexture.index >= textureCount || src.emissiveTexture.index < -1 || src.emissiveTexture.index >= textureCount)
+			{
+				DK_ASSERT_LOG(false, "Unsupported or invalid glTF material texture indices");
+				return nullptr;
+			}
 
-			dst.baseColorTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.baseColorTexture.index, src.pbrMetallicRoughness.baseColorTexture.texCoord);
-			dst.metallicRoughnessTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.metallicRoughnessTexture.index, src.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
-			dst.normalTexture = MakeTextureBinding(model, src.normalTexture.index, src.normalTexture.texCoord);
-			dst.occlusionTexture = MakeTextureBinding(model, src.occlusionTexture.index, src.occlusionTexture.texCoord);
-			dst.emissiveTexture = MakeTextureBinding(model, src.emissiveTexture.index, src.emissiveTexture.texCoord);
-			dst.normalScale = static_cast<float>(src.normalTexture.scale);
-			dst.occlusionStrength = static_cast<float>(src.occlusionTexture.strength);
-			dst.doubleSided = src.doubleSided;
-			dst.alphaMode = src.alphaMode.empty() ? "OPAQUE" : src.alphaMode;
-			dst.alphaCutoff = static_cast<float>(src.alphaCutoff);
+			dst._baseColorTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.baseColorTexture.index, src.pbrMetallicRoughness.baseColorTexture.texCoord);
+			dst._metallicRoughnessTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.metallicRoughnessTexture.index, src.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
+			dst._normalTexture = MakeTextureBinding(model, src.normalTexture.index, src.normalTexture.texCoord);
+			dst._occlusionTexture = MakeTextureBinding(model, src.occlusionTexture.index, src.occlusionTexture.texCoord);
+			dst._emissiveTexture = MakeTextureBinding(model, src.emissiveTexture.index, src.emissiveTexture.texCoord);
+			dst._normalScale = static_cast<float>(src.normalTexture.scale);
+			dst._occlusionStrength = static_cast<float>(src.occlusionTexture.strength);
+			dst._doubleSided = src.doubleSided;
+			dst._alphaMode = src.alphaMode.empty() ? "OPAQUE" : src.alphaMode;
+			dst._alphaCutoff = static_cast<float>(src.alphaCutoff);
 
 			SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
 			const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition("StaticMeshStandard");
@@ -238,7 +239,7 @@ namespace DK
 			if (outMaterial.get() == nullptr)
 				return nullptr;
 
-			const ITextureRef& baseColorTexture = textures[dst.baseColorTexture.textureIndex];
+			const ITextureRef& baseColorTexture = textures[dst._baseColorTexture._textureIndex];
 			for (uint32 i = 0; i < parameterCount; ++i)
 			{
 				MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
@@ -264,9 +265,9 @@ namespace DK
 		}
 
 		// Mesh Primitive -> VertexBuffer / IndexBuffer 변환
-		auto FindAttributeAccessor = [](const tinygltf::Primitive& primitive, const char* semantic)->int
+		int (*const FindAttributeAccessor)(const tinygltf::Primitive&, const char*) = [](const tinygltf::Primitive& primitive, const char* semantic)->int
 		{
-			const auto it = primitive.attributes.find(semantic);
+			const decltype(primitive.attributes)::const_iterator it = primitive.attributes.find(semantic);
 			if (it == primitive.attributes.end())
 				return -1;
 
@@ -274,17 +275,17 @@ namespace DK
 		};
 		struct AccessorSpan
 		{
-			const uint8_t* data = nullptr;
+			const uint8_t* _data = nullptr;
 
-			size_t count = 0;
-			size_t stride = 0;
-			size_t elementSize = 0;
-			size_t componentCount = 0;
+			size_t _count = 0;
+			size_t _stride = 0;
+			size_t _elementSize = 0;
+			size_t _componentCount = 0;
 
-			int componentType = 0;
-			bool normalized = false;
+			int _componentType = 0;
+			bool _normalized = false;
 		};
-		auto GetAccessorSpan = [](const tinygltf::Model& model, int accessorIndex)->AccessorSpan
+		AccessorSpan (*const GetAccessorSpan)(const tinygltf::Model&, int) = [](const tinygltf::Model& model, int accessorIndex)->AccessorSpan
 		{
 			if (accessorIndex < 0 || accessorIndex >= static_cast<int>(model.accessors.size()))
 			{
@@ -392,28 +393,28 @@ namespace DK
 			}
 
 			AccessorSpan result;
-			result.count = accessor.count;
-			result.stride = stride;
-			result.elementSize = elementSize;
-			result.componentCount = componentCount;
-			result.componentType = accessor.componentType;
-			result.normalized = accessor.normalized;
+			result._count = accessor.count;
+			result._stride = stride;
+			result._elementSize = elementSize;
+			result._componentCount = componentCount;
+			result._componentType = accessor.componentType;
+			result._normalized = accessor.normalized;
 
 			if (accessor.count > 0)
-				result.data = buffer.data.data() + view.byteOffset + accessor.byteOffset;
+				result._data = buffer.data.data() + view.byteOffset + accessor.byteOffset;
 
 			return result;
 		};
-		auto ReadFloatComponent = [](const AccessorSpan& accessor, size_t elementIndex, size_t componentIndex)->float
+		float (*const ReadFloatComponent)(const AccessorSpan&, size_t, size_t) = [](const AccessorSpan& accessor, size_t elementIndex, size_t componentIndex)->float
 		{
-			if (elementIndex >= accessor.count || componentIndex >= accessor.componentCount)
+			if (elementIndex >= accessor._count || componentIndex >= accessor._componentCount)
 			{
 				DK_ASSERT_LOG(false, "accessor read 범위 초과");
 				return 0;
 			}
 
 			size_t componentSize = 0;
-			switch (accessor.componentType)
+			switch (accessor._componentType)
 			{
 			case TINYGLTF_COMPONENT_TYPE_BYTE:
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
@@ -434,38 +435,37 @@ namespace DK
 			}
 			}
 
-			const uint8_t* ptr = accessor.data + elementIndex * accessor.stride + componentIndex * componentSize;
+			const uint8_t* ptr = accessor._data + elementIndex * accessor._stride + componentIndex * componentSize;
 
-			float returnValue = 0;
-			switch (accessor.componentType)
+			switch (accessor._componentType)
 			{
 			case TINYGLTF_COMPONENT_TYPE_BYTE:
 			{
 				const float value = static_cast<float>(ReadUnaligned<int8_t>(ptr));
-				returnValue = accessor.normalized ? Math::max(-1.0f, value / 127.0f) : value;
+				return accessor._normalized ? Math::max(-1.0f, value / 127.0f) : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
 			{
 				const float value = static_cast<float>(ReadUnaligned<uint8_t>(ptr));
-				returnValue = accessor.normalized ? value / 255.0f : value;
+				return accessor._normalized ? value / 255.0f : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_SHORT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<int16_t>(ptr));
-				returnValue = accessor.normalized ? Math::max(-1.0f, value / 32767.0f) : value;
+				return accessor._normalized ? Math::max(-1.0f, value / 32767.0f) : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<uint16_t>(ptr));
-				returnValue = accessor.normalized ? value / 65535.0f : value;
+				return accessor._normalized ? value / 65535.0f : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
 			{
 				const float value = static_cast<float>(ReadUnaligned<uint32_t>(ptr));
-				returnValue = accessor.normalized ? value / 4294967295.0f : value;
+				return accessor._normalized ? value / 4294967295.0f : value;
 			}
 			case TINYGLTF_COMPONENT_TYPE_FLOAT:
-				returnValue = ReadUnaligned<float>(ptr);
+				return ReadUnaligned<float>(ptr);
 			default:
 			{
 				DK_ASSERT_LOG(false, "float으로 변환할 수 없는 componentType");
@@ -473,21 +473,21 @@ namespace DK
 			}
 			}
 		};
-		auto ReadIndex = [](const AccessorSpan& accessor, size_t index)->uint32_t
+		uint32_t (*const ReadIndex)(const AccessorSpan&, size_t) = [](const AccessorSpan& accessor, size_t index)->uint32_t
 		{
-			if (accessor.componentCount != 1)
+			if (accessor._componentCount != 1)
 			{
 				DK_ASSERT_LOG(false, "Index accessor는 SCALAR여야 합니다.");
 				return UINT32_MAX;
 			}
-			if (index >= accessor.count)
+			if (index >= accessor._count)
 			{
 				DK_ASSERT_LOG(false, "Index accessor 범위 초과");
 				return UINT32_MAX;
 			}
 
-			const uint8_t* ptr = accessor.data + index * accessor.stride;
-			switch (accessor.componentType)
+			const uint8_t* ptr = accessor._data + index * accessor._stride;
+			switch (accessor._componentType)
 			{
 			case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
 				return ReadUnaligned<uint8_t>(ptr);
@@ -502,7 +502,7 @@ namespace DK
 			}
 			}
 		};
-		auto ConvertToTriangleList = [](const DKVector<uint32_t>& sourceIndices, int primitiveMode, DKVector<uint32_t>& result)->bool
+		bool (*const ConvertToTriangleList)(const DKVector<uint32_t>&, int, DKVector<uint32_t>&) = [](const DKVector<uint32_t>& sourceIndices, int primitiveMode, DKVector<uint32_t>& result)->bool
 		{
 			switch (primitiveMode)
 			{
@@ -570,7 +570,7 @@ namespace DK
 			}
 			}
 		};
-		auto ConvertPrimitive = [&FindAttributeAccessor, &GetAccessorSpan, &ReadFloatComponent, &ReadIndex, &ConvertToTriangleList](const tinygltf::Model& model, const tinygltf::Primitive& primitive, uint32_t meshIndex, uint32_t primitiveIndex, CpuPrimitive<StaticMeshModel::SubMeshType::VertexType>& result)->bool
+		const DKFunction<bool(const tinygltf::Model&, const tinygltf::Primitive&, uint32_t, uint32_t, CpuPrimitive<StaticMeshModel::SubMeshType::VertexType>&)> ConvertPrimitive = [&FindAttributeAccessor, &GetAccessorSpan, &ReadFloatComponent, &ReadIndex, &ConvertToTriangleList](const tinygltf::Model& model, const tinygltf::Primitive& primitive, uint32_t meshIndex, uint32_t primitiveIndex, CpuPrimitive<StaticMeshModel::SubMeshType::VertexType>& result)->bool
 		{
 			const int positionAccessorIndex = FindAttributeAccessor(primitive, "POSITION");
 			if (positionAccessorIndex < 0)
@@ -580,13 +580,13 @@ namespace DK
 			}
 
 			const AccessorSpan positions = GetAccessorSpan(model, positionAccessorIndex);
-			if (positions.componentCount != 3)
+			if (positions._componentCount != 3)
 			{
 				DK_ASSERT_LOG(false, "POSITION은 VEC3여야 합니다.");
 				return false;
 			}
 
-			const size_t vertexCount = positions.count;
+			const size_t vertexCount = positions._count;
 
 			DKOptional<AccessorSpan> normals;
 			DKOptional<AccessorSpan> uv0;
@@ -598,7 +598,7 @@ namespace DK
 			if (normalAccessorIndex >= 0)
 			{
 				normals = GetAccessorSpan(model, normalAccessorIndex);
-				if (normals->componentCount != 3 || normals->count != vertexCount)
+				if (normals->_componentCount != 3 || normals->_count != vertexCount)
 				{
 					DK_ASSERT_LOG(false, "NORMAL accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
 					return false;
@@ -607,7 +607,7 @@ namespace DK
 			if (uv0AccessorIndex >= 0)
 			{
 				uv0 = GetAccessorSpan(model, uv0AccessorIndex);
-				if (uv0->componentCount != 2 || uv0->count != vertexCount)
+				if (uv0->_componentCount != 2 || uv0->_count != vertexCount)
 				{
 					DK_ASSERT_LOG(false, "TEXCOORD_0 accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
 					return false;
@@ -616,18 +616,18 @@ namespace DK
 			if (uv1AccessorIndex >= 0)
 			{
 				uv1 = GetAccessorSpan(model, uv1AccessorIndex);
-				if (uv1->componentCount != 2 || uv1->count != vertexCount)
+				if (uv1->_componentCount != 2 || uv1->_count != vertexCount)
 				{
 					DK_ASSERT_LOG(false, "TEXCOORD_1 accessor 형식 또는 vertex count가 POSITION과 다릅니다.");
 					return false;
 				}
 			}
 
-			//result.name = primitive.name;
-			result.sourceMeshIndex = meshIndex;
-			result.sourcePrimitiveIndex = primitiveIndex;
+			//result._name = primitive.name;
+			result._sourceMeshIndex = meshIndex;
+			result._sourcePrimitiveIndex = primitiveIndex;
 
-			result.vertices.reserve(vertexCount);
+			result._vertices.reserve(vertexCount);
 			for (size_t i = 0; i < vertexCount; ++i)
 			{
 				float3 position = { ReadFloatComponent(positions, i, 0), ReadFloatComponent(positions, i, 1), ReadFloatComponent(positions, i, 2) };
@@ -640,21 +640,21 @@ namespace DK
 				//if (uv1.has_value())
 				//	uv2 = { ReadFloatComponent(*uv1, i, 0), ReadFloatComponent(*uv1, i, 1) };
 
-				result.vertices.push_back(StaticMeshModel::SubMeshType::VertexType{ position, normal, uv });
+				result._vertices.push_back(StaticMeshModel::SubMeshType::VertexType{ position, normal, uv });
 			}
 
 			DKVector<uint32_t> sourceIndices;
 			if (primitive.indices >= 0)
 			{
 				const AccessorSpan indexAccessor = GetAccessorSpan(model, primitive.indices);
-				if (indexAccessor.componentCount != 1)
+				if (indexAccessor._componentCount != 1)
 				{
 					DK_ASSERT_LOG(false, "Index accessor는 SCALAR 타입이어야 합니다.");
 					return false;
 				}
 
-				sourceIndices.resize(indexAccessor.count);
-				for (size_t i = 0; i < indexAccessor.count; ++i)
+				sourceIndices.resize(indexAccessor._count);
+				for (size_t i = 0; i < indexAccessor._count; ++i)
 				{
 					const uint32_t index = ReadIndex(indexAccessor, i);
 					if (index >= vertexCount)
@@ -675,7 +675,7 @@ namespace DK
 				return false;
 			}
 
-			if (ConvertToTriangleList(sourceIndices, primitive.mode, result.indices) == false)
+			if (ConvertToTriangleList(sourceIndices, primitive.mode, result._indices) == false)
 				return false;
 
 			if (primitive.material >= 0)
@@ -687,11 +687,11 @@ namespace DK
 				}
 
 				// CpuModel::materials[0]은 기본 material.
-				result.materialIndex = static_cast<uint32_t>(primitive.material);
+				result._materialIndex = static_cast<uint32_t>(primitive.material);
 			}
 			else
 			{
-				//result.materialIndex = 0;
+				//result._materialIndex = 0;
 				DK_ASSERT_LOG(false, "");
 				return false;
 			}
@@ -722,21 +722,21 @@ namespace DK
 				//result.model.primitives.push_back();
 
 				VertexBufferViewRef vertexBufferView;
-				IBufferRef vertexBuffer = renderModule.createVertexBuffer(cpuPrimitive.vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive.vertices.size(), vertexBufferView, L"GLTF_VertexBuffer");
+				IBufferRef vertexBuffer = renderModule.createVertexBuffer(cpuPrimitive._vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive._vertices.size(), vertexBufferView, L"GLTF_VertexBuffer");
 				if (vertexBuffer == nullptr)
 					return nullptr;
 
 				IndexBufferViewRef indexBufferView;
-				IBufferRef indexBuffer = renderModule.createIndexBuffer(cpuPrimitive.indices.data(), cpuPrimitive.indices.size(), indexBufferView, L"GLTF_IndexBuffer");
+				IBufferRef indexBuffer = renderModule.createIndexBuffer(cpuPrimitive._indices.data(), cpuPrimitive._indices.size(), indexBufferView, L"GLTF_IndexBuffer");
 				if (indexBuffer == nullptr)
 					return nullptr;
 
-				Material* newMaterial = materials[cpuPrimitive.materialIndex]->clone();
+				Material* newMaterial = materials[cpuPrimitive._materialIndex]->clone();
 				if (newMaterial == nullptr)
 					return nullptr;
 
 				StaticMeshModel::SubMeshType subMesh(
-					DK::move(cpuPrimitive.vertices), DK::move(cpuPrimitive.indices),
+					DK::move(cpuPrimitive._vertices), DK::move(cpuPrimitive._indices),
 					DK::move(vertexBuffer), DK::move(indexBuffer),
 					DK::move(vertexBufferView), DK::move(indexBufferView),
 					newMaterial
@@ -808,7 +808,7 @@ namespace DK
 			modelDataArr.push_back(AppearanceData::ModelData(modelPath, modelPropertyPath));
 		}
 
-		auto insertResult = _appearanceRawContainers.insert(DKPair<const char*, AppearanceDataRef>(appearancePath, dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr))));
+		const DKPair<DKHashMap<DKString, AppearanceDataRef>::iterator, bool> insertResult = _appearanceRawContainers.insert(DKPair<DKString, AppearanceDataRef>(appearancePath, dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr))));
 		return insertResult.first->second;
 	}
 	SceneObject* SceneObjectManager::createCharacter(const char* appearancePath)

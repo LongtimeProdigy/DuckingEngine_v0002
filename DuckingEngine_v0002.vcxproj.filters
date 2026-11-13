@@ -127,6 +127,12 @@
     <ClCompile Include="RaytracingRenderer.cpp">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="TerrainStreaming.cpp">
+      <Filter>1. EngineCore\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="TerrainData.cpp">
+      <Filter>1. EngineCore\Resource</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
@@ -253,6 +259,12 @@
     </ClInclude>
     <ClInclude Include="FileUtil.h">
       <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="TerrainData.h">
+      <Filter>1. EngineCore</Filter>
+    </ClInclude>
+    <ClInclude Include="TerrainStreaming.h">
+      <Filter>1. EngineCore</Filter>
     </ClInclude>
     <ClInclude Include="MeshUtil.h">
       <Filter>0. Common</Filter>

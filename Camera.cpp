@@ -17,6 +17,31 @@ namespace DK
 		return FileUtil::fromWidePath(GlobalPath::makeResourceFullPathW(L"editor/data/camera-state.txt").c_str());
 	}
 
+    void Camera::setWorldPosition(double x, double y, double z)
+    {
+        if (std::isfinite(x) == false || std::isfinite(y) == false || std::isfinite(z) == false)
+        {
+            DK_ASSERT_LOG(false, "Invalid camera world position");
+            return;
+        }
+        _worldPosition = { x, y, z };
+        _lastPosition = float3(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z));
+        Transform transform = get_worldTransform();
+        transform.set_translation(_lastPosition);
+        set_worldTransform(transform);
+    }
+
+    const DKArray<double, 3>& Camera::getWorldPosition()
+    {
+        const float3 position = get_worldTransform().get_translation();
+        if ((position == _lastPosition) == false)
+        {
+            _worldPosition = { position.x, position.y, position.z };
+            _lastPosition = position;
+        }
+        return _worldPosition;
+    }
+
 	bool Camera::loadViewState()
 	{
 		const DKString path = cameraStatePath();
@@ -41,20 +66,21 @@ namespace DK
 			return false;
 		}
 		int version = 0;
-		float3 position;
+		DKArray<double, 3> position = {};
 		float yaw = 0.0f, pitch = 0.0f;
-		if (StringUtil::parseInt(tokens[1], version) == false || StringUtil::parseFloat(tokens[2], position.x) == false || StringUtil::parseFloat(tokens[3], position.y) == false || StringUtil::parseFloat(tokens[4], position.z) == false || StringUtil::parseFloat(tokens[5], yaw) == false || StringUtil::parseFloat(tokens[6], pitch) == false)
+		if (StringUtil::parseInt(tokens[1], version) == false || StringUtil::parseDouble(tokens[2], position[0]) == false || StringUtil::parseDouble(tokens[3], position[1]) == false || StringUtil::parseDouble(tokens[4], position[2]) == false || StringUtil::parseFloat(tokens[5], yaw) == false || StringUtil::parseFloat(tokens[6], pitch) == false)
 		{
 			return false;
 		}
-		if (version != 1 || Math::abs(pitch) > Math::Half_PI)
+		if ((version != 1 && version != 2) || Math::abs(pitch) > Math::Half_PI)
 		{
 			DK_ASSERT_LOG(false, "Invalid camera state");
 			return false;
 		}
 		_yaw = yaw;
 		_pitch = pitch;
-		set_worldTransform(Transform(position, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
+		set_worldTransform(Transform(float3::Zero, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
+		setWorldPosition(position[0], position[1], position[2]);
 		return true;
 	}
 
@@ -65,13 +91,13 @@ namespace DK
 		{
 			return false;
 		}
-		const float3& position = get_worldTransform().get_translation();
-		if (std::isfinite(position.x) == false || std::isfinite(position.y) == false || std::isfinite(position.z) == false || std::isfinite(_yaw) == false || std::isfinite(_pitch) == false || Math::abs(_pitch) > Math::Half_PI)
+		const DKArray<double, 3>& position = getWorldPosition();
+		if (std::isfinite(position[0]) == false || std::isfinite(position[1]) == false || std::isfinite(position[2]) == false || std::isfinite(_yaw) == false || std::isfinite(_pitch) == false || Math::abs(_pitch) > Math::Half_PI)
 		{
 			DK_ASSERT_LOG(false, "Invalid camera state");
 			return false;
 		}
-		const DKString text = "DuckingCamera 1\n" + StringUtil::toString(position.x) + " " + StringUtil::toString(position.y) + " " + StringUtil::toString(position.z) + "\n" + StringUtil::toString(_yaw) + " " + StringUtil::toString(_pitch) + "\n";
+		const DKString text = "DuckingCamera 2\n" + StringUtil::toString(position[0]) + " " + StringUtil::toString(position[1]) + " " + StringUtil::toString(position[2]) + "\n" + StringUtil::toString(_yaw) + " " + StringUtil::toString(_pitch) + "\n";
 		const DKString temporary = path + ".tmp";
 		FileWriter writer;
 		if (writer.open(temporary) == false)
@@ -148,11 +174,9 @@ namespace DK
 			moveOffset *= 30;
 
 		float3 rotatedMoveOffset = moveOffset * finalQuaternion;
-		float3 finalMoveOffset = rotatedMoveOffset + get_worldTransform().get_translation();
-
-		Transform setTransform(finalMoveOffset, finalQuaternion, float3::Identity);
-
-		set_worldTransform(setTransform);
+        const DKArray<double, 3> position = getWorldPosition();
+        set_worldTransform(Transform(_lastPosition, finalQuaternion, float3::Identity));
+        setWorldPosition(position[0] + rotatedMoveOffset.x, position[1] + rotatedMoveOffset.y, position[2] + rotatedMoveOffset.z);
 		DuckingEngine::getInstance().GetRaytracingRendererWritable().resetAccumulation();
 	}
 }

@@ -1,6 +1,9 @@
 ## 시스템 문서
 
 - [Ocean 시스템 — 위상·스펙트럼·IFFT의 수학과 구현](docs/Ocean.md)
+- [Terrain 청크 데이터와 저장 포맷 — 빌드·검증·런타임 API](docs/TerrainData.md)
+- [표준 라이브러리 래핑 현황과 남은 의존성](docs/StdDependencies.md)
+- [직접 사용하는 Windows API 목록](docs/WindowsApiDependencies.md)
 
 ## Renderer (DX12, Windows)
 - RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정

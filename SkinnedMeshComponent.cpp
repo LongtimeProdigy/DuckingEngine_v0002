@@ -26,7 +26,7 @@ namespace DK
 		_model = resourceManager.loadSkinnedMesh(_modelPath, modelProperty);
 		if (_model == nullptr)
 			return false;
-		if (resourceManager.loadSkeleton(_skeletonPath, _model, _skeleton) == false) 
+		if (resourceManager.loadSkeleton(_skeletonPath, _model, _skeleton) == false)
 			return false;
 
 		AnimationRef clip;
@@ -47,7 +47,7 @@ namespace DK
 		for (size_t i = 0; i < bones.size(); ++i)
 		{
 			const Bone& bone = bones[i];
-			const auto track = std::find_if(tracks.begin(), tracks.end(), [&](const Animation::BoneAnimation& candidate) {
+			const DKVector<Animation::BoneAnimation>::const_iterator track = std::find_if(tracks.begin(), tracks.end(), [&](const Animation::BoneAnimation& candidate) {
 				return candidate._boneName == bone._boneName;
 			});
 			if (track == tracks.end())

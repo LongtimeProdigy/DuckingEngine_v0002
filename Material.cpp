@@ -166,7 +166,7 @@ namespace DK
 				}
 			}
 
-			if (!validation)
+			if (validation == false)
 			{
 				DK_ASSERT_LOG(false, "Material %s: unknown model parameter %s.", _materialName.c_str(), parameterDefinition._name.c_str());
 				return false;

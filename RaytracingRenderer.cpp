@@ -17,14 +17,14 @@ namespace DK
         if (_pathTracingPass == nullptr || atmospherePass == nullptr)
             return false;
         _displayTarget = atmospherePass->_binding._target;
-        if (!_supported)
+        if (_supported == false)
             DK_LOG("DXR unavailable; using raster rendering.");
         return _displayTarget != nullptr;
     }
 
     bool RaytracingRenderer::updateRaytracingRenderer(RenderModule& renderModule)
     {
-        if (!_supported || RenderModule::kWidth == 0 || RenderModule::kHeight == 0)
+        if (_supported == false || RenderModule::kWidth == 0 || RenderModule::kHeight == 0)
             return false;
 
         DKVector<RaytracingGeometry> geometries;
@@ -72,7 +72,7 @@ namespace DK
             return false;
 
         bool changed = geometries.size() != _geometries.size();
-        for (size_t i = 0; !changed && i < geometries.size(); ++i)
+        for (size_t i = 0; changed == false && i < geometries.size(); ++i)
         {
             const RaytracingGeometry& a = geometries[i];
             const RaytracingGeometry& b = _geometries[i];
@@ -136,7 +136,7 @@ namespace DK
         {
             // Keep any successfully recorded builds alive even if a later allocation fails.
             _scene = RaytracingAccelerationStructure();
-            if (!renderModule.buildRaytracingScene(geometries, _scene))
+            if (renderModule.buildRaytracingScene(geometries, _scene) == false)
                 return false;
             _geometries = DK::move(geometries);
         }

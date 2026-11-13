@@ -10,103 +10,176 @@ extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = u8".\\D3D12
 #define USE_WINCODEC
 #ifdef USE_WINCODEC
 #include <wincodec.h>	// Image Process
-DXGI_FORMAT GetDXGIFormatFromWICFormat(const WICPixelFormatGUID& format)
+namespace DK
 {
-	if (format == GUID_WICPixelFormat128bppRGBAFloat)      return DXGI_FORMAT_R32G32B32A32_FLOAT;
-	if (format == GUID_WICPixelFormat64bppRGBAHalf)        return DXGI_FORMAT_R16G16B16A16_FLOAT;
-	if (format == GUID_WICPixelFormat64bppRGBA)            return DXGI_FORMAT_R16G16B16A16_UNORM;
-
-#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
-	if (format == GUID_WICPixelFormat96bppRGBFloat)        return DXGI_FORMAT_R32G32B32_FLOAT;
-#endif
-
-	if (format == GUID_WICPixelFormat32bppRGBA)            return DXGI_FORMAT_R8G8B8A8_UNORM;
-	if (format == GUID_WICPixelFormat32bppBGRA)            return DXGI_FORMAT_B8G8R8A8_UNORM;
-	if (format == GUID_WICPixelFormat32bppBGR)             return DXGI_FORMAT_B8G8R8X8_UNORM;
-
-	if (format == GUID_WICPixelFormat32bppRGBA1010102XR)   return DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM;
-	if (format == GUID_WICPixelFormat32bppRGBA1010102)     return DXGI_FORMAT_R10G10B10A2_UNORM;
-
-	if (format == GUID_WICPixelFormat16bppBGRA5551)        return DXGI_FORMAT_B5G5R5A1_UNORM;
-	if (format == GUID_WICPixelFormat16bppBGR565)          return DXGI_FORMAT_B5G6R5_UNORM;
-
-	if (format == GUID_WICPixelFormat32bppGrayFloat)       return DXGI_FORMAT_R32_FLOAT;
-	if (format == GUID_WICPixelFormat16bppGrayHalf)        return DXGI_FORMAT_R16_FLOAT;
-	if (format == GUID_WICPixelFormat16bppGray)            return DXGI_FORMAT_R16_UNORM;
-	if (format == GUID_WICPixelFormat8bppGray)             return DXGI_FORMAT_R8_UNORM;
-	if (format == GUID_WICPixelFormat8bppAlpha)            return DXGI_FORMAT_A8_UNORM;
-
-	return DXGI_FORMAT_UNKNOWN;
-}
-WICPixelFormatGUID GetConvertToWICFormat(const WICPixelFormatGUID& wicFormatGUID)
-{
-	if (wicFormatGUID == GUID_WICPixelFormatBlackWhite) return GUID_WICPixelFormat8bppGray;
-	else if (wicFormatGUID == GUID_WICPixelFormat1bppIndexed) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat2bppIndexed) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat4bppIndexed) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat8bppIndexed) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat2bppGray) return GUID_WICPixelFormat8bppGray;
-	else if (wicFormatGUID == GUID_WICPixelFormat4bppGray) return GUID_WICPixelFormat8bppGray;
-	else if (wicFormatGUID == GUID_WICPixelFormat16bppGrayFixedPoint) return GUID_WICPixelFormat16bppGrayHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppGrayFixedPoint) return GUID_WICPixelFormat32bppGrayFloat;
-	else if (wicFormatGUID == GUID_WICPixelFormat16bppBGR555) return GUID_WICPixelFormat16bppBGRA5551;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppBGR101010) return GUID_WICPixelFormat32bppRGBA1010102;
-	else if (wicFormatGUID == GUID_WICPixelFormat24bppBGR) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat24bppRGB) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppPBGRA) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppPRGBA) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat48bppRGB) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat48bppBGR) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppBGRA) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppPRGBA) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppPBGRA) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat48bppRGBFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat48bppBGRFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBAFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppBGRAFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBFixedPoint) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBHalf) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat48bppRGBHalf) return GUID_WICPixelFormat64bppRGBAHalf;
-	else if (wicFormatGUID == GUID_WICPixelFormat128bppPRGBAFloat) return GUID_WICPixelFormat128bppRGBAFloat;
-	else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBFloat) return GUID_WICPixelFormat128bppRGBAFloat;
-	else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBAFixedPoint) return GUID_WICPixelFormat128bppRGBAFloat;
-	else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBFixedPoint) return GUID_WICPixelFormat128bppRGBAFloat;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBE) return GUID_WICPixelFormat128bppRGBAFloat;
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppCMYK) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppCMYK) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat40bppCMYKAlpha) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat80bppCMYKAlpha) return GUID_WICPixelFormat64bppRGBA;
-
-#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
-	else if (wicFormatGUID == GUID_WICPixelFormat32bppRGB) return GUID_WICPixelFormat32bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppRGB) return GUID_WICPixelFormat64bppRGBA;
-	else if (wicFormatGUID == GUID_WICPixelFormat64bppPRGBAHalf) return GUID_WICPixelFormat64bppRGBAHalf;
-#endif
-
-	else return GUID_WICPixelFormatDontCare;
-}
-uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
-{
-	if (dxgiFormat == DXGI_FORMAT_R32G32B32A32_FLOAT) return 128;
-	else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_FLOAT) return 64;
-	else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_UNORM) return 64;
-	else if (dxgiFormat == DXGI_FORMAT_R8G8B8A8_UNORM) return 32;
-	else if (dxgiFormat == DXGI_FORMAT_B8G8R8A8_UNORM) return 32;
-	else if (dxgiFormat == DXGI_FORMAT_B8G8R8X8_UNORM) return 32;
-	else if (dxgiFormat == DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM) return 32;
-
-	else if (dxgiFormat == DXGI_FORMAT_R10G10B10A2_UNORM) return 32;
-	else if (dxgiFormat == DXGI_FORMAT_B5G5R5A1_UNORM) return 16;
-	else if (dxgiFormat == DXGI_FORMAT_B5G6R5_UNORM) return 16;
-	else if (dxgiFormat == DXGI_FORMAT_R32_FLOAT) return 32;
-	else if (dxgiFormat == DXGI_FORMAT_R16_FLOAT) return 16;
-	else if (dxgiFormat == DXGI_FORMAT_R16_UNORM) return 16;
-	else if (dxgiFormat == DXGI_FORMAT_R8_UNORM) return 8;
-	else if (dxgiFormat == DXGI_FORMAT_A8_UNORM) return 8;
-	else
+	static DXGI_FORMAT GetDXGIFormatFromWICFormat(const WICPixelFormatGUID& format)
 	{
-		DK_ASSERT_LOG(false, "올바르지 않은 Texture Type입니다. 확인 요망!");
-		return 0xffffffff;
+		if (format == GUID_WICPixelFormat128bppRGBAFloat)
+		return DXGI_FORMAT_R32G32B32A32_FLOAT;
+		if (format == GUID_WICPixelFormat64bppRGBAHalf)
+		return DXGI_FORMAT_R16G16B16A16_FLOAT;
+		if (format == GUID_WICPixelFormat64bppRGBA)
+		return DXGI_FORMAT_R16G16B16A16_UNORM;
+
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
+		if (format == GUID_WICPixelFormat96bppRGBFloat)
+		return DXGI_FORMAT_R32G32B32_FLOAT;
+#endif
+
+		if (format == GUID_WICPixelFormat32bppRGBA)
+		return DXGI_FORMAT_R8G8B8A8_UNORM;
+		if (format == GUID_WICPixelFormat32bppBGRA)
+		return DXGI_FORMAT_B8G8R8A8_UNORM;
+		if (format == GUID_WICPixelFormat32bppBGR)
+		return DXGI_FORMAT_B8G8R8X8_UNORM;
+
+		if (format == GUID_WICPixelFormat32bppRGBA1010102XR)
+		return DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM;
+		if (format == GUID_WICPixelFormat32bppRGBA1010102)
+		return DXGI_FORMAT_R10G10B10A2_UNORM;
+
+		if (format == GUID_WICPixelFormat16bppBGRA5551)
+		return DXGI_FORMAT_B5G5R5A1_UNORM;
+		if (format == GUID_WICPixelFormat16bppBGR565)
+		return DXGI_FORMAT_B5G6R5_UNORM;
+
+		if (format == GUID_WICPixelFormat32bppGrayFloat)
+		return DXGI_FORMAT_R32_FLOAT;
+		if (format == GUID_WICPixelFormat16bppGrayHalf)
+		return DXGI_FORMAT_R16_FLOAT;
+		if (format == GUID_WICPixelFormat16bppGray)
+		return DXGI_FORMAT_R16_UNORM;
+		if (format == GUID_WICPixelFormat8bppGray)
+		return DXGI_FORMAT_R8_UNORM;
+		if (format == GUID_WICPixelFormat8bppAlpha)
+		return DXGI_FORMAT_A8_UNORM;
+
+		return DXGI_FORMAT_UNKNOWN;
+	}
+	static WICPixelFormatGUID GetConvertToWICFormat(const WICPixelFormatGUID& wicFormatGUID)
+	{
+		if (wicFormatGUID == GUID_WICPixelFormatBlackWhite)
+		return GUID_WICPixelFormat8bppGray;
+		else if (wicFormatGUID == GUID_WICPixelFormat1bppIndexed)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat2bppIndexed)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat4bppIndexed)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat8bppIndexed)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat2bppGray)
+		return GUID_WICPixelFormat8bppGray;
+		else if (wicFormatGUID == GUID_WICPixelFormat4bppGray)
+		return GUID_WICPixelFormat8bppGray;
+		else if (wicFormatGUID == GUID_WICPixelFormat16bppGrayFixedPoint)
+		return GUID_WICPixelFormat16bppGrayHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppGrayFixedPoint)
+		return GUID_WICPixelFormat32bppGrayFloat;
+		else if (wicFormatGUID == GUID_WICPixelFormat16bppBGR555)
+		return GUID_WICPixelFormat16bppBGRA5551;
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppBGR101010)
+		return GUID_WICPixelFormat32bppRGBA1010102;
+		else if (wicFormatGUID == GUID_WICPixelFormat24bppBGR)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat24bppRGB)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppPBGRA)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppPRGBA)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat48bppRGB)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat48bppBGR)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppBGRA)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppPRGBA)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppPBGRA)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat48bppRGBFixedPoint)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat48bppBGRFixedPoint)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBAFixedPoint)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppBGRAFixedPoint)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBFixedPoint)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppRGBHalf)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat48bppRGBHalf)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+		else if (wicFormatGUID == GUID_WICPixelFormat128bppPRGBAFloat)
+		return GUID_WICPixelFormat128bppRGBAFloat;
+		else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBFloat)
+		return GUID_WICPixelFormat128bppRGBAFloat;
+		else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBAFixedPoint)
+		return GUID_WICPixelFormat128bppRGBAFloat;
+		else if (wicFormatGUID == GUID_WICPixelFormat128bppRGBFixedPoint)
+		return GUID_WICPixelFormat128bppRGBAFloat;
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppRGBE)
+		return GUID_WICPixelFormat128bppRGBAFloat;
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppCMYK)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppCMYK)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat40bppCMYKAlpha)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat80bppCMYKAlpha)
+		return GUID_WICPixelFormat64bppRGBA;
+
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
+		else if (wicFormatGUID == GUID_WICPixelFormat32bppRGB)
+		return GUID_WICPixelFormat32bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppRGB)
+		return GUID_WICPixelFormat64bppRGBA;
+		else if (wicFormatGUID == GUID_WICPixelFormat64bppPRGBAHalf)
+		return GUID_WICPixelFormat64bppRGBAHalf;
+#endif
+
+		else return GUID_WICPixelFormatDontCare;
+	}
+	static uint32 GetDXGIFormatBitsPerPixel(const DXGI_FORMAT& dxgiFormat)
+	{
+		if (dxgiFormat == DXGI_FORMAT_R32G32B32A32_FLOAT)
+		return 128;
+		else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_FLOAT)
+		return 64;
+		else if (dxgiFormat == DXGI_FORMAT_R16G16B16A16_UNORM)
+		return 64;
+		else if (dxgiFormat == DXGI_FORMAT_R8G8B8A8_UNORM)
+		return 32;
+		else if (dxgiFormat == DXGI_FORMAT_B8G8R8A8_UNORM)
+		return 32;
+		else if (dxgiFormat == DXGI_FORMAT_B8G8R8X8_UNORM)
+		return 32;
+		else if (dxgiFormat == DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM)
+		return 32;
+
+		else if (dxgiFormat == DXGI_FORMAT_R10G10B10A2_UNORM)
+		return 32;
+		else if (dxgiFormat == DXGI_FORMAT_B5G5R5A1_UNORM)
+		return 16;
+		else if (dxgiFormat == DXGI_FORMAT_B5G6R5_UNORM)
+		return 16;
+		else if (dxgiFormat == DXGI_FORMAT_R32_FLOAT)
+		return 32;
+		else if (dxgiFormat == DXGI_FORMAT_R16_FLOAT)
+		return 16;
+		else if (dxgiFormat == DXGI_FORMAT_R16_UNORM)
+		return 16;
+		else if (dxgiFormat == DXGI_FORMAT_R8_UNORM)
+		return 8;
+		else if (dxgiFormat == DXGI_FORMAT_A8_UNORM)
+		return 8;
+		else
+		{
+			DK_ASSERT_LOG(false, "올바르지 않은 Texture Type입니다. 확인 요망!");
+			return 0xffffffff;
+		}
 	}
 }
 #endif
@@ -217,13 +290,13 @@ namespace DK
 	}
 	bool RenderModule::initialize(const HWND hwnd, const uint32 width, const uint32 height)
 	{
-		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false) 
+		if (initialize_createDeviceAndCommandQueueAndSwapChain(hwnd, width, height) == false)
 			return false;
 
 		if (createCommandList(_commandList) == false)
 			return false;
 
-		if (initialize_createFence() == false) 
+		if (initialize_createFence() == false)
 			return false;
 
 		if (createBackBufferTargets(width, height) == false)
@@ -417,7 +490,7 @@ namespace DK
 			return false;
 
 		DKVector<DKPair<RenderTarget*, RenderPassTargets>> resized;
-		for (auto& entry : _renderTargets)
+		for (DKHashMap<DKString, RenderTarget>::value_type& entry : _renderTargets)
 		{
 			RenderTarget& target = entry.second;
 			if (target._definition._size != RenderTargetDefinition::Size::Window)
@@ -778,7 +851,7 @@ namespace DK
 			}
 			_imguiDescriptorHeap = imguiHeap;
 
-			if (!ImGui_ImplWin32_Init(hwnd))
+			if (ImGui_ImplWin32_Init(hwnd) == false)
 				return false;
 			ImGui_ImplDX12_InitInfo initInfo;
 			initInfo.Device = _device.get();
@@ -804,7 +877,8 @@ namespace DK
 					return;
 				}
 				// The backend requires a valid descriptor; never alias a live slot.
-				std::abort();
+				DK_ASSERT_LOG(false, "ImGui descriptor capacity exceeded");
+				return;
 			};
 			initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE)
 			{
@@ -814,7 +888,7 @@ namespace DK
 				assert(index < kImGuiDescriptorCount && renderer._imguiDescriptorUsed[index]);
 				renderer._imguiDescriptorUsed[index] = false;
 			};
-			if (!ImGui_ImplDX12_Init(&initInfo))
+			if (ImGui_ImplDX12_Init(&initInfo) == false)
 				return false;
 		}
 
@@ -1143,7 +1217,7 @@ namespace DK
 
 		return true;
 	}
-	
+
 	D3D12_PRIMITIVE_TOPOLOGY_TYPE convertPrimitiveTopologyType(const char* value)
 	{
 		static const char* primitiveTopologyTypeStr[] =
@@ -1352,7 +1426,7 @@ namespace DK
 		}
 		else if (pipelineCreateInfo._raygenShaderPath.empty() == false)
 		{
-			if (!supportsRaytracing())
+			if (supportsRaytracing() == false)
 			{
 				inoutPipeline._type = Pipeline::Type::RAYTRACING;
 #if defined(_DK_DEBUG_)
@@ -1579,7 +1653,10 @@ namespace DK
 	bool RenderModule::createShaderBindingTable(const Pipeline::CreateInfo& createInfo, RaytracingPipelineData& pipeline)
 	{
 		// One record per table; scene/material data is accessed through bindless resources.
-		const auto alignUp = [](uint64 value, uint64 alignment) { return (value + alignment - 1) & ~(alignment - 1); };
+		uint64 (*const alignUp)(uint64, uint64) = [](uint64 value, uint64 alignment)
+		{
+			return (value + alignment - 1) & ~(alignment - 1);
+		};
 		const uint64 recordSize = alignUp(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT);
 		const uint64 tableSpacing = alignUp(recordSize, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 		const uint32 bufferSize = static_cast<uint32>(tableSpacing * 3);
@@ -1760,17 +1837,20 @@ namespace DK
 	void RenderModule::waitForFence(uint32 frameIndex)
 	{
 		DK_ASSERT_LOG(_fences[frameIndex].get() != nullptr, "");
-			
+
 		const uint64 completed = _fences[frameIndex]->GetCompletedValue();
 		DK_ASSERT_LOG(completed != UINT64_MAX, "");
-		if (completed >= _fenceValues[frameIndex]) 
+		if (completed >= _fenceValues[frameIndex])
 			return;
-			
+
 		if (
 			FAILED(_fences[frameIndex]->SetEventOnCompletion(_fenceValues[frameIndex], _fenceEvent))
 			|| WaitForSingleObject(_fenceEvent, INFINITE) != WAIT_OBJECT_0
 			|| _fences[frameIndex]->GetCompletedValue() == UINT64_MAX)
-			throw std::runtime_error("D3D12 frame fence wait failed");
+		{
+			DK_ASSERT_LOG(false, "D3D12 frame fence wait failed");
+			return;
+		}
 	}
 
 	void RenderModule::waitAllGPU()
@@ -1851,7 +1931,7 @@ namespace DK
 
 	void RenderModule::waitFenceAndResetCommandList()
 	{
-		if (!_frameSubmitted)
+		if (_frameSubmitted == false)
 			return;
 
 		waitForFence(kCurrentFrameIndex);
@@ -1864,19 +1944,20 @@ namespace DK
 #if defined(_DK_DEBUG_)
 	void RenderModule::reportGpuAssert()
 	{
-		if (!_gpuAssertReadbackPending || !_gpuAssertReadback)
+		if (_gpuAssertReadbackPending == false || _gpuAssertReadback == nullptr)
 			return;
 		void* mapped = nullptr;
 		const D3D12_RANGE readRange = { 0, sizeof(GpuAssertRecord) };
 		const HRESULT hr = _gpuAssertReadback->Map(0, &readRange, &mapped);
 		DK_ASSERT_LOG(SUCCEEDED(hr), "GPU assert readback failed: 0x%08X", static_cast<unsigned int>(hr));
-		if (FAILED(hr)) return;
+		if (FAILED(hr))
+			return;
 		GpuAssertRecord record;
 		DK::memcpy(&record, mapped, sizeof(record));
 		const D3D12_RANGE noWrites = { 0, 0 };
 		_gpuAssertReadback->Unmap(0, &noWrites);
 		_gpuAssertReadbackPending = false;
-		if (record.failed)
+		if (record._failed)
 		{
 			OutputDebugStringA(formatGpuAssert(record).c_str());
 			if (IsDebuggerPresent())
@@ -1905,7 +1986,7 @@ namespace DK
 
 		buffer._currentState = afterState;
 	}
-	
+
 	void RenderModule::copyResource(const IBufferRef& targetBuffer, const IBufferRef& sourceBuffer, const D3D12_RESOURCE_STATES afterState)
 	{
 		DK_ASSERT_LOG(_blockCopy == false, "");
@@ -2072,7 +2153,7 @@ namespace DK
 		}
 
 		DK_ASSERT_LOG(index < kMaxTextureUAVCount, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
-		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");			
+		DK_ASSERT_LOG(index < TEXTUREBINDLESS_MAX_COUNT, "TextureUAV의 최대 개수를 초과했습니다. TextureUAV를 더 이상 할당할 수 없습니다.");
 
 		D3D12_CPU_DESCRIPTOR_HANDLE textureDescriptorHeapHandle = _textureDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
@@ -2098,7 +2179,10 @@ namespace DK
 		TextureRaw() = default;
 		TextureRaw(const TextureRaw&) = delete;
 		TextureRaw& operator=(const TextureRaw&) = delete;
-		~TextureRaw() { std::free(_data); }
+		~TextureRaw()
+		{
+			dk_delete_array _data;
+		}
 		DXGI_FORMAT _format;
 	};
 	bool loadImageDataFromFile(const char* fileName, _OUT_ TextureRaw& textureRaw)
@@ -2130,18 +2214,22 @@ namespace DK
 			WICDecodeMetadataCacheOnLoad,    // We will cache the metadata right away, rather than when needed, which might be unknown
 			wicDecoder.GetAddressOf()                      // the wic decoder to be created
 		);
-		if (FAILED(hr)) return false;
+		if (FAILED(hr))
+			return false;
 
 		hr = wicDecoder->GetFrame(0, wicFrame.GetAddressOf());
-		if (FAILED(hr)) return false;
+		if (FAILED(hr))
+			return false;
 
 		WICPixelFormatGUID pixelFormat;
 		hr = wicFrame->GetPixelFormat(&pixelFormat);
-		if (FAILED(hr)) return false;
+		if (FAILED(hr))
+			return false;
 
 		// get size of image
 		hr = wicFrame->GetSize(&textureRaw._width, &textureRaw._height);
-		if (FAILED(hr)) return false;
+		if (FAILED(hr))
+			return false;
 
 		DXGI_FORMAT dxgiFormat = GetDXGIFormatFromWICFormat(pixelFormat);
 
@@ -2149,19 +2237,23 @@ namespace DK
 		{
 			WICPixelFormatGUID convertToPixelFormat = GetConvertToWICFormat(pixelFormat);
 
-			if (convertToPixelFormat == GUID_WICPixelFormatDontCare) return false;
+			if (convertToPixelFormat == GUID_WICPixelFormatDontCare)
+				return false;
 
 			dxgiFormat = GetDXGIFormatFromWICFormat(convertToPixelFormat);
 
 			hr = wicFactory->CreateFormatConverter(wicConverter.GetAddressOf());
-			if (FAILED(hr)) return false;
+			if (FAILED(hr))
+				return false;
 
 			BOOL canConvert = FALSE;
 			hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
-			if (FAILED(hr) || !canConvert) return false;
+			if (FAILED(hr) || canConvert == FALSE)
+				return false;
 
 			hr = wicConverter->Initialize(wicFrame.Get(), convertToPixelFormat, WICBitmapDitherTypeErrorDiffusion, 0, 0, WICBitmapPaletteTypeCustom);
-			if (FAILED(hr)) return false;
+			if (FAILED(hr))
+				return false;
 
 			imageConverted = true;
 		}
@@ -2170,8 +2262,9 @@ namespace DK
 		uint32 bytesPerRow = (textureRaw._width * textureRaw._bitsPerPixel) / 8; // number of bytes in each row of the image data
 		uint32 imageSize = bytesPerRow * textureRaw._height; // total image size in bytes
 
-		textureRaw._data = static_cast<BYTE*>(std::malloc(imageSize));
-		if (textureRaw._data == nullptr) return false;
+		textureRaw._data = dk_new byte[imageSize];
+		if (textureRaw._data == nullptr)
+			return false;
 		textureRaw._format = dxgiFormat;
 
 		if (imageConverted)
@@ -2403,7 +2496,7 @@ namespace DK
 			return nullptr;
 		}
 
-		if ((createSRV && (flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE)) || (createUAV && !(flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)))
+		if ((createSRV && (flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE)) || (createUAV && (flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == 0))
 		{
 			DK_ASSERT_LOG(false, "Texture flags do not allow requested views");
 			return nullptr;
@@ -2546,7 +2639,7 @@ namespace DK
 
 		// TODO : Miplevel이 생기면 1말고 Resource에서 가져올 수 있도록하자
 		ITextureRef newTexture = createTexture(
-			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format, 
+			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
 			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			true, false);
 
@@ -2556,8 +2649,8 @@ namespace DK
 		newTexture->_inContainer = true;
 #endif
 
-		auto [iter, inserted] = _textureContainer.try_emplace(newTexture->getPath(), newTexture.get());
-		if (inserted == false)
+		const DKPair<DKHashMap<DKString, ITexture*>::iterator, bool> insertResult = _textureContainer.try_emplace(newTexture->getPath(), newTexture.get());
+		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
 			return nullptr;
@@ -2629,7 +2722,7 @@ namespace DK
 		if (texture->_textureUAVIndex != ITexture::kErrorTextureResourceViewIndex)
 			deallocateTextureUAV(texture->getUAV());
 
-		const auto entry = _textureContainer.find(texture->getPath());
+		const DKHashMap<DKString, ITexture*>::iterator entry = _textureContainer.find(texture->getPath());
 		DK_ASSERT_LOG(texture->_inContainer == false || (entry != _textureContainer.end() && entry->second == texture),
 			"Texture cache ownership mismatch: %s", texture->getPath().c_str());
 		if (entry != _textureContainer.end() && entry->second == texture)
@@ -2691,7 +2784,7 @@ namespace DK
                 for (uint32 i = 0; i < 5; ++i)
                 {
                     _gpuMilliseconds[i] = ticks[i * 2 + 1] >= ticks[i * 2] ? double(ticks[i * 2 + 1] - ticks[i * 2]) * 1000.0 / double(_gpuTimestampFrequency) : 0.0;
-                    _gpuPeakMilliseconds[i] = std::max(_gpuPeakMilliseconds[i], _gpuMilliseconds[i]);
+                    _gpuPeakMilliseconds[i] = Math::max(_gpuPeakMilliseconds[i], _gpuMilliseconds[i]);
                 }
 
 				D3D12_RANGE written = { 0, 0 };
@@ -2742,9 +2835,12 @@ namespace DK
 			IBuffer& target = pending._target->getTextureBuffer();
 			resourceBarrierTransition(target, D3D12_RESOURCE_STATE_COPY_DEST);
 			D3D12_TEXTURE_COPY_LOCATION source = {};
-			source.pResource = pending._source->_buffer.get(); source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT; source.PlacedFootprint = pending._footprint;
+			source.pResource = pending._source->_buffer.get();
+			source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+			source.PlacedFootprint = pending._footprint;
 			D3D12_TEXTURE_COPY_LOCATION destination = {};
-			destination.pResource = target._buffer.get(); destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			destination.pResource = target._buffer.get();
+			destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 			_commandList->CopyTextureRegion(&destination, pending._x, pending._y, 0, &source, nullptr);
 			resourceBarrierTransition(target, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		}
@@ -2898,7 +2994,7 @@ namespace DK
 		DKHashMap<DKString, ShaderParameter>::const_iterator debugHangParameter = pipeline._shaderParameterMap.find("GpuAssertBuffer");
 		if (debugHangParameter != pipeline._shaderParameterMap.end())
 		{
-			if (_gpuAssertBuffer == nullptr || !_gpuAssertBuffer->isValid())
+			if (_gpuAssertBuffer == nullptr || _gpuAssertBuffer->isValid() == false)
 				return false;
 
 			const uint32 rootIndex = debugHangParameter->second._rootParameterIndex;
@@ -2965,7 +3061,7 @@ namespace DK
 		}
 
 		// 덧셈 overflow 없이 올림 나눗셈
-		auto divideRoundUp = [](uint32 count, uint32 groupSize) -> uint32
+		uint32 (*const divideRoundUp)(uint32, uint32) = [](uint32 count, uint32 groupSize) -> uint32
 		{
 			return count / groupSize + (count % groupSize != 0);
 		};
@@ -3088,8 +3184,8 @@ namespace DK
         for (uint32 i = 0; i < count; ++i)
         {
             const RaytracingGeometry& geometry = geometries[i];
-            if (!geometry._vertices || !geometry._indices || !geometry._material ||
-                !geometry._vertices->isValid() || !geometry._indices->isValid() || !geometry._material->isValid())
+            if (geometry._vertices == nullptr || geometry._indices == nullptr || geometry._material == nullptr ||
+                geometry._vertices->isValid() == false || geometry._indices->isValid() == false || geometry._material->isValid() == false)
                 return false;
             D3D12_RAYTRACING_GEOMETRY_DESC& desc = descriptions[i];
             desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
@@ -3110,7 +3206,7 @@ namespace DK
             _device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
             IBufferRef blas = createAccelerationBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
             IBufferRef scratch = createAccelerationBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_STATE_COMMON);
-            if (!blas || !scratch)
+            if (blas == nullptr || scratch == nullptr)
                 return false;
             instances[i].InstanceID = i;
             instances[i].InstanceMask = 0xff;
@@ -3124,7 +3220,7 @@ namespace DK
             result._bottomLevelScratch.push_back(DK::move(scratch));
         }
         result._instances = createUploadBuffer(count * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), L"TLAS Instances");
-        if (!result._instances || !result._instances->isValid())
+        if (result._instances == nullptr || result._instances->isValid() == false)
             return false;
         void* mapped = nullptr;
         D3D12_RANGE readRange = { 0, 0 };
@@ -3142,7 +3238,7 @@ namespace DK
         _device->GetRaytracingAccelerationStructurePrebuildInfo(&tlasInputs, &info);
         result._result = createAccelerationBuffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
         result._scratch = createAccelerationBuffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_STATE_COMMON);
-        if (!result._result || !result._scratch)
+        if (result._result == nullptr || result._scratch == nullptr)
             return false;
 
         // Allocate everything before recording commands. Descriptors are replaced only after a GPU wait by the caller.

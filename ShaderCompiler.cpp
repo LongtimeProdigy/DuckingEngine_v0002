@@ -7,6 +7,75 @@
 
 namespace DK
 {
+	template<typename Reflection> static bool collectResources(Reflection* reflection, uint32 resourceCount, DKVector<ShaderResourceReflection>& outResources)
+	{
+		for (uint32 i = 0; i < resourceCount; ++i)
+		{
+			D3D12_SHADER_INPUT_BIND_DESC desc{};
+			if (FAILED(reflection->GetResourceBindingDesc(i, &desc)))
+			{
+				DK_ASSERT_LOG(false, "Shader Reflection 실패");
+				return false;
+			}
+
+			ShaderResourceReflection resource;
+			resource._name = desc.Name;
+			resource._type = desc.Type;
+			resource._dimension = desc.Dimension;
+			resource._register = desc.BindPoint;
+			resource._space = desc.Space;
+			resource._bindCount = desc.BindCount;
+
+			bool isDuplicate = false;
+			for (const ShaderResourceReflection& prevReflection : outResources)
+			{
+				if (prevReflection._name == resource._name)
+				{
+					isDuplicate = true;
+					break;
+				}
+			}
+			if (isDuplicate)
+				continue;
+
+			if (desc.Type == D3D_SIT_CBUFFER)
+			{
+				ID3D12ShaderReflectionConstantBuffer* cb = reflection->GetConstantBufferByName(desc.Name);
+				D3D12_SHADER_BUFFER_DESC cbDesc{};
+				if (cb == nullptr || FAILED(cb->GetDesc(&cbDesc)))
+				{
+					DK_ASSERT_LOG(false, "Shader Reflection 실패");
+					return false;
+				}
+
+				resource._constantBufferSize = cbDesc.Size;
+
+				for (uint32 j = 0; j < cbDesc.Variables; ++j)
+				{
+					ID3D12ShaderReflectionVariable* variable = cb->GetVariableByIndex(j);
+
+					D3D12_SHADER_VARIABLE_DESC variableDesc{};
+					if (variable == nullptr || FAILED(variable->GetDesc(&variableDesc)))
+					{
+						DK_ASSERT_LOG(false, "Shader Reflection 실패");
+						return false;
+					}
+
+					ShaderVariableReflection value;
+					value._name = variableDesc.Name;
+					value._offset = variableDesc.StartOffset;
+					value._size = variableDesc.Size;
+
+					resource._variables.push_back(DK::move(value));
+				}
+			}
+
+			outResources.push_back(DK::move(resource));
+		}
+
+		return true;
+	}
+
 	ShaderCompiler::ShaderCompiler(const D3D_SHADER_MODEL shaderModel)
 		: _shaderModel(shaderModel)
 	{
@@ -70,7 +139,7 @@ namespace DK
 		hr = sourceBlob->GetEncoding(&encodingKnown, &sourceCodePage);
 		if (FAILED(hr))
 			return false;
-		if (!encodingKnown || sourceCodePage == DXC_CP_ACP)
+		if (encodingKnown == FALSE || sourceCodePage == DXC_CP_ACP)
 		{
 			IDxcBlobEncoding* utf8Blob = nullptr;
 			hr = _utils->CreateBlob(sourceBlob->GetBufferPointer(), static_cast<UINT32>(sourceBlob->GetBufferSize()), DXC_CP_UTF8, &utf8Blob);
@@ -268,75 +337,6 @@ namespace DK
 		reflectionBuffer.Size = reflectionData->GetBufferSize();
 		reflectionBuffer.Encoding = 0;
 
-		// ID3D12ShaderReflection과 ID3D12FunctionReflection 공통 처리
-		auto collectResources = [&](auto* reflection, uint32 resourceCount) -> bool
-		{
-			for (uint32 i = 0; i < resourceCount; ++i)
-			{
-				D3D12_SHADER_INPUT_BIND_DESC desc{};
-				if (FAILED(reflection->GetResourceBindingDesc(i, &desc)))
-				{
-					DK_ASSERT_LOG(false, "Shader Reflection 실패");
-					return false;
-				}
-
-				ShaderResourceReflection resource;
-				resource._name = desc.Name;
-				resource._type = desc.Type;
-				resource._dimension = desc.Dimension;
-				resource._register = desc.BindPoint;
-				resource._space = desc.Space;
-				resource._bindCount = desc.BindCount;
-
-				bool isDuplicate = false;
-				for (const ShaderResourceReflection& prevReflection : outResources)
-				{
-					if (prevReflection._name == resource._name)
-					{
-						isDuplicate = true;
-						break;
-					}
-				}
-				if (isDuplicate)
-					continue;
-
-				if (desc.Type == D3D_SIT_CBUFFER)
-				{
-					ID3D12ShaderReflectionConstantBuffer* cb = reflection->GetConstantBufferByName(desc.Name);
-					D3D12_SHADER_BUFFER_DESC cbDesc{};
-					if (cb == nullptr || FAILED(cb->GetDesc(&cbDesc)))
-					{
-						DK_ASSERT_LOG(false, "Shader Reflection 실패");
-						return false;
-					}
-
-					resource._constantBufferSize = cbDesc.Size;
-
-					for (uint32 j = 0; j < cbDesc.Variables; ++j)
-					{
-						ID3D12ShaderReflectionVariable* variable = cb->GetVariableByIndex(j);
-
-						D3D12_SHADER_VARIABLE_DESC variableDesc{};
-						if (variable == nullptr || FAILED(variable->GetDesc(&variableDesc)))
-						{
-							DK_ASSERT_LOG(false, "Shader Reflection 실패");
-							return false;
-						}
-
-						ShaderVariableReflection value;
-						value._name = variableDesc.Name;
-						value._offset = variableDesc.StartOffset;
-						value._size = variableDesc.Size;
-
-						resource._variables.push_back(DK::move(value));
-					}
-				}
-
-				outResources.push_back(DK::move(resource));
-			}
-
-			return true;
-		};
 
 		RenderResourcePtr<IDxcUtils>& utils = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils);
 
@@ -362,7 +362,7 @@ namespace DK
 					return false;
 				}
 
-				if (collectResources(function, functionDesc.BoundResources) == false)
+				if (collectResources(function, functionDesc.BoundResources, outResources) == false)
 					return false;
 			}
 		}
@@ -406,7 +406,7 @@ namespace DK
 				}
 			}
 
-			if (collectResources(reflection.get(), shaderDesc.BoundResources) == false)
+			if (collectResources(reflection.get(), shaderDesc.BoundResources, outResources) == false)
 				return false;
 		}
 

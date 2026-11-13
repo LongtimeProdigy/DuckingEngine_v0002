@@ -10,75 +10,10 @@
 #include "Skeleton.h"
 #include "Animation.h"
 #include "ModelProperty.h"
+#include "FileUtil.h"
 
 namespace DK
 {
-	static const char* errorString[] =
-	{
-		"None",
-		"Operation not permitted",
-		"No such file or directory",
-		"No such process",
-		"Interrupted function",
-		"I/O error",
-		"No such device or address",
-		"Argument list too long",
-		"Exec format error",
-		"Bad file number",
-		"No spawned processes",
-		"No more processes or not enough memoty or maximum nesting level reached",
-		"Not enough memory",
-		"Permission denied",
-		"Bad address",
-		"Device or resource busy",
-		"File exists",
-		"Cross-device link",
-		"No such device",
-		"Not a directory",
-		"Is a directory",
-		"Invalid argument",
-		"Too many files open in system",
-		"Too many open files",
-		"Inappropriate I/O control operation",
-		"File too large",
-		"No space left on device",
-		"Invalid seek",
-		"Read-only file system",
-		"Too many links",
-		"Broken pipe",
-		"Math argument",
-		"Result too large",
-		"Resource deadlock would occur",
-		"Same as EDEADLK for compatibility with older Microsoft C versions",
-		"Filename too long",
-		"No locks available",
-		"Function not supported",
-		"Directory not empty",
-		"Directory not empty",
-		"Illegal byte sequence",
-		"String was truncated"
-	};
-
-	struct ScopeFileHandle
-	{
-		ScopeFileHandle(const DKString& path)
-		{
-			errno_t err = fopen_s(&_fp, path.c_str(), "rb");
-			if (err != 0)
-			{
-				DK_ASSERT_LOG(false, "파일을 Open하지 못했습니다.\n%s\npath: %s", errorString[err], path.c_str());
-				_fp = nullptr;
-			}
-		}
-		~ScopeFileHandle()
-		{
-			if(_fp != nullptr)
-				fclose(_fp);
-		}
-
-		FILE* _fp = nullptr;
-	};
-
 	static bool checkResourcePathEmpty(const DKString& resourcePath)
 	{
 		if (resourcePath.empty() == false)
@@ -200,7 +135,7 @@ namespace DK
 
 		const TiXmlElement* subMeshArrNode = modelPropertyNode->FirstChildElement("SubMeshArr");
 		const uint32 subMeshCount = atoi(subMeshArrNode->Attribute("Count"));
-		DKVector<MaterialDefinition> materialDefinitionArr; 
+		DKVector<MaterialDefinition> materialDefinitionArr;
 		materialDefinitionArr.reserve(subMeshCount);
 		for (const TiXmlElement* subMeshNode = subMeshArrNode->ToElement()->FirstChildElement(); subMeshNode != nullptr; subMeshNode = subMeshNode->NextSiblingElement())
 		{
@@ -235,28 +170,22 @@ namespace DK
 		if (checkResourcePathEmpty(modelPath) == true)
 			return nullptr;
 
-		auto findResult = _staticMeshModelContainer.find(modelPath);
+		const DKHashMap<DKString, StaticMeshModelRef>::iterator findResult = _staticMeshModelContainer.find(modelPath);
 		if (findResult != _staticMeshModelContainer.end())
 			return findResult->second;
 
 		ScopeString<DK_MAX_PATH> modelFullPath = GlobalPath::makeResourceFullPath(modelPath);
 
-		ScopeFileHandle fileHandle(modelFullPath.c_str());
-		if (fileHandle._fp == nullptr)
+		FileReader reader(modelFullPath.c_str());
+		if (reader.isOpen() == false)
 			return nullptr;
 
-		fseek(fileHandle._fp, 0, SEEK_END);
-		uint32 blockSize = ftell(fileHandle._fp);
-		fseek(fileHandle._fp, 0, SEEK_SET);
-
-		DKVector<char> buffer(blockSize);
-		fread(buffer.data(), sizeof(char), blockSize, fileHandle._fp);
-
-		uint32 bufferOffset = 0;
+		uint64 bytesRead = 0;
 		// SubMeshCount
 		uint32 subMeshCount = 0;
-		DK::memcpy(&subMeshCount, &buffer[bufferOffset], 4);
-		bufferOffset += 4;
+		if (reader.read(&subMeshCount, sizeof(subMeshCount)) == false)
+			return nullptr;
+		bytesRead += 4;
 		if (subMeshCount == 0)
 		{
 			DK_ASSERT_LOG(false, "SubMesh 개수는 0개일 수 없습니다!");
@@ -278,21 +207,25 @@ namespace DK
 		for (uint32 i = 0; i < subMeshCount; ++i)
 		{
 			uint32 indexCount = 0;
-			DK::memcpy(&indexCount, &buffer[bufferOffset], 4);
-			bufferOffset += 4;
+			if (reader.read(&indexCount, sizeof(indexCount)) == false)
+				return nullptr;
+			bytesRead += 4;
 			// indexBuffer
 			DKVector<uint32> indexBufferData;
 			indexBufferData.resize(indexCount);
-			DK::memcpy(indexBufferData.data(), &buffer[bufferOffset], indexCount * 4);
-			bufferOffset += indexCount * 4;
+			if (reader.read(indexBufferData.data(), indexBufferData.size() * sizeof(uint32)) == false)
+				return nullptr;
+			bytesRead += indexBufferData.size() * sizeof(uint32);
 
 			uint32 vertexCount = 0;
-			DK::memcpy(&vertexCount, &buffer[bufferOffset], 4);
-			bufferOffset += 4;
+			if (reader.read(&vertexCount, sizeof(vertexCount)) == false)
+				return nullptr;
+			bytesRead += 4;
 			DKVector<StaticMeshModel::SubMeshType::VertexType> vertexBufferData;
 			vertexBufferData.resize(vertexCount);
-			DK::memcpy(vertexBufferData.data(), &buffer[bufferOffset], vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType));
-			bufferOffset += vertexCount * sizeof(StaticMeshModel::SubMeshType::VertexType);
+			if (reader.read(vertexBufferData.data(), vertexBufferData.size() * sizeof(StaticMeshModel::SubMeshType::VertexType)) == false)
+				return nullptr;
+			bytesRead += vertexBufferData.size() * sizeof(StaticMeshModel::SubMeshType::VertexType);
 
 			VertexBufferViewRef vertexBufferView;
 			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"StaticMesh_VertexBuffer");
@@ -309,23 +242,27 @@ namespace DK
 				return nullptr;
 
 			StaticMeshModel::SubMeshType subMesh(
-				DK::move(vertexBufferData), DK::move(indexBufferData), 
+				DK::move(vertexBufferData), DK::move(indexBufferData),
 				DK::move(vertexBuffer), DK::move(indexBuffer),
-				DK::move(vertexBufferView), DK::move(indexBufferView), 
+				DK::move(vertexBufferView), DK::move(indexBufferView),
 				newMaterial
 			);
 			subMeshArr.push_back(DK::move(subMesh));
 		}
 
-		DK_ASSERT_LOG(feof(fileHandle._fp) == 0, "파일이 끝에 도달하지 못했습니다. %d/%d", ftell(fileHandle._fp), blockSize);
+		if (bytesRead != reader.size())
+		{
+			DK_ASSERT_LOG(false, "Mesh file size does not match its contents");
+			return nullptr;
+		}
 
-		auto insertResult = _staticMeshModelContainer.insert(DKPair<DKString, StaticMeshModelRef>(modelPath, dk_new StaticMeshModel(DK::move(subMeshArr))));
+		const DKPair<DKHashMap<DKString, StaticMeshModelRef>::iterator, bool> insertResult = _staticMeshModelContainer.insert(DKPair<DKString, StaticMeshModelRef>(modelPath, dk_new StaticMeshModel(DK::move(subMeshArr))));
 		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "Container Insert Failed!");
 			return nullptr;
 		}
-		
+
 		return insertResult.first->second;
 	}
 
@@ -334,29 +271,23 @@ namespace DK
 		if (checkResourcePathEmpty(modelPath) == true)
 			return nullptr;
 
-		auto findResult = _skinnedMeshModelContainer.find(modelPath);
+		const DKHashMap<DKString, SkinnedMeshModelRef>::iterator findResult = _skinnedMeshModelContainer.find(modelPath);
 		if (findResult != _skinnedMeshModelContainer.end())
 			return findResult->second;
 
 		ScopeString<DK_MAX_PATH> modelFullPath = GlobalPath::makeResourceFullPath(modelPath);
 
-		ScopeFileHandle handle(modelFullPath.c_str());
-		if (handle._fp == nullptr)
+		FileReader reader(modelFullPath.c_str());
+		if (reader.isOpen() == false)
 			return nullptr;
 
-		fseek(handle._fp, 0, SEEK_END);
-		uint32 blockSize = ftell(handle._fp);
-		fseek(handle._fp, 0, SEEK_SET);
-
-		DKVector<char> buffer(blockSize);
-		fread(buffer.data(), sizeof(char), blockSize, handle._fp);
-
-		uint32 bufferOffset = 0;
+		uint64 bytesRead = 0;
 		// SubMeshCount
 		uint32 subMeshCount = 0;
-		DK::memcpy(&subMeshCount, &buffer[bufferOffset], 4);
+		if (reader.read(&subMeshCount, sizeof(subMeshCount)) == false)
+			return nullptr;
 		DK_ASSERT_LOG(subMeshCount != 0, "SubMesh 개수는 0개일 수 없습니다!");
-		bufferOffset += 4;
+		bytesRead += 4;
 
 		const DKVector<MaterialDefinition>& materialDefinitionArr = modelProperty->get_materialDefinitionArr();
 		const uint32 materialDefinitionCount = static_cast<const uint32>(materialDefinitionArr.size());
@@ -373,20 +304,24 @@ namespace DK
 		for (uint32 i = 0; i < subMeshCount; ++i)
 		{
 			uint32 indexCount = 0;
-			DK::memcpy(&indexCount, &buffer[bufferOffset], sizeof(uint32));
-			bufferOffset += 4;
+			if (reader.read(&indexCount, sizeof(indexCount)) == false)
+				return nullptr;
+			bytesRead += 4;
 			DKVector<uint32> indexBufferData;
 			indexBufferData.resize(indexCount);
-			DK::memcpy(indexBufferData.data(), &buffer[bufferOffset], indexCount * sizeof(uint32));
-			bufferOffset += indexCount * sizeof(uint32);
+			if (reader.read(indexBufferData.data(), indexBufferData.size() * sizeof(uint32)) == false)
+				return nullptr;
+			bytesRead += indexBufferData.size() * sizeof(uint32);
 
 			uint32 vertexCount = 0;
-			DK::memcpy(&vertexCount, &buffer[bufferOffset], sizeof(uint32));
-			bufferOffset += 4;
+			if (reader.read(&vertexCount, sizeof(vertexCount)) == false)
+				return nullptr;
+			bytesRead += 4;
 			DKVector<SkinnedMeshModel::SubMeshType::VertexType> vertexBufferData;
 			vertexBufferData.resize(vertexCount);
-			DK::memcpy(vertexBufferData.data(), &buffer[bufferOffset], vertexCount * sizeof(SkinnedMeshModel::SubMeshType::VertexType));
-			bufferOffset += vertexCount * sizeof(SkinnedMeshModel::SubMeshType::VertexType);
+			if (reader.read(vertexBufferData.data(), vertexBufferData.size() * sizeof(SkinnedMeshModel::SubMeshType::VertexType)) == false)
+				return nullptr;
+			bytesRead += vertexBufferData.size() * sizeof(SkinnedMeshModel::SubMeshType::VertexType);
 
 #ifdef _DK_DEBUG_
 			for (SkinnedMeshVertex vertex : vertexBufferData)
@@ -427,9 +362,13 @@ namespace DK
 			subMeshArr.push_back(DK::move(subMesh));
 		}
 
-		DK_ASSERT_LOG(feof(handle._fp) == 0, "파일이 끝에 도달하지 못했습니다. %d/%d", ftell(handle._fp), blockSize);
+		if (bytesRead != reader.size())
+		{
+			DK_ASSERT_LOG(false, "Mesh file size does not match its contents");
+			return nullptr;
+		}
 
-		auto insertResult = _skinnedMeshModelContainer.insert(DKPair<DKString, SkinnedMeshModelRef>(modelPath, dk_new SkinnedMeshModel(DK::move(subMeshArr))));
+		const DKPair<DKHashMap<DKString, SkinnedMeshModelRef>::iterator, bool> insertResult = _skinnedMeshModelContainer.insert(DKPair<DKString, SkinnedMeshModelRef>(modelPath, dk_new SkinnedMeshModel(DK::move(subMeshArr))));
 		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "Container Insert Failed!");

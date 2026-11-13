@@ -35,7 +35,11 @@ namespace DK
 			_yaw = Math::atan2(forward.x, forward.z);
 			_pitch = -Math::asin(Math::clamp(forward.y, -1.0f, 1.0f));
 			set_worldTransform(Transform(position, Quaternion(0.0f, _pitch, _yaw), float3::Identity));
+			setWorldPosition(position.x, position.y, position.z);
 		}
+
+		void setWorldPosition(double x, double y, double z);
+		const DKArray<double, 3>& getWorldPosition();
 
 		void setMoveSpeed(float speed)
 		{
@@ -104,6 +108,8 @@ namespace DK
 		dk_inline float getNearPlaneDistance() const { return _nearPlaneDistance; }
 
 	private:
+		DKArray<double, 3> _worldPosition = {};
+		float3 _lastPosition = float3::Zero;
 		float _halfFov = 45.0f * Math::kToRadian;
 		int _width = 1920;
 		int _height = 1080;

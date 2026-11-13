@@ -27,7 +27,7 @@ namespace DK
 
 	bool SceneRenderer::initialize()
 	{
-		if (initialize_createRenderPass() == false) 
+		if (initialize_createRenderPass() == false)
 			return false;
 		if (initialize_renderPassHandles() == false || initialize_createMaterialDefinition() == false)
 			return false;
@@ -69,7 +69,7 @@ namespace DK
 			return false;
 
 		using Size = RenderTargetDefinition::Size;
-		const auto hasGeometryOutputs = [](const RenderTarget* target)
+		bool (*const hasGeometryOutputs)(const RenderTarget*) = [](const RenderTarget* target)
 		{
 			if (target == nullptr)
 				return false;
@@ -80,7 +80,7 @@ namespace DK
 				definition._colors[1]._name == "Normal" && definition._colors[1]._srv &&
 				definition._colors[2]._name == "Material" && definition._colors[2]._srv;
 		};
-		const auto isCapture = [&](const RenderPassInstance& pass)
+		const DKFunction<bool(const RenderPassInstance&)> isCapture = [&](const RenderPassInstance& pass)
 		{
 			const RenderTarget* target = pass._binding._target;
 			return hasGeometryOutputs(target) && target->_definition._size == Size::Fixed
@@ -179,7 +179,12 @@ namespace DK
 		if (format == nullptr)
 			return false;
 
-		struct FormatEntry { const char* name; DXGI_FORMAT format; bool depth; };
+		struct FormatEntry
+		{
+			const char* _name;
+			DXGI_FORMAT _format;
+			bool _depth;
+		};
 		const FormatEntry formats[] = {
 			{ "R8G8B8A8_UNORM", DXGI_FORMAT_R8G8B8A8_UNORM, false },
 			{ "R16G16B16A16_FLOAT", DXGI_FORMAT_R16G16B16A16_FLOAT, false },
@@ -192,9 +197,9 @@ namespace DK
 		};
 		for (const FormatEntry& entry : formats)
 		{
-			if (entry.depth == depth && StringUtil::strcmp(entry.name, format) == 0)
+			if (entry._depth == depth && StringUtil::strcmp(entry._name, format) == 0)
 			{
-				attachment._format = entry.format;
+				attachment._format = entry._format;
 				break;
 			}
 		}
@@ -488,7 +493,7 @@ namespace DK
 						}
 					}
 
-					if (!appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo))
+					if (appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo) == false)
 						return false;
 				}
 				else if (renderPassChildNodeName == "RaytracingPipeline")
@@ -550,7 +555,7 @@ namespace DK
 						}
 					}
 
-					if (!appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo))
+					if (appendPipelinePermutations(*renderPassChildNode, pipelineName, pipelineCreateInfo, renderPassCreateInfo) == false)
 						return false;
 				}
 				else
@@ -745,6 +750,9 @@ namespace DK
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
 		const float3 cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
+		const DKArray<double, 3>& preciseCamera = Camera::gMainCamera->getWorldPosition();
+		DuckingEngine::getInstance().getSceneManagerWritable().prepareTerrainStreaming(preciseCamera[0], preciseCamera[2], deltaTime);
+
 		const AtmosphereConstantBuffer& atmosphere = _atmosphereConstantBufferData;
 		const float3 planetCenter(atmosphere._planetCentre[0], atmosphere._planetCentre[1], atmosphere._planetCentre[2]);
 		const double dx = static_cast<double>(cameraPosition.x) - planetCenter.x;
@@ -756,7 +764,13 @@ namespace DK
         const double gx = double(cameraPosition.x) - _localGeometryCentre.x;
         const double gy = double(cameraPosition.y) - _localGeometryCentre.y;
         const double gz = double(cameraPosition.z) - _localGeometryCentre.z;
-        _renderLocalScene = _localGeometryEnabled && gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius;
+        const SceneManager::ClipMapTerrain::StreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
+        const double terrainX = preciseCamera[0] - std::clamp(preciseCamera[0], 0.0, double(terrainBounds._terrainCellsX) * terrainBounds._terrainSampleSpacing);
+        const double terrainZ = preciseCamera[2] - std::clamp(preciseCamera[2], 0.0, double(terrainBounds._terrainCellsZ) * terrainBounds._terrainSampleSpacing);
+        const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainHeightOffset), double(terrainBounds._terrainHeightOffset + terrainBounds._terrainHeightScale));
+        const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
+        const bool nearTerrain = terrainBounds._terrainStreamEnabled && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
+        _renderLocalScene = _localGeometryEnabled && (nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius);
 
 		// Upload Scene ConstantBuffer
 		{
@@ -829,30 +843,52 @@ namespace DK
 			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 
 			const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
-			const float2 cameraPos = float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
+			const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
+            const float2 cameraPos = streaming._terrainStreamEnabled ? float2(streaming._terrainCameraX, streaming._terrainCameraZ) : float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
 
-			uint32 terrainConstantBufferTypeIndex = 0;
-			constexpr const float vertexScale = 0.125f;
-			constexpr const uint32 morphCells = 4;				// 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
-			// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
-			static_assert(SceneManager::ClipMapTerrain::TILE_RESOLUTION >= 4);
+			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
+			constexpr const uint32 morphCells = 4; // 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
 			static_assert(morphCells > 0);
-			static_assert(morphCells <= SceneManager::ClipMapTerrain::TILE_RESOLUTION - 2);
+			static_assert(morphCells <= SceneManager::ClipMapTerrain::TILE_RESOLUTION - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
 
-			const auto snapToGrid = [](const float2 position, const float spacing)
+            const double anchorWorldX = double(streaming._terrainAnchorX) * streaming._terrainSampleSpacing;
+            const double anchorWorldZ = double(streaming._terrainAnchorZ) * streaming._terrainSampleSpacing;
+
+			// 입력 위치를 월드 원점 기준의 격자에 맞춘 뒤, Anchor 상대 좌표로 돌려주는 함수
+			const DKFunction<float2(float)> snapTerrainGrid = [&](float spacing)->float2
 				{
-					return DK::Math::floor(position / spacing) * spacing;
+					const double x = std::floor((anchorWorldX + double(cameraPos.x)) / spacing) * spacing - anchorWorldX;
+					const double z = std::floor((anchorWorldZ + double(cameraPos.y)) / spacing) * spacing - anchorWorldZ;
+					return float2(static_cast<float>(x), static_cast<float>(z));
 				};
 
+#if defined(_DK_DEBUG_)
+			const SceneManager::Mesh* meshes[] = { &terrain._cross, &terrain._tile, &terrain._filter, &terrain._seam, &terrain._trim };
+#endif
 			uint32 bufferIndex = 0;
-			const auto uploadPatch = [&](const uint32 level, const uint32 type, const float2 patchOrigin, const uint32 rotation)
+			const DKFunction<void(uint32, uint32, float2, uint32)> uploadPatch = [&](const uint32 level, const uint32 type, const float2 patchOrigin, const uint32 rotation)
 				{
 					const float spacing = static_cast<float>(1u << level) * vertexScale;
+#if defined(_DK_DEBUG_)
+					const SceneManager::Mesh& mesh = *meshes[type];
+					for (uint32 corner = 0; corner < 4; ++corner)
+					{
+						float2 position((corner & 1u) ? mesh._maximum.x : mesh._minimum.x, (corner & 2u) ? mesh._maximum.y : mesh._minimum.y);
+						if (rotation == 1u)
+							position = float2(position.y, -position.x);
+						else if (rotation == 2u)
+							position = float2(-position.y, position.x);
+						else if (rotation == 3u)
+							position = float2(-position.x, -position.y);
+						const double worldX = anchorWorldX + double(patchOrigin.x) + double(position.x) * spacing;
+						const double worldZ = anchorWorldZ + double(patchOrigin.y) + double(position.y) * spacing;
+						//DK_ASSERT_LOG(worldX >= 0.0 && worldZ >= 0.0 && worldX <= double(streaming._terrainCellsX) * streaming._terrainSampleSpacing && worldZ <= double(streaming._terrainCellsZ) * streaming._terrainSampleSpacing, "Terrain mesh outside bounds: level=%u, type=%u, worldXZ=(%.3f, %.3f)", level, type, worldX, worldZ);
+					}
+#endif
 					const float parentSpacing = spacing * 2.0f;
-					const float2 parentOrigin = snapToGrid(cameraPos, parentSpacing);
+					const float2 parentOrigin = snapTerrainGrid(parentSpacing);
 
-					// 현재 Clipmap 배치에서 실제 외곽 경계는
-					// 카메라로부터 각 축 방향으로 최소 2*T*spacing만큼 떨어져 있다.
+					// 현재 Clipmap 배치에서 실제 외곽 경계는 카메라로부터 각 축 방향으로 최소 2*T*spacing만큼 떨어져 있다.
 					const float morphEnd = 2.0f * static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION) * spacing;
 					const float morphStart = morphEnd - static_cast<float>(morphCells) * spacing;
 
@@ -869,13 +905,13 @@ namespace DK
 				};
 
 			// Draw Cross
-			uploadPatch(0u, 0u, snapToGrid(cameraPos, vertexScale), 0u);
+			uploadPatch(0u, 0u, snapTerrainGrid(vertexScale), 0u);
 
 			for (uint32 level = 0; level < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++level)
 			{
 				const float spacing = static_cast<float>(1u << level) * vertexScale;
 				const float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION) * spacing;
-				const float2 snappedCameraPos = snapToGrid(cameraPos, spacing);
+				const float2 snappedCameraPos = snapTerrainGrid(spacing);
 				const float2 base = snappedCameraPos - gridScale * 2.0f;
 
 				// Tile
@@ -895,7 +931,7 @@ namespace DK
 				// Filler: 현재 코드에서는 Filter라는 이름을 사용한다.
 				uploadPatch(level, 2u, snappedCameraPos, 0u);
 
-				const float2 parentOrigin = snapToGrid(cameraPos, spacing * 2.0f);
+				const float2 parentOrigin = snapTerrainGrid(spacing * 2.0f);
 
 				// Seam: 부모가 있는 레벨만 생성한다.
 				if (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
@@ -1015,7 +1051,7 @@ namespace DK
 		static bool showSettings = false;
 		static bool resetSettingsLayout = false;
 		if (ImGui::IsKeyPressed(ImGuiKey_F1, false))
-			showUI = !showUI;
+			showUI = showUI == false;
 
 		const ImGuiViewport* viewport = ImGui::GetMainViewport();
 		// Transparent central node keeps the rendered scene visible and interactive.
@@ -1033,7 +1069,7 @@ namespace DK
 			if (ImGui::Begin("Renderer status", nullptr, flags))
 			{
 				if (ImGui::Button(showSettings ? "Close inspector" : "Inspector"))
-					showSettings = !showSettings;
+					showSettings = showSettings == false;
 
 				ImGui::SameLine();
 				const float fps = ImGui::GetIO().Framerate;
@@ -1045,8 +1081,13 @@ namespace DK
 					ImGui::OpenPopup("View options");
 				if (ImGui::BeginPopup("View options"))
 				{
-					if (ImGui::MenuItem("Bring inspector back")) { showSettings = true; resetSettingsLayout = true; }
-					if (ImGui::MenuItem("Hide interface", "F1")) showUI = false;
+					if (ImGui::MenuItem("Bring inspector back"))
+					{
+						showSettings = true;
+						resetSettingsLayout = true;
+					}
+					if (ImGui::MenuItem("Hide interface", "F1"))
+						showUI = false;
 					ImGui::EndPopup();
 				}
 
@@ -1306,7 +1347,8 @@ namespace DK
                         const char* scopeNames[] = { "Transmittance LUT", "Sky lighting", "Surface lighting", "Atmosphere", "Surface capture / bounce" };
                         for (uint32 scope = 0; scope < 5; ++scope)
                             ImGui::Text("%s: %.3f ms (peak %.3f)", scopeNames[scope], timing.gpuMilliseconds(scope), timing.gpuPeakMilliseconds(scope));
-                        if (ImGui::Button("Reset GPU peaks")) timing.resetGpuTimingPeaks();
+                        if (ImGui::Button("Reset GPU peaks"))
+                            timing.resetGpuTimingPeaks();
                         ImGui::TextDisabled("GPU timestamps; -1 = unavailable. Cached passes approach 0 ms.");
                         ImGui::TextDisabled("F1: show / hide all UI");
 						ImGui::EndTabItem();
@@ -1349,7 +1391,7 @@ namespace DK
 		DK_ASSERT_LOG(valid, "Invalid surface capture: map size must match the texture and be an even multiple of the bounce grid.");
 
 		// Assert가 비활성화된 빌드에서도 잘못된 설정을 사용하지 않습니다.
-		if (!valid)
+		if (valid == false)
 		{
 			atmosphereData._surfaceMapEnabled = 0u;
 			_surfaceTransportValid = false;
@@ -1373,7 +1415,10 @@ namespace DK
         const float3 right(r3.x, r3.y, r3.z), up(u3.x, u3.y, u3.z);
 		const float3 basis[3] = { right, up, directionalLightDir };
 
-        auto doublePrecisionDot = [](const float3& a, const float3& b) { return double(a.x) * b.x + double(a.y) * b.y + double(a.z) * b.z; };
+        double (*const doublePrecisionDot)(const float3&, const float3&) = [](const float3& a, const float3& b)
+        {
+            return double(a.x) * b.x + double(a.y) * b.y + double(a.z) * b.z;
+        };
         for (uint32 cascadeIndex = 0; cascadeIndex < atmosphereData._shadowCascadeCount; ++cascadeIndex)
         {
             // Nested light-space coverage also serves off-screen atmospheric samples.
@@ -1519,6 +1564,7 @@ namespace DK
 				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 				Material* material = terrain._material.get();
 				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable());
+				setConstantBuffer("TerrainStreamingConstants", terrain._streamingBuffer);
 
 				uint32 terrainConstantBufferTypeIndex = 0;
 				// Draw Cross
@@ -1709,21 +1755,23 @@ namespace DK
             return;
 
         const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
-        // The current heightmap is 2048 samples at 1 meter per sample.
-        constexpr float mapHalfExtent = 1024.0f;
+        const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
+        const float mapMinX = 0.0f;
+        const float mapMinZ = 0.0f;
+        const float mapMaxX = static_cast<float>(streaming._terrainCellsX) * streaming._terrainSampleSpacing;
+        const float mapMaxZ = static_cast<float>(streaming._terrainCellsZ) * streaming._terrainSampleSpacing;
         constexpr float tileMeters = GRASS_TILE_METERS;
         constexpr float maxDistance = GRASS_LOD4_END;
-        // Heights that admit grass lie between sea level and the height encoding's top.
-        constexpr float maxGrassY = 113.2f;
-        const auto tileAt = [&](float position) { return static_cast<int>(std::floor(position / tileMeters)); };
-        const float minX = std::max(-mapHalfExtent, camera.x - maxDistance);
-        const float minZ = std::max(-mapHalfExtent, camera.z - maxDistance);
-        const float maxX = std::min(mapHalfExtent, camera.x + maxDistance);
-        const float maxZ = std::min(mapHalfExtent, camera.z + maxDistance);
+        const float maxGrassY = streaming._terrainStreamEnabled ? streaming._terrainHeightOffset + streaming._terrainHeightScale + 1.2f : 113.2f;
+        int (*const tileAt)(float) = [](float position) { return static_cast<int>(Math::floor(position / GRASS_TILE_METERS)); };
+        const float minX = Math::max(mapMinX, camera.x - maxDistance);
+        const float minZ = Math::max(mapMinZ, camera.z - maxDistance);
+        const float maxX = Math::min(mapMaxX, camera.x + maxDistance);
+        const float maxZ = Math::min(mapMaxZ, camera.z + maxDistance);
         if (minX >= maxX || minZ >= maxZ)
             return;
 
-        const auto toDirectXMatrix = [](const float4x4& matrix)
+        DirectX::XMMATRIX (*const toDirectXMatrix)(const float4x4&) = [](const float4x4& matrix)
         {
             return DirectX::XMMATRIX(
                 matrix._11, matrix._12, matrix._13, matrix._14,
@@ -1753,6 +1801,7 @@ namespace DK
         startPipeline("GrassPatchPipeline");
         setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
         setConstantBuffer("TerrainClipMap", terrain._material->get_parameterBufferForGPU());
+        setConstantBuffer("TerrainStreamingConstants", terrain._streamingBuffer);
         renderModule.setIndexBuffer(terrain._grassIndexBufferView.get());
         for (int tileZ = firstTileZ; tileZ <= lastTileZ; ++tileZ)
         {
@@ -1770,7 +1819,7 @@ namespace DK
                 const DirectX::BoundingBox bounds(
                     DirectX::XMFLOAT3(x + 0.5f * tileMeters, 0.5f * maxGrassY, z + 0.5f * tileMeters),
                     DirectX::XMFLOAT3(0.5f * tileMeters + bladeOverhang, 0.5f * maxGrassY, 0.5f * tileMeters + bladeOverhang));
-                if (!worldFrustum.Intersects(bounds))
+                if (worldFrustum.Intersects(bounds) == false)
                     continue;
 
                 uint32 lod = 0;
@@ -1875,7 +1924,7 @@ namespace DK
         const AtmosphereConstantBuffer& p = _atmosphereConstantBufferData;
         const AtmosphereConstantBuffer& old = _cachedSkyParameters;
         const float3 position = Camera::gMainCamera->get_worldTransform().get_translation();
-        bool dirty = !_skyLightingValid || p._multipleScatteringStrength != old._multipleScatteringStrength
+        bool dirty = _skyLightingValid == false || p._multipleScatteringStrength != old._multipleScatteringStrength
             || p._multipleScatteringMaxOrder != old._multipleScatteringMaxOrder || p._surfaceMapEnabled != old._surfaceMapEnabled
             || p._surfaceShadowStrength != old._surfaceShadowStrength || p._surfaceBounceStrength != old._surfaceBounceStrength
             || p._sunDegree != old._sunDegree

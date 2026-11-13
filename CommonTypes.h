@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #define dk_inline inline
 
@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -19,9 +20,12 @@ typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
+typedef int32_t int32;
+typedef int64_t int64;
 
 namespace DK
 {
+    template<typename Signature> using DKFunction = std::function<Signature>;
     using DKString = std::string;
     using DKStringW = std::wstring;
     template<typename T, typename Allocator = std::allocator<T>> using DKVector = std::vector<T, Allocator>;
