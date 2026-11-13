@@ -2566,6 +2566,61 @@ namespace DK
 		return newTexture;
 	}
 
+	bool RenderModule::queueTextureRegion(const ITextureRef& texture, uint32 x, uint32 y, uint32 width, uint32 height, const void* data, uint32 rowPitch)
+	{
+		EnsureMainThread();
+		if (texture == nullptr || data == nullptr || width == 0 || height == 0)
+		{
+			DK_ASSERT_LOG(false, "");
+			return false;
+		}
+
+		const D3D12_RESOURCE_DESC targetDesc = texture->_textureBuffer._buffer->GetDesc();
+		if (x >= targetDesc.Width || y >= targetDesc.Height || width > targetDesc.Width - x || height > targetDesc.Height - y)
+		{
+			DK_ASSERT_LOG(false, "");
+			return false;
+		}
+
+		DKCommandList::TextureRegionPendingData pending;
+		pending._target = texture;
+		pending._x = x;
+		pending._y = y;
+		const CD3DX12_RESOURCE_DESC region = CD3DX12_RESOURCE_DESC::Tex2D(targetDesc.Format, width, height, 1, 1);
+		UINT rows = 0;
+		UINT64 rowBytes = 0;
+		UINT64 uploadBytes = 0;
+		_device->GetCopyableFootprints(&region, 0, 1, 0, &pending._footprint, &rows, &rowBytes, &uploadBytes);
+		if (rowBytes > rowPitch || uploadBytes > UINT32_MAX)
+		{
+			DK_ASSERT_LOG(false, "");
+			return false;
+		}
+
+		pending._source = createUploadBuffer(static_cast<uint32>(uploadBytes), L"TextureRegion_Upload");
+		if (pending._source == nullptr)
+		{
+			DK_ASSERT_LOG(false, "");
+			return false;
+		}
+
+		void* mapped = nullptr;
+		const D3D12_RANGE noReads = { 0, 0 };
+		if (FAILED(pending._source->_buffer->Map(0, &noReads, &mapped)))
+		{
+			DK_ASSERT_LOG(false, "");
+			return false;
+		}
+
+		for (UINT row = 0; row < rows; ++row)
+		{
+			DK::memcpy(static_cast<uint8*>(mapped) + pending._footprint.Offset + size_t(row) * pending._footprint.Footprint.RowPitch, static_cast<const uint8*>(data) + size_t(row) * rowPitch, static_cast<size_t>(rowBytes));
+		}
+		pending._source->_buffer->Unmap(0, nullptr);
+		_commandList._textureRegionPendingArray.push_back(DK::move(pending));
+		return true;
+	}
+
 	void RenderModule::deleteTexture(ITexture* texture)
 	{
 		// 이 곳에서 getSRV(), getUAV()를 사용하면 할당되지 않은 경우 내부 어썰트가 발생해서, 여기서만 예외적으로 SRV멤버변수를 직접 접근한다.
@@ -2681,6 +2736,18 @@ namespace DK
 		}
 
         prepareGpuTimings();
+
+		for (const DKCommandList::TextureRegionPendingData& pending : _commandList._textureRegionPendingArray)
+		{
+			IBuffer& target = pending._target->getTextureBuffer();
+			resourceBarrierTransition(target, D3D12_RESOURCE_STATE_COPY_DEST);
+			D3D12_TEXTURE_COPY_LOCATION source = {};
+			source.pResource = pending._source->_buffer.get(); source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT; source.PlacedFootprint = pending._footprint;
+			D3D12_TEXTURE_COPY_LOCATION destination = {};
+			destination.pResource = target._buffer.get(); destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			_commandList->CopyTextureRegion(&destination, pending._x, pending._y, 0, &source, nullptr);
+			resourceBarrierTransition(target, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		}
 
 		for (const DKCommandList::CopyResourcePendingData& pending : _commandList._copyResourcePendingArray)
 		{
@@ -2956,6 +3023,7 @@ namespace DK
 
 		_commandList._prevUploadResourcePendingArray.clear();
 		_commandList._prevCopyResourcePendingArray.clear();
+		_commandList._prevTextureRegionPendingArray.clear();
 
 		for (const DKCommandList::UploadResourcePendingData& pending : _commandList._uploadResourcePendingArray)
 		{
@@ -2973,6 +3041,7 @@ namespace DK
 		}
 		_commandList._prevUploadResourcePendingArray.swap(_commandList._uploadResourcePendingArray);
 		_commandList._prevCopyResourcePendingArray.swap(_commandList._copyResourcePendingArray);
+		_commandList._prevTextureRegionPendingArray.swap(_commandList._textureRegionPendingArray);
 
 		execute(true);
 

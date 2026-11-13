@@ -796,7 +796,7 @@ namespace DK
 
 		DKVector<AppearanceData::ModelData> modelDataArr;
 		TiXmlNode* modelDataArrNode = rootNode->FirstChild("ModelDataArr");
-		const int modelDataCount = DK::atoi(modelDataArrNode->ToElement()->Attribute("Count"));
+		const int modelDataCount = StringUtil::atoi(modelDataArrNode->ToElement()->Attribute("Count"));
 		modelDataArr.reserve(modelDataCount);
 		for (TiXmlNode* modelDataNode = modelDataArrNode->FirstChild(); modelDataNode != nullptr; modelDataNode = modelDataNode->NextSiblingElement())
 		{

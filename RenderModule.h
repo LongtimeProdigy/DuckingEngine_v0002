@@ -571,6 +571,16 @@ do{ \
 		};
 		DKVector<CopyResourcePendingData> _copyResourcePendingArray;
 		DKVector<CopyResourcePendingData> _prevCopyResourcePendingArray;
+
+		struct TextureRegionPendingData
+		{
+			ITextureRef _target;
+			IBufferRef _source;
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT _footprint = {};
+			uint32 _x = 0, _y = 0;
+		};
+		DKVector<TextureRegionPendingData> _textureRegionPendingArray;
+		DKVector<TextureRegionPendingData> _prevTextureRegionPendingArray;
 	};
 
 	class RenderModule
@@ -640,6 +650,7 @@ do{ \
 		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
 		ITextureRef createTexture(const DKString& path, const uint32 width, const uint32 height, const D3D12_SUBRESOURCE_DATA* initialData, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
 		ITextureRef loadAndCreateTexture(const DKString& path);
+		bool queueTextureRegion(const ITextureRef& texture, uint32 x, uint32 y, uint32 width, uint32 height, const void* data, uint32 rowPitch);
 		void deleteTexture(ITexture* texture);
 		void deallocateTextureSRV(const TextureResourceViewType index);
 		void deallocateTextureUAV(const TextureResourceViewType index);

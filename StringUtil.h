@@ -15,6 +15,8 @@ namespace DK
         static bool isWhitespace(char value);
         static bool parseInt(const DKString& str, int& value);
         static bool parseFloat(const DKString& str, float& value);
+        static bool parseDouble(const DKString& str, double& value);
+        static DKString toString(double value);
         static DKString toString(int value);
         static DKString toString(uint32 value);
         static DKString toString(float value);

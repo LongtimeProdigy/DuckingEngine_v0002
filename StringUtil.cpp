@@ -113,6 +113,47 @@ namespace DK
         return true;
     }
 
+    bool StringUtil::parseDouble(const DKString& str, double& value)
+    {
+        const char* begin = str.data();
+        const char* end = begin + str.size();
+        if (begin < end && *begin == '+')
+        {
+            ++begin;
+            if (begin == end || *begin == '-')
+            {
+                DK_ASSERT_LOG(false, "Invalid double sign");
+                return false;
+            }
+        }
+        double parsed = 0.0f;
+        const std::from_chars_result result = std::from_chars(begin, end, parsed, std::chars_format::general);
+        if (result.ec != std::errc() || result.ptr != end || std::isfinite(parsed) == false)
+        {
+            DK_ASSERT_LOG(false, "Invalid double: %s", str.c_str());
+            return false;
+        }
+        value = parsed;
+        return true;
+    }
+
+    DKString StringUtil::toString(double value)
+    {
+        if (std::isfinite(value) == false)
+        {
+            DK_ASSERT_LOG(false, "Cannot format non-finite double");
+            return {};
+        }
+        char buffer[64];
+        const std::to_chars_result result = std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::general, std::numeric_limits<double>::max_digits10);
+        if (result.ec != std::errc())
+        {
+            DK_ASSERT_LOG(false, "Cannot format double");
+            return {};
+        }
+        return DKString(buffer, static_cast<size_t>(result.ptr - buffer));
+    }
+
     DKString StringUtil::toString(int value)
     {
         char buffer[16];
