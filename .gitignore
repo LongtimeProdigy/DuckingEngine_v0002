@@ -14,6 +14,7 @@
 *.userprefs
 
 # Build results
+/Platform/
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
@@ -348,9 +349,5 @@ healthchecksdb
 /DKBlenderAddnos/MapAssets/
 
 # except lib
-!lib/dxc_2026_08_11/[Bb]in/[Aa]rm64
-!lib/dxc_2026_08_11/[Bb]in/x86
 !lib/dxc_2026_08_11/[Bb]in/x64
-!lib/dxc_2026_08_11/lib/[Aa]rm64
 !lib/dxc_2026_08_11/lib/x64
-!lib/dxc_2026_08_11/lib/x86
