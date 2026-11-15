@@ -4,9 +4,7 @@ Core and the compiled Win32 / DirectX 12 backends are vendored unmodified from
 [v1.92.6-docking](https://github.com/ocornut/imgui/tree/v1.92.6-docking).
 The upstream MIT license is included in `LICENSE.txt`.
 
-Updated files: root `*.cpp`, `*.h`, and `backends/imgui_impl_win32.*`,
-`backends/imgui_impl_dx12.*`. Other historical backends in this directory are
-not built by this project and must be updated before use with this core.
+The vendored files include the core and the Win32 and DirectX 12 backends.
 
 The engine enables docking, platform viewports, and DPI font scaling. DX12
 initialization supplies the engine command queue and a dedicated 64-slot SRV
