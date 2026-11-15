@@ -1,0 +1,110 @@
+<StaticMeshPlacements>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_14_18.glb">
+		<Instance X="896" Y="0" Z="1152" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_14_19.glb">
+		<Instance X="896" Y="0" Z="1216" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_14_20.glb">
+		<Instance X="896" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_14_21.glb">
+		<Instance X="896" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_15_18.glb">
+		<Instance X="960" Y="0" Z="1152" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_15_19.glb">
+		<Instance X="960" Y="0" Z="1216" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_15_20.glb">
+		<Instance X="960" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_15_21.glb">
+		<Instance X="960" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_15_22.glb">
+		<Instance X="960" Y="0" Z="1408" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_15_23.glb">
+		<Instance X="960" Y="0" Z="1472" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_16_18.glb">
+		<Instance X="1024" Y="0" Z="1152" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_16_19.glb">
+		<Instance X="1024" Y="0" Z="1216" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_16_20.glb">
+		<Instance X="1024" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_16_21.glb">
+		<Instance X="1024" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_16_22.glb">
+		<Instance X="1024" Y="0" Z="1408" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_16_23.glb">
+		<Instance X="1024" Y="0" Z="1472" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_17.glb">
+		<Instance X="1088" Y="0" Z="1088" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_18.glb">
+		<Instance X="1088" Y="0" Z="1152" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_19.glb">
+		<Instance X="1088" Y="0" Z="1216" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_20.glb">
+		<Instance X="1088" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_21.glb">
+		<Instance X="1088" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_22.glb">
+		<Instance X="1088" Y="0" Z="1408" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_17_23.glb">
+		<Instance X="1088" Y="0" Z="1472" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_18_19.glb">
+		<Instance X="1152" Y="0" Z="1216" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_18_20.glb">
+		<Instance X="1152" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_18_21.glb">
+		<Instance X="1152" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_18_22.glb">
+		<Instance X="1152" Y="0" Z="1408" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_18_23.glb">
+		<Instance X="1152" Y="0" Z="1472" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_19_19.glb">
+		<Instance X="1216" Y="0" Z="1216" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_19_20.glb">
+		<Instance X="1216" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_19_21.glb">
+		<Instance X="1216" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_19_22.glb">
+		<Instance X="1216" Y="0" Z="1408" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_19_23.glb">
+		<Instance X="1216" Y="0" Z="1472" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_20_20.glb">
+		<Instance X="1280" Y="0" Z="1280" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_20_21.glb">
+		<Instance X="1280" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/GroundCover/GroundCover_20_22.glb">
+		<Instance X="1280" Y="0" Z="1408" Yaw="0" Scale="1" />
+	</Model>
+</StaticMeshPlacements>

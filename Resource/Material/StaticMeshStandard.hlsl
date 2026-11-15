@@ -30,6 +30,7 @@ cbuffer StaticMeshStandard : register(b2)
     float _opacity;
     float _metallic;
     float _roughness;
+    float _alphaCutoff;
 }
 
 VS_OUTPUT VSMain(VS_INPUT input)
@@ -53,7 +54,8 @@ GBufferOutput PSMain(VS_OUTPUT input)
     Texture2D<float4> diffuseTexture = getTexture(_diffuseTexture);
     const float4 albedo = diffuseTexture.Sample(bilinearRepeatSampler, input.uv0);
 
-    if(albedo.w * _opacity <= 0.0f)
+    const float alpha = albedo.w * _opacity;
+    if (alpha <= 0.0f || alpha < _alphaCutoff)
         clip(-1);
 
     return writeGBuffer(albedo.rgb, input.normal.xyz, _metallic, _roughness);

@@ -15,7 +15,8 @@ namespace DK
 	{
 		// Test Terrain
 		DuckingEngine::getInstance().getSceneManagerWritable().loadOcean();
-		DuckingEngine::getInstance().getSceneManagerWritable().loadLevel();
+		if (DuckingEngine::getInstance().getSceneManagerWritable().loadLevel("Scenes/ForestValley.xml") == false)
+			return false;
 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadGbuffer();

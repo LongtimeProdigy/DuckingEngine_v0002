@@ -174,18 +174,17 @@ namespace DK
 				uint32 _terrainTailLod = 3;				// 전체 지형에 상주시킬 저해상도 LOD. 이보다 작은 LOD만 상세 스트리밍
 				uint32 _terrainTailWidth = 0;			// 상주 저해상도 텍스처의 가로 샘플 수
 				uint32 _terrainTailHeightPixels = 0;	// 상주 저해상도 텍스처의 세로 샘플 수
-				uint32 _terrainPageTableSide = 8;		// LOD 하나가 사용하는 페이지 테이블의 한 변
+				uint32 _terrainPageTableSide = 16;		// LOD 하나가 사용하는 페이지 테이블의 한 변
 				float _terrainCameraX = 0;				// 기준점에서 본 카메라의 상대 X 위치
 				float _terrainCameraZ = 0;				// 기준점에서 본 카메라의 상대 Z 위치
 				int32_t _terrainAnchorX = 0;			// 카메라 근처 렌더링 기준점의 X 샘플 좌표
 				int32_t _terrainAnchorZ = 0;			// 카메라 근처 렌더링 기준점의 Z 샘플 좌표
 				float _terrainCameraWorldX = 0;			// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 X 위치 복사본
 				float _terrainCameraWorldZ = 0;			// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 Z 위치 복사본
-				float _terrainDetailRadius = 128;		// 거리 기반 높이 LOD의 기준 거리. 현재 128 × SampleSpacing
-				int32_t _terrainGrassAnchorX = 0;		// Terrain 기준점 근처에 있는 Grass 격자의 정수 X 셀 번호
-				int32_t _terrainGrassAnchorZ = 0;		// Terrain 기준점 근처에 있는 Grass 격자의 정수 Z 셀 번호
-				float _terrainGrassOffsetX = 0;			// 해당 Grass 셀 시작점에서 Terrain 기준점까지의 X 거리
-				float _terrainGrassOffsetZ = 0;			// 해당 Grass 셀 시작점에서 Terrain 기준점까지의 Z 거리
+				float _terrainDetailRadius = 128.0f;
+				uint32 _terrainHeightTexture = 0;
+				float _terrainWorldOriginX = 0;
+				float _terrainWorldOriginZ = 0;
 			};
 			static_assert(sizeof(StreamingConstants) == 128);
 			struct CacheSlot
@@ -196,9 +195,10 @@ namespace DK
 			};
 			StreamingConstants _streamingConstants;
 			IBufferRef _streamingBuffer;
+			ITextureRef _heightTexture;
 			ITextureRef _heightCache, _normalCache, _pageTable, _tailHeight, _tailNormal;
 			DKVector<CacheSlot> _cacheSlots;
-			static constexpr uint32 CACHE_SLOTS_PER_LOD = 16;
+			static constexpr uint32 CACHE_SLOTS_PER_LOD = 72;
 
 			static constexpr const uint32 TILE_RESOLUTION = 64;
 			static constexpr const uint32 PATCH_VERT_RESOLUTION = TILE_RESOLUTION + 1;
@@ -213,12 +213,20 @@ namespace DK
 			Mesh _seam;
 			Ptr<Material> _material;
 			DKVector<IBufferRef> _terrainConstantBuffer;
-
+		};
+		struct Grass
+		{
 			static constexpr uint32 GRASS_BLADE_COUNT = 6;
 			static constexpr uint32 GRASS_INDEX_COUNT = GRASS_BLADE_COUNT * 15;
 
-			IBufferRef _grassIndexBuffer;
-			IndexBufferViewRef _grassIndexBufferView;
+			uint32 _tileGridSide = 0;
+			float _grassMapOriginX = 0;
+			float _grassMapOriginZ = 0;
+			float _grassMapWidth = 0;
+			float _grassMapDepth = 0;
+			ITextureRef _placementTexture;
+			IBufferRef _indexBuffer;
+			IndexBufferViewRef _indexBufferView;
 		};
 		struct GBuffer
 		{
@@ -228,7 +236,7 @@ namespace DK
 	public:
 		void loadOcean();
 		void loadSkyDome();
-		void loadLevel(const DKString& terrainArchive = "Terrain/Cooked/forest_valley.dkterrain");
+		bool loadLevel(const DKString& levelPath);
 		void prepareTerrainStreaming(double cameraX, double cameraZ, float deltaTime);
 		void loadPostProcess();
 		void loadGbuffer();
@@ -236,16 +244,20 @@ namespace DK
 		SkyDome& getSkyDomeWritable() { return _skyDome; }
 		Ocean& getOceanWritable() { return _ocean; }
 		ClipMapTerrain& getClipMapTerrainWritable() { return _clipmapTerrain; }
+		const Grass& getGrass() const { return _grass; }
 		PostProcess& getPostProcessWritable() { return _postProcess; }
 		GBuffer& getGBufferWritable() { return _gBuffer; }
 
 	private:
-		void initializeTerrainStreaming();
+		bool loadTerrain(const DKString& terrainArchive, const DKString& modelPropertyPath, const DKString& heightTexturePath, const float2& terrainWorldOrigin);
+		bool loadGrass(const DKString& placementTexturePath, uint32 tileGridSide);
+		void initializeTerrainStreaming(const float2& terrainWorldOrigin);
 
 	private:
 		SkyDome _skyDome;
 		Ocean _ocean;
 		ClipMapTerrain _clipmapTerrain;
+		Grass _grass;
 		PostProcess _postProcess;
 		GBuffer _gBuffer;
 	};

@@ -1,0 +1,113 @@
+﻿#include "CommonLog.h"
+#include "FileUtil.h"
+#include "StringUtil.h"
+#include "TerrainData.h"
+
+#include <cstdio>
+#include <limits>
+#include <wincodec.h>
+#include <wrl/client.h>
+
+namespace DK
+{
+    static bool readHeightmap(const wchar_t* path, ArchiveHeader& header, DKVector<uint16>& heights)
+    {
+        Microsoft::WRL::ComPtr<IWICImagingFactory> factory;
+        Microsoft::WRL::ComPtr<IWICBitmapDecoder> decoder;
+        Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> frame;
+        if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(factory.GetAddressOf()))) ||
+            FAILED(factory->CreateDecoderFromFilename(path, nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.GetAddressOf())) ||
+            FAILED(decoder->GetFrame(0, frame.GetAddressOf())))
+        {
+            return false;
+        }
+
+        WICPixelFormatGUID format{};
+        if (FAILED(frame->GetPixelFormat(&format)) || IsEqualGUID(format, GUID_WICPixelFormat16bppGray) == 0 ||
+            FAILED(frame->GetSize(&header._width, &header._height)) || header._width < 2 || header._height < 2 ||
+            header._width > 1048576 || header._height > 1048576)
+        {
+            return false;
+        }
+
+        const uint64 sampleCount = uint64(header._width) * header._height;
+        const uint64 byteCount = sampleCount * sizeof(uint16);
+        if (byteCount > std::numeric_limits<UINT>::max())
+        {
+            return false;
+        }
+
+        heights.resize(static_cast<size_t>(sampleCount));
+        const UINT rowBytes = header._width * sizeof(uint16);
+        return SUCCEEDED(frame->CopyPixels(nullptr, rowBytes, static_cast<UINT>(byteCount), reinterpret_cast<BYTE*>(heights.data())));
+    }
+
+    static int cookTerrain(int argumentCount, wchar_t* arguments[])
+    {
+        if (argumentCount == 2 && DKStringW(arguments[1]) == L"--help")
+        {
+            std::puts("TerrainCooker.exe <16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]");
+            std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCells=128");
+            return 0;
+        }
+        if (argumentCount != 3 && argumentCount != 7)
+        {
+            std::fputs("Invalid arguments. Run TerrainCooker.exe --help.\n", stderr);
+            return 1;
+        }
+
+        ArchiveHeader header;
+        if (argumentCount == 7)
+        {
+            int chunkCells = 0;
+            if (StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[3]), header._sampleSpacing) == false ||
+                StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[4]), header._heightOffset) == false ||
+                StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[5]), header._heightScale) == false ||
+                StringUtil::parseInt(StringUtil::convertWCtoC(arguments[6]), chunkCells) == false ||
+                header._sampleSpacing <= 0.0f || header._heightScale <= 0.0f ||
+                chunkCells < 2 || chunkCells > 512 || (chunkCells & (chunkCells - 1)) != 0)
+            {
+                std::fputs("Invalid terrain settings. Chunk cells must be a power of two from 2 to 512.\n", stderr);
+                return 1;
+            }
+            header._chunkCells = static_cast<uint32>(chunkCells);
+        }
+
+        const DKString outputPath = FileUtil::fromWidePath(arguments[2]);
+        if (FileUtil::exist(outputPath) || FileUtil::exist(outputPath + ".tmp"))
+        {
+            std::fputs("The output or its .tmp file already exists. Choose a new output path.\n", stderr);
+            return 1;
+        }
+
+        if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED)))
+        {
+            std::fputs("Cannot initialize Windows Imaging Component.\n", stderr);
+            return 1;
+        }
+        DKVector<uint16> heights;
+        const bool heightmapRead = readHeightmap(arguments[1], header, heights);
+        CoUninitialize();
+        if (heightmapRead == false)
+        {
+            std::fputs("Cannot read a 16-bit grayscale heightmap from the input file.\n", stderr);
+            return 1;
+        }
+
+        DKVector<Chunk> chunks;
+        if (buildHeightfield(header, heights, chunks) == false || FileUtil::createDirectory(FileUtil::parentPath(outputPath)) == false ||
+            writeArchive(outputPath, header, chunks) == false)
+        {
+            std::fputs("Cannot build or write the terrain archive.\n", stderr);
+            return 1;
+        }
+
+        std::printf("Wrote %u x %u samples in %zu chunks.\n", header._width, header._height, chunks.size());
+        return 0;
+    }
+}
+
+int wmain(int argumentCount, wchar_t* arguments[])
+{
+    return DK::cookTerrain(argumentCount, arguments);
+}

@@ -5,6 +5,7 @@
 #include "RenderModule.h"
 
 #include "SceneObject.h"
+#include "FileUtil.h"
 #include "StaticMeshComponent.h"
 #include "SkinnedMeshComponent.h"
 #include "Skeleton.h"
@@ -64,6 +65,61 @@ namespace DK
 	};
 	SceneObject* SceneObjectManager::loadGLTF(const char* path)
 	{
+		return loadGLTF(path, { Transform(float3::Zero, Quaternion::Identity, float3::Identity) });
+	}
+
+	bool SceneObjectManager::loadStaticMeshPlacements(const char* path)
+	{
+		const ScopeString<DK_MAX_PATH> fullPath = GlobalPath::makeResourceFullPath(path);
+		FileReader reader;
+		DKString text;
+		if (reader.open(fullPath.c_str()) == false || reader.readText(text) == false)
+		{
+			DK_ASSERT_LOG(false, "Static mesh placement file load failed: %s", fullPath.c_str());
+			return false;
+		}
+
+		TiXmlDocument document;
+		document.Parse(text.c_str());
+		const TiXmlElement* root = document.RootElement();
+		if (document.Error() || root == nullptr || StringUtil::strcmp(root->Value(), "StaticMeshPlacements") != 0)
+		{
+			DK_ASSERT_LOG(false, "Invalid static mesh placement file: %s", fullPath.c_str());
+			return false;
+		}
+
+		for (const TiXmlElement* model = root->FirstChildElement("Model"); model != nullptr; model = model->NextSiblingElement("Model"))
+		{
+			const char* modelPath = model->Attribute("Path");
+			DKVector<Transform> transforms;
+			for (const TiXmlElement* instance = model->FirstChildElement("Instance"); instance != nullptr; instance = instance->NextSiblingElement("Instance"))
+			{
+				float3 position;
+				float yaw = 0.0f;
+				float scale = 1.0f;
+				if (instance->QueryFloatAttribute("X", &position.x) != TIXML_SUCCESS || instance->QueryFloatAttribute("Y", &position.y) != TIXML_SUCCESS || instance->QueryFloatAttribute("Z", &position.z) != TIXML_SUCCESS ||
+				    instance->QueryFloatAttribute("Yaw", &yaw) != TIXML_SUCCESS || instance->QueryFloatAttribute("Scale", &scale) != TIXML_SUCCESS ||
+				    std::isfinite(position.x) == false || std::isfinite(position.y) == false || std::isfinite(position.z) == false || std::isfinite(yaw) == false || std::isfinite(scale) == false || scale <= 0.0f)
+				{
+					DK_ASSERT_LOG(false, "Invalid static mesh instance transform: %s", fullPath.c_str());
+					return false;
+				}
+				transforms.emplace_back(position, Quaternion(0.0f, 0.0f, yaw), float3(scale, scale, scale));
+			}
+			if (modelPath == nullptr || transforms.empty())
+			{
+				DK_ASSERT_LOG(false, "Static mesh placement needs a model and instances: %s", fullPath.c_str());
+				return false;
+			}
+			const ScopeString<DK_MAX_PATH> modelFullPath = GlobalPath::makeResourceFullPath(modelPath);
+			if (loadGLTF(modelFullPath.c_str(), transforms) == nullptr)
+				return false;
+		}
+		return true;
+	}
+
+	SceneObject* SceneObjectManager::loadGLTF(const char* path, const DKVector<Transform>& transforms)
+	{
 		tinygltf::TinyGLTF loader;
 		tinygltf::Model gltfModel;
 
@@ -93,6 +149,13 @@ namespace DK
 
 		DKVector<ITextureRef> textures;
 		textures.resize(gltfModel.textures.size());
+		DKVector<bool> baseColorTextures(gltfModel.textures.size(), false);
+		for (const tinygltf::Material& material : gltfModel.materials)
+		{
+			const int textureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
+			if (textureIndex >= 0 && static_cast<size_t>(textureIndex) < baseColorTextures.size())
+				baseColorTextures[textureIndex] = true;
+		}
 		for (size_t i = 0; i < gltfModel.textures.size(); ++i)
 		{
 			const tinygltf::Texture& srcTexture = gltfModel.textures[i];
@@ -130,7 +193,7 @@ namespace DK
 				format = DXGI_FORMAT_R8G8_UNORM;
 				break;
 			case 4:
-				format = DXGI_FORMAT_R8G8B8A8_UNORM;
+				format = baseColorTextures[i] ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
 				break;
 			default:
 			{
@@ -233,7 +296,6 @@ namespace DK
 			}
 
 			// RenderPass로부터 Parameter를 세팅
-			uint32 parameterBufferSize = 0;
 			const uint32 parameterCount = static_cast<uint32>(materialDefinition->_parameters.size());
 			Ptr<Material> outMaterial = Material::createMaterial("StaticMeshStandard");
 			if (outMaterial.get() == nullptr)
@@ -243,12 +305,15 @@ namespace DK
 			for (uint32 i = 0; i < parameterCount; ++i)
 			{
 				MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
-				if (parameter->getParameterName() != "_diffuseTexture")
-					continue;
-
-				MaterialParameterTexture* textureParameter = static_cast<MaterialParameterTexture*>(parameter);
-				textureParameter->setParameterValue(baseColorTexture);
-				break;
+				const DKString& name = parameter->getParameterName();
+				if (name == "_diffuseTexture")
+					static_cast<MaterialParameterTexture*>(parameter)->setParameterValue(baseColorTexture);
+				if (name == "_metallic")
+					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._metallicFactor);
+				if (name == "_roughness")
+					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._roughnessFactor);
+				if (name == "_alphaCutoff" && dst._alphaMode == "MASK")
+					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._alphaCutoff);
 			}
 
 			outMaterial->_parameterBufferForGPU->upload(outMaterial->_parameterBufferForCPU.data());
@@ -699,16 +764,12 @@ namespace DK
 			return true;
 		};
 
-		SceneObject newSceneObject;
+		DKVector<StaticMeshModelRef> models;
+		models.reserve(gltfModel.meshes.size());
 
 		for (uint32_t meshIndex = 0; meshIndex < static_cast<uint32_t>(gltfModel.meshes.size()); ++meshIndex)
 		{
 			const tinygltf::Mesh& mesh = gltfModel.meshes[meshIndex];
-
-			StaticMeshComponent* staticMeshComponent = dk_new StaticMeshComponent;
-			newSceneObject.addComponent(staticMeshComponent);
-			staticMeshComponent->set_modelPath(mesh.name);
-			staticMeshComponent->set_modelPropertyPath("GLTF_ModelProeprty");
 
 			DKVector<StaticMeshModel::SubMeshType> subMeshArr;
 			subMeshArr.reserve(static_cast<uint32_t>(mesh.primitives.size()));
@@ -744,12 +805,36 @@ namespace DK
 				subMeshArr.push_back(DK::move(subMesh));
 			}
 
-			staticMeshComponent->set_model(DK::makeRef<StaticMeshModel>(DK::move(subMeshArr)));
+			models.push_back(DK::makeRef<StaticMeshModel>(DK::move(subMeshArr)));
 		}
-		if (gltfModel.meshes.empty())
+		if (models.empty() || transforms.empty())
+		{
+			DK_ASSERT_LOG(false, "glTF scene needs meshes and at least one transform: %s", path);
 			return nullptr;
+		}
 
-		return publish(DK::move(newSceneObject), _sceneObjectContainer);
+		DKVector<SceneObject> objects;
+		objects.reserve(transforms.size());
+		for (const Transform& transform : transforms)
+		{
+			SceneObject object;
+			object.set_worldTransform(transform);
+			for (size_t meshIndex = 0; meshIndex < models.size(); ++meshIndex)
+			{
+				StaticMeshComponent* component = dk_new StaticMeshComponent;
+				object.addComponent(component);
+				component->set_modelPath(gltfModel.meshes[meshIndex].name);
+				component->set_modelPropertyPath("GLTF_ModelProperty");
+				component->set_model(models[meshIndex]);
+			}
+			if (publish(DK::move(object), objects) == nullptr)
+				return nullptr;
+		}
+		const size_t firstObjectIndex = _sceneObjectContainer.size();
+		for (SceneObject& object : objects)
+			_sceneObjectContainer.push_back(DK::move(object));
+
+		return &_sceneObjectContainer[firstObjectIndex];
 	}
 
 	SceneObject* SceneObjectManager::publish(SceneObject&& object, DKVector<SceneObject>& objects)

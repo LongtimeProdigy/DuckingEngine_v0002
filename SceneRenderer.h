@@ -153,7 +153,7 @@ namespace DK
         void prepareSurfaceCapture(const float3& cameraPosition);
         void updateSurfaceTransport();
         void drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, bool includeDebug);
-    void drawTerrainGrass(RenderModule& renderModule);
+    void drawGrass(RenderModule& renderModule);
 
 	private:
         static constexpr uint32 kAtmosphereLutWidth = 512;

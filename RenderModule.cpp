@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "RenderModule.h"
+#include "FileUtil.h"
 #include <cstdint>
 #include <cstdlib>
 
@@ -2642,6 +2643,89 @@ namespace DK
 
 		return texture;
 	}
+	static ITextureRef loadTexture2DDds(RenderModule& renderModule, const DKString& path, const DKString& fullPath)
+	{
+		struct DdsPixelFormat
+		{
+			uint32 _size, _flags, _fourCC, _rgbBitCount, _redMask, _greenMask, _blueMask, _alphaMask;
+		};
+		struct DdsHeader
+		{
+			uint32 _size, _flags, _height, _width, _pitch, _depth, _mipCount;
+			uint32 _reserved[11];
+			DdsPixelFormat _pixelFormat;
+			uint32 _caps, _caps2, _caps3, _caps4, _reserved2;
+		};
+		struct DdsDx10Header
+		{
+			DXGI_FORMAT _format;
+			D3D12_RESOURCE_DIMENSION _dimension;
+			uint32 _miscFlags, _arraySize, _alphaMode;
+		};
+		static_assert(sizeof(DdsHeader) == 124 && sizeof(DdsDx10Header) == 20);
+		constexpr uint32 ddsMagic = 0x20534444;
+		constexpr uint32 dx10FourCC = 0x30315844;
+		constexpr uint32 fourCCFlag = 0x4;
+		FileReader reader(fullPath);
+		uint32 magic = 0;
+		DdsHeader header{};
+		DdsDx10Header dx10{};
+		if (reader.read(&magic, sizeof(magic)) == false || magic != ddsMagic || reader.read(&header, sizeof(header)) == false ||
+			header._size != sizeof(header) || header._pixelFormat._size != sizeof(header._pixelFormat) ||
+			(header._pixelFormat._flags & fourCCFlag) == 0 || header._pixelFormat._fourCC != dx10FourCC ||
+			reader.read(&dx10, sizeof(dx10)) == false || dx10._dimension != D3D12_RESOURCE_DIMENSION_TEXTURE2D ||
+			dx10._arraySize != 1 || dx10._miscFlags != 0 || header._caps2 != 0 || header._depth > 1 ||
+			header._width == 0 || header._height == 0 || header._width > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+			header._height > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+			(dx10._format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB && dx10._format != DXGI_FORMAT_R8G8B8A8_UNORM))
+		{
+			DK_ASSERT_LOG(false, "Expected a DX10 DDS with a single RGBA8 2D texture: %s", path.c_str());
+			return nullptr;
+		}
+
+		uint32 maxMipCount = 1;
+		for (uint32 side = std::max(header._width, header._height); side > 1; side >>= 1)
+			++maxMipCount;
+		const uint32 mipCount = std::max(1u, header._mipCount);
+		if (mipCount > maxMipCount)
+		{
+			DK_ASSERT_LOG(false, "Invalid DDS mip count: %s", path.c_str());
+			return nullptr;
+		}
+
+		DKVector<D3D12_SUBRESOURCE_DATA> subresources(mipCount);
+		uint64 payloadBytes = 0;
+		for (uint32 mip = 0; mip < mipCount; ++mip)
+		{
+			const uint32 width = std::max(1u, header._width >> mip);
+			const uint32 height = std::max(1u, header._height >> mip);
+			const LONG_PTR rowPitch = LONG_PTR(width) * 4;
+			const LONG_PTR slicePitch = rowPitch * height;
+			subresources[mip] = { nullptr, rowPitch, slicePitch };
+			payloadBytes += slicePitch;
+		}
+		if (reader.size() != sizeof(magic) + sizeof(header) + sizeof(dx10) + payloadBytes)
+		{
+			DK_ASSERT_LOG(false, "Invalid DDS payload size: %s", path.c_str());
+			return nullptr;
+		}
+
+		DKVector<byte> payload(static_cast<size_t>(payloadBytes));
+		if (reader.read(payload.data(), payload.size()) == false)
+		{
+			DK_ASSERT_LOG(false, "DDS payload read failed: %s", path.c_str());
+			return nullptr;
+		}
+		const byte* mipData = payload.data();
+		for (D3D12_SUBRESOURCE_DATA& subresource : subresources)
+		{
+			subresource.pData = mipData;
+			mipData += subresource.SlicePitch;
+		}
+		constexpr D3D12_RESOURCE_STATES shaderRead = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+		return renderModule.createTexture(path, header._width, header._height, subresources.data(), static_cast<uint8>(mipCount), dx10._format, D3D12_RESOURCE_FLAG_NONE, shaderRead, true, false);
+	}
+
 	ITextureRef RenderModule::loadAndCreateTexture(const DKString& path)
 	{
 		DKHashMap<DKString, ITexture*>::iterator findResult = _textureContainer.find(path);
@@ -2651,19 +2735,24 @@ namespace DK
 		}
 
 		ScopeString<DK_MAX_PATH> textureFullPath = GlobalPath::makeResourceFullPath(path);
-		TextureRaw textureRaw;
-		const bool loadingTextureSuccess = loadImageDataFromFile(textureFullPath.c_str(), textureRaw);
-		if (loadingTextureSuccess == false)
+		ITextureRef newTexture;
+		DKString extension = FileUtil::extension(path);
+		StringUtil::lower(extension);
+		if (extension == ".dds")
 		{
-			DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
-			return nullptr;
+			newTexture = loadTexture2DDds(*this, path, FileUtil::fromWidePath(StringUtil::convertCtoWC(textureFullPath.c_str())));
 		}
-
-		// TODO : Miplevel이 생기면 1말고 Resource에서 가져올 수 있도록하자
-		ITextureRef newTexture = createTexture(
-			path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
-			D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			true, false);
+		else
+		{
+			TextureRaw textureRaw;
+			if (loadImageDataFromFile(textureFullPath.c_str(), textureRaw) == false)
+			{
+				DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
+				return nullptr;
+			}
+			newTexture = createTexture(path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
+				D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, false);
+		}
 
 		if (newTexture == nullptr)
 			return nullptr;

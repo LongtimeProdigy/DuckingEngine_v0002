@@ -1,7 +1,19 @@
 <Material Name="TerrainClipMap">
 	<Parameter Name="_diffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
-	<Parameter Name="_heightTexture" Type="Texture">Texture\0x00000000.png</Parameter>
 	<Parameter Name="_metallic" Type="float">0.0</Parameter>
 	<Parameter Name="_roughness" Type="float">0.9</Parameter>
 	<Parameter Name="_soilDiffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_mossSurfaceTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_soilSurfaceTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_rockDiffuseTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_rockSurfaceTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_groundCoverageTexture" Type="Texture">Texture\0x00000000.png</Parameter>
+	<Parameter Name="_groundColorNearDistance" Type="float">22.0</Parameter>
+	<Parameter Name="_groundColorFarDistance" Type="float">140.0</Parameter>
+	<Parameter Name="_groundCoverageOriginX" Type="float">0.0</Parameter>
+	<Parameter Name="_groundCoverageOriginZ" Type="float">0.0</Parameter>
+	<Parameter Name="_groundCoverageWidth" Type="float">0.0</Parameter>
+	<Parameter Name="_groundCoverageDepth" Type="float">0.0</Parameter>
+	<Parameter Name="_groundCoverageFadeMeters" Type="float">0.0</Parameter>
+	<Parameter Name="_groundCoverageExteriorMeadow" Type="float">0.0</Parameter>
 </Material>

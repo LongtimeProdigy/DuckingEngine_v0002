@@ -1,0 +1,11 @@
+<Level>
+	<Terrain Archive="Terrain/Cooked/forest_valley_extended.dkterrain"
+	         ModelProperty="Terrain/ModelProperty/TerrainClipMap.xml"
+	         HeightTexture="Terrain/textures/forest_valley_extended_height_8k.png"
+	         OriginX="-1024" OriginZ="-1024" />
+	<Grass PlacementMap="Scenes/ForestValleyGrassPlacement.png" TileGridSide="128"
+	       MapOriginX="0" MapOriginZ="0" MapWidth="2047" MapDepth="2047" />
+	<StaticMeshPlacements Path="Scenes/ForestValleyTrees.xml" />
+	<StaticMeshPlacements Path="Scenes/ForestValleyGroundCover.xml" />
+	<StaticMeshPlacements Path="Scenes/ForestValleyBackdrop.xml" />
+</Level>

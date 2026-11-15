@@ -765,11 +765,13 @@ namespace DK
         const double gy = double(cameraPosition.y) - _localGeometryCentre.y;
         const double gz = double(cameraPosition.z) - _localGeometryCentre.z;
         const SceneManager::ClipMapTerrain::StreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
-        const double terrainX = preciseCamera[0] - std::clamp(preciseCamera[0], 0.0, double(terrainBounds._terrainCellsX) * terrainBounds._terrainSampleSpacing);
-        const double terrainZ = preciseCamera[2] - std::clamp(preciseCamera[2], 0.0, double(terrainBounds._terrainCellsZ) * terrainBounds._terrainSampleSpacing);
+        const double terrainLocalX = preciseCamera[0] - terrainBounds._terrainWorldOriginX;
+        const double terrainLocalZ = preciseCamera[2] - terrainBounds._terrainWorldOriginZ;
+        const double terrainX = terrainLocalX - std::clamp(terrainLocalX, 0.0, double(terrainBounds._terrainCellsX) * terrainBounds._terrainSampleSpacing);
+        const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, 0.0, double(terrainBounds._terrainCellsZ) * terrainBounds._terrainSampleSpacing);
         const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainHeightOffset), double(terrainBounds._terrainHeightOffset + terrainBounds._terrainHeightScale));
         const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
-        const bool nearTerrain = terrainBounds._terrainStreamEnabled && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
+        const bool nearTerrain = terrainBounds._terrainCellsX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
         _renderLocalScene = _localGeometryEnabled && (nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius);
 
 		// Upload Scene ConstantBuffer
@@ -842,17 +844,16 @@ namespace DK
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 
-			const Transform& cameraMatrix = Camera::gMainCamera->get_worldTransform();
 			const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
-            const float2 cameraPos = streaming._terrainStreamEnabled ? float2(streaming._terrainCameraX, streaming._terrainCameraZ) : float2(cameraMatrix.get_translation().x, cameraMatrix.get_translation().z);
+			const float2 cameraPos(streaming._terrainCameraX, streaming._terrainCameraZ);
 
 			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
 			constexpr const uint32 morphCells = 4; // 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
 			static_assert(morphCells > 0);
 			static_assert(morphCells <= SceneManager::ClipMapTerrain::TILE_RESOLUTION - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
 
-            const double anchorWorldX = double(streaming._terrainAnchorX) * streaming._terrainSampleSpacing;
-            const double anchorWorldZ = double(streaming._terrainAnchorZ) * streaming._terrainSampleSpacing;
+            const double anchorWorldX = streaming._terrainWorldOriginX + double(streaming._terrainAnchorX) * streaming._terrainSampleSpacing;
+            const double anchorWorldZ = streaming._terrainWorldOriginZ + double(streaming._terrainAnchorZ) * streaming._terrainSampleSpacing;
 
 			// 입력 위치를 월드 원점 기준의 격자에 맞춘 뒤, Anchor 상대 좌표로 돌려주는 함수
 			const DKFunction<float2(float)> snapTerrainGrid = [&](float spacing)->float2
@@ -1786,21 +1787,23 @@ namespace DK
 		}
     }
 
-    void SceneRenderer::drawTerrainGrass(RenderModule& renderModule)
+    void SceneRenderer::drawGrass(RenderModule& renderModule)
     {
-        const SceneManager::ClipMapTerrain& terrain = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable();
-        if (terrain._grassIndexBuffer == nullptr)
+        SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
+        const SceneManager::Grass& grass = sceneManager.getGrass();
+        if (grass._indexBuffer == nullptr)
             return;
 
         const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
+        const SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
         const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
-        const float mapMinX = 0.0f;
-        const float mapMinZ = 0.0f;
-        const float mapMaxX = static_cast<float>(streaming._terrainCellsX) * streaming._terrainSampleSpacing;
-        const float mapMaxZ = static_cast<float>(streaming._terrainCellsZ) * streaming._terrainSampleSpacing;
+        const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainWorldOriginX);
+        const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainWorldOriginZ);
+        const float mapMaxX = Math::min(grass._grassMapOriginX + grass._grassMapWidth, streaming._terrainWorldOriginX + streaming._terrainCellsX * streaming._terrainSampleSpacing);
+        const float mapMaxZ = Math::min(grass._grassMapOriginZ + grass._grassMapDepth, streaming._terrainWorldOriginZ + streaming._terrainCellsZ * streaming._terrainSampleSpacing);
         constexpr float tileMeters = GRASS_TILE_METERS;
-        constexpr float maxDistance = GRASS_LOD4_END;
-        const float maxGrassY = streaming._terrainStreamEnabled ? streaming._terrainHeightOffset + streaming._terrainHeightScale + 1.2f : 113.2f;
+        constexpr float maxDistance = GRASS_LOD5_END;
+        const float maxGrassY = streaming._terrainHeightOffset + streaming._terrainHeightScale + 1.2f;
         int (*const tileAt)(float) = [](float position) { return static_cast<int>(Math::floor(position / GRASS_TILE_METERS)); };
         const float minX = Math::max(mapMinX, camera.x - maxDistance);
         const float minZ = Math::max(mapMinZ, camera.z - maxDistance);
@@ -1829,18 +1832,34 @@ namespace DK
         DirectX::BoundingFrustum worldFrustum;
         viewFrustum.Transform(worldFrustum, toDirectXMatrix(_sceneConstantBufferData._cameraWorldMatrix));
 
-        constexpr float lodEnds[] = { GRASS_LOD0_END, GRASS_LOD1_END, GRASS_LOD2_END, GRASS_LOD3_END, GRASS_LOD4_END };
+        constexpr float lodEnds[] = { GRASS_LOD0_END, GRASS_LOD1_END, GRASS_LOD2_END, GRASS_LOD3_END, GRASS_LOD4_END, GRASS_LOD5_END };
         const int firstTileX = tileAt(minX);
         const int lastTileX = tileAt(maxX);
         const int firstTileZ = tileAt(minZ);
         const int lastTileZ = tileAt(maxZ);
         constexpr float bladeOverhang = 1.2f;
+        const double grassCellMeters = double(GRASS_TILE_METERS) / grass._tileGridSide;
+        const double anchorX = streaming._terrainWorldOriginX + double(streaming._terrainAnchorX) * streaming._terrainSampleSpacing;
+        const double anchorZ = streaming._terrainWorldOriginZ + double(streaming._terrainAnchorZ) * streaming._terrainSampleSpacing;
+        const int32 grassAnchorX = static_cast<int32>(std::floor(anchorX / grassCellMeters));
+        const int32 grassAnchorZ = static_cast<int32>(std::floor(anchorZ / grassCellMeters));
+        const float grassOffsetX = static_cast<float>(anchorX - double(grassAnchorX) * grassCellMeters);
+        const float grassOffsetZ = static_cast<float>(anchorZ - double(grassAnchorZ) * grassCellMeters);
         RenderModule& currentRenderModule = renderModule;
         startPipeline("GrassPatchPipeline");
         setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
-        setConstantBuffer("TerrainClipMap", terrain._material->get_parameterBufferForGPU());
         setConstantBuffer("TerrainStreamingConstants", terrain._streamingBuffer);
-        renderModule.setIndexBuffer(terrain._grassIndexBufferView.get());
+        setRootConstantParameter("_grassPlacementTexture", grass._placementTexture->getSRV());
+        setRootConstantParameter("_grassAnchorX", grassAnchorX);
+        setRootConstantParameter("_grassAnchorZ", grassAnchorZ);
+        setRootConstantParameter("_grassOffsetX", grassOffsetX);
+        setRootConstantParameter("_grassOffsetZ", grassOffsetZ);
+        setRootConstantParameter("_grassTileGridSide", grass._tileGridSide);
+        setRootConstantParameter("_grassMapOriginX", grass._grassMapOriginX);
+        setRootConstantParameter("_grassMapOriginZ", grass._grassMapOriginZ);
+        setRootConstantParameter("_grassMapWidth", grass._grassMapWidth);
+        setRootConstantParameter("_grassMapDepth", grass._grassMapDepth);
+        renderModule.setIndexBuffer(grass._indexBufferView.get());
         for (int tileZ = firstTileZ; tileZ <= lastTileZ; ++tileZ)
         {
             for (int tileX = firstTileX; tileX <= lastTileX; ++tileX)
@@ -1864,11 +1883,11 @@ namespace DK
                 while (distanceSquared >= lodEnds[lod] * lodEnds[lod])
                     ++lod;
                 const uint32 stride = 1u << lod;
-                const uint32 gridSide = GRASS_TILE_GRID_SIDE / stride;
+                const uint32 gridSide = grass._tileGridSide / stride;
                 setRootConstantParameter("_grassTileX", tileX);
                 setRootConstantParameter("_grassTileZ", tileZ);
                 setRootConstantParameter("_grassCellStride", stride);
-                renderModule.drawIndexedInstanced(SceneManager::ClipMapTerrain::GRASS_INDEX_COUNT, gridSide * gridSide, 0, 0, 0);
+                renderModule.drawIndexedInstanced(SceneManager::Grass::GRASS_INDEX_COUNT, gridSide * gridSide, 0, 0, 0);
             }
         }
         endPipeline();
@@ -2145,7 +2164,7 @@ namespace DK
 			renderModule.beginRenderPass(*_mainGeometryClearPass);
 		drawSceneGeometry(renderModule, _sceneConstantBuffer, true);
 		if (_renderLocalScene)
-			drawTerrainGrass(renderModule);
+			drawGrass(renderModule);
 		renderModule.finishRenderPass();
 
 		// Resolve material attributes to HDR radiance before atmosphere and bloom.

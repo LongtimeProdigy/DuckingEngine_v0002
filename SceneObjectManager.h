@@ -34,6 +34,7 @@ namespace DK
 	{
 	public:
 		SceneObject* loadGLTF(const char* path);
+		bool loadStaticMeshPlacements(const char* path);
 
 		SceneObject* createStaticMeshSceneObject(const DKString& modelPath, const DKString& modelPropertyPath);
 		SceneObject* createCharacter(const char* appearancePath);
@@ -49,6 +50,7 @@ namespace DK
 			return _characterSceneObjectContainer;
 		}
 	private:
+		SceneObject* loadGLTF(const char* path, const DKVector<Transform>& transforms);
 		SceneObject* publish(SceneObject&& object, DKVector<SceneObject>& objects);
 		const AppearanceDataRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
 

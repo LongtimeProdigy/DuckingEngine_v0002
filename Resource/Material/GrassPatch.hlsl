@@ -1,6 +1,7 @@
 #include "CommonRendering.hlsl"
 #include "GBufferCommon.hlsl"
-#include "TerrainSurface.hlsl"
+#include "TerrainHeight.hlsl"
+#include "GridHash.hlsl"
 #include "GrassTiles.h"
 
 cbuffer GrassPatchConstants : register(b2)
@@ -8,6 +9,16 @@ cbuffer GrassPatchConstants : register(b2)
     int _grassTileX;
     int _grassTileZ;
     uint _grassCellStride;
+    TextureParameter _grassPlacementTexture;
+    int _grassAnchorX;
+    int _grassAnchorZ;
+    float _grassOffsetX;
+    float _grassOffsetZ;
+    uint _grassTileGridSide;
+    float _grassMapOriginX;
+    float _grassMapOriginZ;
+    float _grassMapWidth;
+    float _grassMapDepth;
 }
 
 struct GrassVertex
@@ -46,17 +57,19 @@ float GrassRandom(uint hash)
     return float(hash & 0xffffu) / 65536.0f;
 }
 
-float GrassDistanceFade(uint2 relativeCell, float distanceToRoot)
+float2 GrassFadeRange(uint2 relativeCell)
 {
     if (any((relativeCell & 1u) != 0u))
-        return 1.0f - smoothstep(14.0f, GRASS_LOD0_END, distanceToRoot);
+        return float2(12.0f, GRASS_LOD0_END);
     if (any((relativeCell & 2u) != 0u))
-        return 1.0f - smoothstep(32.0f, GRASS_LOD1_END, distanceToRoot);
+        return float2(30.0f, GRASS_LOD1_END);
     if (any((relativeCell & 4u) != 0u))
-        return 1.0f - smoothstep(62.0f, GRASS_LOD2_END, distanceToRoot);
+        return float2(58.0f, GRASS_LOD2_END);
     if (any((relativeCell & 8u) != 0u))
-        return 1.0f - smoothstep(111.0f, GRASS_LOD3_END, distanceToRoot);
-    return 1.0f - smoothstep(175.0f, GRASS_LOD4_END, distanceToRoot);
+        return float2(104.0f, GRASS_LOD3_END);
+    if (any((relativeCell & 16u) != 0u))
+        return float2(159.0f, GRASS_LOD4_END);
+    return float2(219.0f, GRASS_LOD5_END);
 }
 
 GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -65,45 +78,53 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     output.position = float4(0.0f, 0.0f, -1.0f, 1.0f);
 
     const int2 tile = int2(_grassTileX, _grassTileZ);
-    const uint tileHash = HashTerrainCell(tile);
-    const uint2 phase = uint2(tileHash, tileHash >> 8) & 15u;
-    const uint gridSide = GRASS_TILE_GRID_SIDE / _grassCellStride;
+    const uint tileHash = HashGridCell(tile);
+    const uint2 phase = uint2(tileHash, tileHash >> 8) & 31u;
+    const uint gridSide = _grassTileGridSide / _grassCellStride;
     const uint2 gridCell = uint2(instanceID % gridSide, instanceID / gridSide);
     // Coarser draws keep a nested subset of the same world cells.
     const uint2 tileCell = gridCell * _grassCellStride + (phase & (_grassCellStride - 1u));
-    const int2 worldCell = tile * int(GRASS_TILE_GRID_SIDE) + int2(tileCell);
-    const uint seed = HashTerrainCell(worldCell);
+    const int2 worldCell = tile * int(_grassTileGridSide) + int2(tileCell);
+    const uint seed = HashGridCell(worldCell);
     const float2 jitter = float2(GrassRandom(seed), GrassRandom(seed >> 16));
-    const float2 rootRelativeXZ = (float2(worldCell - int2(_terrainGrassAnchorX, _terrainGrassAnchorZ)) + lerp(0.08f, 0.92f, jitter)) * (GRASS_TILE_METERS / GRASS_TILE_GRID_SIDE) - float2(_terrainGrassOffsetX, _terrainGrassOffsetZ);
-    const float2 rootXZ = rootRelativeXZ + float2(_terrainAnchorX, _terrainAnchorZ) * _terrainSampleSpacing;
+    const float2 rootRelativeXZ = (float2(worldCell - int2(_grassAnchorX, _grassAnchorZ)) + lerp(0.08f, 0.92f, jitter)) * (GRASS_TILE_METERS / _grassTileGridSide) - float2(_grassOffsetX, _grassOffsetZ);
+    const float2 rootXZ = rootRelativeXZ + TerrainAnchorWorldXZ();
+    const float2 mapUV = (rootXZ - float2(_grassMapOriginX, _grassMapOriginZ)) / float2(_grassMapWidth, _grassMapDepth);
     const float2 minimum = -float2(_terrainAnchorX, _terrainAnchorZ) * _terrainSampleSpacing;
     const float2 maximum = float2(int2(_terrainCellsX, _terrainCellsZ) - int2(_terrainAnchorX, _terrainAnchorZ)) * _terrainSampleSpacing;
-    if (any(rootRelativeXZ < minimum) || any(rootRelativeXZ > maximum))
+    if (any(rootRelativeXZ < minimum) || any(rootRelativeXZ > maximum) || any(mapUV < 0.0f) || any(mapUV > 1.0f))
     {
         return output;
     }
-    const float rootHeight = SampleTerrainHeightRelative(rootRelativeXZ);
-    if (rootHeight < 0.09f)
-        return output;
 
     const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraX, _terrainCameraZ);
-    const float distanceToRoot = length(float3(rootRelativeXZ.x - viewRelativeXZ.x, rootHeight - getViewPosition().y, rootRelativeXZ.y - viewRelativeXZ.y));
-    const float distanceFade = GrassDistanceFade(tileCell ^ phase, distanceToRoot);
+    const float2 rootToViewXZ = rootRelativeXZ - viewRelativeXZ;
+    const float2 fadeRange = GrassFadeRange(tileCell ^ phase);
+    if (dot(rootToViewXZ, rootToViewXZ) >= fadeRange.y * fadeRange.y)
+        return output;
+
+    const uint blade = vertexID / 7u;
+    const uint shape = HashGridCell(worldCell + int2(-71, 313));
+    const uint profileCount = sizeof(grassProfiles) / sizeof(grassProfiles[0]);
+    const GrassProfile profile = grassProfiles[uint(pow(GrassRandom(shape), 1.35f) * profileCount)];
+    if (blade >= profile.bladeCount)
+        return output;
+
+    const float3 placement = SampleTerrainMap(_grassPlacementTexture, mapUV).rgb;
+    if (GrassRandom(HashGridCell(worldCell + int2(183, -71))) >= placement.r)
+        return output;
+
+    float2 slope;
+    const float rootHeight = SampleTerrainHeightAndSlopeRelative(rootRelativeXZ, slope);
+    if (rootHeight < 0.09f || dot(slope, slope) > 0.64f)
+        return output;
+
+    const float distanceToRoot = length(float3(rootToViewXZ.x, rootHeight - getViewPosition().y, rootToViewXZ.y));
+    const float distanceFade = 1.0f - smoothstep(fadeRange.x, fadeRange.y, distanceToRoot);
     if (distanceFade <= 0.0f)
         return output;
 
-    const float moss = TerrainMossCoverage(TerrainMacro(rootXZ));
-    if (GrassRandom(HashTerrainCell(worldCell + int2(183, -71))) >= TerrainGrassDensity(rootXZ, moss))
-        return output;
-
-    const float sampleStep = 0.5f;
-    const float2 slope = (float2(SampleTerrainHeightRelative(rootRelativeXZ + float2(sampleStep, 0.0f)),
-                                 SampleTerrainHeightRelative(rootRelativeXZ + float2(0.0f, sampleStep))) - rootHeight) / sampleStep;
-    if (dot(slope, slope) > 0.64f)
-        return output;
-
     // The indexed clump has two quads and one tip triangle per blade.
-    const uint blade = vertexID / 7u;
     const uint bladeVertex = vertexID % 7u;
     const uint row = bladeVertex / 2u;
     const float bladeRows[4] = { 0.0f, 0.36f, 0.72f, 1.0f };
@@ -111,12 +132,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float t = bladeRows[row];
     const float sideSign = (bladeVertex & 1u) != 0u ? 1.0f : -1.0f;
 
-    const uint shape = HashTerrainCell(worldCell + int2(-71, 313));
-    const uint profileCount = sizeof(grassProfiles) / sizeof(grassProfiles[0]);
-    const GrassProfile profile = grassProfiles[uint(GrassRandom(shape) * profileCount)];
-    if (blade >= profile.bladeCount)
-        return output;
-    const uint bladeSeed = HashTerrainCell(worldCell + int2(97 + int(blade) * 23, -43));
+    const uint bladeSeed = HashGridCell(worldCell + int2(97 + int(blade) * 23, -43));
     const float angle = (float(blade) + GrassRandom(bladeSeed) * 0.85f) * 1.04719755f
                       + GrassRandom(shape >> 16) * 6.28318531f;
     float2 heading;
@@ -124,7 +140,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float2 side = float2(-heading.y, heading.x);
 
     const float height = profile.height * distanceFade * lerp(0.67f, 1.24f, GrassRandom(bladeSeed >> 16));
-    const float width = profile.width * lerp(0.75f, 1.24f, GrassRandom(bladeSeed >> 8));
+    const float width = profile.width * lerp(0.83f, 1.38f, GrassRandom(bladeSeed >> 8));
     const float2 bladeRoot = heading * profile.spread * lerp(0.14f, 1.0f, GrassRandom(bladeSeed >> 6));
     const float2 windDirection = float2(0.84f, 0.5426f);
     const float gust = 0.57f + 0.28f * sin(1.85f * _time - 0.39f * dot(rootXZ, windDirection))
@@ -137,11 +153,12 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float4 viewPosition = float4(mul(relativeViewPosition, (float3x3)_cameraWorldMatrixInv), 1.0f);
     output.position = mul(viewPosition, _cameraProjectionMatrix);
 
-    const float dry = saturate(profile.dryness + 0.28f * (GrassRandom(bladeSeed >> 11) - 0.5f)
-                             + 0.14f * (0.5f - moss));
-    const float3 rootColor = lerp(float3(0.026f, 0.043f, 0.009f), float3(0.050f, 0.048f, 0.013f), dry);
-    const float3 tipColor = lerp(float3(0.086f, 0.154f, 0.030f), float3(0.194f, 0.170f, 0.047f), dry);
-    output.albedo = lerp(rootColor, tipColor, t);
+    const float dry = saturate(profile.dryness * placement.g + 0.28f * (GrassRandom(bladeSeed >> 11) - 0.5f)
+                             + 0.14f * (0.5f - placement.b));
+    const float3 rootColor = lerp(float3(0.016f, 0.033f, 0.008f), float3(0.037f, 0.038f, 0.011f), dry);
+    const float3 tipColor = lerp(float3(0.053f, 0.113f, 0.022f), float3(0.137f, 0.128f, 0.036f), dry);
+    const float colorVariation = lerp(0.86f, 1.15f, GrassRandom(shape >> 8));
+    output.albedo = lerp(rootColor, tipColor, t) * colorVariation;
     output.normal = normalize(float3(-0.55f * heading.x, 1.0f, -0.55f * heading.y));
     return output;
 }

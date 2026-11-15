@@ -1,0 +1,62 @@
+<StaticMeshPlacements>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_08_13.glb">
+		<Instance X="768" Y="0" Z="1248" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_08_14.glb">
+		<Instance X="768" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_08_15.glb">
+		<Instance X="768" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_09_13.glb">
+		<Instance X="864" Y="0" Z="1248" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_09_14.glb">
+		<Instance X="864" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_09_15.glb">
+		<Instance X="864" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_09_16.glb">
+		<Instance X="864" Y="0" Z="1536" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_10_15.glb">
+		<Instance X="960" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_10_16.glb">
+		<Instance X="960" Y="0" Z="1536" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_11_15.glb">
+		<Instance X="1056" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_11_16.glb">
+		<Instance X="1056" Y="0" Z="1536" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_12_15.glb">
+		<Instance X="1152" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_12_16.glb">
+		<Instance X="1152" Y="0" Z="1536" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_13_13.glb">
+		<Instance X="1248" Y="0" Z="1248" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_13_14.glb">
+		<Instance X="1248" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_13_15.glb">
+		<Instance X="1248" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_13_16.glb">
+		<Instance X="1248" Y="0" Z="1536" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_14_13.glb">
+		<Instance X="1344" Y="0" Z="1248" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_14_14.glb">
+		<Instance X="1344" Y="0" Z="1344" Yaw="0" Scale="1" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Backdrop/Canopy_14_15.glb">
+		<Instance X="1344" Y="0" Z="1440" Yaw="0" Scale="1" />
+	</Model>
+</StaticMeshPlacements>

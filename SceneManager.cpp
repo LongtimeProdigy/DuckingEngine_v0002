@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
-#include "Resource/Material/GrassTiles.h"
 #include "SceneManager.h"
+#include "SceneObjectManager.h"
 #include "FileUtil.h"
 
 #include "DuckingEngine.h"
@@ -9,6 +9,7 @@
 #include "ResourceManager.h"
 #include "ModelProperty.h"
 #include "MeshUtil.h"
+#include "Resource/Material/GrassTiles.h"
 
 namespace DK
 {
@@ -410,7 +411,99 @@ namespace DK
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
 		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, indexArr.size(), vertexArr);
 	}
-	void SceneManager::loadLevel(const DKString& terrainArchive)
+	static bool readOptionalLevelFloat(const TiXmlElement& element, const char* name, float& value)
+	{
+		const int result = element.QueryFloatAttribute(name, &value);
+		return result == TIXML_NO_ATTRIBUTE || (result == TIXML_SUCCESS && std::isfinite(value));
+	}
+
+	bool SceneManager::loadLevel(const DKString& levelPath)
+	{
+		const ScopeString<DK_MAX_PATH> fullPath = GlobalPath::makeResourceFullPath(levelPath);
+		FileReader reader;
+		DKString text;
+		if (reader.open(fullPath.c_str()) == false || reader.readText(text) == false)
+		{
+			DK_ASSERT_LOG(false, "Level file load failed: %s", fullPath.c_str());
+			return false;
+		}
+
+		TiXmlDocument document;
+		document.Parse(text.c_str());
+		const TiXmlElement* level = document.FirstChildElement("Level");
+		const TiXmlElement* terrain = level == nullptr ? nullptr : level->FirstChildElement("Terrain");
+		if (document.Error() || terrain == nullptr)
+		{
+			DK_ASSERT_LOG(false, "Invalid level terrain definition: %s", fullPath.c_str());
+			return false;
+		}
+
+		const char* terrainArchive = terrain->Attribute("Archive");
+		const char* terrainModelProperty = terrain->Attribute("ModelProperty");
+		const char* terrainHeightTexture = terrain->Attribute("HeightTexture");
+		if (terrainArchive == nullptr || terrainArchive[0] == '\0' || terrainModelProperty == nullptr || terrainModelProperty[0] == '\0' || terrainHeightTexture == nullptr || terrainHeightTexture[0] == '\0')
+		{
+			DK_ASSERT_LOG(false, "Terrain needs an archive, model property and height texture: %s", fullPath.c_str());
+			return false;
+		}
+		float2 terrainWorldOrigin(0.0f, 0.0f);
+		if (readOptionalLevelFloat(*terrain, "OriginX", terrainWorldOrigin.x) == false || readOptionalLevelFloat(*terrain, "OriginZ", terrainWorldOrigin.y) == false)
+		{
+			DK_ASSERT_LOG(false, "Terrain origin must be finite: %s", fullPath.c_str());
+			return false;
+		}
+		if (loadTerrain(terrainArchive, terrainModelProperty, terrainHeightTexture, terrainWorldOrigin) == false)
+			return false;
+
+		_grass = {};
+		const TiXmlElement* grass = level->FirstChildElement("Grass");
+		if (grass != nullptr)
+		{
+			const char* placementMap = grass->Attribute("PlacementMap");
+			if (placementMap == nullptr || placementMap[0] == '\0')
+			{
+				DK_ASSERT_LOG(false, "Grass needs a placement map: %s", fullPath.c_str());
+				return false;
+			}
+			int tileGridSide = GRASS_TILE_GRID_SIDE_DEFAULT;
+			if (grass->Attribute("TileGridSide") != nullptr && (grass->QueryIntAttribute("TileGridSide", &tileGridSide) != TIXML_SUCCESS || tileGridSide < 32 || tileGridSide > 128 || tileGridSide % 32 != 0))
+			{
+				DK_ASSERT_LOG(false, "Grass TileGridSide must be a multiple of 32 between 32 and 128: %s", fullPath.c_str());
+				return false;
+			}
+			const ClipMapTerrain::StreamingConstants& terrainConstants = _clipmapTerrain._streamingConstants;
+			_grass._grassMapOriginX = terrainConstants._terrainWorldOriginX;
+			_grass._grassMapOriginZ = terrainConstants._terrainWorldOriginZ;
+			_grass._grassMapWidth = terrainConstants._terrainCellsX * terrainConstants._terrainSampleSpacing;
+			_grass._grassMapDepth = terrainConstants._terrainCellsZ * terrainConstants._terrainSampleSpacing;
+			if (readOptionalLevelFloat(*grass, "MapOriginX", _grass._grassMapOriginX) == false ||
+				readOptionalLevelFloat(*grass, "MapOriginZ", _grass._grassMapOriginZ) == false ||
+				readOptionalLevelFloat(*grass, "MapWidth", _grass._grassMapWidth) == false ||
+				readOptionalLevelFloat(*grass, "MapDepth", _grass._grassMapDepth) == false ||
+				_grass._grassMapWidth <= 0.0f || _grass._grassMapDepth <= 0.0f)
+			{
+				DK_ASSERT_LOG(false, "Grass map needs a finite origin and positive extent: %s", fullPath.c_str());
+				return false;
+			}
+			if (loadGrass(placementMap, static_cast<uint32>(tileGridSide)) == false)
+				return false;
+		}
+
+		for (const TiXmlElement* placements = level->FirstChildElement("StaticMeshPlacements"); placements != nullptr; placements = placements->NextSiblingElement("StaticMeshPlacements"))
+		{
+			const char* placementPath = placements->Attribute("Path");
+			if (placementPath == nullptr || placementPath[0] == '\0')
+			{
+				DK_ASSERT_LOG(false, "Static mesh placements need a path: %s", fullPath.c_str());
+				return false;
+			}
+			if (DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadStaticMeshPlacements(placementPath) == false)
+				return false;
+		}
+		return true;
+	}
+
+	bool SceneManager::loadTerrain(const DKString& terrainArchive, const DKString& modelPropertyPath, const DKString& heightTexturePath, const float2& terrainWorldOrigin)
 	{
 		_clipmapTerrain._terrainConstantBuffer.clear();
 		_clipmapTerrain._streamer.stop();
@@ -419,11 +512,11 @@ namespace DK
 		if (_clipmapTerrain._chunkArchive.open(FileUtil::fromWidePath(StringUtil::convertCtoWC(archivePath.c_str()))) == false)
 		{
 			DK_ASSERT_LOG(false, "Terrain archive load failed: %s", archivePath.c_str());
-			return;
+			return false;
 		}
 		DK_LOG("Terrain archive: %u chunks", _clipmapTerrain._chunkArchive.header()._chunkCount);
 
-		initializeTerrainStreaming();
+		initializeTerrainStreaming(terrainWorldOrigin);
 
 		// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
 		// TileMap
@@ -433,37 +526,37 @@ namespace DK
 		_clipmapTerrain._trim = loadLevel_ClipMap_Trim();
 		_clipmapTerrain._seam = loadLevel_ClipMap_Seam();
 
-		ScopeString<DK_MAX_BUFFER> terrainModelPropertyPath(ConstPath::gTerrainModelProperty);
-		terrainModelPropertyPath.append("/TerrainClipMap.xml");
-		const ModelPropertyRef modelProperty = DuckingEngine::getInstance().GetResourceManagerWritable().loadModelProperty(terrainModelPropertyPath.c_str());
-		const DKVector<MaterialDefinition>& materialDefinitionArr = modelProperty->get_materialDefinitionArr();
-		DK_ASSERT_LOG(materialDefinitionArr.size() == 1, "Terrian Material은 현재 Material 1개만 지원합니다.");
-		MaterialDefinition terrainDefinition = materialDefinitionArr[0];
-		if (_clipmapTerrain._streamingConstants._terrainStreamEnabled)
+		const ModelPropertyRef modelProperty = DuckingEngine::getInstance().GetResourceManagerWritable().loadModelProperty(modelPropertyPath);
+		if (modelProperty == nullptr)
+			return false;
+		const DKVector<MaterialDefinition>& materials = modelProperty->get_materialDefinitionArr();
+		if (materials.size() != 1)
 		{
-			for (MaterialParameterDefinition& parameter : terrainDefinition._parameters)
-			{
-				if (parameter._name == "_heightTexture")
-					parameter._value = "Texture/0x00000000.png";
-			}
+			DK_ASSERT_LOG(false, "Terrain requires one material: %s", modelPropertyPath.c_str());
+			return false;
 		}
+		_clipmapTerrain._material.assign(Material::createMaterial(materials[0]));
+		if (_clipmapTerrain._material.get() == nullptr)
+			return false;
 
-		Material* newMaterial = Material::createMaterial(terrainDefinition);
-		_clipmapTerrain._material.assign(newMaterial);
-		if (_clipmapTerrain._streamingConstants._terrainStreamEnabled == 0)
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		ClipMapTerrain::StreamingConstants& constants = _clipmapTerrain._streamingConstants;
+		_clipmapTerrain._heightTexture = nullptr;
+		if (constants._terrainStreamEnabled == 0)
 		{
-			for (const Ptr<MaterialParameter>& parameter : newMaterial->_parameterArr)
+			_clipmapTerrain._heightTexture = renderModule.loadAndCreateTexture(heightTexturePath);
+			if (_clipmapTerrain._heightTexture == nullptr)
+				return false;
+			const D3D12_RESOURCE_DESC description = const_cast<ID3D12Resource*>(_clipmapTerrain._heightTexture->getTextureBuffer().operator->())->GetDesc();
+			if (description.Width < 2 || description.Height < 2)
 			{
-				if (parameter->getParameterName() == "_heightTexture" && parameter->getType() == MaterialParameterType::TEXTURE)
-				{
-					const MaterialParameterTexture* heightParameter = static_cast<const MaterialParameterTexture*>(parameter.get());
-					const D3D12_RESOURCE_DESC description = const_cast<ID3D12Resource*>(heightParameter->_value->getTextureBuffer().operator->())->GetDesc();
-					_clipmapTerrain._streamingConstants._terrainCellsX = static_cast<uint32>(description.Width - 1);
-					_clipmapTerrain._streamingConstants._terrainCellsZ = description.Height - 1;
-					break;
-				}
+				DK_ASSERT_LOG(false, "Invalid terrain height texture: %s", heightTexturePath.c_str());
+				return false;
 			}
-			_clipmapTerrain._streamingBuffer->upload(&_clipmapTerrain._streamingConstants);
+			constants._terrainHeightTexture = _clipmapTerrain._heightTexture->getSRV();
+			constants._terrainCellsX = static_cast<uint32>(description.Width - 1);
+			constants._terrainCellsZ = description.Height - 1;
+			_clipmapTerrain._streamingBuffer->upload(&constants);
 		}
 
 		// Cross(1) + (tile(4) + Filter(1) + Trim(1) + Seam(1)) * (level count)
@@ -471,19 +564,31 @@ namespace DK
 		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
 		for (uint32 i = 0; i < tileCountPerClipMap; ++i)
 		{
-			IBufferRef buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(TerrainMeshConstantBuffer), L"TerrainMesh_CBuffer");
+			IBufferRef buffer = renderModule.createConstantBuffer(sizeof(TerrainMeshConstantBuffer), L"TerrainMesh_CBuffer");
+			if (buffer == nullptr)
+				return false;
 			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
 		}
+		return true;
+	}
+
+	bool SceneManager::loadGrass(const DKString& placementTexturePath, uint32 tileGridSide)
+	{
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		_grass._tileGridSide = tileGridSide;
+		_grass._placementTexture = renderModule.loadAndCreateTexture(placementTexturePath);
+		if (_grass._placementTexture == nullptr)
+			return false;
 
 		constexpr uint32 bladeIndices[] = { 0, 1, 2, 1, 3, 2, 2, 3, 4, 3, 5, 4, 4, 5, 6 };
-		uint32 grassIndices[ClipMapTerrain::GRASS_INDEX_COUNT];
-		for (uint32 blade = 0; blade < ClipMapTerrain::GRASS_BLADE_COUNT; ++blade)
+		uint32 grassIndices[Grass::GRASS_INDEX_COUNT];
+		for (uint32 blade = 0; blade < Grass::GRASS_BLADE_COUNT; ++blade)
 		{
 			for (uint32 index = 0; index < DK_COUNT_OF(bladeIndices); ++index)
 				grassIndices[blade * DK_COUNT_OF(bladeIndices) + index] = blade * 7 + bladeIndices[index];
 		}
-		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		_clipmapTerrain._grassIndexBuffer = renderModule.createIndexBuffer(grassIndices, ClipMapTerrain::GRASS_INDEX_COUNT, _clipmapTerrain._grassIndexBufferView, L"GrassPatch_IndexBuffer");
+		_grass._indexBuffer = renderModule.createIndexBuffer(grassIndices, Grass::GRASS_INDEX_COUNT, _grass._indexBufferView, L"GrassPatch_IndexBuffer");
+		return _grass._indexBuffer != nullptr;
 	}
 
 	static DKVector<float2> getScreenPlaneVertexBufferData()
@@ -509,12 +614,14 @@ namespace DK
 		return indexArr;
 	}
 
-    void SceneManager::initializeTerrainStreaming()
+    void SceneManager::initializeTerrainStreaming(const float2& terrainWorldOrigin)
     {
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
         ClipMapTerrain& terrain = _clipmapTerrain;
         ClipMapTerrain::StreamingConstants& constants = terrain._streamingConstants;
         constants = {};
+        constants._terrainWorldOriginX = terrainWorldOrigin.x;
+        constants._terrainWorldOriginZ = terrainWorldOrigin.y;
         terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), L"TerrainStreaming_CBuffer");
         terrain._streamingBuffer->upload(&constants);
         if (terrain._chunkArchive.isOpen() == false || terrain._chunkArchive.header()._chunkCells < 2)
@@ -530,7 +637,6 @@ namespace DK
         constants._terrainCellsX = header._width - 1;
         constants._terrainCellsZ = header._height - 1;
         constants._terrainChunkCells = header._chunkCells;
-        constants._terrainDetailRadius = 128.0f * header._sampleSpacing;
         constants._terrainTilesX = (header._width - 2) / header._chunkCells + 1;
         constants._terrainTilesZ = (header._height - 2) / header._chunkCells + 1;
         constants._terrainTailLod = overviewLod(header, 256);
@@ -587,15 +693,29 @@ namespace DK
     {
         ClipMapTerrain& terrain = _clipmapTerrain;
         ClipMapTerrain::StreamingConstants& constants = terrain._streamingConstants;
-        if (constants._terrainStreamEnabled == 0)
+        if (terrain._streamingBuffer == nullptr)
             return;
+
+        const double archiveCameraX = cameraX - constants._terrainWorldOriginX;
+        const double archiveCameraZ = cameraZ - constants._terrainWorldOriginZ;
+        constants._terrainAnchorX = static_cast<int32>(std::floor(archiveCameraX / constants._terrainSampleSpacing));
+        constants._terrainAnchorZ = static_cast<int32>(std::floor(archiveCameraZ / constants._terrainSampleSpacing));
+        constants._terrainCameraX = static_cast<float>(archiveCameraX - double(constants._terrainAnchorX) * constants._terrainSampleSpacing);
+        constants._terrainCameraZ = static_cast<float>(archiveCameraZ - double(constants._terrainAnchorZ) * constants._terrainSampleSpacing);
+        constants._terrainCameraWorldX = static_cast<float>(cameraX);
+        constants._terrainCameraWorldZ = static_cast<float>(cameraZ);
+        if (constants._terrainStreamEnabled == 0)
+        {
+            terrain._streamingBuffer->upload(&constants);
+            return;
+        }
 
         for (ClipMapTerrain::CacheSlot& slot : terrain._cacheSlots)
             slot._fade = Math::min(slot._fade + Math::max(deltaTime, 0.0f) * 4.0f, 1.0f);
 
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
         const ArchiveHeader& header = terrain._chunkArchive.header();
-        const DKVector<TileRequest> wanted = selectPages(header, cameraX, cameraZ, constants._terrainDetailRadius, constants._terrainTailLod, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
+        const DKVector<TileRequest> wanted = selectPages(header, archiveCameraX, archiveCameraZ, constants._terrainDetailRadius, constants._terrainTailLod, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
 
         TilePage page;
         for (uint32 uploads = 0; uploads < 4 && terrain._streamer.takeReady(page); ++uploads)
@@ -672,19 +792,6 @@ namespace DK
         }
         terrain._streamer.request(missing);
 
-        constants._terrainAnchorX = static_cast<int32>(std::floor(cameraX / header._sampleSpacing));
-        constants._terrainAnchorZ = static_cast<int32>(std::floor(cameraZ / header._sampleSpacing));
-        constants._terrainCameraX = static_cast<float>(cameraX - double(constants._terrainAnchorX) * header._sampleSpacing);
-        constants._terrainCameraZ = static_cast<float>(cameraZ - double(constants._terrainAnchorZ) * header._sampleSpacing);
-        constants._terrainCameraWorldX = static_cast<float>(cameraX);
-        constants._terrainCameraWorldZ = static_cast<float>(cameraZ);
-        const double grassCellMeters = double(GRASS_TILE_METERS) / GRASS_TILE_GRID_SIDE;
-        const double anchorX = double(constants._terrainAnchorX) * header._sampleSpacing;
-        const double anchorZ = double(constants._terrainAnchorZ) * header._sampleSpacing;
-        constants._terrainGrassAnchorX = static_cast<int32>(std::floor(anchorX / grassCellMeters));
-        constants._terrainGrassAnchorZ = static_cast<int32>(std::floor(anchorZ / grassCellMeters));
-        constants._terrainGrassOffsetX = static_cast<float>(anchorX - double(constants._terrainGrassAnchorX) * grassCellMeters);
-        constants._terrainGrassOffsetZ = static_cast<float>(anchorZ - double(constants._terrainGrassAnchorZ) * grassCellMeters);
         terrain._streamingBuffer->upload(&constants);
     }
 
