@@ -56,15 +56,6 @@
 #endif
 #pragma endregion
 
-#define USE_ASSIMP
-#ifdef USE_ASSIMP
-#include "assimp/Importer.hpp"
-#include "assimp/cimport.h"
-#include "assimp/postprocess.h"
-#include "assimp/scene.h"
-#endif
-#pragma endregion
-
 #ifdef _DK_DEBUG_
 #define USE_PIX
 #endif
