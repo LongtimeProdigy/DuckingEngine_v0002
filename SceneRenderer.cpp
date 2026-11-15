@@ -1343,16 +1343,56 @@ namespace DK
 								rtRenderer.resetAccumulation();
 							}
 						}
-						RenderModule& timing = DuckingEngine::getInstance().GetRenderModuleWritable();
-                        const char* scopeNames[] = { "Transmittance LUT", "Sky lighting", "Surface lighting", "Atmosphere", "Surface capture / bounce" };
-                        for (uint32 scope = 0; scope < 5; ++scope)
-                            ImGui::Text("%s: %.3f ms (peak %.3f)", scopeNames[scope], timing.gpuMilliseconds(scope), timing.gpuPeakMilliseconds(scope));
-                        if (ImGui::Button("Reset GPU peaks"))
-                            timing.resetGpuTimingPeaks();
-                        ImGui::TextDisabled("GPU timestamps; -1 = unavailable. Cached passes approach 0 ms.");
-                        ImGui::TextDisabled("F1: show / hide all UI");
+						ImGui::TextDisabled("F1: show / hide all UI");
 						ImGui::EndTabItem();
 					}
+#if defined(_DK_DEBUG_)
+					if (ImGui::BeginTabItem("GPU"))
+					{
+						if (ImGui::Button("Reset peaks"))
+							renderModule.resetGpuTimingPeaks();
+						if (ImGui::BeginTable("Render pass timings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY))
+						{
+							ImGui::TableSetupColumn("Render pass");
+							ImGui::TableSetupColumn("GPU (ms)");
+							ImGui::TableSetupColumn("Peak (ms)");
+							ImGui::TableSetupScrollFreeze(0, 1);
+							ImGui::TableHeadersRow();
+							for (const RenderModule::GpuRenderPassTiming& timing : renderModule.getGpuRenderPassTimings())
+							{
+								ImGui::TableNextRow();
+								ImGui::TableSetColumnIndex(0);
+								ImGui::TextUnformatted(timing._name.c_str());
+								ImGui::TableSetColumnIndex(1);
+								if (timing._executionCount > 0)
+								{
+									ImGui::Text("%.3f", timing._milliseconds);
+									ImGui::SetItemTooltip("Pass executions: %u", timing._executionCount);
+								}
+								else
+								{
+									ImGui::TextDisabled(renderModule.hasGpuRenderPassTimings() ? "Skipped" : "Pending");
+								}
+								ImGui::TableSetColumnIndex(2);
+								ImGui::Text("%.3f", timing._peakMilliseconds);
+							}
+							ImGui::TableNextRow();
+							ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImGuiCol_TableHeaderBg));
+							ImGui::TableSetColumnIndex(0);
+							ImGui::TextUnformatted("Total");
+							ImGui::SetItemTooltip("Sum of render pass times for the frame");
+							ImGui::TableSetColumnIndex(1);
+							if (renderModule.hasGpuRenderPassTimings())
+								ImGui::Text("%.3f", renderModule.getGpuRenderPassTotalMilliseconds());
+							else
+								ImGui::TextDisabled("Pending");
+							ImGui::TableSetColumnIndex(2);
+							ImGui::Text("%.3f", renderModule.getGpuRenderPassTotalPeakMilliseconds());
+							ImGui::EndTable();
+						}
+						ImGui::EndTabItem();
+					}
+#endif
 					ImGui::EndTabBar();
 				}
 
@@ -1494,7 +1534,6 @@ namespace DK
 			return;
 
         RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-        renderModule.beginGpuTiming(4);
 		if (surface._surfaceShadowStrength > 0.0f)
 		{
 			for (uint32 i = 0; i < DK_COUNT_OF(_nearShadowPasses); ++i)
@@ -1525,7 +1564,6 @@ namespace DK
 			}
 			endRenderPass();
         }
-        renderModule.endGpuTiming(4);
 
 		if (updateBounce == false)
 			return;
@@ -1860,7 +1898,6 @@ namespace DK
 			return;
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		renderModule.beginGpuTiming(0);
         startRenderPass(renderModule, *_transmittancePass);
 		{
 			startPipeline("AtmosphereTransmittancePipeline");
@@ -1875,7 +1912,6 @@ namespace DK
 			endPipeline();
 		}
 		endRenderPass();
-        renderModule.endGpuTiming(0);
 
 		_skyLightingValid = false;
         _multipleScatteringValid = false;
@@ -1936,7 +1972,6 @@ namespace DK
 			return;
 
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
-        rm.beginGpuTiming(1);
         startRenderPass(rm, *_skyLightingPass);
 		{
 			startPipeline("AtmosphereSkyRadiancePipeline");
@@ -1959,7 +1994,6 @@ namespace DK
 			endPipeline();
 		}
         endRenderPass();
-        rm.endGpuTiming(1);
 
         _cachedSkyParameters = p;
         _cachedSkyPosition[0] = position.x; _cachedSkyPosition[1] = position.y; _cachedSkyPosition[2] = position.z;
@@ -2115,7 +2149,6 @@ namespace DK
 		renderModule.finishRenderPass();
 
 		// Resolve material attributes to HDR radiance before atmosphere and bloom.
-		renderModule.beginGpuTiming(2);
         startRenderPass(renderModule, *_gbufferResolvePass);
 		{
 			startPipeline("GBufferPipeline");
@@ -2137,9 +2170,7 @@ namespace DK
 			endPipeline();
 		}
 		endRenderPass();
-		renderModule.endGpuTiming(2);
 
-        renderModule.beginGpuTiming(3);
         startRenderPass(renderModule, *_atmospherePass);
 		{
 			startPipeline("AtmospherePipeline");
@@ -2163,7 +2194,6 @@ namespace DK
 		endRenderPass();
         }
 
-		renderModule.endGpuTiming(3);
 
         // The horizontal pass can reuse the lighting output after atmosphere has read it.
 		if (_atmosphereConstantBufferData._bloomStrength > 0.0f)

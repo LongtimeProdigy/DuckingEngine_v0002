@@ -306,6 +306,11 @@ namespace DK
 		kHeight = height;
 
 #if defined(_DK_DEBUG_)
+		const HRESULT timestampResult = _commandQueue->GetTimestampFrequency(&_gpuTimestampFrequency);
+		DK_ASSERT_LOG(SUCCEEDED(timestampResult) && _gpuTimestampFrequency > 0, "GPU timestamp frequency is unavailable");
+		if (FAILED(timestampResult) || _gpuTimestampFrequency == 0)
+			return false;
+
 		const GpuAssertRecord debugHangData = {};
 		const uint32 debugHangBufferSize = sizeof(debugHangData);
 		const CD3DX12_HEAP_PROPERTIES debugHangHeap(D3D12_HEAP_TYPE_DEFAULT);
@@ -537,6 +542,14 @@ namespace DK
 		_gpuAssertResetUpload.reset();
 		_gpuAssertReadback.release();
 		_gpuAssertReadbackPending = false;
+		_gpuTimestampBlocks.clear();
+		_gpuRenderPassTimings.clear();
+		_recordedGpuPassTimings.clear();
+		_submittedGpuPassTimings.clear();
+		_gpuRenderPassTotalMilliseconds = 0.0;
+		_gpuRenderPassTotalPeakMilliseconds = 0.0;
+		_gpuPassTimingsPending = false;
+		_hasGpuRenderPassTimings = false;
 #endif
 		_textureDescriptorHeap.release();
 		DK_ASSERT_LOG(_textureContainer.empty(), "");
@@ -557,8 +570,6 @@ namespace DK
 			_fences[i].release();
 
 		_commandList = DKCommandList();
-        _gpuTimestampReadback.release();
-        _gpuTimestampHeap.release();
 		_commandQueue.release();
 
 		_device.release();
@@ -1740,6 +1751,9 @@ namespace DK
 			renderPass._pipelineMap.insert(DKPair<DKString, Pipeline>(pipelineName, DK::move(newPipeline)));
 		}
 
+#if defined(_DK_DEBUG_)
+		renderPass._gpuTimingIndex = registerGpuRenderPassTiming(renderPassName);
+#endif
 		return true;
 	}
 
@@ -1776,7 +1790,12 @@ namespace DK
 				return false;
 		}
 
-		return _renderPassInstances.try_emplace(name, RenderPassInstance{ definition, binding }).second;
+		const DKPair<DKHashMap<DKString, RenderPassInstance>::iterator, bool> result = _renderPassInstances.try_emplace(name, RenderPassInstance{ definition, binding });
+#if defined(_DK_DEBUG_)
+		if (result.second)
+			result.first->second._gpuTimingIndex = registerGpuRenderPassTiming(name);
+#endif
+		return result.second;
 	}
 
 #pragma endregion
@@ -1920,12 +1939,14 @@ namespace DK
 
 		_fenceValues[kCurrentFrameIndex] = fenceValue;
 
-        if (_gpuTimingRecorded)
-        {
-            _gpuTimingFence = _fenceValues[kCurrentFrameIndex];
-            _gpuTimingFenceIndex = kCurrentFrameIndex;
-            _gpuTimingRecorded = false;
-        }
+#if defined(_DK_DEBUG_)
+		if (isPresent)
+		{
+			DK_ASSERT_LOG(_gpuPassTimingsPending == false && _submittedGpuPassTimings.empty(), "Previous GPU pass timings are pending");
+			_submittedGpuPassTimings.swap(_recordedGpuPassTimings);
+			_gpuPassTimingsPending = true;
+		}
+#endif
 		_frameSubmitted = true;
 	}
 
@@ -1937,6 +1958,7 @@ namespace DK
 		waitForFence(kCurrentFrameIndex);
 		_frameSubmitted = false;
 #if defined(_DK_DEBUG_)
+		readGpuRenderPassTimings();
 		reportGpuAssert();
 #endif
 	}
@@ -2742,77 +2764,137 @@ namespace DK
 		_deletedTextureUAVArr.push_back(index);
 	}
 
-    void RenderModule::prepareGpuTimings()
-    {
-        _gpuTimingRecorded = false;
+#if defined(_DK_DEBUG_)
+	uint32 RenderModule::registerGpuRenderPassTiming(const DKString& name)
+	{
+		const uint32 timingIndex = static_cast<uint32>(_gpuRenderPassTimings.size());
+		_gpuRenderPassTimings.push_back({ name });
+		return timingIndex;
+	}
 
-        if (_gpuTimingsInitialized == false)
-        {
-            _gpuTimingsInitialized = true;
-            D3D12_QUERY_HEAP_DESC queryDesc = {};
-            queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-            queryDesc.Count = 10;
-            ID3D12QueryHeap* heap = nullptr;
-            if (FAILED(_device->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&heap))))
-				return;
+	void RenderModule::resetGpuTimingPeaks()
+	{
+		for (GpuRenderPassTiming& timing : _gpuRenderPassTimings)
+			timing._peakMilliseconds = 0.0;
+		_gpuRenderPassTotalPeakMilliseconds = 0.0;
+	}
 
-            _gpuTimestampHeap = heap;
-            const CD3DX12_HEAP_PROPERTIES props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK);
-            const CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(10 * sizeof(uint64));
-            ID3D12Resource* resource = nullptr;
-            if (FAILED(_device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource))))
-				return;
+	void RenderModule::beginGpuRenderPassTiming(uint32 timingIndex)
+	{
+		DK_ASSERT_LOG(timingIndex < _gpuRenderPassTimings.size(), "Render pass timing was not registered");
+		const size_t sampleIndex = _recordedGpuPassTimings.size();
+		const size_t blockIndex = sampleIndex / GPU_PASS_TIMINGS_PER_BLOCK;
+		if (blockIndex == _gpuTimestampBlocks.size())
+		{
+			GpuTimestampBlock& block = _gpuTimestampBlocks.emplace_back();
+			D3D12_QUERY_HEAP_DESC queryDesc = {};
+			queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+			queryDesc.Count = GPU_PASS_TIMINGS_PER_BLOCK * 2;
+			ID3D12QueryHeap* queryHeap = nullptr;
+			const HRESULT queryResult = _device->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&queryHeap));
+			DK_ASSERT_LOG(SUCCEEDED(queryResult), "GPU pass timestamp heap creation failed: 0x%08X", static_cast<uint32>(queryResult));
+			block._queryHeap = queryHeap;
 
-            _gpuTimestampReadback = resource;
-            if (FAILED(_commandQueue->GetTimestampFrequency(&_gpuTimestampFrequency)))
-				_gpuTimestampFrequency = 0;
-        }
+			const CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_READBACK);
+			const CD3DX12_RESOURCE_DESC buffer = CD3DX12_RESOURCE_DESC::Buffer(queryDesc.Count * sizeof(uint64));
+			ID3D12Resource* readback = nullptr;
+			const HRESULT readbackResult = _device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buffer, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&readback));
+			DK_ASSERT_LOG(SUCCEEDED(readbackResult), "GPU pass timestamp readback creation failed: 0x%08X", static_cast<uint32>(readbackResult));
+			block._readback = readback;
+		}
 
-        if (_gpuTimestampHeap == nullptr || _gpuTimestampReadback == nullptr || _gpuTimestampFrequency == 0)
+		const uint32 queryIndex = static_cast<uint32>(sampleIndex % GPU_PASS_TIMINGS_PER_BLOCK) * 2;
+		_commandList->EndQuery(_gpuTimestampBlocks[blockIndex]._queryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, queryIndex);
+		_recordedGpuPassTimings.push_back(timingIndex);
+	}
+
+	void RenderModule::finishGpuRenderPassTiming()
+	{
+		DK_ASSERT_LOG(_recordedGpuPassTimings.empty() == false, "GPU pass timing has no start timestamp");
+		const size_t sampleIndex = _recordedGpuPassTimings.size() - 1;
+		const size_t blockIndex = sampleIndex / GPU_PASS_TIMINGS_PER_BLOCK;
+		const uint32 queryIndex = static_cast<uint32>(sampleIndex % GPU_PASS_TIMINGS_PER_BLOCK) * 2 + 1;
+		_commandList->EndQuery(_gpuTimestampBlocks[blockIndex]._queryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, queryIndex);
+	}
+
+	void RenderModule::resolveGpuRenderPassTimings()
+	{
+		DK_ASSERT_LOG(gCurrentBindedRenderPass == nullptr, "GPU pass timings must be resolved after all passes have ended");
+		if (_recordedGpuPassTimings.empty())
 			return;
 
-        if (_gpuTimingFence && _fences[_gpuTimingFenceIndex]->GetCompletedValue() < _gpuTimingFence)
-            return;
+		// ResolveQueryData may create an internal COPY_DEST buffer and emit warning #1328.
+		// Suppress only that benign runtime warning for this call; keep other diagnostics enabled.
+		// Windows SDK 10.0.19041 does not name CREATERESOURCE_STATE_IGNORED yet.
+		D3D12_MESSAGE_ID ignoredMessage = static_cast<D3D12_MESSAGE_ID>(1328);
+		D3D12_INFO_QUEUE_FILTER filter = {};
+		filter.DenyList.NumIDs = 1;
+		filter.DenyList.pIDList = &ignoredMessage;
+		ID3D12InfoQueue* infoQueue = nullptr;
+		bool filterPushed = false;
+		if (SUCCEEDED(_device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
+			filterPushed = SUCCEEDED(infoQueue->PushStorageFilter(&filter));
 
-        if (_gpuTimingFence)
-        {
-            D3D12_RANGE range = { 0, 10 * sizeof(uint64) };
-            void* address = nullptr;
-            if (SUCCEEDED(_gpuTimestampReadback->Map(0, &range, &address)))
-            {
-                const uint64* ticks = static_cast<const uint64*>(address);
-                for (uint32 i = 0; i < 5; ++i)
-                {
-                    _gpuMilliseconds[i] = ticks[i * 2 + 1] >= ticks[i * 2] ? double(ticks[i * 2 + 1] - ticks[i * 2]) * 1000.0 / double(_gpuTimestampFrequency) : 0.0;
-                    _gpuPeakMilliseconds[i] = Math::max(_gpuPeakMilliseconds[i], _gpuMilliseconds[i]);
-                }
+		for (size_t firstSample = 0; firstSample < _recordedGpuPassTimings.size(); firstSample += GPU_PASS_TIMINGS_PER_BLOCK)
+		{
+			GpuTimestampBlock& block = _gpuTimestampBlocks[firstSample / GPU_PASS_TIMINGS_PER_BLOCK];
+			const uint32 sampleCount = static_cast<uint32>(std::min(_recordedGpuPassTimings.size() - firstSample, size_t(GPU_PASS_TIMINGS_PER_BLOCK)));
+			_commandList->ResolveQueryData(block._queryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 0, sampleCount * 2, block._readback.get(), 0);
+		}
 
-				D3D12_RANGE written = { 0, 0 };
-                _gpuTimestampReadback->Unmap(0, &written);
-            }
-            else
-            {
-                return;
-            }
+		if (filterPushed)
+			infoQueue->PopStorageFilter();
+		if (infoQueue != nullptr)
+			infoQueue->Release();
+	}
 
-            _gpuTimingFence = 0;
-        }
+	void RenderModule::readGpuRenderPassTimings()
+	{
+		if (_gpuPassTimingsPending == false)
+			return;
 
-        for (uint32 i = 0; i < 10; ++i)
-			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, i);
+		for (GpuRenderPassTiming& timing : _gpuRenderPassTimings)
+		{
+			timing._milliseconds = 0.0;
+			timing._executionCount = 0;
+		}
 
-        _gpuTimingRecorded = true;
-    }
-    void RenderModule::beginGpuTiming(uint32 scope)
-    {
-        if (_gpuTimingRecorded && scope < 5)
-			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, scope * 2);
-    }
-    void RenderModule::endGpuTiming(uint32 scope)
-    {
-        if (_gpuTimingRecorded && scope < 5)
-			_commandList->EndQuery(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, scope * 2 + 1);
-    }
+		const double millisecondsPerTick = 1000.0 / double(_gpuTimestampFrequency);
+		for (size_t firstSample = 0; firstSample < _submittedGpuPassTimings.size(); firstSample += GPU_PASS_TIMINGS_PER_BLOCK)
+		{
+			GpuTimestampBlock& block = _gpuTimestampBlocks[firstSample / GPU_PASS_TIMINGS_PER_BLOCK];
+			const size_t sampleCount = std::min(_submittedGpuPassTimings.size() - firstSample, size_t(GPU_PASS_TIMINGS_PER_BLOCK));
+			const D3D12_RANGE readRange = { 0, sampleCount * 2 * sizeof(uint64) };
+			void* address = nullptr;
+			const HRESULT mapResult = block._readback.get()->Map(0, &readRange, &address);
+			DK_ASSERT_LOG(SUCCEEDED(mapResult), "GPU pass timestamp readback failed: 0x%08X", static_cast<uint32>(mapResult));
+			const uint64* ticks = static_cast<const uint64*>(address);
+			for (size_t sample = 0; sample < sampleCount; ++sample)
+			{
+				const uint64 begin = ticks[sample * 2];
+				const uint64 end = ticks[sample * 2 + 1];
+				DK_ASSERT_LOG(end >= begin, "GPU pass timestamp order is invalid");
+				GpuRenderPassTiming& timing = _gpuRenderPassTimings[_submittedGpuPassTimings[firstSample + sample]];
+				timing._milliseconds += double(end - begin) * millisecondsPerTick;
+				++timing._executionCount;
+			}
+			const D3D12_RANGE writeRange = { 0, 0 };
+			block._readback.get()->Unmap(0, &writeRange);
+		}
+
+		_gpuRenderPassTotalMilliseconds = 0.0;
+		for (GpuRenderPassTiming& timing : _gpuRenderPassTimings)
+		{
+			timing._peakMilliseconds = Math::max(timing._peakMilliseconds, timing._milliseconds);
+			_gpuRenderPassTotalMilliseconds += timing._milliseconds;
+		}
+		_gpuRenderPassTotalPeakMilliseconds = Math::max(_gpuRenderPassTotalPeakMilliseconds, _gpuRenderPassTotalMilliseconds);
+
+		_submittedGpuPassTimings.clear();
+		_gpuPassTimingsPending = false;
+		_hasGpuRenderPassTimings = true;
+	}
+#endif
 
 	void RenderModule::preRender()
 	{
@@ -2827,8 +2909,6 @@ namespace DK
 				waitFenceAndResetCommandList();
 			resetCommandList();
 		}
-
-        prepareGpuTimings();
 
 		for (const DKCommandList::TextureRegionPendingData& pending : _commandList._textureRegionPendingArray)
 		{
@@ -2857,12 +2937,18 @@ namespace DK
 
 	void RenderModule::beginRenderPass(RenderPass& pass)
 	{
+#if defined(_DK_DEBUG_)
+		beginGpuRenderPassTiming(pass._gpuTimingIndex);
+#endif
 		beginRenderPass(pass, pass._binding);
 	}
 
 	void RenderModule::beginRenderPass(const RenderPassInstance& instance)
 	{
 		DK_ASSERT_LOG(instance._definition != nullptr, "Render pass instance has no definition");
+#if defined(_DK_DEBUG_)
+		beginGpuRenderPassTiming(instance._gpuTimingIndex);
+#endif
 		beginRenderPass(*instance._definition, instance._binding);
 	}
 
@@ -2935,6 +3021,9 @@ namespace DK
 				resourceBarrierTransition(targets._depth._texture->getTextureBuffer(), state);
 			_passTargetsToTransition = nullptr;
 		}
+#if defined(_DK_DEBUG_)
+		finishGpuRenderPassTiming();
+#endif
 		gCurrentBindedRenderPass = nullptr;
 	}
 
@@ -3081,29 +3170,9 @@ namespace DK
 
 	void RenderModule::endRender()
 	{
-        if (_gpuTimingRecorded)
-        {
 #if defined(_DK_DEBUG_)
-            // ResolveQueryData may create an internal COPY_DEST buffer and emit warning #1328.
-            // Suppress only that benign runtime warning for this call; keep other diagnostics enabled.
-            // Windows SDK 10.0.19041 does not name CREATERESOURCE_STATE_IGNORED yet.
-            D3D12_MESSAGE_ID ignoredMessage = static_cast<D3D12_MESSAGE_ID>(1328);
-            D3D12_INFO_QUEUE_FILTER filter = {};
-            filter.DenyList.NumIDs = 1;
-            filter.DenyList.pIDList = &ignoredMessage;
-            ID3D12InfoQueue* infoQueue = nullptr;
-            bool filterPushed = false;
-            if (SUCCEEDED(_device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
-                filterPushed = SUCCEEDED(infoQueue->PushStorageFilter(&filter));
+		resolveGpuRenderPassTimings();
 #endif
-            _commandList->ResolveQueryData(_gpuTimestampHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 0, 10, _gpuTimestampReadback.get(), 0);
-#if defined(_DK_DEBUG_)
-            if (filterPushed)
-				infoQueue->PopStorageFilter();
-            if (infoQueue)
-				infoQueue->Release();
-#endif
-        }
 
 #ifdef USE_IMGUI
 		ID3D12DescriptorHeap* heaps[] = { _imguiDescriptorHeap.get(), };

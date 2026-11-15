@@ -40,9 +40,7 @@ namespace DK
 			DKString boneName = boneNode->ToElement()->FirstAttribute()->Value();
 
 			Animation::BoneAnimation& boneAnimation = boneAnimations[boneIndex];
-#if defined(_DK_DEBUG_)
 			boneAnimation._boneName = boneName;
-#endif
 			boneAnimation._animation.resize(frameCount);
 
 			uint32 boneFrameCount = 0;

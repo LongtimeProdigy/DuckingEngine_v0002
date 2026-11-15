@@ -11,9 +11,7 @@ namespace DK
 	public:
 		struct BoneAnimation
 		{
-#if defined(_DK_DEBUG_)
 			DKString _boneName;
-#endif
 			DKVector<float4x4> _animation;
 		};
 

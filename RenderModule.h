@@ -268,6 +268,9 @@ namespace DK
 
 		DKHashMap<DKString, Pipeline> _pipelineMap;
 		RenderPassBinding _binding;
+#if defined(_DK_DEBUG_)
+		uint32 _gpuTimingIndex = UINT32_MAX;
+#endif
 
 		dk_inline Pipeline* getPipeline(const DKString& pipelineName, uint32 permutationIndex = 0)
 		{
@@ -284,6 +287,9 @@ namespace DK
 	{
 		RenderPass* _definition = nullptr;
 		RenderPassBinding _binding;
+#if defined(_DK_DEBUG_)
+		uint32 _gpuTimingIndex = UINT32_MAX;
+#endif
 	};
 
 	extern RenderPass* gCurrentBindedRenderPass;
@@ -367,17 +373,21 @@ do{ \
 	public:
 		IBuffer() = default;
 		IBuffer(IBuffer&& rhs) = default;
-		IBuffer(const Type type, RenderResourcePtr<ID3D12Resource>&& buffer, const uint32 bufferSize, const D3D12_RESOURCE_STATES state)
-			: _type(type)
-			, _buffer(DK::move(buffer))
+		IBuffer([[maybe_unused]] const Type type, RenderResourcePtr<ID3D12Resource>&& buffer, const uint32 bufferSize, const D3D12_RESOURCE_STATES state)
+			: _buffer(DK::move(buffer))
 			, _bufferSize(bufferSize)
 			, _currentState(state)
+#if defined(_DK_DEBUG_)
+			, _type(type)
+#endif
 		{}
 		IBuffer(RenderResourcePtr<ID3D12Resource>&& buffer, const uint32 width, const uint32 height, const uint32 bitPerPixel, const uint32 mipLevelCount, const D3D12_RESOURCE_STATES state)
-			: _type(Type::TEXTURE)
-			, _buffer(DK::move(buffer))
+			: _buffer(DK::move(buffer))
 			, _bufferSize(width* height* bitPerPixel)
 			, _currentState(state)
+#if defined(_DK_DEBUG_)
+			, _type(Type::TEXTURE)
+#endif
 		{}
 
 		IBuffer& operator=(IBuffer&& rhs) = default;
@@ -401,13 +411,13 @@ do{ \
 		void upload(const void* data);
 
 	private:
-#if defined(_DK_DEBUG_)
-		/*const*/ Type _type = Type::COUNT;
-#endif
 		/*const*/ RenderResourcePtr<ID3D12Resource> _buffer = nullptr;
 		/*const*/ uint32 _bufferSize = 0;
 
 		D3D12_RESOURCE_STATES _currentState;
+#if defined(_DK_DEBUG_)
+		Type _type = Type::COUNT;
+#endif
 	};
 
 	struct RaytracingGeometry
@@ -432,25 +442,15 @@ do{ \
 
 	private:
 		ITexture() = default;
-#if defined(_DK_DEBUG_)
 		ITexture(const DKString& path, const uint8 mipLevelCount, const DXGI_FORMAT format, IBuffer&& textureBuffer)
 			: _path(path)
 			, _mipLevelCount(mipLevelCount)
-#else
-		ITexture(const uint8 mipLevelCount, const DXGI_FORMAT format, IBuffer&& textureBuffer)
-			: _mipLevelCount(mipLevelCount)
-#endif
 			, _format(format)
 			, _textureBuffer(DK::move(textureBuffer))
 		{}
-#if defined(_DK_DEBUG_)
 		ITexture(const DKString& path, const uint8 mipLevelCount, const DXGI_FORMAT format, IBufferRef&& textureBuffer)
 			: _path(path)
 			, _mipLevelCount(mipLevelCount)
-#else
-		ITexture(const uint8 mipLevelCount, const DXGI_FORMAT format, IBufferRef&& textureBuffer)
-			 : _mipLevelCount(mipLevelCount)
-#endif
 			, _format(format)
 			, _textureBuffer(DK::move(*textureBuffer.get()))
 		{
@@ -463,12 +463,10 @@ do{ \
 	public:
 		~ITexture();
 
-#if defined(_DK_DEBUG_)
 		dk_inline const DKString& getPath() const
 		{
 			return _path;
 		}
-#endif
 		dk_inline const uint8 getMipLevelCount() const
 		{
 			return _mipLevelCount;
@@ -497,8 +495,8 @@ do{ \
 		}
 
 	public:
-#if defined(_DK_DEBUG_)
 		/*const*/ DKString _path = "";
+#if defined(_DK_DEBUG_)
 		bool _inContainer = false;
 #endif
 
@@ -607,20 +605,24 @@ do{ \
 #if defined(_DK_DEBUG_)
 		const bool reloadShader();
 		void ReportLiveObjects() const;
+
+		struct GpuRenderPassTiming
+		{
+			DKString _name;
+			double _milliseconds = 0.0;
+			double _peakMilliseconds = 0.0;
+			uint32 _executionCount = 0;
+		};
+
+		const DKVector<GpuRenderPassTiming>& getGpuRenderPassTimings() const { return _gpuRenderPassTimings; }
+		double getGpuRenderPassTotalMilliseconds() const { return _gpuRenderPassTotalMilliseconds; }
+		double getGpuRenderPassTotalPeakMilliseconds() const { return _gpuRenderPassTotalPeakMilliseconds; }
+		bool hasGpuRenderPassTimings() const { return _hasGpuRenderPassTimings; }
+		void resetGpuTimingPeaks();
 #endif
 
 		// SceneRenderer 전용 함수
-        void preRender();
-        void beginGpuTiming(uint32 scope);
-        void endGpuTiming(uint32 scope);
-        double gpuMilliseconds(uint32 scope) const { return scope < 5 ? _gpuMilliseconds[scope] : -1.0; }
-        double gpuPeakMilliseconds(uint32 scope) const { return scope < 5 ? _gpuPeakMilliseconds[scope] : -1.0; }
-        void resetGpuTimingPeaks()
-        {
-            for (double& value : _gpuPeakMilliseconds)
-                value = 0.0;
-        }
-        void prepareGpuTimings();
+		void preRender();
 		bool createRenderTarget(const DKString& name, RenderTargetDefinition&& definition);
 		const RenderTarget* findRenderTarget(const DKString& name) const;
 		void beginRenderPass(RenderPass& pass);
@@ -693,6 +695,11 @@ do{ \
 		void resetCommandList();
 #if defined(_DK_DEBUG_)
 		void reportGpuAssert();
+		uint32 registerGpuRenderPassTiming(const DKString& name);
+		void beginGpuRenderPassTiming(uint32 timingIndex);
+		void finishGpuRenderPassTiming();
+		void resolveGpuRenderPassTimings();
+		void readGpuRenderPassTimings();
 #endif
 
 #if defined(_DK_DEBUG_)
@@ -702,16 +709,22 @@ do{ \
 
 	private:
 #if defined(_DK_DEBUG_)
-		//Gpu Timings
-        RenderResourcePtr<ID3D12QueryHeap> _gpuTimestampHeap;
-        RenderResourcePtr<ID3D12Resource> _gpuTimestampReadback;
-        uint64 _gpuTimestampFrequency = 0;
-        uint64 _gpuTimingFence = 0;
-        uint32 _gpuTimingFenceIndex = 0;
-        bool _gpuTimingsInitialized = false;
-        bool _gpuTimingRecorded = false;
-        double _gpuMilliseconds[5] = { -1, -1, -1, -1, -1 };
-        double _gpuPeakMilliseconds[5] = { 0, 0, 0, 0, 0 };
+		struct GpuTimestampBlock
+		{
+			RenderResourcePtr<ID3D12QueryHeap> _queryHeap;
+			RenderResourcePtr<ID3D12Resource> _readback;
+		};
+
+		static constexpr uint32 GPU_PASS_TIMINGS_PER_BLOCK = 64;
+		DKVector<GpuTimestampBlock> _gpuTimestampBlocks;
+		DKVector<GpuRenderPassTiming> _gpuRenderPassTimings;
+		DKVector<uint32> _recordedGpuPassTimings;
+		DKVector<uint32> _submittedGpuPassTimings;
+		uint64 _gpuTimestampFrequency = 0;
+		double _gpuRenderPassTotalMilliseconds = 0.0;
+		double _gpuRenderPassTotalPeakMilliseconds = 0.0;
+		bool _gpuPassTimingsPending = false;
+		bool _hasGpuRenderPassTimings = false;
 
 		//GPU Assert
 		IBufferRef _gpuAssertBuffer;
