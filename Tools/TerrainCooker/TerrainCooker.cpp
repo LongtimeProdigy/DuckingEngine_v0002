@@ -23,7 +23,7 @@ namespace DK
         }
 
         WICPixelFormatGUID format{};
-        if (FAILED(frame->GetPixelFormat(&format)) || IsEqualGUID(format, GUID_WICPixelFormat16bppGray) == 0 ||
+        if (FAILED(frame->GetPixelFormat(&format)) || (IsEqualGUID(format, GUID_WICPixelFormat16bppGray) == 0 && IsEqualGUID(format, GUID_WICPixelFormat8bppGray) == 0) ||
             FAILED(frame->GetSize(&header._width, &header._height)) || header._width < 2 || header._height < 2 ||
             header._width > 1048576 || header._height > 1048576)
         {
@@ -38,17 +38,57 @@ namespace DK
         }
 
         heights.resize(static_cast<size_t>(sampleCount));
-        const UINT rowBytes = header._width * sizeof(uint16);
-        return SUCCEEDED(frame->CopyPixels(nullptr, rowBytes, static_cast<UINT>(byteCount), reinterpret_cast<BYTE*>(heights.data())));
+        if (IsEqualGUID(format, GUID_WICPixelFormat16bppGray))
+        {
+            const UINT rowBytes = header._width * sizeof(uint16);
+            return SUCCEEDED(frame->CopyPixels(nullptr, rowBytes, static_cast<UINT>(byteCount), reinterpret_cast<BYTE*>(heights.data())));
+        }
+
+        DKVector<uint8> bytes(static_cast<size_t>(sampleCount));
+        if (FAILED(frame->CopyPixels(nullptr, header._width, static_cast<UINT>(sampleCount), bytes.data())))
+        {
+            return false;
+        }
+        for (size_t sampleIndex = 0; sampleIndex < heights.size(); ++sampleIndex)
+        {
+            heights[sampleIndex] = uint16(bytes[sampleIndex]) * 257;
+        }
+        return true;
+    }
+
+    static bool verifyTerrain(const DKString& path)
+    {
+        Archive archive;
+        if (archive.open(path) == false)
+        {
+            return false;
+        }
+        uint64 sampleCount = 0;
+        for (const ChunkInfo& chunkInfo : archive.chunks())
+        {
+            Chunk chunk;
+            if (archive.loadChunk(chunkInfo._x, chunkInfo._z, chunk) == false)
+            {
+                return false;
+            }
+            sampleCount += chunk.find(SectionType::Height)->_info._count;
+        }
+        std::printf("Verified %u x %u samples, %zu chunks, %llu stored samples, %llu bytes.\n", archive.header()._width, archive.header()._height, archive.chunks().size(), sampleCount, archive.header()._fileBytes);
+        return true;
     }
 
     static int cookTerrain(int argumentCount, wchar_t* arguments[])
     {
         if (argumentCount == 2 && DKStringW(arguments[1]) == L"--help")
         {
-            std::puts("TerrainCooker.exe <16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]");
+            std::puts("TerrainCooker.exe <8-bit or 16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]");
             std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCells=128");
+            std::puts("TerrainCooker.exe --verify <archive.dkterrain>");
             return 0;
+        }
+        if (argumentCount == 3 && DKStringW(arguments[1]) == L"--verify")
+        {
+            return verifyTerrain(FileUtil::fromWidePath(arguments[2])) ? 0 : 1;
         }
         if (argumentCount != 3 && argumentCount != 7)
         {
@@ -90,7 +130,7 @@ namespace DK
         CoUninitialize();
         if (heightmapRead == false)
         {
-            std::fputs("Cannot read a 16-bit grayscale heightmap from the input file.\n", stderr);
+            std::fputs("Cannot read an 8-bit or 16-bit grayscale heightmap from the input file.\n", stderr);
             return 1;
         }
 
@@ -103,7 +143,7 @@ namespace DK
         }
 
         std::printf("Wrote %u x %u samples in %zu chunks.\n", header._width, header._height, chunks.size());
-        return 0;
+        return verifyTerrain(outputPath) ? 0 : 1;
     }
 }
 

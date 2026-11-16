@@ -1,9 +1,6 @@
 ## 시스템 문서
 
 - [Ocean 시스템 — 위상·스펙트럼·IFFT의 수학과 구현](docs/Ocean.md)
-- [Terrain 청크 데이터와 저장 포맷 — 빌드·검증·런타임 API](docs/TerrainData.md)
-- [표준 라이브러리 래핑 현황과 남은 의존성](docs/StdDependencies.md)
-- [직접 사용하는 Windows API 목록](docs/WindowsApiDependencies.md)
 
 ## Renderer (DX12, Windows)
 - RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정
@@ -75,6 +72,18 @@ Bloom은 카메라의 눈부심 표현이고, 대기 중 태양 주변의 산란
 Atmosphere의 빛 전달 원리, Rayleigh/Mie 산란, ray marching, 장면 합성과 실시간 최적화는 [Atmosphere 렌더링 기술 이해 노트](docs/Atmosphere-System.md)에 정리되어 있다. [Notion 문서](https://app.notion.com/p/3f58d819296a81ecaaf3d28b3a270625?pvs=204)에서도 읽을 수 있다.
 
 ## Terrain
+
+Terrain cooker는 `tools/TerrainCooker/TerrainCooker.vcxproj`에서 빌드한다.
+
+```powershell
+msbuild tools/TerrainCooker/TerrainCooker.vcxproj /p:Configuration=Release /p:Platform=x64
+```
+
+`TerrainCooker.exe <8비트 또는 16비트 회색조 이미지> <출력.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]`
+
+기본값은 순서대로 `1 -16 128 128`이며, 설정을 변경할 때는 네 값을 모두 지정한다.
+이미지 읽기 → 청크·LOD 생성 → 아카이브 저장 → 전체 청크 검증 순서로 실행한다.
+기존 아카이브는 `TerrainCooker.exe --verify <파일.dkterrain>`으로 검증한다.
 - ClipMap Terrain
 - [ClipMap 시스템 이해 문서](docs/ClipMap.md)
 
