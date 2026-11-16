@@ -1349,7 +1349,7 @@ namespace DK
 	{
 		static constexpr const char* gMaterialDefinition = "Material/MaterialDefinition.xml";
 
-		static constexpr const char* gTerrainModelProperty = "Terrain/ModelProperty";
+		static constexpr const char* gTerrainModelProperty = "Scenes/ModelProperty";
 		static constexpr const char* gPostProcessModelProperty = "System/ModelProperty";
 	}
 }
