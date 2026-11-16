@@ -322,6 +322,12 @@ do{ \
 	currentRenderModule.finishRenderPass(); \
 }while(false)
 
+#if defined(_DK_DEBUG_)
+#define GPU_TIMING_SCOPE(renderModule, name) RenderModule::GpuTimingScope gpuTimingScope(renderModule, name)
+#else
+#define GPU_TIMING_SCOPE(renderModule, name)
+#endif
+
 #define startPipeline(pipelineName) startPipelinePermutation(pipelineName, 0)
 
 #define startPipelinePermutation(pipelineName, permutationIndex) \
@@ -331,6 +337,7 @@ do{ \
 	gCurrentBindedPipeline = findPipeline; \
 	RENDERING_VERIFY(gCurrentBindedPipeline, pipelineName); \
 	if (gCurrentBindedPipeline == nullptr) break; \
+	GPU_TIMING_SCOPE(currentRenderModule, pipelinePermutationName(pipelineName, permutationIndex)); \
 	currentRenderModule.bindPipeline(*gCurrentBindedPipeline, gCurrentBindedPipeline->_type)
 
 #define endPipeline() \
@@ -606,18 +613,34 @@ do{ \
 		const bool reloadShader();
 		void ReportLiveObjects() const;
 
-		struct GpuRenderPassTiming
+		class GpuTimingScope
+		{
+		public:
+			GpuTimingScope(RenderModule& renderModule, const DKString& name);
+			~GpuTimingScope();
+			GpuTimingScope(const GpuTimingScope&) = delete;
+			GpuTimingScope& operator=(const GpuTimingScope&) = delete;
+
+		private:
+			RenderModule& _renderModule;
+			size_t _sampleIndex;
+		};
+
+		struct GpuTiming
 		{
 			DKString _name;
+			uint32 _parentIndex = UINT32_MAX;
+			uint32 _depth = 0;
+			DKVector<uint32> _childIndices;
 			double _milliseconds = 0.0;
 			double _peakMilliseconds = 0.0;
 			uint32 _executionCount = 0;
 		};
 
-		const DKVector<GpuRenderPassTiming>& getGpuRenderPassTimings() const { return _gpuRenderPassTimings; }
-		double getGpuRenderPassTotalMilliseconds() const { return _gpuRenderPassTotalMilliseconds; }
-		double getGpuRenderPassTotalPeakMilliseconds() const { return _gpuRenderPassTotalPeakMilliseconds; }
-		bool hasGpuRenderPassTimings() const { return _hasGpuRenderPassTimings; }
+		const DKVector<GpuTiming>& getGpuTimings() const { return _gpuTimings; }
+		double getGpuTotalMilliseconds() const { return _gpuTotalMilliseconds; }
+		double getGpuTotalPeakMilliseconds() const { return _gpuTotalPeakMilliseconds; }
+		bool hasGpuTimings() const { return _hasGpuTimings; }
 		void resetGpuTimingPeaks();
 #endif
 
@@ -695,11 +718,11 @@ do{ \
 		void resetCommandList();
 #if defined(_DK_DEBUG_)
 		void reportGpuAssert();
-		uint32 registerGpuRenderPassTiming(const DKString& name);
-		void beginGpuRenderPassTiming(uint32 timingIndex);
-		void finishGpuRenderPassTiming();
-		void resolveGpuRenderPassTimings();
-		void readGpuRenderPassTimings();
+		uint32 registerGpuTiming(const DKString& name, uint32 parentIndex = UINT32_MAX);
+		void beginGpuTiming(uint32 timingIndex);
+		void finishGpuTiming();
+		void resolveGpuTimings();
+		void readGpuTimings();
 #endif
 
 #if defined(_DK_DEBUG_)
@@ -715,16 +738,17 @@ do{ \
 			RenderResourcePtr<ID3D12Resource> _readback;
 		};
 
-		static constexpr uint32 GPU_PASS_TIMINGS_PER_BLOCK = 64;
+		static constexpr uint32 GPU_TIMINGS_PER_BLOCK = 64;
 		DKVector<GpuTimestampBlock> _gpuTimestampBlocks;
-		DKVector<GpuRenderPassTiming> _gpuRenderPassTimings;
-		DKVector<uint32> _recordedGpuPassTimings;
-		DKVector<uint32> _submittedGpuPassTimings;
+		DKVector<GpuTiming> _gpuTimings;
+		DKVector<size_t> _gpuTimingScopeStack;
+		DKVector<uint32> _recordedGpuTimingSamples;
+		DKVector<uint32> _submittedGpuTimingSamples;
 		uint64 _gpuTimestampFrequency = 0;
-		double _gpuRenderPassTotalMilliseconds = 0.0;
-		double _gpuRenderPassTotalPeakMilliseconds = 0.0;
-		bool _gpuPassTimingsPending = false;
-		bool _hasGpuRenderPassTimings = false;
+		double _gpuTotalMilliseconds = 0.0;
+		double _gpuTotalPeakMilliseconds = 0.0;
+		bool _gpuTimingsPending = false;
+		bool _hasGpuTimings = false;
 
 		//GPU Assert
 		IBufferRef _gpuAssertBuffer;

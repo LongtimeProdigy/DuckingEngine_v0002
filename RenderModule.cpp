@@ -544,13 +544,14 @@ namespace DK
 		_gpuAssertReadback.release();
 		_gpuAssertReadbackPending = false;
 		_gpuTimestampBlocks.clear();
-		_gpuRenderPassTimings.clear();
-		_recordedGpuPassTimings.clear();
-		_submittedGpuPassTimings.clear();
-		_gpuRenderPassTotalMilliseconds = 0.0;
-		_gpuRenderPassTotalPeakMilliseconds = 0.0;
-		_gpuPassTimingsPending = false;
-		_hasGpuRenderPassTimings = false;
+		_gpuTimings.clear();
+		_gpuTimingScopeStack.clear();
+		_recordedGpuTimingSamples.clear();
+		_submittedGpuTimingSamples.clear();
+		_gpuTotalMilliseconds = 0.0;
+		_gpuTotalPeakMilliseconds = 0.0;
+		_gpuTimingsPending = false;
+		_hasGpuTimings = false;
 #endif
 		_textureDescriptorHeap.release();
 		DK_ASSERT_LOG(_textureContainer.empty(), "");
@@ -1753,7 +1754,7 @@ namespace DK
 		}
 
 #if defined(_DK_DEBUG_)
-		renderPass._gpuTimingIndex = registerGpuRenderPassTiming(renderPassName);
+		renderPass._gpuTimingIndex = registerGpuTiming(renderPassName);
 #endif
 		return true;
 	}
@@ -1794,7 +1795,7 @@ namespace DK
 		const DKPair<DKHashMap<DKString, RenderPassInstance>::iterator, bool> result = _renderPassInstances.try_emplace(name, RenderPassInstance{ definition, binding });
 #if defined(_DK_DEBUG_)
 		if (result.second)
-			result.first->second._gpuTimingIndex = registerGpuRenderPassTiming(name);
+			result.first->second._gpuTimingIndex = registerGpuTiming(name);
 #endif
 		return result.second;
 	}
@@ -1943,9 +1944,9 @@ namespace DK
 #if defined(_DK_DEBUG_)
 		if (isPresent)
 		{
-			DK_ASSERT_LOG(_gpuPassTimingsPending == false && _submittedGpuPassTimings.empty(), "Previous GPU pass timings are pending");
-			_submittedGpuPassTimings.swap(_recordedGpuPassTimings);
-			_gpuPassTimingsPending = true;
+			DK_ASSERT_LOG(_gpuTimingsPending == false && _submittedGpuTimingSamples.empty(), "Previous GPU pass timings are pending");
+			_submittedGpuTimingSamples.swap(_recordedGpuTimingSamples);
+			_gpuTimingsPending = true;
 		}
 #endif
 		_frameSubmitted = true;
@@ -1959,7 +1960,7 @@ namespace DK
 		waitForFence(kCurrentFrameIndex);
 		_frameSubmitted = false;
 #if defined(_DK_DEBUG_)
-		readGpuRenderPassTimings();
+		readGpuTimings();
 		reportGpuAssert();
 #endif
 	}
@@ -2854,31 +2855,62 @@ namespace DK
 	}
 
 #if defined(_DK_DEBUG_)
-	uint32 RenderModule::registerGpuRenderPassTiming(const DKString& name)
+	RenderModule::GpuTimingScope::GpuTimingScope(RenderModule& renderModule, const DKString& name)
+		: _renderModule(renderModule), _sampleIndex(renderModule._recordedGpuTimingSamples.size())
 	{
-		const uint32 timingIndex = static_cast<uint32>(_gpuRenderPassTimings.size());
-		_gpuRenderPassTimings.push_back({ name });
+		const uint32 parentIndex = renderModule._gpuTimingScopeStack.empty() ? UINT32_MAX : renderModule._recordedGpuTimingSamples[renderModule._gpuTimingScopeStack.back()];
+		const uint32 timingIndex = renderModule.registerGpuTiming(name, parentIndex);
+		renderModule.beginGpuTiming(timingIndex);
+	}
+
+	RenderModule::GpuTimingScope::~GpuTimingScope()
+	{
+		DK_ASSERT_LOG(_renderModule._gpuTimingScopeStack.empty() == false && _renderModule._gpuTimingScopeStack.back() == _sampleIndex, "GPU timing scopes must end in reverse order");
+		_renderModule.finishGpuTiming();
+	}
+
+	uint32 RenderModule::registerGpuTiming(const DKString& name, uint32 parentIndex)
+	{
+		for (uint32 timingIndex = 0; timingIndex < _gpuTimings.size(); ++timingIndex)
+		{
+			if (_gpuTimings[timingIndex]._parentIndex == parentIndex && _gpuTimings[timingIndex]._name == name)
+				return timingIndex;
+		}
+
+		const uint32 timingIndex = static_cast<uint32>(_gpuTimings.size());
+		GpuTiming timing;
+		timing._name = name;
+		timing._parentIndex = parentIndex;
+		if (parentIndex != UINT32_MAX)
+		{
+			DK_ASSERT_LOG(parentIndex < _gpuTimings.size(), "GPU timing parent was not registered");
+			timing._depth = _gpuTimings[parentIndex]._depth + 1;
+			_gpuTimings[parentIndex]._childIndices.push_back(timingIndex);
+		}
+		_gpuTimings.push_back(DK::move(timing));
 		return timingIndex;
 	}
 
 	void RenderModule::resetGpuTimingPeaks()
 	{
-		for (GpuRenderPassTiming& timing : _gpuRenderPassTimings)
+		for (GpuTiming& timing : _gpuTimings)
 			timing._peakMilliseconds = 0.0;
-		_gpuRenderPassTotalPeakMilliseconds = 0.0;
+		_gpuTotalPeakMilliseconds = 0.0;
 	}
 
-	void RenderModule::beginGpuRenderPassTiming(uint32 timingIndex)
+	void RenderModule::beginGpuTiming(uint32 timingIndex)
 	{
-		DK_ASSERT_LOG(timingIndex < _gpuRenderPassTimings.size(), "Render pass timing was not registered");
-		const size_t sampleIndex = _recordedGpuPassTimings.size();
-		const size_t blockIndex = sampleIndex / GPU_PASS_TIMINGS_PER_BLOCK;
+		DK_ASSERT_LOG(timingIndex < _gpuTimings.size(), "GPU timing was not registered");
+		const uint32 parentIndex = _gpuTimingScopeStack.empty() ? UINT32_MAX : _recordedGpuTimingSamples[_gpuTimingScopeStack.back()];
+		DK_ASSERT_LOG(_gpuTimings[timingIndex]._parentIndex == parentIndex, "GPU timing scope parent does not match");
+		const size_t sampleIndex = _recordedGpuTimingSamples.size();
+		const size_t blockIndex = sampleIndex / GPU_TIMINGS_PER_BLOCK;
 		if (blockIndex == _gpuTimestampBlocks.size())
 		{
 			GpuTimestampBlock& block = _gpuTimestampBlocks.emplace_back();
 			D3D12_QUERY_HEAP_DESC queryDesc = {};
 			queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-			queryDesc.Count = GPU_PASS_TIMINGS_PER_BLOCK * 2;
+			queryDesc.Count = GPU_TIMINGS_PER_BLOCK * 2;
 			ID3D12QueryHeap* queryHeap = nullptr;
 			const HRESULT queryResult = _device->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&queryHeap));
 			DK_ASSERT_LOG(SUCCEEDED(queryResult), "GPU pass timestamp heap creation failed: 0x%08X", static_cast<uint32>(queryResult));
@@ -2892,24 +2924,26 @@ namespace DK
 			block._readback = readback;
 		}
 
-		const uint32 queryIndex = static_cast<uint32>(sampleIndex % GPU_PASS_TIMINGS_PER_BLOCK) * 2;
+		const uint32 queryIndex = static_cast<uint32>(sampleIndex % GPU_TIMINGS_PER_BLOCK) * 2;
 		_commandList->EndQuery(_gpuTimestampBlocks[blockIndex]._queryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, queryIndex);
-		_recordedGpuPassTimings.push_back(timingIndex);
+		_recordedGpuTimingSamples.push_back(timingIndex);
+		_gpuTimingScopeStack.push_back(sampleIndex);
 	}
 
-	void RenderModule::finishGpuRenderPassTiming()
+	void RenderModule::finishGpuTiming()
 	{
-		DK_ASSERT_LOG(_recordedGpuPassTimings.empty() == false, "GPU pass timing has no start timestamp");
-		const size_t sampleIndex = _recordedGpuPassTimings.size() - 1;
-		const size_t blockIndex = sampleIndex / GPU_PASS_TIMINGS_PER_BLOCK;
-		const uint32 queryIndex = static_cast<uint32>(sampleIndex % GPU_PASS_TIMINGS_PER_BLOCK) * 2 + 1;
+		DK_ASSERT_LOG(_gpuTimingScopeStack.empty() == false, "GPU timing has no active scope");
+		const size_t sampleIndex = _gpuTimingScopeStack.back();
+		_gpuTimingScopeStack.pop_back();
+		const size_t blockIndex = sampleIndex / GPU_TIMINGS_PER_BLOCK;
+		const uint32 queryIndex = static_cast<uint32>(sampleIndex % GPU_TIMINGS_PER_BLOCK) * 2 + 1;
 		_commandList->EndQuery(_gpuTimestampBlocks[blockIndex]._queryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, queryIndex);
 	}
 
-	void RenderModule::resolveGpuRenderPassTimings()
+	void RenderModule::resolveGpuTimings()
 	{
-		DK_ASSERT_LOG(gCurrentBindedRenderPass == nullptr, "GPU pass timings must be resolved after all passes have ended");
-		if (_recordedGpuPassTimings.empty())
+		DK_ASSERT_LOG(_gpuTimingScopeStack.empty(), "GPU timings must be resolved after all scopes have ended");
+		if (_recordedGpuTimingSamples.empty())
 			return;
 
 		// ResolveQueryData may create an internal COPY_DEST buffer and emit warning #1328.
@@ -2924,10 +2958,10 @@ namespace DK
 		if (SUCCEEDED(_device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
 			filterPushed = SUCCEEDED(infoQueue->PushStorageFilter(&filter));
 
-		for (size_t firstSample = 0; firstSample < _recordedGpuPassTimings.size(); firstSample += GPU_PASS_TIMINGS_PER_BLOCK)
+		for (size_t firstSample = 0; firstSample < _recordedGpuTimingSamples.size(); firstSample += GPU_TIMINGS_PER_BLOCK)
 		{
-			GpuTimestampBlock& block = _gpuTimestampBlocks[firstSample / GPU_PASS_TIMINGS_PER_BLOCK];
-			const uint32 sampleCount = static_cast<uint32>(std::min(_recordedGpuPassTimings.size() - firstSample, size_t(GPU_PASS_TIMINGS_PER_BLOCK)));
+			GpuTimestampBlock& block = _gpuTimestampBlocks[firstSample / GPU_TIMINGS_PER_BLOCK];
+			const uint32 sampleCount = static_cast<uint32>(std::min(_recordedGpuTimingSamples.size() - firstSample, size_t(GPU_TIMINGS_PER_BLOCK)));
 			_commandList->ResolveQueryData(block._queryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 0, sampleCount * 2, block._readback.get(), 0);
 		}
 
@@ -2937,22 +2971,22 @@ namespace DK
 			infoQueue->Release();
 	}
 
-	void RenderModule::readGpuRenderPassTimings()
+	void RenderModule::readGpuTimings()
 	{
-		if (_gpuPassTimingsPending == false)
+		if (_gpuTimingsPending == false)
 			return;
 
-		for (GpuRenderPassTiming& timing : _gpuRenderPassTimings)
+		for (GpuTiming& timing : _gpuTimings)
 		{
 			timing._milliseconds = 0.0;
 			timing._executionCount = 0;
 		}
 
 		const double millisecondsPerTick = 1000.0 / double(_gpuTimestampFrequency);
-		for (size_t firstSample = 0; firstSample < _submittedGpuPassTimings.size(); firstSample += GPU_PASS_TIMINGS_PER_BLOCK)
+		for (size_t firstSample = 0; firstSample < _submittedGpuTimingSamples.size(); firstSample += GPU_TIMINGS_PER_BLOCK)
 		{
-			GpuTimestampBlock& block = _gpuTimestampBlocks[firstSample / GPU_PASS_TIMINGS_PER_BLOCK];
-			const size_t sampleCount = std::min(_submittedGpuPassTimings.size() - firstSample, size_t(GPU_PASS_TIMINGS_PER_BLOCK));
+			GpuTimestampBlock& block = _gpuTimestampBlocks[firstSample / GPU_TIMINGS_PER_BLOCK];
+			const size_t sampleCount = std::min(_submittedGpuTimingSamples.size() - firstSample, size_t(GPU_TIMINGS_PER_BLOCK));
 			const D3D12_RANGE readRange = { 0, sampleCount * 2 * sizeof(uint64) };
 			void* address = nullptr;
 			const HRESULT mapResult = block._readback.get()->Map(0, &readRange, &address);
@@ -2963,7 +2997,7 @@ namespace DK
 				const uint64 begin = ticks[sample * 2];
 				const uint64 end = ticks[sample * 2 + 1];
 				DK_ASSERT_LOG(end >= begin, "GPU pass timestamp order is invalid");
-				GpuRenderPassTiming& timing = _gpuRenderPassTimings[_submittedGpuPassTimings[firstSample + sample]];
+				GpuTiming& timing = _gpuTimings[_submittedGpuTimingSamples[firstSample + sample]];
 				timing._milliseconds += double(end - begin) * millisecondsPerTick;
 				++timing._executionCount;
 			}
@@ -2971,17 +3005,18 @@ namespace DK
 			block._readback.get()->Unmap(0, &writeRange);
 		}
 
-		_gpuRenderPassTotalMilliseconds = 0.0;
-		for (GpuRenderPassTiming& timing : _gpuRenderPassTimings)
+		_gpuTotalMilliseconds = 0.0;
+		for (GpuTiming& timing : _gpuTimings)
 		{
 			timing._peakMilliseconds = Math::max(timing._peakMilliseconds, timing._milliseconds);
-			_gpuRenderPassTotalMilliseconds += timing._milliseconds;
+			if (timing._depth == 0)
+				_gpuTotalMilliseconds += timing._milliseconds;
 		}
-		_gpuRenderPassTotalPeakMilliseconds = Math::max(_gpuRenderPassTotalPeakMilliseconds, _gpuRenderPassTotalMilliseconds);
+		_gpuTotalPeakMilliseconds = Math::max(_gpuTotalPeakMilliseconds, _gpuTotalMilliseconds);
 
-		_submittedGpuPassTimings.clear();
-		_gpuPassTimingsPending = false;
-		_hasGpuRenderPassTimings = true;
+		_submittedGpuTimingSamples.clear();
+		_gpuTimingsPending = false;
+		_hasGpuTimings = true;
 	}
 #endif
 
@@ -3027,7 +3062,7 @@ namespace DK
 	void RenderModule::beginRenderPass(RenderPass& pass)
 	{
 #if defined(_DK_DEBUG_)
-		beginGpuRenderPassTiming(pass._gpuTimingIndex);
+		beginGpuTiming(pass._gpuTimingIndex);
 #endif
 		beginRenderPass(pass, pass._binding);
 	}
@@ -3036,7 +3071,7 @@ namespace DK
 	{
 		DK_ASSERT_LOG(instance._definition != nullptr, "Render pass instance has no definition");
 #if defined(_DK_DEBUG_)
-		beginGpuRenderPassTiming(instance._gpuTimingIndex);
+		beginGpuTiming(instance._gpuTimingIndex);
 #endif
 		beginRenderPass(*instance._definition, instance._binding);
 	}
@@ -3111,7 +3146,7 @@ namespace DK
 			_passTargetsToTransition = nullptr;
 		}
 #if defined(_DK_DEBUG_)
-		finishGpuRenderPassTiming();
+		finishGpuTiming();
 #endif
 		gCurrentBindedRenderPass = nullptr;
 	}
@@ -3260,7 +3295,7 @@ namespace DK
 	void RenderModule::endRender()
 	{
 #if defined(_DK_DEBUG_)
-		resolveGpuRenderPassTimings();
+		resolveGpuTimings();
 #endif
 
 #ifdef USE_IMGUI

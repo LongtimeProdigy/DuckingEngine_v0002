@@ -1352,43 +1352,61 @@ namespace DK
 					{
 						if (ImGui::Button("Reset peaks"))
 							renderModule.resetGpuTimingPeaks();
-						if (ImGui::BeginTable("Render pass timings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY))
+						if (ImGui::BeginTable("GPU timings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY))
 						{
-							ImGui::TableSetupColumn("Render pass");
+							ImGui::TableSetupColumn("Scope");
 							ImGui::TableSetupColumn("GPU (ms)");
 							ImGui::TableSetupColumn("Peak (ms)");
 							ImGui::TableSetupScrollFreeze(0, 1);
 							ImGui::TableHeadersRow();
-							for (const RenderModule::GpuRenderPassTiming& timing : renderModule.getGpuRenderPassTimings())
+							const DKVector<RenderModule::GpuTiming>& timings = renderModule.getGpuTimings();
+							const auto drawTiming = [&](const auto& drawChildTiming, uint32 timingIndex) -> void
 							{
+								const RenderModule::GpuTiming& timing = timings[timingIndex];
+								const bool hasChildren = timing._childIndices.empty() == false;
 								ImGui::TableNextRow();
 								ImGui::TableSetColumnIndex(0);
-								ImGui::TextUnformatted(timing._name.c_str());
+								ImGui::PushID(static_cast<int>(timingIndex));
+								const ImGuiTreeNodeFlags flags = hasChildren ? ImGuiTreeNodeFlags_SpanAvailWidth : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+								const bool expanded = ImGui::TreeNodeEx(timing._name.c_str(), flags);
+								ImGui::SetItemTooltip("Depth: %u\nGPU time includes child scopes", timing._depth);
 								ImGui::TableSetColumnIndex(1);
 								if (timing._executionCount > 0)
 								{
 									ImGui::Text("%.3f", timing._milliseconds);
-									ImGui::SetItemTooltip("Pass executions: %u", timing._executionCount);
+									ImGui::SetItemTooltip("Scope executions: %u", timing._executionCount);
 								}
 								else
 								{
-									ImGui::TextDisabled(renderModule.hasGpuRenderPassTimings() ? "Skipped" : "Pending");
+									ImGui::TextDisabled(renderModule.hasGpuTimings() ? "Skipped" : "Pending");
 								}
 								ImGui::TableSetColumnIndex(2);
 								ImGui::Text("%.3f", timing._peakMilliseconds);
+								if (hasChildren && expanded)
+								{
+									for (uint32 childIndex : timing._childIndices)
+										drawChildTiming(drawChildTiming, childIndex);
+									ImGui::TreePop();
+								}
+								ImGui::PopID();
+							};
+							for (uint32 timingIndex = 0; timingIndex < timings.size(); ++timingIndex)
+							{
+								if (timings[timingIndex]._depth == 0)
+									drawTiming(drawTiming, timingIndex);
 							}
 							ImGui::TableNextRow();
 							ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImGuiCol_TableHeaderBg));
 							ImGui::TableSetColumnIndex(0);
 							ImGui::TextUnformatted("Total");
-							ImGui::SetItemTooltip("Sum of render pass times for the frame");
+							ImGui::SetItemTooltip("Sum of top-level scope times for the frame");
 							ImGui::TableSetColumnIndex(1);
-							if (renderModule.hasGpuRenderPassTimings())
-								ImGui::Text("%.3f", renderModule.getGpuRenderPassTotalMilliseconds());
+							if (renderModule.hasGpuTimings())
+								ImGui::Text("%.3f", renderModule.getGpuTotalMilliseconds());
 							else
 								ImGui::TextDisabled("Pending");
 							ImGui::TableSetColumnIndex(2);
-							ImGui::Text("%.3f", renderModule.getGpuRenderPassTotalPeakMilliseconds());
+							ImGui::Text("%.3f", renderModule.getGpuTotalPeakMilliseconds());
 							ImGui::EndTable();
 						}
 						ImGui::EndTabItem();
