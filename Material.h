@@ -41,15 +41,35 @@ namespace DK
 
 	struct MaterialParameterDefinition
 	{
+		uint64 _nameHash = 0;
+#if defined(_DK_DEBUG_)
 		DKString _name;
+#endif
 		MaterialParameterType _type;
 		DKString _value;
+		void setName(const char* name)
+		{
+			_nameHash = StringUtil::registerHash(name);
+#if defined(_DK_DEBUG_)
+			_name = name;
+#endif
+		}
 	};
 
 	struct MaterialDefinition
 	{
+		uint64 _materialNameHash = 0;
+#if defined(_DK_DEBUG_)
 		DKString _materialName;
+#endif
 		DKVector<MaterialParameterDefinition> _parameters;
+		void setMaterialName(const char* name)
+		{
+			_materialNameHash = StringUtil::registerHash(name);
+#if defined(_DK_DEBUG_)
+			_materialName = name;
+#endif
+		}
 	};
 #pragma endregion
 
@@ -60,15 +80,22 @@ namespace DK
 		static MaterialParameter* createMaterialParameter(const MaterialParameterDefinition& parameterDefinition);
 
 	public:
-		MaterialParameter(const DKString& name)
-			: _name(name)
-		{}
+		MaterialParameter(const MaterialParameterDefinition& definition)
+			: _nameHash(definition._nameHash)
+		{
+#if defined(_DK_DEBUG_)
+			_name = definition._name;
+#endif
+		}
 		virtual ~MaterialParameter() {}
 
+		dk_inline uint64 getParameterNameHash() const noexcept { return _nameHash; }
+#if defined(_DK_DEBUG_)
 		dk_inline const DKString& getParameterName() const noexcept
 		{
 			return _name;
 		}
+#endif
 
 		dk_inline void setParameterValuePtr(void* valuePtr) noexcept
 		{
@@ -79,7 +106,10 @@ namespace DK
 		virtual uint32 getParameterSize() const noexcept = 0;
 
 	protected:
+		uint64 _nameHash = 0;
+#if defined(_DK_DEBUG_)
 		DKString _name;
+#endif
 		void* _valuePtr;
 	};
 
@@ -87,8 +117,8 @@ namespace DK
 	class MaterialParameterTemplate : public MaterialParameter
 	{
 	public:
-		MaterialParameterTemplate(const DKString& name, const T& defaultValue)
-			: MaterialParameter(name)
+		MaterialParameterTemplate(const MaterialParameterDefinition& definition, const T& defaultValue)
+			: MaterialParameter(definition)
 			, _value(defaultValue)
 			, _defaultValue(defaultValue)
 		{}
@@ -116,14 +146,19 @@ namespace DK
 	class Material
 	{
 	public:
-		static Material* createMaterial(const DKString& materialName);
+		static Material* createMaterial(uint64 materialNameHash);
+		static Material* createMaterial(const DKString& materialName) { return createMaterial(StringUtil::registerHash(materialName)); }
+		static Material* createMaterial(const char* materialName) { return createMaterial(StringUtil::registerHash(materialName)); }
 		static Material* createMaterial(const MaterialDefinition& modelProperty);
 
 	public:
 		Material() {};
 		Material(Material&& rhs)
 		{
-			_materialName = rhs._materialName;
+			_materialNameHash = rhs._materialNameHash;
+#if defined(_DK_DEBUG_)
+			_materialName = DK::move(rhs._materialName);
+#endif
 			_parameterArr.swap(rhs._parameterArr);
 			_parameterBufferForCPU.swap(rhs._parameterBufferForCPU);
 			_parameterBufferForGPU.swap(rhs._parameterBufferForGPU);
@@ -135,7 +170,10 @@ namespace DK
 		Material* clone() const;
 
 		// TODO: private 로 내릴것
+		DK_REFLECTION_PROPERTY(uint64, _materialNameHash);
+#if defined(_DK_DEBUG_)
 		DK_REFLECTION_PROPERTY(DKString, _materialName);
+#endif
 		DKVector<Ptr<MaterialParameter>> _parameterArr;
 		DKVector<char> _parameterBufferForCPU;
 		DK_REFLECTION_PROPERTY_FLAG(IBufferRef, _parameterBufferForGPU, ReflectionFlag::NoSave);

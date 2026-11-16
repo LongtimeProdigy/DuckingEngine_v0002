@@ -133,14 +133,14 @@
 			<PixelShader Entry="PSMain">Material\SkinnedMeshStandard.hlsl</PixelShader>
 		</Pipeline>
 
-		<Pipeline Name="SpherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
+		<Pipeline Name="SpherePipeline" DebugOnly="True" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>
 			<VertexShader Entry="VSMainSphere">Material\DebugDrawElement.hlsl</VertexShader>
 			<PixelShader Entry="PSMainSphere">Material\DebugDrawElement.hlsl</PixelShader>
 		</Pipeline>
-		<Pipeline Name="LinePipeline" PrimitiveTopologyType="Line" DepthEnable="False" FillMode="Solid" CullMode="None">
+		<Pipeline Name="LinePipeline" DebugOnly="True" PrimitiveTopologyType="Line" DepthEnable="False" FillMode="Solid" CullMode="None">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>
 			</LayoutInfo>

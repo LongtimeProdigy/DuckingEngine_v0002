@@ -1,7 +1,9 @@
 ﻿#include "stdafx.h"
 #include "ShaderCompiler.h"
 #include "RenderModule.h"
+#if defined(_DK_DEBUG_)
 #include "GpuAssertDiagnostics.h"
+#endif
 
 #include <d3d12shader.h>
 
@@ -19,7 +21,10 @@ namespace DK
 			}
 
 			ShaderResourceReflection resource;
+			resource._nameHash = StringUtil::registerHash(desc.Name);
+#if defined(_DK_DEBUG_)
 			resource._name = desc.Name;
+#endif
 			resource._type = desc.Type;
 			resource._dimension = desc.Dimension;
 			resource._register = desc.BindPoint;
@@ -29,7 +34,7 @@ namespace DK
 			bool isDuplicate = false;
 			for (const ShaderResourceReflection& prevReflection : outResources)
 			{
-				if (prevReflection._name == resource._name)
+				if (prevReflection._nameHash == resource._nameHash)
 				{
 					isDuplicate = true;
 					break;
@@ -62,7 +67,10 @@ namespace DK
 					}
 
 					ShaderVariableReflection value;
+					value._nameHash = StringUtil::registerHash(variableDesc.Name);
+#if defined(_DK_DEBUG_)
 					value._name = variableDesc.Name;
+#endif
 					value._offset = variableDesc.StartOffset;
 					value._size = variableDesc.Size;
 
@@ -106,8 +114,8 @@ namespace DK
 			UINT minor = 0;
 			versionInfo->GetVersion(&major, &minor);
 			DK_LOG("DXC Version: %u.%u", major, minor);
+			versionInfo->Release();
 		}
-		versionInfo->Release();
 #endif
 
 		_initialized = true;
@@ -272,32 +280,27 @@ namespace DK
 		sourceBuffer.Size = source.size();
 #endif
 
-		IDxcResult* dxcResult;
+		IDxcResult* dxcResult = nullptr;
 		hr = _compiler3->Compile(&sourceBuffer, arguments.data(), static_cast<UINT32>(arguments.size()), defaultIncludeHandler.get(), IID_PPV_ARGS(&dxcResult));
 		RenderResourcePtr<IDxcResult> result = dxcResult;
 		if (FAILED(hr))
 		{
-			IDxcBlobUtf8* errors;
-			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
-			if (SUCCEEDED(hr))
-				DK_ASSERT_LOG(false, "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
-
-			errors->Release();
-
+			DK_ASSERT_LOG(false, "DXC invocation failed\nPath: %s\nHRESULT: 0x%08X", shaderPath, static_cast<uint32>(hr));
 			return false;
 		}
 
-		HRESULT status(S_OK);
+		DK_ASSERT_LOG(dxcResult != nullptr, "DXC returned no compilation result");
+		HRESULT status = S_OK;
 		hr = result->GetStatus(&status);
 		if (FAILED(hr) || FAILED(status))
 		{
-			IDxcBlobUtf8* errors;
-			hr = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
-			const char* test = errors->GetStringPointer();
-			DK_ASSERT_LOG(FAILED(hr), "Shader Compile Error\nPath: %s\nLog: %s", shaderPath, test);
-
-			errors->Release();
-
+#if defined(_DK_DEBUG_)
+			IDxcBlobUtf8* errors = nullptr;
+			const HRESULT errorResult = result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
+			RenderResourcePtr<IDxcBlobUtf8> errorLog = errors;
+			DK_ASSERT_LOG(SUCCEEDED(errorResult) && errors != nullptr, "DXC error output is unavailable");
+			DK_ASSERT_LOG(false, "Shader compile failed\nPath: %s\nLog: %s", shaderPath, errors->GetStringPointer());
+#endif
 			return false;
 		}
 

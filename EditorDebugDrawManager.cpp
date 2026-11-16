@@ -32,16 +32,16 @@ namespace DK
 	const bool initialize_Common(const float3* vertices, const uint32 strideSize, const uint32 vertexCount, const uint32* indices, const uint32 indexCount, uint32& outIndexCount, IBufferRef& vertexBuffer, VertexBufferViewRef& vertexBufferView, IBufferRef& indexBuffer, IndexBufferViewRef& indexBufferView, IBufferRef& primitiveInfoBuffer, const DKStringW& vertexDebugName, const DKStringW& indexDebugName, const DKStringW& cbufferDebugName)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		vertexBuffer = renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBufferView, vertexDebugName.c_str());
+		vertexBuffer = renderModule.createVertexBuffer(vertices, sizeof(decltype(vertices[0])), vertexCount, vertexBufferView, DK_DEBUG_NAME(vertexDebugName.c_str()));
 		if (vertexBuffer == nullptr)
 			return false;
-		indexBuffer = renderModule.createIndexBuffer(indices, indexCount, indexBufferView, indexDebugName.c_str());
+		indexBuffer = renderModule.createIndexBuffer(indices, indexCount, indexBufferView, DK_DEBUG_NAME(indexDebugName.c_str()));
 		if (indexBuffer == nullptr)
 			return false;
 		outIndexCount = indexCount;
 
 		uint32 elementCount = MAX_ELEMENT_COUNT;
-		primitiveInfoBuffer = renderModule.createConstantBuffer(strideSize * elementCount, cbufferDebugName.c_str());
+		primitiveInfoBuffer = renderModule.createConstantBuffer(strideSize * elementCount, DK_DEBUG_NAME(cbufferDebugName.c_str()));
 
 		return true;
 	}

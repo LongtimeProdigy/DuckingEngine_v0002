@@ -25,8 +25,10 @@ namespace DK
 
 		virtual void update(float deltaTime) override final;
 
+#if defined(_DK_DEBUG_)
 		bool loadViewState();
 		bool saveViewState();
+#endif
 
 		void setView(const float3& position, const float3& direction)
 		{
@@ -43,21 +45,19 @@ namespace DK
 
 		void setMoveSpeed(float speed)
 		{
-			if (std::isfinite(speed) && speed >= 0.0f)
-				_moveSpeed = speed;
+			DK_ASSERT_LOG(std::isfinite(speed) && speed >= 0.0f, "Invalid camera move speed");
+			_moveSpeed = speed;
 		}
 
 		void setClipPlaneDistances(float nearDistance)
 		{
-			if (std::isfinite(nearDistance) && nearDistance > 0.0f)
-				_nearPlaneDistance = nearDistance;
+			DK_ASSERT_LOG(std::isfinite(nearDistance) && nearDistance > 0.0f, "Invalid camera near plane distance");
+			_nearPlaneDistance = nearDistance;
 		}
 
 		void setViewportSize(int width, int height)
 		{
-			if (width <= 0 || height <= 0)
-				return;
-
+			DK_ASSERT_LOG(width > 0 && height > 0, "Invalid camera viewport size");
 			_width = width;
 			_height = height;
 		}

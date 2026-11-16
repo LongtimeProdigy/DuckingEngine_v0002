@@ -55,7 +55,7 @@ namespace DK
 		const AppearanceDataRef loadCharacter_LoadAppearanceFile(const char* appearancePath);
 
 	private:
-		DKHashMap<DKString, AppearanceDataRef> _appearanceRawContainers;
+		DKHashMap<uint64, AppearanceDataRef> _appearanceRawContainers;
 		DKVector<SceneObject> _sceneObjectContainer;
 		DKVector<SceneObject> _characterSceneObjectContainer;
 	};

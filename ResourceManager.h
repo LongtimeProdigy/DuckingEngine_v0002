@@ -14,11 +14,11 @@ namespace DK
 		const bool loadAnimation(const DKString& animationPath, AnimationRef& outAnimation);
 
 	private:
-		DKHashMap<DKString, StaticMeshModelRef> _staticMeshModelContainer;
+		DKHashMap<uint64, StaticMeshModelRef> _staticMeshModelContainer;
 
-		DKHashMap<DKString, ModelPropertyRef> _modelPropertyContainer;
-		DKHashMap<DKString, SkinnedMeshModelRef> _skinnedMeshModelContainer;
-		DKHashMap<DKString, SkeletonRef> _skeletonContainer;
-		DKHashMap<DKString, AnimationRef> _animationContainer;
+		DKHashMap<uint64, ModelPropertyRef> _modelPropertyContainer;
+		DKHashMap<uint64, SkinnedMeshModelRef> _skinnedMeshModelContainer;
+		DKHashMap<uint64, SkeletonRef> _skeletonContainer;
+		DKHashMap<uint64, AnimationRef> _animationContainer;
 	};
 }

@@ -65,10 +65,12 @@ namespace DK
 
 		DKVector<Bone> bones;
 		bones.reserve(boneCount);
+		DKHashMap<uint64, uint32> boneIndices;
+		boneIndices.reserve(boneCount);
 		for (TiXmlElement* boneNode = rootNode->FirstChildElement(); boneNode != nullptr; boneNode = boneNode->NextSiblingElement())
 		{
-			DKString boneName = boneNode->Attribute("Name");
-			DKString parentBoneName = boneNode->Attribute("Parent") != nullptr ? boneNode->Attribute("Parent") : "";
+			const char* boneName = boneNode->Attribute("Name");
+			const char* parentBoneName = boneNode->Attribute("Parent") != nullptr ? boneNode->Attribute("Parent") : "";
 
 			TiXmlElement* positionNode = boneNode->FirstChildElement("Position");
 			TiXmlElement* rotationNode = boneNode->FirstChildElement("Rotation");
@@ -87,19 +89,27 @@ namespace DK
 			float3 scale = StringUtil::parseFloat3FromString(scaleStr);
 			Quaternion rotation = StringUtil::parseQuaternionFromString(rotationStr);
 
-			uint32 currentBoneCount = static_cast<uint32>(bones.size());
-			uint32 parentBoneIndex = -1;
-			for (uint32 i = 0; i < currentBoneCount; ++i)
+			const uint32 currentBoneCount = static_cast<uint32>(bones.size());
+			uint32 parentBoneIndex = Bone::kInvalidBoneIndex;
+			const uint64 parentBoneNameHash = StringUtil::registerHash(parentBoneName);
+			if (parentBoneNameHash != StringUtil::hash(""))
 			{
-				if (bones[i]._boneName == parentBoneName)
+				const DKHashMap<uint64, uint32>::const_iterator parent = boneIndices.find(parentBoneNameHash);
+				if (parent == boneIndices.end())
 				{
-					parentBoneIndex = i;
-					break;
+					DK_ASSERT_LOG(false, "Parent bone must appear before its children: %s", parentBoneName);
+					return false;
 				}
+				parentBoneIndex = parent->second;
 			}
-			DK_ASSERT_LOG(parentBoneName.empty() == true || parentBoneIndex != -1, "parentBone을 찾을 수 없습니다. 스키닝이 정상동작하지 않을 수 있습니다.");
 
 			Bone bone(boneName, parentBoneName, parentBoneIndex, Transform(position, rotation, scale));
+			const bool inserted = boneIndices.try_emplace(bone._boneNameHash, currentBoneCount).second;
+			if (inserted == false)
+			{
+				DK_ASSERT_LOG(false, "Duplicate bone name: %s", boneName);
+				return false;
+			}
 			bones.push_back(bone);
 
 			float4x4 mat;
@@ -116,8 +126,8 @@ namespace DK
 		if (checkResourcePathEmpty(modelPropertyPath) == true)
 			return nullptr;
 
-		using FindResult = DKHashMap<DKString, ModelPropertyRef>::const_iterator;
-		FindResult findResult = _modelPropertyContainer.find(modelPropertyPath);
+		using FindResult = DKHashMap<uint64, ModelPropertyRef>::const_iterator;
+		FindResult findResult = _modelPropertyContainer.find(StringUtil::registerHash(modelPropertyPath));
 		if (findResult != _modelPropertyContainer.end())
 			return (*findResult).second;
 
@@ -140,12 +150,12 @@ namespace DK
 		for (const TiXmlElement* subMeshNode = subMeshArrNode->ToElement()->FirstChildElement(); subMeshNode != nullptr; subMeshNode = subMeshNode->NextSiblingElement())
 		{
 			MaterialDefinition subMeshProperty;
-			subMeshProperty._materialName = subMeshNode->Attribute("Name");
+			subMeshProperty.setMaterialName(subMeshNode->Attribute("Name"));
 			const TiXmlElement* parametersNode = subMeshNode->FirstChildElement("Parameters");
 			for (const TiXmlElement* parameterNode = parametersNode->FirstChildElement(); parameterNode != nullptr; parameterNode = parameterNode->NextSiblingElement())
 			{
 				MaterialParameterDefinition parameterDefinition;
-				parameterDefinition._name = parameterNode->Attribute("Name");
+				parameterDefinition.setName(parameterNode->Attribute("Name"));
 				parameterDefinition._type = convertStringToEnum(parameterNode->Attribute("Type"));
 				parameterDefinition._value = parameterNode->GetText();
 				subMeshProperty._parameters.push_back(DK::move(parameterDefinition));
@@ -154,8 +164,8 @@ namespace DK
 			materialDefinitionArr.push_back(DK::move(subMeshProperty));
 		}
 
-		typedef DKPair<DKHashMap<DKString, ModelPropertyRef>::iterator, bool> InsertResult;
-		InsertResult success = _modelPropertyContainer.insert(DKPair<DKString, ModelPropertyRef>(modelPropertyPath, dk_new ModelProperty(materialDefinitionArr)));
+		typedef DKPair<DKHashMap<uint64, ModelPropertyRef>::iterator, bool> InsertResult;
+		InsertResult success = _modelPropertyContainer.insert(DKPair<uint64, ModelPropertyRef>(StringUtil::registerHash(modelPropertyPath), dk_new ModelProperty(materialDefinitionArr)));
 		if (success.second == false)
 		{
 			DK_ASSERT_LOG(false, "Container Insert Failed");
@@ -170,7 +180,7 @@ namespace DK
 		if (checkResourcePathEmpty(modelPath) == true)
 			return nullptr;
 
-		const DKHashMap<DKString, StaticMeshModelRef>::iterator findResult = _staticMeshModelContainer.find(modelPath);
+		const DKHashMap<uint64, StaticMeshModelRef>::iterator findResult = _staticMeshModelContainer.find(StringUtil::registerHash(modelPath));
 		if (findResult != _staticMeshModelContainer.end())
 			return findResult->second;
 
@@ -228,12 +238,12 @@ namespace DK
 			bytesRead += vertexBufferData.size() * sizeof(StaticMeshModel::SubMeshType::VertexType);
 
 			VertexBufferViewRef vertexBufferView;
-			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"StaticMesh_VertexBuffer");
+			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, DK_DEBUG_NAME(L"StaticMesh_VertexBuffer"));
 			if (vertexBuffer == nullptr)
 				return nullptr;
 
 			IndexBufferViewRef indexBufferView;
-			IBufferRef indexBuffer = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBufferView, L"StaticMesh_IndexBuffer");
+			IBufferRef indexBuffer = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBufferView, DK_DEBUG_NAME(L"StaticMesh_IndexBuffer"));
 			if (indexBuffer == nullptr)
 				return nullptr;
 
@@ -256,7 +266,7 @@ namespace DK
 			return nullptr;
 		}
 
-		const DKPair<DKHashMap<DKString, StaticMeshModelRef>::iterator, bool> insertResult = _staticMeshModelContainer.insert(DKPair<DKString, StaticMeshModelRef>(modelPath, dk_new StaticMeshModel(DK::move(subMeshArr))));
+		const DKPair<DKHashMap<uint64, StaticMeshModelRef>::iterator, bool> insertResult = _staticMeshModelContainer.insert(DKPair<uint64, StaticMeshModelRef>(StringUtil::registerHash(modelPath), dk_new StaticMeshModel(DK::move(subMeshArr))));
 		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "Container Insert Failed!");
@@ -271,7 +281,7 @@ namespace DK
 		if (checkResourcePathEmpty(modelPath) == true)
 			return nullptr;
 
-		const DKHashMap<DKString, SkinnedMeshModelRef>::iterator findResult = _skinnedMeshModelContainer.find(modelPath);
+		const DKHashMap<uint64, SkinnedMeshModelRef>::iterator findResult = _skinnedMeshModelContainer.find(StringUtil::registerHash(modelPath));
 		if (findResult != _skinnedMeshModelContainer.end())
 			return findResult->second;
 
@@ -340,12 +350,12 @@ namespace DK
 #endif
 
 			VertexBufferViewRef vertexBufferView;
-			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, L"SkinnedMesh_VertexBuffer");
+			IBufferRef vertexBuffer = renderModule.createVertexBuffer(vertexBufferData.data(), sizeof(SkinnedMeshModel::SubMeshType::VertexType), vertexCount, vertexBufferView, DK_DEBUG_NAME(L"SkinnedMesh_VertexBuffer"));
 			if (vertexBuffer == nullptr)
 				return nullptr;
 
 			IndexBufferViewRef indexBufferView;
-			IBufferRef indexBuffer = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBufferView, L"SkinnedMesh_IndexBuffer");
+			IBufferRef indexBuffer = renderModule.createIndexBuffer(indexBufferData.data(), indexCount, indexBufferView, DK_DEBUG_NAME(L"SkinnedMesh_IndexBuffer"));
 			if (indexBuffer == nullptr)
 				return nullptr;
 
@@ -368,7 +378,7 @@ namespace DK
 			return nullptr;
 		}
 
-		const DKPair<DKHashMap<DKString, SkinnedMeshModelRef>::iterator, bool> insertResult = _skinnedMeshModelContainer.insert(DKPair<DKString, SkinnedMeshModelRef>(modelPath, dk_new SkinnedMeshModel(DK::move(subMeshArr))));
+		const DKPair<DKHashMap<uint64, SkinnedMeshModelRef>::iterator, bool> insertResult = _skinnedMeshModelContainer.insert(DKPair<uint64, SkinnedMeshModelRef>(StringUtil::registerHash(modelPath), dk_new SkinnedMeshModel(DK::move(subMeshArr))));
 		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "Container Insert Failed!");
@@ -382,8 +392,8 @@ namespace DK
 		if (checkResourcePathEmpty(skeletonPath) == true)
 			return false;
 
-		typedef DKPair<DKHashMap<DKString, SkeletonRef>::iterator, bool> InsertResult;
-		InsertResult success = _skeletonContainer.insert(DKPair<DKString, SkeletonRef>(skeletonPath, dk_new Skeleton));
+		typedef DKPair<DKHashMap<uint64, SkeletonRef>::iterator, bool> InsertResult;
+		InsertResult success = _skeletonContainer.insert(DKPair<uint64, SkeletonRef>(StringUtil::registerHash(skeletonPath), dk_new Skeleton));
 		if (success.second == false)
 		{
 			outSkeleton = success.first->second;
@@ -394,7 +404,7 @@ namespace DK
 		if (LoadSkeletonInternal(skeletonPath, skeleton) == false)
 		{
 			DK_ASSERT_LOG(true, "Skeleton Loading Failed. path: %s", skeletonPath.c_str());
-			_skeletonContainer.erase(skeletonPath);
+			_skeletonContainer.erase(StringUtil::hash(skeletonPath));
 			return false;
 		}
 
@@ -406,8 +416,8 @@ namespace DK
 		if (checkResourcePathEmpty(animationPath) == true)
 			return false;
 
-		typedef DKPair<DKHashMap<DKString, AnimationRef>::iterator, bool> InsertResult;
-		InsertResult success = _animationContainer.insert(DKPair<DKString, AnimationRef>(animationPath, dk_new Animation));
+		typedef DKPair<DKHashMap<uint64, AnimationRef>::iterator, bool> InsertResult;
+		InsertResult success = _animationContainer.insert(DKPair<uint64, AnimationRef>(StringUtil::registerHash(animationPath), dk_new Animation));
 		if (success.second == false)
 		{
 			outAnimation = success.first->second;
@@ -417,7 +427,7 @@ namespace DK
 		if (success.first->second->loadAnimatoin(animationPath) == false)
 		{
 			DK_ASSERT_LOG(true, "Animation Loading Failed. path: %s", animationPath.c_str());
-			_animationContainer.erase(animationPath);
+			_animationContainer.erase(StringUtil::hash(animationPath));
 			return false;
 		}
 

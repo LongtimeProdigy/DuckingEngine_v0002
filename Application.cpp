@@ -45,8 +45,10 @@ namespace DK
 			break;
 			case WM_KILLFOCUS:
 			{
+#if defined(_DK_DEBUG_)
 				if (Camera::gMainCamera)
 					Camera::gMainCamera->saveViewState();
+#endif
 				InputModule::setBlock(true);
 			}
 			break;
@@ -73,8 +75,10 @@ namespace DK
 			}
 			break;
 			case WM_CLOSE:
+#if defined(_DK_DEBUG_)
 				if (Camera::gMainCamera)
 					Camera::gMainCamera->saveViewState();
+#endif
 				break;
 			case WM_DESTROY:
 				PostQuitMessage(0);

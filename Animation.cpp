@@ -37,10 +37,13 @@ namespace DK
 		uint32 boneIndex = 0;
 		for (TiXmlNode* boneNode = rootNode->FirstChild(); boneNode != nullptr; boneNode = boneNode->NextSibling())
 		{
-			DKString boneName = boneNode->ToElement()->FirstAttribute()->Value();
+			const char* boneName = boneNode->ToElement()->FirstAttribute()->Value();
 
 			Animation::BoneAnimation& boneAnimation = boneAnimations[boneIndex];
+			boneAnimation._boneNameHash = StringUtil::registerHash(boneName);
+#if defined(_DK_DEBUG_)
 			boneAnimation._boneName = boneName;
+#endif
 			boneAnimation._animation.resize(frameCount);
 
 			uint32 boneFrameCount = 0;

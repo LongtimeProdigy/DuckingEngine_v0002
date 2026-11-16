@@ -10,7 +10,6 @@
 #include "Skeleton.h"
 #include "Animation.h"
 
-#include "EditorDebugDrawManager.h"
 
 namespace DK
 {
@@ -41,22 +40,28 @@ namespace DK
 			return false;
 		}
 
+		DKHashMap<uint64, uint32> trackIndices;
+		trackIndices.reserve(tracks.size());
+		for (uint32 i = 0; i < tracks.size(); ++i)
+		{
+			const bool inserted = trackIndices.try_emplace(tracks[i]._boneNameHash, i).second;
+			DK_ASSERT_LOG(inserted, "Duplicate animation bone hash");
+		}
+
 		_trackIndices.resize(bones.size());
 		_inverseBindPose.resize(bones.size());
 		_animatedPose.resize(bones.size());
 		for (size_t i = 0; i < bones.size(); ++i)
 		{
 			const Bone& bone = bones[i];
-			const DKVector<Animation::BoneAnimation>::const_iterator track = std::find_if(tracks.begin(), tracks.end(), [&](const Animation::BoneAnimation& candidate) {
-				return candidate._boneName == bone._boneName;
-			});
-			if (track == tracks.end())
+			const DKHashMap<uint64, uint32>::const_iterator track = trackIndices.find(bone._boneNameHash);
+			if (track == trackIndices.end())
 			{
 				DK_ASSERT_LOG(false, "Skeleton, Animation Not Matching");
 				return false;
 			}
 
-			_trackIndices[i] = static_cast<uint32>(track - tracks.begin());
+			_trackIndices[i] = track->second;
 			bone._transform.tofloat4x4(_animatedPose[i]);
 			if (bone._parentBoneIndex != Bone::kInvalidBoneIndex)
 			{
@@ -73,7 +78,7 @@ namespace DK
 		_currentCharacterSpaceBoneAnimation.assign(Bone::kMaxBoneCount, float4x4::Identity);
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		_currentAnimationBufferCS = renderModule.createConstantBuffer(sizeof(float4x4) * Bone::kMaxBoneCount, L"SkinnedMesh_Skeleton_Cbuffer");
+		_currentAnimationBufferCS = renderModule.createConstantBuffer(sizeof(float4x4) * Bone::kMaxBoneCount, DK_DEBUG_NAME(L"SkinnedMesh_Skeleton_Cbuffer"));
 		if (_currentAnimationBufferCS == nullptr)
 			return false;
 

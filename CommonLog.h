@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #if defined(_DEBUG) && defined(_DK_DEBUG_) == 0
 #define _DK_DEBUG_
@@ -11,6 +11,7 @@
 #endif
 
 #ifdef _DK_DEBUG_
+#define DK_DEBUG_NAME(name) (name)
 #include <stdio.h>
 #include <intrin.h>
 #ifdef _DK_WINDOW_
@@ -48,6 +49,7 @@
 	}																	\
 }
 #else
+#define DK_DEBUG_NAME(name) nullptr
 #define BLOCK(category)
 #define DK_LOG(...) ((void)0)
 #define DK_WLOG(...) ((void)0)

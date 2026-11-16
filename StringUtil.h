@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CommonTypes.h"
 
@@ -10,6 +10,18 @@ namespace DK
     class StringUtil
     {
     public:
+        static constexpr uint64 hash(const char* value, uint64 seed = 14695981039346656037ull)
+        {
+            while (*value != '\0')
+            {
+                seed = (seed ^ static_cast<uint8>(*value)) * 1099511628211ull;
+                ++value;
+            }
+            return seed;
+        }
+        static uint64 hash(const DKString& value) { return hash(value.c_str()); }
+        static uint64 registerHash(const char* value);
+        static uint64 registerHash(const DKString& value) { return registerHash(value.c_str()); }
         static DKVector<DKString> split(const DKString& str, const DKString& delimiter);
         static DKVector<DKString> splitWhitespace(const DKString& str);
         static bool isWhitespace(char value);

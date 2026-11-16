@@ -12,18 +12,16 @@ namespace DK
 {
 	Camera* Camera::gMainCamera = nullptr;
 
+#if defined(_DK_DEBUG_)
 	static DKString cameraStatePath()
 	{
 		return FileUtil::fromWidePath(GlobalPath::makeResourceFullPathW(L"editor/data/camera-state.txt").c_str());
 	}
+#endif
 
     void Camera::setWorldPosition(double x, double y, double z)
     {
-        if (std::isfinite(x) == false || std::isfinite(y) == false || std::isfinite(z) == false)
-        {
-            DK_ASSERT_LOG(false, "Invalid camera world position");
-            return;
-        }
+        DK_ASSERT_LOG(std::isfinite(x) && std::isfinite(y) && std::isfinite(z), "Invalid camera world position");
         _worldPosition = { x, y, z };
         _lastPosition = float3(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z));
         Transform transform = get_worldTransform();
@@ -42,6 +40,7 @@ namespace DK
         return _worldPosition;
     }
 
+#if defined(_DK_DEBUG_)
 	bool Camera::loadViewState()
 	{
 		const DKString path = cameraStatePath();
@@ -114,6 +113,7 @@ namespace DK
 		}
 		return FileUtil::rename(temporary, path, true);
 	}
+#endif
 
 	void Camera::update(float deltaTime)
 	{

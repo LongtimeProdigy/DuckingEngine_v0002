@@ -13,6 +13,29 @@ namespace DK
 		return index == 0 ? name : name + "[" + StringUtil::toString(index) + "]";
 	}
 
+	dk_inline uint64 pipelinePermutationHash(const char* name, uint32 index)
+	{
+		const uint64 nameHash = StringUtil::hash(name);
+		if (index == 0)
+			return nameHash;
+
+		char digits[10];
+		uint32 digitCount = 0;
+		do
+		{
+			digits[digitCount++] = static_cast<char>('0' + index % 10);
+			index /= 10;
+		} while (index != 0);
+
+		uint64 permutationHash = StringUtil::hash("[", nameHash);
+		while (digitCount > 0)
+		{
+			const char digit[] = { digits[--digitCount], '\0' };
+			permutationHash = StringUtil::hash(digit, permutationHash);
+		}
+		return StringUtil::hash("]", permutationHash);
+	}
+
 	dk_inline bool parsePipelinePermutations(const TiXmlElement& pipeline, DKVector<DKVector<DKString>>& combinations)
 	{
 		constexpr size_t maxCombinations = 4096;

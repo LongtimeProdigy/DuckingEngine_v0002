@@ -11,7 +11,10 @@ namespace DK
 	public:
 		struct BoneAnimation
 		{
+			uint64 _boneNameHash = 0;
+#if defined(_DK_DEBUG_)
 			DKString _boneName;
+#endif
 			DKVector<float4x4> _animation;
 		};
 

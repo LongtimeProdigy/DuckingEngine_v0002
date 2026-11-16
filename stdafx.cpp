@@ -58,5 +58,7 @@ namespace DK
 #endif
 	}
 
+#if defined(_DK_DEBUG_)
 	ThreadID gMainThreadID = 0;
+#endif
 }

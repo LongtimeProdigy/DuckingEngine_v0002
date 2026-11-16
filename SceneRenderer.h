@@ -132,11 +132,14 @@ namespace DK
 		bool initialize();
 
 		// Helper
-		const MaterialDefinition* getMaterialDefinition(const DKString& materialName) const;
+		const MaterialDefinition* getMaterialDefinition(uint64 materialNameHash) const;
+		const MaterialDefinition* getMaterialDefinition(const char* materialName) const { return getMaterialDefinition(StringUtil::hash(materialName)); }
 
 		// Render
 		void prepareShaderData(const float deltaTime) noexcept;
+#if defined(_DK_DEBUG_)
 		void renderUI() noexcept;
+#endif
 		void updateRender() noexcept;
 		void endRender() const noexcept;
 		void updateAtmosphereCamera(Camera& camera) const noexcept;
@@ -159,7 +162,7 @@ namespace DK
         static constexpr uint32 kAtmosphereLutWidth = 512;
         static constexpr uint32 kAtmosphereLutHeight = 128;
 
-		DKHashMap<DKString, MaterialDefinition> _materialDefinitionMap;
+		DKHashMap<uint64, MaterialDefinition> _materialDefinitionMap;
 
 		RenderPass* _transmittancePass = nullptr;
 		RenderPass* _multipleScatteringPass = nullptr;
@@ -177,10 +180,12 @@ namespace DK
 		const RenderPassInstance* _nearShadowPasses[3] = {};
 
         // Debug
+#if defined(_DK_DEBUG_)
         bool _localGeometryEnabled = true;
+        bool _compareExtendedAtmosphereTop = false;
+#endif
         float3 _localGeometryCentre = float3(0, 0, 0);
         float _localGeometryRadius = 50000.0f;
-        bool _compareExtendedAtmosphereTop = false;
 
         // CPU Data
 		bool _renderLocalScene = false;

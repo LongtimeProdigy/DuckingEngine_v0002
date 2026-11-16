@@ -29,7 +29,7 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
 		sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
-		sceneObject._sceneObjectConstantBuffer = renderModule.createConstantBuffer(sizeof(sceneObjectConstantBufferData), L"SceneObject_Cbuffer");
+		sceneObject._sceneObjectConstantBuffer = renderModule.createConstantBuffer(sizeof(sceneObjectConstantBufferData), DK_DEBUG_NAME(L"SceneObject_Cbuffer"));
 		if (sceneObject._sceneObjectConstantBuffer == nullptr)
 		{
 			DK_ASSERT_LOG(false, "SceneObjectConstantBuffer 생성에 실패");
@@ -49,7 +49,9 @@ namespace DK
 	template <typename T>
 	struct CpuPrimitive
 	{
+#if defined(_DK_DEBUG_)
 		DKString _name;
+#endif
 
 		// 실질적인 VertexBuffer / IndexBuffer 데이터.
 		DKVector<T> _vertices;
@@ -202,7 +204,7 @@ namespace DK
 			}
 			}
 
-			textures[i] = renderModule.createTexture(src.uri, src.width, src.height, src.image.data(), format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
+			textures[i] = renderModule.createTexture(DK_DEBUG_NAME(src.uri.c_str()), src.width, src.height, src.image.data(), format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
 			if (textures[i] == nullptr)
 				return nullptr;
 		}
@@ -217,7 +219,9 @@ namespace DK
 		};
 		struct CpuMaterial
 		{
+#if defined(_DK_DEBUG_)
 			DKString _name;
+#endif
 
 			// glTF metallic-roughness PBR
 			float4 _baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -235,7 +239,7 @@ namespace DK
 			float _occlusionStrength = 1.0f;
 
 			bool _doubleSided = false;
-			DKString _alphaMode = "OPAQUE"; // OPAQUE / MASK / BLEND
+			uint64 _alphaModeHash = StringUtil::hash("OPAQUE"); // OPAQUE / MASK / BLEND
 			float _alphaCutoff = 0.5f;
 		};
 
@@ -252,7 +256,9 @@ namespace DK
 		const DKFunction<Material*(const tinygltf::Model&, const tinygltf::Material&)> ConvertMaterial = [&MakeTextureBinding, &textures](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
 		{
 			CpuMaterial dst;
+#if defined(_DK_DEBUG_)
 			dst._name = src.name;
+#endif
 
 			//{
 			//	DKArray<float, 4> factor{ dst._baseColorFactor.x, dst._baseColorFactor.y, dst._baseColorFactor.z, dst._baseColorFactor.w };
@@ -284,7 +290,7 @@ namespace DK
 			dst._normalScale = static_cast<float>(src.normalTexture.scale);
 			dst._occlusionStrength = static_cast<float>(src.occlusionTexture.strength);
 			dst._doubleSided = src.doubleSided;
-			dst._alphaMode = src.alphaMode.empty() ? "OPAQUE" : src.alphaMode;
+			dst._alphaModeHash = StringUtil::registerHash(src.alphaMode.empty() ? "OPAQUE" : src.alphaMode.c_str());
 			dst._alphaCutoff = static_cast<float>(src.alphaCutoff);
 
 			SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
@@ -305,14 +311,14 @@ namespace DK
 			for (uint32 i = 0; i < parameterCount; ++i)
 			{
 				MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
-				const DKString& name = parameter->getParameterName();
-				if (name == "_diffuseTexture")
+				const uint64 nameHash = parameter->getParameterNameHash();
+				if (nameHash == StringUtil::hash("_diffuseTexture"))
 					static_cast<MaterialParameterTexture*>(parameter)->setParameterValue(baseColorTexture);
-				if (name == "_metallic")
+				if (nameHash == StringUtil::hash("_metallic"))
 					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._metallicFactor);
-				if (name == "_roughness")
+				if (nameHash == StringUtil::hash("_roughness"))
 					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._roughnessFactor);
-				if (name == "_alphaCutoff" && dst._alphaMode == "MASK")
+				if (nameHash == StringUtil::hash("_alphaCutoff") && dst._alphaModeHash == StringUtil::hash("MASK"))
 					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._alphaCutoff);
 			}
 
@@ -783,12 +789,12 @@ namespace DK
 				//result.model.primitives.push_back();
 
 				VertexBufferViewRef vertexBufferView;
-				IBufferRef vertexBuffer = renderModule.createVertexBuffer(cpuPrimitive._vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive._vertices.size(), vertexBufferView, L"GLTF_VertexBuffer");
+				IBufferRef vertexBuffer = renderModule.createVertexBuffer(cpuPrimitive._vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive._vertices.size(), vertexBufferView, DK_DEBUG_NAME(L"GLTF_VertexBuffer"));
 				if (vertexBuffer == nullptr)
 					return nullptr;
 
 				IndexBufferViewRef indexBufferView;
-				IBufferRef indexBuffer = renderModule.createIndexBuffer(cpuPrimitive._indices.data(), cpuPrimitive._indices.size(), indexBufferView, L"GLTF_IndexBuffer");
+				IBufferRef indexBuffer = renderModule.createIndexBuffer(cpuPrimitive._indices.data(), cpuPrimitive._indices.size(), indexBufferView, DK_DEBUG_NAME(L"GLTF_IndexBuffer"));
 				if (indexBuffer == nullptr)
 					return nullptr;
 
@@ -859,8 +865,8 @@ namespace DK
 
 	const AppearanceDataRef SceneObjectManager::loadCharacter_LoadAppearanceFile(const char* appearancePath)
 	{
-		using FindResult = DKHashMap<DKString, AppearanceDataRef>::iterator;
-		FindResult findResult = _appearanceRawContainers.find(appearancePath);
+		using FindResult = DKHashMap<uint64, AppearanceDataRef>::iterator;
+		FindResult findResult = _appearanceRawContainers.find(StringUtil::hash(appearancePath));
 		if (findResult != _appearanceRawContainers.end())
 			return findResult->second;
 
@@ -893,7 +899,7 @@ namespace DK
 			modelDataArr.push_back(AppearanceData::ModelData(modelPath, modelPropertyPath));
 		}
 
-		const DKPair<DKHashMap<DKString, AppearanceDataRef>::iterator, bool> insertResult = _appearanceRawContainers.insert(DKPair<DKString, AppearanceDataRef>(appearancePath, dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr))));
+		const DKPair<DKHashMap<uint64, AppearanceDataRef>::iterator, bool> insertResult = _appearanceRawContainers.insert(DKPair<uint64, AppearanceDataRef>(StringUtil::registerHash(appearancePath), dk_new AppearanceData(skeletonPath, animationSetPath, DK::move(modelDataArr))));
 		return insertResult.first->second;
 	}
 	SceneObject* SceneObjectManager::createCharacter(const char* appearancePath)

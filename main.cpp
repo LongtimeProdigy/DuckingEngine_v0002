@@ -57,7 +57,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     ImGui_ImplWin32_EnableDpiAwareness();
 #endif
 
+#if defined(_DK_DEBUG_)
     DK::gMainThreadID = GetCurrentThreadId();
+#endif
 
 #if defined(USE_PIX)
     // PIX dll (https://devblogs.microsoft.com/pix/taking-a-capture/)

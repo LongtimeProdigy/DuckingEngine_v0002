@@ -13,12 +13,12 @@ namespace DK
 		{
 		case MaterialParameterType::FLOAT:
 		{
-			return dk_new MaterialParameterFloat(parameterDefinition._name, StringUtil::atof(parameterDefinition._value.c_str()));
+			return dk_new MaterialParameterFloat(parameterDefinition, StringUtil::atof(parameterDefinition._value.c_str()));
 		}
 		case MaterialParameterType::TEXTURE:
 		{
 			ITextureRef texture = DuckingEngine::getInstance().GetRenderModuleWritable().loadAndCreateTexture(parameterDefinition._value);
-			return dk_new MaterialParameterTexture(parameterDefinition._name, texture);
+			return dk_new MaterialParameterTexture(parameterDefinition, texture);
 		}
 		default:
 			DK_ASSERT_LOG(false, "ParameterMaterial이 지정되지 않았습니다. RenderPass를 확인바랍니다.");
@@ -53,13 +53,13 @@ namespace DK
 		DK::memcpy(_valuePtr, &_value->getSRV(), getParameterSize());
 	}
 
-	Material* Material::createMaterial(const DKString& materialName)
+	Material* Material::createMaterial(uint64 materialNameHash)
 	{
 		SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
-		const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(materialName);
+		const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition(materialNameHash);
 		if (materialDefinition == nullptr)
 		{
-			DK_ASSERT_LOG(false, "RenderPass에 없는 Material(%s)을 만들려합니다! 절대 발생하면 안됩니다!", materialName.c_str());
+			DK_ASSERT_LOG(false, "RenderPass에 없는 Material hash(%llu)을 만들려합니다! 절대 발생하면 안됩니다!", materialNameHash);
 			return nullptr;
 		}
 
@@ -67,7 +67,10 @@ namespace DK
 		uint32 parameterBufferSize = 0;
 		const uint32 parameterCount = static_cast<uint32>(materialDefinition->_parameters.size());
 		Material* outMaterial = dk_new Material;
-		outMaterial->_materialName = materialName;
+		outMaterial->_materialNameHash = materialNameHash;
+#if defined(_DK_DEBUG_)
+		outMaterial->_materialName = materialDefinition->_materialName;
+#endif
 		outMaterial->_parameterArr.resize(parameterCount);
 		for (uint32 i = 0; i < parameterCount; ++i)
 		{
@@ -99,7 +102,7 @@ namespace DK
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		outMaterial->_parameterBufferForGPU = renderModule.createConstantBuffer(parameterBufferSize, L"Material_CBuffer");
+		outMaterial->_parameterBufferForGPU = renderModule.createConstantBuffer(parameterBufferSize, DK_DEBUG_NAME(L"Material_CBuffer"));
 		outMaterial->_parameterBufferForGPU->upload(outMaterial->_parameterBufferForCPU.data());
 
 		return outMaterial;
@@ -108,7 +111,7 @@ namespace DK
 	Material* Material::createMaterial(const MaterialDefinition& modelProperty)
 	{
 		// 기존의 Parameter들의 Value들은 유지하면서 MaterialDefinition의 Parameter들로 Material::Parameters를 구성합니다.
-		Ptr<Material> outMaterial = createMaterial(modelProperty._materialName);
+		Ptr<Material> outMaterial = createMaterial(modelProperty._materialNameHash);
 		if(outMaterial.get() == nullptr)
 			return nullptr;
 
@@ -120,7 +123,7 @@ namespace DK
 
 	bool Material::setModelProperty(const MaterialDefinition& modelProperty)
 	{
-		DK_ASSERT_LOG(_materialName == modelProperty._materialName, "MaterialName이 ModelProperty의 MaterialName과 일치하지 않습니다!");
+		DK_ASSERT_LOG(_materialNameHash == modelProperty._materialNameHash, "MaterialName이 ModelProperty의 MaterialName과 일치하지 않습니다!");
 		DK_ASSERT_LOG(_parameterArr.size() != 0, "Parameters가 비어있습니다. UpdateTechnique가 먼저 이루어져야합니다.");
 
 		const uint32 parameterCount = _parameterArr.size();
@@ -132,7 +135,7 @@ namespace DK
 			for (uint32 j = 0; j < parameterCount; ++j)
 			{
 				MaterialParameter* parameter = _parameterArr[j].get();
-				if (parameterDefinition._name == parameter->getParameterName())
+				if (parameterDefinition._nameHash == parameter->getParameterNameHash())
 				{
 					if (parameterDefinition._type != parameter->getType())
 					{
@@ -180,7 +183,7 @@ namespace DK
 
 	Material* Material::clone() const
 	{
-		Material* newMaterial = createMaterial(_materialName);
+		Material* newMaterial = createMaterial(_materialNameHash);
 
 		const uint32 parameterCount = _parameterArr.size();
 		for(uint32 i = 0; i < parameterCount; ++i)

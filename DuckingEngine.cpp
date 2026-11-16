@@ -34,8 +34,10 @@ namespace DK
 
 	void DuckingEngine::destroy()
 	{
+#if defined(_DK_DEBUG_)
 		if (Camera::gMainCamera)
 			Camera::gMainCamera->saveViewState();
+#endif
 		_renderModule->waitAllGPU();
 
 		ImGui_ImplDX12_Shutdown();
@@ -92,7 +94,9 @@ namespace DK
 			return false;
 
 		Camera::gMainCamera = dk_new Camera(60, width, height);
+#if defined(_DK_DEBUG_)
 		Camera::gMainCamera->loadViewState();
+#endif
 
 		// Camera 정보가 필요하기 때문에 이 곳에서 SceneConstantBuffer를 생성합니다.
 		// #todo- 어차피 매프레임 업데이트하기 때문에 굳이 이렇게 할 필요는 없음.. PreRender직후 바로 업데이트하기 때문

@@ -11,7 +11,9 @@
 #include "Model.h"
 #include "SceneObject.h"
 #include "Material.h"
+#if defined(_DK_DEBUG_)
 #include "EditorDebugDrawManager.h"
+#endif
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
 #include "Resource/Material/GrassTiles.h"
@@ -75,10 +77,9 @@ namespace DK
 				return false;
 
 			const RenderTargetDefinition& definition = target->_definition;
+			DK_ASSERT_LOG(definition._colorCount != 3 || (definition._colors[0]._nameHash == StringUtil::hash("Albedo") && definition._colors[1]._nameHash == StringUtil::hash("Normal") && definition._colors[2]._nameHash == StringUtil::hash("Material")), "Invalid geometry output semantics");
 			return definition._colorCount == 3 && definition._depth._srv &&
-				definition._colors[0]._name == "Albedo" && definition._colors[0]._srv &&
-				definition._colors[1]._name == "Normal" && definition._colors[1]._srv &&
-				definition._colors[2]._name == "Material" && definition._colors[2]._srv;
+				definition._colors[0]._srv && definition._colors[1]._srv && definition._colors[2]._srv;
 		};
 		const DKFunction<bool(const RenderPassInstance&)> isCapture = [&](const RenderPassInstance& pass)
 		{
@@ -130,7 +131,10 @@ namespace DK
 		}
 
 		RootConstant32BitParameter parameter;
+		parameter._bufferNameHash = StringUtil::registerHash(bufferName);
+#if defined(_DK_DEBUG_)
 		parameter._bufferName = bufferName;
+#endif
 		pipelineCreateInfo._rootConstant32BitParameter.push_back(DK::move(parameter));
 
 		return true;
@@ -252,14 +256,18 @@ namespace DK
 				if (name == nullptr || *name == '\0' || definition._colorCount >= DK_COUNT_OF(definition._colors))
 					return false;
 
+#if defined(_DK_DEBUG_)
 				for (uint32 i = 0; i < definition._colorCount; ++i)
 				{
-					if (definition._colors[i]._name == name)
-						return false;
+					DK_ASSERT_LOG(definition._colors[i]._nameHash != StringUtil::hash(name), "Duplicate render target attachment name: %s", name);
 				}
+#endif
 
 				RenderTargetDefinition::Attachment& color = definition._colors[definition._colorCount++];
+#if defined(_DK_DEBUG_)
+				color._nameHash = StringUtil::registerHash(name);
 				color._name = name;
+#endif
 				if (parseTargetAttachment(*child, false, color) == false)
 					return false;
 			}
@@ -347,6 +355,11 @@ namespace DK
 		ShaderCompiler shaderCompiler(renderModule.getShaderModel());
 		for (TiXmlElement* renderPassNode = rootNode->FirstChildElement(); renderPassNode != nullptr; renderPassNode = renderPassNode->NextSiblingElement())
 		{
+#if defined(_DK_DEBUG_) == 0
+			const char* debugOnly = renderPassNode->Attribute("DebugOnly");
+			if (debugOnly != nullptr && StringUtil::strcmp(debugOnly, "True") == 0)
+				continue;
+#endif
 			const char* nodeType = renderPassNode->Value();
 			if (renderPassNode == targetGroup || StringUtil::strcmp(nodeType, "RenderPassInstance") == 0)
 				continue;
@@ -365,6 +378,11 @@ namespace DK
 			}
 			for (TiXmlElement* renderPassChildNode = renderPassNode->FirstChildElement(); renderPassChildNode != nullptr; renderPassChildNode = renderPassChildNode->NextSiblingElement())
 			{
+#if defined(_DK_DEBUG_) == 0
+				const char* debugOnly = renderPassChildNode->Attribute("DebugOnly");
+				if (debugOnly != nullptr && StringUtil::strcmp(debugOnly, "True") == 0)
+					continue;
+#endif
 				DKString renderPassChildNodeName = renderPassChildNode->Value();
 				if (renderPassChildNodeName == "Pipeline")
 				{
@@ -617,9 +635,10 @@ namespace DK
 
 			MaterialDefinition materialDefinition;
 			const DKString materialName = rootNode->Attribute("Name");
+			materialDefinition.setMaterialName(materialName.c_str());
 
-			using FindResult = DKHashMap<DKString, MaterialDefinition>::iterator;
-			FindResult findResult = _materialDefinitionMap.find(materialName);
+			using FindResult = DKHashMap<uint64, MaterialDefinition>::iterator;
+			FindResult findResult = _materialDefinitionMap.find(StringUtil::hash(materialName));
 			if (findResult != _materialDefinitionMap.end())
 			{
 				DK_ASSERT_LOG(false, "중복된 이름의 MaterialDefinition이 있습니다.");
@@ -634,7 +653,7 @@ namespace DK
 				const char* value = parameterNode->ToElement()->GetText();
 
 				MaterialParameterDefinition parameterDefinition;
-				parameterDefinition._name = name;
+				parameterDefinition.setName(name);
 				parameterDefinition._type = type;
 				switch (type)
 				{
@@ -654,8 +673,8 @@ namespace DK
 				materialDefinition._parameters.push_back(DK::move(parameterDefinition));
 			}
 
-			using InsertResult = DKPair<DKHashMap<DKString, MaterialDefinition>::iterator, bool>;
-			InsertResult insertResult = _materialDefinitionMap.insert(DKPair<DKString, MaterialDefinition>(materialName, DK::move(materialDefinition)));
+			using InsertResult = DKPair<DKHashMap<uint64, MaterialDefinition>::iterator, bool>;
+			InsertResult insertResult = _materialDefinitionMap.insert(DKPair<uint64, MaterialDefinition>(StringUtil::registerHash(materialName), DK::move(materialDefinition)));
 			if (insertResult.second == false)
 			{
 				DK_ASSERT_LOG(false, "HashMap Insert 실패!");
@@ -669,38 +688,38 @@ namespace DK
 	{
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
-		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(SceneConstantBuffer), L"SceneConstantBuffer");
+		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(SceneConstantBuffer), DK_DEBUG_NAME(L"SceneConstantBuffer"));
 
-		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(AtmosphereConstantBuffer), L"AtmosphereConstantBuffer");
-		_atmosphereTransmittanceLut = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture("AtmosphereTransmittanceLut", kAtmosphereLutWidth, kAtmosphereLutHeight * 2u, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(AtmosphereConstantBuffer), DK_DEBUG_NAME(L"AtmosphereConstantBuffer"));
+		_atmosphereTransmittanceLut = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(DK_DEBUG_NAME("AtmosphereTransmittanceLut"), kAtmosphereLutWidth, kAtmosphereLutHeight * 2u, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
 		if (_atmosphereTransmittanceLut == nullptr)
 			return false;
 
         RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		for (uint32 i = 0; i < 2u; ++i)
 		{
-			_multipleScatteringLut[i] = renderModule.createTexture(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1", 32, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+			_multipleScatteringLut[i] = renderModule.createTexture(DK_DEBUG_NAME(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1"), 32, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
 			if (_multipleScatteringLut[i] == nullptr)
 				return false;
 		}
 
-		_skyRadiance = renderModule.createTexture("AtmosphereSkyRadiance", 64, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+		_skyRadiance = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereSkyRadiance"), 64, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
 		if (_skyRadiance == nullptr)
 			return false;
-		_skyFiltered = renderModule.createTexture("AtmosphereSkyFiltered", 64, 192, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		_skyFiltered = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereSkyFiltered"), 64, 192, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
 		if (_skyFiltered == nullptr)
 			return false;
 
-        _surfaceSceneConstantBuffer = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), L"SurfaceCaptureSceneConstantBuffer");
+        _surfaceSceneConstantBuffer = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), DK_DEBUG_NAME(L"SurfaceCaptureSceneConstantBuffer"));
 		if (_surfaceSceneConstantBuffer == nullptr)
 			return false;
-        _surfaceBounce = renderModule.createTexture("Atmosphere surface bounce field", 256, 16, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+        _surfaceBounce = renderModule.createTexture(DK_DEBUG_NAME("Atmosphere surface bounce field"), 256, 16, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
         if (_surfaceBounce == nullptr)
 			return false;
 
 		for (uint32 i = 0; i < DK_COUNT_OF(_nearShadowSceneConstants); ++i)
 		{
-			_nearShadowSceneConstants[i] = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), L"ShadowCascadeSceneConstants");
+			_nearShadowSceneConstants[i] = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), DK_DEBUG_NAME(L"ShadowCascadeSceneConstants"));
 			if (_nearShadowSceneConstants[i] == nullptr)
 				return false;
 		}
@@ -721,10 +740,10 @@ namespace DK
 		return true;
 	}
 
-	const MaterialDefinition* SceneRenderer::getMaterialDefinition(const DKString& materialName) const
+	const MaterialDefinition* SceneRenderer::getMaterialDefinition(uint64 materialNameHash) const
 	{
-		using FindResult = DKHashMap<DKString, MaterialDefinition>::const_iterator;
-		FindResult findResult = _materialDefinitionMap.find(materialName);
+		using FindResult = DKHashMap<uint64, MaterialDefinition>::const_iterator;
+		FindResult findResult = _materialDefinitionMap.find(materialNameHash);
 		if (findResult == _materialDefinitionMap.end())
 			return nullptr;
 
@@ -772,7 +791,10 @@ namespace DK
         const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainBaseWorldHeight), double(terrainBounds._terrainBaseWorldHeight + terrainBounds._terrainWorldHeightRange));
         const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
         const bool nearTerrain = terrainBounds._terrainCellCountX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
-        _renderLocalScene = _localGeometryEnabled && (nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius);
+        _renderLocalScene = nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius;
+#if defined(_DK_DEBUG_)
+        _renderLocalScene = _localGeometryEnabled && _renderLocalScene;
+#endif
 
 		// Upload Scene ConstantBuffer
 		{
@@ -1030,7 +1052,6 @@ namespace DK
 
 		return false;
 	}
-#endif
 	void SceneRenderer::renderUI() noexcept
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
@@ -1433,6 +1454,8 @@ namespace DK
 		ImGui::Render();
 #endif
 	}
+#endif
+
     void SceneRenderer::prepareSurfaceCapture(const float3& cameraPosition)
     {
 		AtmosphereConstantBuffer& atmosphereData = _atmosphereConstantBufferData;
@@ -1620,7 +1643,7 @@ namespace DK
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 				Material* material = terrain._material.get();
-				setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPUWritable());
+				setConstantBuffer(material->get_materialNameHash(), material->get_parameterBufferForGPUWritable());
 				setConstantBuffer("TerrainStreamingConstants", terrain._streamingBuffer);
 
 				uint32 terrainConstantBufferTypeIndex = 0;
@@ -1716,7 +1739,7 @@ namespace DK
 							const StaticMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
 							const Material* material = subMesh._material.get();
-							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
+							setConstantBuffer(material->get_materialNameHash(), material->get_parameterBufferForGPU());
 
 							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
 							renderModule.setIndexBuffer(subMesh._indexBufferView.get());
@@ -1756,7 +1779,7 @@ namespace DK
 							const SkinnedMeshModel::SubMeshType& subMesh = subMeshes[subMeshIndex];
 
 							const Material* material = subMesh._material.get();
-							setConstantBuffer(material->get_materialName().c_str(), material->get_parameterBufferForGPU());
+							setConstantBuffer(material->get_materialNameHash(), material->get_parameterBufferForGPU());
 
 							renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
 							renderModule.setIndexBuffer(subMesh._indexBufferView.get());

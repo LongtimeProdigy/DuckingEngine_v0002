@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Resource/Material/SkinningLimits.h"
 
 namespace DK
@@ -10,15 +10,24 @@ namespace DK
 		static constexpr uint32 kMaxBoneCount = DK_MAX_BONE_COUNT;
 
 	public:
-		Bone(const DKString& boneName, const DKString& parentBoneName, const uint32 parentBoneIndex, const Transform& transform)
-			: _boneName(boneName)
-			, _parentBoneName(parentBoneName)
+		Bone(const char* boneName, const char* parentBoneName, const uint32 parentBoneIndex, const Transform& transform)
+			: _boneNameHash(StringUtil::registerHash(boneName))
+			, _parentBoneNameHash(StringUtil::registerHash(parentBoneName))
 			, _parentBoneIndex(parentBoneIndex)
 			, _transform(transform)
-		{}
+		{
+#if defined(_DK_DEBUG_)
+			_boneName = boneName;
+			_parentBoneName = parentBoneName;
+#endif
+		}
 
+		uint64 _boneNameHash;
+		uint64 _parentBoneNameHash;
+#if defined(_DK_DEBUG_)
 		DKString _boneName;
 		DKString _parentBoneName;
+#endif
 		uint32 _parentBoneIndex;
 		Transform _transform = Transform::Identity;
 	};

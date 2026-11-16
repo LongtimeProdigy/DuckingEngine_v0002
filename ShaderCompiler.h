@@ -12,14 +12,20 @@ namespace DK
 {
 	struct ShaderVariableReflection
 	{
+		uint64 _nameHash = 0;
+#if defined(_DK_DEBUG_)
 		DKString _name;
+#endif
 		uint32 _offset = 0; // byte 단위
 		uint32 _size = 0;   // byte 단위
 	};
 
 	struct ShaderResourceReflection
 	{
+		uint64 _nameHash = 0;
+#if defined(_DK_DEBUG_)
 		DKString _name;
+#endif
 
 		D3D_SHADER_INPUT_TYPE _type{};
 		D3D_SRV_DIMENSION _dimension{};

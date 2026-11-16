@@ -48,8 +48,7 @@
 /*
 * #todo- 외부 라이브러리 목록 (필요시 나중에 따로 자체제작 할 목록들)
 */
-#define USE_IMGUI
-#ifdef USE_IMGUI
+#ifdef _DK_DEBUG_
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx12.h"
@@ -1331,9 +1330,8 @@ namespace DK
 namespace DK
 {
 	using ThreadID = DWORD;
-	extern ThreadID gMainThreadID;
-
 #if defined(_DK_DEBUG_)
+	extern ThreadID gMainThreadID;
 	static const bool isMainThread()
 	{
 		return gMainThreadID == GetCurrentThreadId();

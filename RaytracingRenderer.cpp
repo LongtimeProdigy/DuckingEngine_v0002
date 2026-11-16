@@ -42,7 +42,7 @@ namespace DK
                     if (submesh._indices.empty() || submesh._vertices.empty() || material == nullptr)
                         continue;
                     // The current hit shader uses the StaticMeshStandard material layout.
-                    if (material->get_materialName() != "StaticMeshStandard" || material->_parameterBufferForCPU.size() != 8)
+                    if (material->get_materialNameHash() != StringUtil::hash("StaticMeshStandard") || material->_parameterBufferForCPU.size() != 8)
                         continue;
                     if (geometries.size() == kRaytracingDescriptorCount)
                         return false;
@@ -103,7 +103,7 @@ namespace DK
             _outputAccumulateTexture.reset();
 
             _outputTexture = renderModule.createTexture(
-                "Raytracing Output",
+                DK_DEBUG_NAME("Raytracing Output"),
                 _width, _height,
                 static_cast<const byte*>(nullptr),
                 _displayTarget->_definition._colors[0]._format,
@@ -117,7 +117,7 @@ namespace DK
             // 초기 데이터는 필요 없습니다.
             // 첫 DispatchRays에서 모든 픽셀을 덮어씁니다.
             _outputAccumulateTexture = renderModule.createTexture(
-                "Raytracing Accumulation",
+                DK_DEBUG_NAME("Raytracing Accumulation"),
                 _width, _height,
                 static_cast<const byte*>(nullptr),
                 DXGI_FORMAT_R32G32B32A32_FLOAT,

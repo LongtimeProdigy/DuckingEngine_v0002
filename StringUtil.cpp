@@ -1,4 +1,4 @@
-#include "StringUtil.h"
+﻿#include "StringUtil.h"
 #include "CommonLog.h"
 #include "FileUtil.h"
 #include <Windows.h>
@@ -12,9 +12,27 @@
 #include <cwchar>
 #include <limits>
 #include <locale.h>
+#if defined(_DK_DEBUG_)
+#include <mutex>
+#endif
 
 namespace DK
 {
+    uint64 StringUtil::registerHash(const char* value)
+    {
+        DK_ASSERT_LOG(value != nullptr, "String hash input is null");
+        const uint64 valueHash = hash(value);
+        DK_ASSERT_LOG(valueHash != 0, "Zero is reserved for an invalid string hash");
+#if defined(_DK_DEBUG_)
+        static DKHashMap<uint64, DKString> strings;
+        static std::mutex mutex;
+        const std::lock_guard<std::mutex> lock(mutex);
+        const DKPair<DKHashMap<uint64, DKString>::iterator, bool> result = strings.try_emplace(valueHash, value);
+        DK_ASSERT_LOG(result.second || result.first->second == value, "String hash collision: %s / %s", result.first->second.c_str(), value);
+#endif
+        return valueHash;
+    }
+
 	DKVector<DKString> StringUtil::split(const DKString& str, const DKString& delimiter)
 	{
 		DKVector<DKString> tokens;

@@ -194,7 +194,9 @@ namespace DK
 #include "DuckingEngine.h"
 #include "ResourceManager.h"
 #include "ShaderCompiler.h"
+#if defined(_DK_DEBUG_)
 #include "GpuAssertDiagnostics.h"
+#endif
 #include "RaytracingRenderer.h"
 
 #include "Camera.h"
@@ -321,7 +323,7 @@ namespace DK
 		if (FAILED(debugHangHr))
 			return false;
 
-		IBufferRef debugHangUpload = createUploadBuffer(debugHangBufferSize, L"DebugHangBuffer Upload");
+		IBufferRef debugHangUpload = createUploadBuffer(debugHangBufferSize, DK_DEBUG_NAME(L"DebugHangBuffer Upload"));
 		if (debugHangUpload == nullptr || debugHangUpload->isValid() == false)
 			return false;
 
@@ -373,7 +375,7 @@ namespace DK
 			const D3D12_RESOURCE_DESC desc = resource->GetDesc();
 			IBuffer buffer(IBuffer::Type::BACKBUFFER, RenderResourcePtr<ID3D12Resource>(resource), 0, D3D12_RESOURCE_STATE_PRESENT);
 			_device->CreateRenderTargetView(resource, nullptr, view);
-			targets[i]._colors[0] = { ITextureRef(dk_new ITexture("BackBuffer", 1, desc.Format, DK::move(buffer))), view };
+			targets[i]._colors[0] = { ITextureRef(dk_new ITexture(DK_DEBUG_NAME("BackBuffer"), 1, desc.Format, DK::move(buffer))), view };
 			targets[i]._colorCount = 1;
 			targets[i]._width = width;
 			targets[i]._height = height;
@@ -386,12 +388,15 @@ namespace DK
 		return true;
 	}
 
-	bool RenderModule::createRenderPassTargets(const DKString& name, const RenderTargetDefinition& definition, uint32 width, uint32 height, RenderPassTargets& targets)
+	bool RenderModule::createRenderPassTargets(const char* debugName, const RenderTargetDefinition& definition, uint32 width, uint32 height, RenderPassTargets& targets)
 	{
 		targets._width = width;
 		targets._height = height;
 		targets._colorCount = definition._colorCount;
-		const DKStringW debugName = StringUtil::convertCtoWC(name.c_str());
+#if defined(_DK_DEBUG_)
+		const DKStringW resourceName = StringUtil::convertCtoWC(debugName);
+		const wchar_t* resourceDebugName = resourceName.c_str();
+#endif
 		D3D12_DESCRIPTOR_HEAP_DESC heap{};
 		if (definition._colorCount != 0)
 		{
@@ -409,13 +414,13 @@ namespace DK
 				const RenderTargetDefinition::Attachment& color = definition._colors[i];
 				D3D12_CLEAR_VALUE clear{};
 				clear.Format = color._format;
-				IBufferRef buffer = createBuffer2DInternal(width, height, 1, color._format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, debugName.c_str());
+				IBufferRef buffer = createBuffer2DInternal(width, height, 1, color._format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, DK_DEBUG_NAME(resourceDebugName));
 				if (buffer == nullptr)
 					return false;
 
 				_device->CreateRenderTargetView(buffer->_buffer.get(), nullptr, view);
 				RenderPassAttachment& attachment = targets._colors[i];
-				attachment = { ITextureRef(dk_new ITexture(name, 1, color._format, DK::move(buffer))), view };
+				attachment = { ITextureRef(dk_new ITexture(DK_DEBUG_NAME(debugName), 1, color._format, DK::move(buffer))), view };
 				if (color._srv && allocateTextureSRV(*attachment._texture) == false)
 					return false;
 
@@ -441,7 +446,7 @@ namespace DK
 		clear.DepthStencil.Stencil = 0;
 		const D3D12_RESOURCE_FLAGS flags = depth._srv ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 		const DXGI_FORMAT resourceFormat = depth._srv ? GetDepthResourceFormat(depth._format) : depth._format;
-		IBufferRef buffer = createBuffer2DInternal(width, height, 1, resourceFormat, flags, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, debugName.c_str());
+		IBufferRef buffer = createBuffer2DInternal(width, height, 1, resourceFormat, flags, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, DK_DEBUG_NAME(resourceDebugName));
 		if (buffer == nullptr)
 			return false;
 
@@ -451,16 +456,19 @@ namespace DK
 		const D3D12_CPU_DESCRIPTOR_HANDLE view = dsvHeap->GetCPUDescriptorHandleForHeapStart();
 		_device->CreateDepthStencilView(buffer->_buffer.get(), &dsv, view);
 		const DXGI_FORMAT srvFormat = depth._srv ? GetDepthSRVFormat(depth._format) : depth._format;
-		targets._depth = { ITextureRef(dk_new ITexture(name, 1, srvFormat, DK::move(buffer))), view };
+		targets._depth = { ITextureRef(dk_new ITexture(DK_DEBUG_NAME(debugName), 1, srvFormat, DK::move(buffer))), view };
 		return depth._srv == false || allocateTextureSRV(*targets._depth._texture);
 	}
 
 	bool RenderModule::createRenderTarget(const DKString& name, RenderTargetDefinition&& definition)
 	{
-		if (_renderTargets.find(name) != _renderTargets.end())
+		if (_renderTargets.find(StringUtil::hash(name)) != _renderTargets.end())
 			return false;
 
 		RenderTarget target;
+#if defined(_DK_DEBUG_)
+		target._name = name;
+#endif
 		using Size = RenderTargetDefinition::Size;
 		if (definition._size == Size::SwapChain)
 		{
@@ -471,17 +479,17 @@ namespace DK
 		{
 			const uint32 width = definition._size == Size::Window ? kWidth : definition._width;
 			const uint32 height = definition._size == Size::Window ? kHeight : definition._height;
-			if (createRenderPassTargets(name, definition, width, height, target._targets) == false)
+			if (createRenderPassTargets(DK_DEBUG_NAME(name.c_str()), definition, width, height, target._targets) == false)
 				return false;
 		}
 
 		target._definition = DK::move(definition);
-		return _renderTargets.try_emplace(name, DK::move(target)).second;
+		return _renderTargets.try_emplace(StringUtil::registerHash(name), DK::move(target)).second;
 	}
 
-	const RenderTarget* RenderModule::findRenderTarget(const DKString& name) const
+	const RenderTarget* RenderModule::findRenderTarget(const char* name) const
 	{
-		const DKHashMap<DKString, RenderTarget>::const_iterator entry = _renderTargets.find(name);
+		const DKHashMap<uint64, RenderTarget>::const_iterator entry = _renderTargets.find(StringUtil::hash(name));
 		return entry == _renderTargets.end() ? nullptr : &entry->second;
 	}
 
@@ -496,13 +504,13 @@ namespace DK
 			return false;
 
 		DKVector<DKPair<RenderTarget*, RenderPassTargets>> resized;
-		for (DKHashMap<DKString, RenderTarget>::value_type& entry : _renderTargets)
+		for (DKHashMap<uint64, RenderTarget>::value_type& entry : _renderTargets)
 		{
 			RenderTarget& target = entry.second;
 			if (target._definition._size != RenderTargetDefinition::Size::Window)
 				continue;
 			RenderPassTargets targets;
-			if (createRenderPassTargets(entry.first, target._definition, width, height, targets) == false)
+			if (createRenderPassTargets(DK_DEBUG_NAME(target._name.c_str()), target._definition, width, height, targets) == false)
 				return false;
 			resized.emplace_back(&target, DK::move(targets));
 		}
@@ -1051,7 +1059,7 @@ namespace DK
 			bool useRootConstants = false;
 			for (const RootConstant32BitParameter& setting : createInfo._rootConstant32BitParameter)
 			{
-				if (setting._bufferName == resource._name)
+				if (setting._bufferNameHash == resource._nameHash)
 				{
 					useRootConstants = true;
 					break;
@@ -1066,19 +1074,13 @@ namespace DK
 				root.InitAsConstants(dwordCount, resource._register, resource._space, D3D12_SHADER_VISIBILITY_ALL);
 				rootParameters.push_back(root);
 
-				DKVector<char> buffer;
-				buffer.resize(dwordCount * 4, 0);
-
-				inoutPipeline._rootConstant32BitParameterBuffer.push_back(DK::move(buffer));
-				void* storage = inoutPipeline._rootConstant32BitParameterBuffer.back().data();
 				for (const ShaderVariableReflection& variable : resource._variables)
 				{
 					RootConstant32BitParameterBindingInfo info;
 					info._rootParameterIndex = rootIndex;
 					info._offset = variable._offset;
-					info._buffer = storage;
 
-					inoutPipeline._rootConstant32BitParameterMap.insert(DKPair<DKString, RootConstant32BitParameterBindingInfo>(variable._name, DK::move(info)));
+					inoutPipeline._rootConstant32BitParameterMap.insert(DKPair<uint64, RootConstant32BitParameterBindingInfo>(variable._nameHash, DK::move(info)));
 				}
 			}
 			else
@@ -1135,7 +1137,7 @@ namespace DK
 					parameter._space = resource._space;
 					parameter._rootParameterIndex = rootIndex;
 
-					inoutPipeline._shaderParameterMap.insert(DKPair<DKString, ShaderParameter>(resource._name, DK::move(parameter)));
+					inoutPipeline._shaderParameterMap.insert(DKPair<uint64, ShaderParameter>(resource._nameHash, DK::move(parameter)));
 				}
 				break;
 				default:
@@ -1192,29 +1194,26 @@ namespace DK
 			| D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
 			| D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-		ID3DBlob* signature = nullptr;
-		ID3DBlob* errorBuffer = nullptr;
-		HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errorBuffer);
-		if (FAILED(hr) == true)
+		ID3DBlob* signatureBlob = nullptr;
+#if defined(_DK_DEBUG_)
+		ID3DBlob* errorBlob = nullptr;
+		HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
+		RenderResourcePtr<ID3DBlob> errorLog = errorBlob;
+#else
+		HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, nullptr);
+#endif
+		RenderResourcePtr<ID3DBlob> signature = signatureBlob;
+		if (FAILED(hr))
 		{
-			OutputDebugStringA(static_cast<char*>(errorBuffer->GetBufferPointer()));
-			DK_ASSERT_LOG(false, "Failed serializeRootSignature");
-			if (signature != nullptr)
-				signature->Release();
-			if (errorBuffer != nullptr)
-				errorBuffer->Release();
+			DK_ASSERT_LOG(false, "Root signature serialization failed: %s", errorBlob != nullptr ? static_cast<const char*>(errorBlob->GetBufferPointer()) : "No diagnostics");
 			return false;
 		}
 
-		ID3D12RootSignature* rootSignature;
+		ID3D12RootSignature* rootSignature = nullptr;
 		hr = _device->CreateRootSignature(0, signature->GetBufferPointer(), static_cast<uint32>(signature->GetBufferSize()), IID_PPV_ARGS(&rootSignature));
-		if (SUCCEEDED(hr) == false)
+		if (FAILED(hr))
 		{
-			DK_ASSERT_LOG(false, "Failed craete RootSignature");
-			if (signature != nullptr)
-				signature->Release();
-			if (errorBuffer != nullptr)
-				errorBuffer->Release();
+			DK_ASSERT_LOG(false, "Root signature creation failed");
 			return false;
 		}
 
@@ -1222,11 +1221,6 @@ namespace DK
 #if defined(_DK_DEBUG_)
 		inoutPipeline._rootSignature->SetName(StringUtil::convertCtoWC(inoutPipeline._createInfo._pipelineName.c_str()).c_str());
 #endif
-
-		if (signature != nullptr)
-			signature->Release();
-		if (errorBuffer != nullptr)
-			errorBuffer->Release();
 
 		return true;
 	}
@@ -1690,7 +1684,7 @@ namespace DK
 		}
 
 		ShaderBindingTable sbt;
-		sbt._buffer = createUploadBuffer(bufferSize, L"Shader Binding Table");
+		sbt._buffer = createUploadBuffer(bufferSize, DK_DEBUG_NAME(L"Shader Binding Table"));
 		if (sbt._buffer == nullptr || sbt._buffer->isValid() == false)
 			return false;
 		// A new, unpublished buffer can be filled immediately, including during reload.
@@ -1711,16 +1705,16 @@ namespace DK
 
 	bool RenderModule::createRenderPass(ShaderCompiler& shaderCompiler, const DKString& renderPassName, RenderPass::CreateInfo&& renderPassCreateInfo)
 	{
-		using FindResult = DKHashMap<DKString, RenderPass>::iterator;
-		FindResult find = _renderPassMap.find(renderPassName);
+		using FindResult = DKHashMap<uint64, RenderPass>::iterator;
+		FindResult find = _renderPassMap.find(StringUtil::hash(renderPassName));
 
 		if (find != _renderPassMap.end())
 		{
-			DK_ASSERT_LOG(false, "중복된 이름의 RenderPass가 있습니다.\nName: %s", find->first.c_str());
+			DK_ASSERT_LOG(false, "중복된 이름의 RenderPass가 있습니다.\nName: %s", renderPassName.c_str());
 			return false;
 		}
-		using InsertResult = DKPair<DKHashMap<DKString, RenderPass>::iterator, bool>;
-		InsertResult insertResult = _renderPassMap.insert(DKPair<DKString, RenderPass>(renderPassName, RenderPass()));
+		using InsertResult = DKPair<DKHashMap<uint64, RenderPass>::iterator, bool>;
+		InsertResult insertResult = _renderPassMap.insert(DKPair<uint64, RenderPass>(StringUtil::registerHash(renderPassName), RenderPass()));
 		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "HashMap Insert에 실패!");
@@ -1736,8 +1730,8 @@ namespace DK
 		{
 			const DKString& pipelineName = renderPassCreateInfo._pipelineArr[i].first;
 
-			using PipelineFindResult = DKHashMap<DKString, Pipeline>::iterator;
-			PipelineFindResult foundPipeline = renderPass._pipelineMap.find(pipelineName);
+			using PipelineFindResult = DKHashMap<uint64, Pipeline>::iterator;
+			PipelineFindResult foundPipeline = renderPass._pipelineMap.find(StringUtil::hash(pipelineName));
 			if (foundPipeline != renderPass._pipelineMap.end())
 			{
 				DK_ASSERT_LOG(false, "중복된 이름의 Pipeline(%s)이 같은 RenderPass(%s) 내에 있습니다.", pipelineName.c_str(), renderPassName.c_str());
@@ -1750,7 +1744,7 @@ namespace DK
 			if (createPipelineObjectState(shaderCompiler, pipelineCreateInfo, newPipeline) == false)
 				return false;
 
-			renderPass._pipelineMap.insert(DKPair<DKString, Pipeline>(pipelineName, DK::move(newPipeline)));
+			renderPass._pipelineMap.insert(DKPair<uint64, Pipeline>(StringUtil::registerHash(pipelineName), DK::move(newPipeline)));
 		}
 
 #if defined(_DK_DEBUG_)
@@ -1759,21 +1753,21 @@ namespace DK
 		return true;
 	}
 
-	RenderPass* RenderModule::findRenderPass(const DKString& name)
+	RenderPass* RenderModule::findRenderPass(const char* name)
 	{
-		const DKHashMap<DKString, RenderPass>::iterator entry = _renderPassMap.find(name);
+		const DKHashMap<uint64, RenderPass>::iterator entry = _renderPassMap.find(StringUtil::hash(name));
 		return entry != _renderPassMap.end() ? &entry->second : nullptr;
 	}
 
-	const RenderPassInstance* RenderModule::findRenderPassInstance(const DKString& name) const
+	const RenderPassInstance* RenderModule::findRenderPassInstance(const char* name) const
 	{
-		const DKHashMap<DKString, RenderPassInstance>::const_iterator entry = _renderPassInstances.find(name);
+		const DKHashMap<uint64, RenderPassInstance>::const_iterator entry = _renderPassInstances.find(StringUtil::hash(name));
 		return entry != _renderPassInstances.end() ? &entry->second : nullptr;
 	}
 
 	bool RenderModule::createRenderPassInstance(const DKString& name, const DKString& definitionName, const RenderPassBinding& binding)
 	{
-		RenderPass* definition = findRenderPass(definitionName);
+		RenderPass* definition = findRenderPass(definitionName.c_str());
 		if (definition == nullptr)
 			return false;
 
@@ -1792,7 +1786,7 @@ namespace DK
 				return false;
 		}
 
-		const DKPair<DKHashMap<DKString, RenderPassInstance>::iterator, bool> result = _renderPassInstances.try_emplace(name, RenderPassInstance{ definition, binding });
+		const DKPair<DKHashMap<uint64, RenderPassInstance>::iterator, bool> result = _renderPassInstances.try_emplace(StringUtil::registerHash(name), RenderPassInstance{ definition, binding });
 #if defined(_DK_DEBUG_)
 		if (result.second)
 			result.first->second._gpuTimingIndex = registerGpuTiming(name);
@@ -1812,9 +1806,9 @@ namespace DK
 		ShaderCompiler shaderCompiler(_shaderModel);
 		DKVector<DKPair<Pipeline*, Pipeline>> replacements;
 
-		for (DKHashMap<DKString, RenderPass>::iterator iter = _renderPassMap.begin(); iter != _renderPassMap.end(); ++iter)
+		for (DKHashMap<uint64, RenderPass>::iterator iter = _renderPassMap.begin(); iter != _renderPassMap.end(); ++iter)
 		{
-			for (DKHashMap<DKString, Pipeline>::iterator pipelineIter = iter->second._pipelineMap.begin(); pipelineIter != iter->second._pipelineMap.end(); ++pipelineIter)
+			for (DKHashMap<uint64, Pipeline>::iterator pipelineIter = iter->second._pipelineMap.begin(); pipelineIter != iter->second._pipelineMap.end(); ++pipelineIter)
 			{
 				Pipeline replacement;
 				if (createPipelineObjectState(shaderCompiler, pipelineIter->second._createInfo, replacement) == false)
@@ -2060,13 +2054,13 @@ namespace DK
 	IBufferRef RenderModule::createConstantBuffer(const uint32 size, const wchar_t* debugName)
 	{
 		const uint32 alignedSize = (size + 255) & ~255;
-		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
+		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, DK_DEBUG_NAME(debugName));
 		return IBufferRef(dk_new IBuffer(IBuffer::Type::UPLOAD, DK::move(buffer), size, D3D12_RESOURCE_STATE_GENERIC_READ));
 	}
 
 	IBufferRef RenderModule::createUploadBuffer(const uint32 size, const wchar_t* debugName)
 	{
-		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, debugName);
+		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, DK_DEBUG_NAME(debugName));
 		return IBufferRef(dk_new IBuffer(IBuffer::Type::UPLOAD, DK::move(buffer), size, D3D12_RESOURCE_STATE_GENERIC_READ));
 	}
 
@@ -2074,14 +2068,14 @@ namespace DK
 	{
 		DK_ASSERT_LOG(data != nullptr, "DefaultBuffer 생성시에는 반드시 Data가 있어야합니다.");
 
-		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, bufferSize, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, debugName);
+		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, bufferSize, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, DK_DEBUG_NAME(debugName));
 		IBufferRef defaultBuffer(dk_new IBuffer(IBuffer::Type::DEFAULT, DK::move(buffer), bufferSize, D3D12_RESOURCE_STATE_COMMON));
 		if (defaultBuffer == nullptr)
 			return nullptr;
 
 		if (data != nullptr)
 		{
-			IBufferRef uploadBuffer = createUploadBuffer(bufferSize, debugName);
+			IBufferRef uploadBuffer = createUploadBuffer(bufferSize, DK_DEBUG_NAME(debugName));
 			if (uploadBuffer == nullptr)
 				return nullptr;
 
@@ -2095,7 +2089,7 @@ namespace DK
 	IBufferRef RenderModule::createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const wchar_t* debugName)
 	{
 		uint32 bufferSizeInBytes = strideSize * vertexCount;
-		IBufferRef outBuffer = createDefaultBuffer(data, bufferSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, debugName);
+		IBufferRef outBuffer = createDefaultBuffer(data, bufferSizeInBytes, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, DK_DEBUG_NAME(debugName));
 		if (outBuffer == nullptr)
 			return nullptr;
 
@@ -2110,7 +2104,7 @@ namespace DK
 	IBufferRef RenderModule::createIndexBuffer(const uint32* data, const uint32 indexCount, IndexBufferViewRef& outView, const wchar_t* debugName)
 	{
 		uint32 bufferSizeInBytes = sizeof(uint32) * indexCount;
-		IBufferRef outBuffer = createDefaultBuffer(data, bufferSizeInBytes, D3D12_RESOURCE_STATE_INDEX_BUFFER, debugName);
+		IBufferRef outBuffer = createDefaultBuffer(data, bufferSizeInBytes, D3D12_RESOURCE_STATE_INDEX_BUFFER, DK_DEBUG_NAME(debugName));
 		if (outBuffer == nullptr)
 			return nullptr;
 
@@ -2481,7 +2475,7 @@ namespace DK
 		}
 		}
 	}
-	ITextureRef RenderModule::createTexture(const DKString& path, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
+	ITextureRef RenderModule::createTexture(const char* debugName, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
 	{
 		if(data != nullptr)
 		{
@@ -2496,12 +2490,12 @@ namespace DK
 			mipData.RowPitch = static_cast<LONG_PTR>(rowPitch);
 			mipData.SlicePitch = static_cast<LONG_PTR>(slicePitch);
 
-			return createTexture(path, width, height, &mipData, 1, format, flags, state, createSRV, createUAV);
+			return createTexture(DK_DEBUG_NAME(debugName), width, height, &mipData, 1, format, flags, state, createSRV, createUAV);
 		}
 
-		return createTexture(path, width, height, (D3D12_SUBRESOURCE_DATA*)nullptr, 1, format, flags, state, createSRV, createUAV);
+		return createTexture(DK_DEBUG_NAME(debugName), width, height, (D3D12_SUBRESOURCE_DATA*)nullptr, 1, format, flags, state, createSRV, createUAV);
 	}
-	ITextureRef RenderModule::createTexture(const DKString& path, const uint32 width, const uint32 height, const D3D12_SUBRESOURCE_DATA* initialData, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
+	ITextureRef RenderModule::createTexture(const char* debugName, const uint32 width, const uint32 height, const D3D12_SUBRESOURCE_DATA* initialData, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
 	{
 		if (width == 0 || height == 0 || mipLevelCount == 0)
 		{
@@ -2530,12 +2524,10 @@ namespace DK
 
 #if defined(_DK_DEBUG_)
 		ScopeStringW<DK_MAX_PATH> textureName(L"Texture(");
-		textureName.append(StringUtil::convertCtoWC(path.c_str()).c_str());
+		textureName.append(StringUtil::convertCtoWC(debugName).c_str());
 		textureName.append(L")");
-		IBufferRef textureResource = createBuffer2DInternal(width, height, mipLevelCount, format, flags, D3D12_HEAP_TYPE_DEFAULT, initialState, nullptr, textureName.c_str());
-#else
-		IBufferRef textureResource = createBuffer2DInternal(width, height, mipLevelCount, format, flags, D3D12_HEAP_TYPE_DEFAULT, initialState, nullptr, nullptr);
 #endif
+		IBufferRef textureResource = createBuffer2DInternal(width, height, mipLevelCount, format, flags, D3D12_HEAP_TYPE_DEFAULT, initialState, nullptr, DK_DEBUG_NAME(textureName.c_str()));
 		if (textureResource == nullptr)
 			return nullptr;
 
@@ -2601,12 +2593,10 @@ namespace DK
 
 #if defined(_DK_DEBUG_)
 			ScopeStringW<DK_MAX_PATH> uploadName(L"UploadTexture(");
-			uploadName.append(StringUtil::convertCtoWC(path.c_str()).c_str());
+			uploadName.append(StringUtil::convertCtoWC(debugName).c_str());
 			uploadName.append(L")");
-			IBufferRef uploadBuffer = createUploadBuffer(uploadSize, uploadName.c_str());
-#else
-			IBufferRef uploadBuffer = createUploadBuffer(uploadSize, nullptr);
 #endif
+			IBufferRef uploadBuffer = createUploadBuffer(uploadSize, DK_DEBUG_NAME(uploadName.c_str()));
 			if (uploadBuffer == nullptr)
 				return nullptr;
 
@@ -2636,7 +2626,7 @@ namespace DK
 			resetCommandList();
 		}
 
-		ITextureRef texture(dk_new ITexture(path, mipLevelCount, format, DK::move(textureResource)));
+		ITextureRef texture(dk_new ITexture(debugName, mipLevelCount, format, DK::move(textureResource)));
 		if (createSRV && allocateTextureSRV(*texture) == false)
 			return nullptr;
 		if (createUAV && allocateTextureUAV(*texture) == false)
@@ -2724,12 +2714,12 @@ namespace DK
 			mipData += subresource.SlicePitch;
 		}
 		constexpr D3D12_RESOURCE_STATES shaderRead = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-		return renderModule.createTexture(path, header._width, header._height, subresources.data(), static_cast<uint8>(mipCount), dx10._format, D3D12_RESOURCE_FLAG_NONE, shaderRead, true, false);
+		return renderModule.createTexture(DK_DEBUG_NAME(path.c_str()), header._width, header._height, subresources.data(), static_cast<uint8>(mipCount), dx10._format, D3D12_RESOURCE_FLAG_NONE, shaderRead, true, false);
 	}
 
 	ITextureRef RenderModule::loadAndCreateTexture(const DKString& path)
 	{
-		DKHashMap<DKString, ITexture*>::iterator findResult = _textureContainer.find(path);
+		DKHashMap<uint64, ITexture*>::iterator findResult = _textureContainer.find(StringUtil::registerHash(path));
 		if (findResult != _textureContainer.end())
 		{
 			return findResult->second->shared_from_this();
@@ -2751,23 +2741,21 @@ namespace DK
 				DK_ASSERT_LOG(false, "TextureData 로딩에 실패했습니다.");
 				return nullptr;
 			}
-			newTexture = createTexture(path, textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
+			newTexture = createTexture(DK_DEBUG_NAME(path.c_str()), textureRaw._width, textureRaw._height, textureRaw._data, textureRaw._format,
 				D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, false);
 		}
 
 		if (newTexture == nullptr)
 			return nullptr;
-#if defined(_DK_DEBUG_)
-		newTexture->_inContainer = true;
-#endif
 
-		const DKPair<DKHashMap<DKString, ITexture*>::iterator, bool> insertResult = _textureContainer.try_emplace(newTexture->getPath(), newTexture.get());
+		const DKPair<DKHashMap<uint64, ITexture*>::iterator, bool> insertResult = _textureContainer.try_emplace(StringUtil::registerHash(path), newTexture.get());
 		if (insertResult.second == false)
 		{
 			DK_ASSERT_LOG(false, "HashMap Insert실패. 해시 자체의 오류일 수 있음");
 			return nullptr;
 		}
 
+		newTexture->_cachePathHash = StringUtil::hash(path);
 		return newTexture;
 	}
 
@@ -2802,7 +2790,7 @@ namespace DK
 			return false;
 		}
 
-		pending._source = createUploadBuffer(static_cast<uint32>(uploadBytes), L"TextureRegion_Upload");
+		pending._source = createUploadBuffer(static_cast<uint32>(uploadBytes), DK_DEBUG_NAME(L"TextureRegion_Upload"));
 		if (pending._source == nullptr)
 		{
 			DK_ASSERT_LOG(false, "");
@@ -2834,11 +2822,13 @@ namespace DK
 		if (texture->_textureUAVIndex != ITexture::kErrorTextureResourceViewIndex)
 			deallocateTextureUAV(texture->getUAV());
 
-		const DKHashMap<DKString, ITexture*>::iterator entry = _textureContainer.find(texture->getPath());
-		DK_ASSERT_LOG(texture->_inContainer == false || (entry != _textureContainer.end() && entry->second == texture),
-			"Texture cache ownership mismatch: %s", texture->getPath().c_str());
-		if (entry != _textureContainer.end() && entry->second == texture)
+		if (texture->_cachePathHash != 0)
+		{
+			const DKHashMap<uint64, ITexture*>::iterator entry = _textureContainer.find(texture->_cachePathHash);
+			DK_ASSERT_LOG(entry != _textureContainer.end() && entry->second == texture, "Texture cache ownership mismatch: %s", texture->_path.c_str());
+			texture->_cachePathHash = 0;
 			_textureContainer.erase(entry);
+		}
 	}
 
 	void RenderModule::deallocateTextureSRV(const TextureResourceViewType index)
@@ -2871,14 +2861,16 @@ namespace DK
 
 	uint32 RenderModule::registerGpuTiming(const DKString& name, uint32 parentIndex)
 	{
+		const uint64 nameHash = StringUtil::registerHash(name);
 		for (uint32 timingIndex = 0; timingIndex < _gpuTimings.size(); ++timingIndex)
 		{
-			if (_gpuTimings[timingIndex]._parentIndex == parentIndex && _gpuTimings[timingIndex]._name == name)
+			if (_gpuTimings[timingIndex]._parentIndex == parentIndex && _gpuTimings[timingIndex]._nameHash == nameHash)
 				return timingIndex;
 		}
 
 		const uint32 timingIndex = static_cast<uint32>(_gpuTimings.size());
 		GpuTiming timing;
+		timing._nameHash = nameHash;
 		timing._name = name;
 		timing._parentIndex = parentIndex;
 		if (parentIndex != UINT32_MAX)
@@ -3204,7 +3196,7 @@ namespace DK
 		}
 
 #if defined(_DK_DEBUG_)
-		DKHashMap<DKString, ShaderParameter>::const_iterator debugHangParameter = pipeline._shaderParameterMap.find("GpuAssertBuffer");
+		DKHashMap<uint64, ShaderParameter>::const_iterator debugHangParameter = pipeline._shaderParameterMap.find(StringUtil::hash("GpuAssertBuffer"));
 		if (debugHangParameter != pipeline._shaderParameterMap.end())
 		{
 			if (_gpuAssertBuffer == nullptr || _gpuAssertBuffer->isValid() == false)
@@ -3412,7 +3404,7 @@ namespace DK
             result._bottomLevels.push_back(DK::move(blas));
             result._bottomLevelScratch.push_back(DK::move(scratch));
         }
-        result._instances = createUploadBuffer(count * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), L"TLAS Instances");
+        result._instances = createUploadBuffer(count * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), DK_DEBUG_NAME(L"TLAS Instances"));
         if (result._instances == nullptr || result._instances->isValid() == false)
             return false;
         void* mapped = nullptr;

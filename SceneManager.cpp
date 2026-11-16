@@ -34,8 +34,8 @@ namespace DK
 		//VertexBufferViewRef vertexBufferView;
 		//IndexBufferViewRef indexBufferView;
 		//RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		//const bool vertexBufferSuccess = renderModule.createVertexBuffer(positionArr.data(), sizeof(decltype(positionArr[0])), static_cast<uint32>(positionArr.size()), vertexBuffer, vertexBufferView, L"SkyeDome_VertexBuffer");
-		//const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, L"SkyDome_IndexBuffer");
+		//const bool vertexBufferSuccess = renderModule.createVertexBuffer(positionArr.data(), sizeof(decltype(positionArr[0])), static_cast<uint32>(positionArr.size()), vertexBuffer, vertexBufferView, DK_DEBUG_NAME(L"SkyeDome_VertexBuffer"));
+		//const bool indexBufferSuccess = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBuffer, indexBufferView, DK_DEBUG_NAME(L"SkyDome_IndexBuffer"));
 
 		//_skyDome._mesh._vertexBufferView = vertexBufferView;
 		//_skyDome._mesh._indexBufferView = indexBufferView;
@@ -76,11 +76,11 @@ namespace DK
 	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, IBufferRef& vertexBuffer, IBufferRef& indexBuffer, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		vertexBuffer = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, L"TerrainMesh_VertexBuffer");
+		vertexBuffer = renderModule.createVertexBuffer(vertexArr.data(), sizeof(decltype(vertexArr[0])), static_cast<uint32>(vertexArr.size()), vertexBufferView, DK_DEBUG_NAME(L"TerrainMesh_VertexBuffer"));
 		if (vertexBuffer == nullptr)
 			return false;
 
-		indexBuffer = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, L"TerrainMesh_IndexBuffer");
+		indexBuffer = renderModule.createIndexBuffer(indexArr.data(), static_cast<uint32>(indexArr.size()), indexBufferView, DK_DEBUG_NAME(L"TerrainMesh_IndexBuffer"));
 		if (indexBuffer == nullptr)
 			return false;
 
@@ -100,64 +100,76 @@ namespace DK
 		const bool success = createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
 		_ocean._mesh = SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 
-		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(Ocean::OceanParams), L"_initialSpectrumConstantBuffer");
+		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(Ocean::OceanParams), DK_DEBUG_NAME(L"_initialSpectrumConstantBuffer"));
 
 		// TODO : h0, ht 둘 다 R32, G32만 사용중인데, Bindless연결하려다보니 B32, A32까지 만들었다. 추후에 개선하자
 		for (uint32 i = 0; i < kFrameCount; ++i)
 		{
+#if defined(_DK_DEBUG_)
 			ScopeString<DK_MAX_BUFFER> tempString;
 			StringUtil::itoa(i, tempString.data(), tempString.capacity());
+#endif
 
 			{
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> debugString;
 				debugString.append("OceanH0_");
 				debugString.append(tempString.c_str());
+#endif
 				_ocean._h0[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DK_DEBUG_NAME(debugString.c_str()), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
 					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 					true, true);
 			}
 
 			{
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> debugString;
 				StringUtil::itoa(i * kFrameCount, tempString.data(), tempString.capacity());
 				debugString.append("OceanHt_");
 				debugString.append(tempString.c_str());
+#endif
 				_ocean._ht[i * kFrameCount] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DK_DEBUG_NAME(debugString.c_str()), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
 					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 					true, true);
 			}
 
 			{
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> debugString;
 				StringUtil::itoa(i * kFrameCount + 1, tempString.data(), tempString.capacity());
 				debugString.append("OceanHt_");
 				debugString.append(tempString.c_str());
+#endif
 				_ocean._ht[i * kFrameCount + 1] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DK_DEBUG_NAME(debugString.c_str()), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
 					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 					true, true);
 			}
 
 			{
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> debugString;
 				StringUtil::itoa(i, tempString.data(), tempString.capacity());
 				debugString.append("OceanHeight_");
 				debugString.append(tempString.c_str());
+#endif
 				_ocean._height[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DK_DEBUG_NAME(debugString.c_str()), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
 					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 					true, true);
 			}
 
 			{
+#if defined(_DK_DEBUG_)
 				ScopeString<DK_MAX_BUFFER> debugString;
 				StringUtil::itoa(i, tempString.data(), tempString.capacity());
 				debugString.append("OceanNormal_");
 				debugString.append(tempString.c_str());
+#endif
 				_ocean._normal[i] = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(
-					debugString.c_str(), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
+					DK_DEBUG_NAME(debugString.c_str()), SceneManager::Ocean::OCEAN_N, SceneManager::Ocean::OCEAN_N, nullptr, 1,
 					DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 					true, true);
 			}
@@ -566,7 +578,7 @@ namespace DK
 		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
 		for (uint32 i = 0; i < tileCountPerClipMap; ++i)
 		{
-			IBufferRef buffer = renderModule.createConstantBuffer(sizeof(TerrainMeshConstantBuffer), L"TerrainMesh_CBuffer");
+			IBufferRef buffer = renderModule.createConstantBuffer(sizeof(TerrainMeshConstantBuffer), DK_DEBUG_NAME(L"TerrainMesh_CBuffer"));
 			if (buffer == nullptr)
 				return false;
 			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
@@ -589,7 +601,7 @@ namespace DK
 			for (uint32 index = 0; index < DK_COUNT_OF(bladeIndices); ++index)
 				grassIndices[blade * DK_COUNT_OF(bladeIndices) + index] = blade * 7 + bladeIndices[index];
 		}
-		_grass._indexBuffer = renderModule.createIndexBuffer(grassIndices, Grass::GRASS_INDEX_COUNT, _grass._indexBufferView, L"GrassPatch_IndexBuffer");
+		_grass._indexBuffer = renderModule.createIndexBuffer(grassIndices, Grass::GRASS_INDEX_COUNT, _grass._indexBufferView, DK_DEBUG_NAME(L"GrassPatch_IndexBuffer"));
 		return _grass._indexBuffer != nullptr;
 	}
 
@@ -624,7 +636,7 @@ namespace DK
         constants = {};
         constants._terrainOriginWorldX = terrainWorldOrigin.x;
         constants._terrainOriginWorldZ = terrainWorldOrigin.y;
-        terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), L"TerrainStreaming_CBuffer");
+        terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), DK_DEBUG_NAME(L"TerrainStreaming_CBuffer"));
         if (terrain._chunkArchive.isOpen() == false || terrain._chunkArchive.header()._chunkCells < 2)
         {
 			terrain._streamingBuffer->upload(&constants);
@@ -670,11 +682,11 @@ namespace DK
             return;
         }
 
-        terrain._heightCache = rm.createTexture("TerrainHeightCache", cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
-        terrain._normalCache = rm.createTexture("TerrainNormalCache", cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
-        terrain._pageTable = rm.createTexture("TerrainPageTable", constants._terrainPageTableEntryCountPerSide, constants._terrainPageTableEntryCountPerSide * constants._terrainOverviewLod, static_cast<const byte*>(nullptr), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_NONE, state, true, false);
-        terrain._tailHeight = rm.createTexture("TerrainTailHeight", overview._width, overview._height, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
-        terrain._tailNormal = rm.createTexture("TerrainTailNormal", overview._width, overview._height, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._heightCache = rm.createTexture(DK_DEBUG_NAME("TerrainHeightCache"), cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._normalCache = rm.createTexture(DK_DEBUG_NAME("TerrainNormalCache"), cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._pageTable = rm.createTexture(DK_DEBUG_NAME("TerrainPageTable"), constants._terrainPageTableEntryCountPerSide, constants._terrainPageTableEntryCountPerSide * constants._terrainOverviewLod, static_cast<const byte*>(nullptr), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._tailHeight = rm.createTexture(DK_DEBUG_NAME("TerrainTailHeight"), overview._width, overview._height, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._tailNormal = rm.createTexture(DK_DEBUG_NAME("TerrainTailNormal"), overview._width, overview._height, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         if (terrain._heightCache == nullptr || terrain._normalCache == nullptr || terrain._pageTable == nullptr || terrain._tailHeight == nullptr || terrain._tailNormal == nullptr)
         {
             DK_ASSERT_LOG(false, "Terrain texture creation failed");
