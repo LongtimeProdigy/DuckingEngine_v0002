@@ -92,7 +92,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float2 mapUV = (rootXZ - float2(_grassMapOriginX, _grassMapOriginZ)) / float2(_grassMapWidth, _grassMapDepth);
     const float2 minimum = -float2(_terrainAnchorSampleX, _terrainAnchorSampleZ) * _terrainSampleWorldSpacing;
     const float2 maximum = float2(int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
-    if (any(rootRelativeXZ < minimum) || any(rootRelativeXZ > maximum) || any(mapUV < 0.0f) || any(mapUV > 1.0f))
+    if (TerrainAvailableRelative(rootRelativeXZ) == false || any(rootRelativeXZ < minimum) || any(rootRelativeXZ > maximum) || any(mapUV < 0.0f) || any(mapUV > 1.0f))
     {
         return output;
     }

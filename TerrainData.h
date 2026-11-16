@@ -6,7 +6,7 @@
 
 namespace DK
 {
-    enum class SectionType : uint32_t
+    enum class ChunkDataType : uint32_t
     {
         Height = 1,             // 샘플당 uint16 하나 (가장 상세한 LOD 0 높이)
         Normal = 2,             // 샘플당 int16 두 개 (LOD 0 법선의 X, Z)
@@ -53,16 +53,16 @@ namespace DK
         uint32 _z = 0;                  // 청크 인덱스
         uint32 _cellsX = 0;             // 실제 셀 수
         uint32 _cellsZ = 0;             // 실제 셀 수
-        uint32 _sectionCount = 0;       // 섹션 개수
+        uint32 _dataBlockCount = 0;
         uint32 _reserved = 0;
         float _minY = 0;                // 높이 범위
         float _maxY = 0;                // 높이 범위
-        uint64 _sectionsOffset = 0;     // 파일 위치
+        uint64 _dataBlocksOffset = 0;     // 파일 위치
         uint64 _endOffset = 0;          // 파일 위치
     };
-    struct SectionInfo
+    struct ChunkDataBlockInfo
     {
-        SectionType _type = SectionType::Height;    // 어떤 데이터인가
+        ChunkDataType _type = ChunkDataType::Height;    // 어떤 데이터인가
         Format _format = Format::R16UInt;           // 숫자를 어떤 형식으로 저장했는가
         uint32 _count = 0;                          // 원소가 몇 개인가
         uint32 _stride = 0;                         // 원소 하나가 몇 바이트인가
@@ -76,18 +76,18 @@ namespace DK
     };
 #pragma pack(pop)
     static_assert(sizeof(ArchiveHeader) == 64 && sizeof(ChunkInfo) == 48);
-    static_assert(sizeof(SectionInfo) == 32 && sizeof(MeshReference) == 56);
+    static_assert(sizeof(ChunkDataBlockInfo) == 32 && sizeof(MeshReference) == 56);
 
-    struct Section
+    struct ChunkDataBlock
     {
-        SectionInfo _info;
+        ChunkDataBlockInfo _info;
         DKVector<uint8_t> _data;
     };
     struct Chunk
     {
         ChunkInfo _info;
-        DKVector<Section> _sections;
-        const Section* find(SectionType type) const;
+        DKVector<ChunkDataBlock> _dataBlocks;
+        const ChunkDataBlock* find(ChunkDataType type) const;
     };
 
     struct MipTile
@@ -134,7 +134,7 @@ namespace DK
         DKString _path;
         ArchiveHeader _header;
         DKVector<ChunkInfo> _chunks;
-        DKVector<DKVector<SectionInfo>> _sections;
+        DKVector<DKVector<ChunkDataBlockInfo>> _dataBlocks;
     };
 
     bool writeArchive(const DKString& path, ArchiveHeader header, const DKVector<Chunk>& chunks);

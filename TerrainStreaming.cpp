@@ -5,55 +5,60 @@
 
 namespace DK
 {
-    DKVector<uint32> selectTiles(const ArchiveHeader& h, double cameraX, double cameraZ, float radius, uint32 budget)
+    struct RankedTerrainPage
     {
-        const uint32 columns = (h._width - 2) / h._chunkCells + 1;
-        const uint32 rows = (h._height - 2) / h._chunkCells + 1;
-        const double tileMeters = double(h._chunkCells) * h._sampleSpacing;
-        const int minX = static_cast<int>(std::clamp(std::floor((cameraX - radius) / tileMeters), 0.0, double(columns)));
-        const int minZ = static_cast<int>(std::clamp(std::floor((cameraZ - radius) / tileMeters), 0.0, double(rows)));
-        const int maxX = static_cast<int>(std::clamp(std::floor((cameraX + radius) / tileMeters), -1.0, double(columns - 1)));
-        const int maxZ = static_cast<int>(std::clamp(std::floor((cameraZ + radius) / tileMeters), -1.0, double(rows - 1)));
-        DKVector<DKPair<double, uint32>> ranked;
-        for (int z = minZ; z <= maxZ; ++z)
-        {
-            for (int x = minX; x <= maxX; ++x)
-            {
-                const double left = x * tileMeters;
-                const double top = z * tileMeters;
-                const double right = std::min(left + tileMeters, (h._width - 1) * double(h._sampleSpacing));
-                const double bottom = std::min(top + tileMeters, (h._height - 1) * double(h._sampleSpacing));
-                const double dx = cameraX - std::clamp(cameraX, left, right);
-                const double dz = cameraZ - std::clamp(cameraZ, top, bottom);
-                const double distance = dx * dx + dz * dz;
-                if (distance <= double(radius) * radius)
-                    ranked.emplace_back(distance, uint32(z) * columns + uint32(x));
-            }
-        }
+        TileRequest _request;
+        double _distanceSquared = 0;
+    };
 
-        std::sort(ranked.begin(), ranked.end());
-        DKVector<uint32> selected;
-        for (size_t i = 0; i < std::min<size_t>(budget, ranked.size()); ++i)
-            selected.push_back(ranked[i].second);
-
-        return selected;
-    }
-
-    DKVector<TileRequest> selectPages(const ArchiveHeader& header, double cameraX, double cameraZ, float detailRadius, uint32 tailLod, uint32 budgetPerLod)
+    DKVector<TileRequest> selectPages(const TerrainWorld& world, const DKVector<uint32>& sections, double cameraX, double cameraZ, float detailRadius, uint32 budgetPerLod)
     {
         DKVector<TileRequest> result;
-        for (uint32 lod = 0; lod < tailLod; ++lod)
+        const ArchiveHeader& header = world._header;
+        const double sectionWorldSize = double(world._sectionCellCountPerSide) * header._sampleSpacing;
+        for (uint32 lod = 0; lod < world._overviewLod; ++lod)
         {
-            ArchiveHeader level = header;
-            level._width = ((header._width - 2) >> lod) + 2;
-            level._height = ((header._height - 2) >> lod) + 2;
-            level._sampleSpacing *= float(1u << lod);
-            const float radius = detailRadius * float(1u << (lod + 1));
-            const DKVector<uint32> selected = selectTiles(level, cameraX, cameraZ, radius, budgetPerLod);
-            const uint32 columns = (level._width - 2) / level._chunkCells + 1;
-            for (const uint32 id : selected)
+            DKVector<RankedTerrainPage> ranked;
+            const uint32 tileCells = header._chunkCells << lod;
+            const double tileWorldSize = double(tileCells) * header._sampleSpacing;
+            const double radius = double(detailRadius) * (1u << (lod + 1));
+            for (const uint32 sectionId : sections)
             {
-                result.push_back({ id % columns, id / columns, lod });
+                const TerrainSection& section = world._sections[sectionId];
+                const uint32 cellsX = std::min(world._sectionCellCountPerSide, header._width - 1 - section._x * world._sectionCellCountPerSide);
+                const uint32 cellsZ = std::min(world._sectionCellCountPerSide, header._height - 1 - section._z * world._sectionCellCountPerSide);
+                const uint32 columns = (cellsX - 1) / tileCells + 1;
+                const uint32 rows = (cellsZ - 1) / tileCells + 1;
+                const double localX = cameraX - section._x * sectionWorldSize;
+                const double localZ = cameraZ - section._z * sectionWorldSize;
+                const int minX = int(std::clamp(std::floor((localX - radius) / tileWorldSize), 0.0, double(columns)));
+                const int minZ = int(std::clamp(std::floor((localZ - radius) / tileWorldSize), 0.0, double(rows)));
+                const int maxX = int(std::clamp(std::floor((localX + radius) / tileWorldSize), -1.0, double(columns - 1)));
+                const int maxZ = int(std::clamp(std::floor((localZ + radius) / tileWorldSize), -1.0, double(rows - 1)));
+                for (int z = minZ; z <= maxZ; ++z)
+                {
+                    for (int x = minX; x <= maxX; ++x)
+                    {
+                        const double left = x * tileWorldSize;
+                        const double top = z * tileWorldSize;
+                        const double right = std::min(left + tileWorldSize, cellsX * double(header._sampleSpacing));
+                        const double bottom = std::min(top + tileWorldSize, cellsZ * double(header._sampleSpacing));
+                        const double dx = localX - std::clamp(localX, left, right);
+                        const double dz = localZ - std::clamp(localZ, top, bottom);
+                        if (dx * dx + dz * dz <= radius * radius)
+                        {
+                            ranked.push_back({ { uint32(x), uint32(z), lod, sectionId }, dx * dx + dz * dz });
+                        }
+                    }
+                }
+            }
+            std::sort(ranked.begin(), ranked.end(), [](const RankedTerrainPage& lhs, const RankedTerrainPage& rhs)
+            {
+                return lhs._distanceSquared < rhs._distanceSquared;
+            });
+            for (size_t index = 0; index < std::min<size_t>(budgetPerLod, ranked.size()); ++index)
+            {
+                result.push_back(ranked[index]._request);
             }
         }
         return result;
@@ -64,21 +69,17 @@ namespace DK
         stop();
     }
 
-    bool Streamer::start(const Archive& archive, uint32_t tailLod, uint32_t capacity)
+    bool Streamer::start(const TerrainWorld& world, uint32 capacity)
     {
         stop();
-
-        if (archive.isOpen() == false || archive.header()._version != 3 || tailLod == 0 || tailLod > 20 || capacity == 0)
+        if (world._sections.empty() || world._overviewLod == 0 || capacity == 0)
         {
             DK_ASSERT_LOG(false, "Invalid terrain streamer configuration");
             return false;
         }
-
-        _archive = &archive;
-        _tailLod = tailLod;
+        _world = world;
         _capacity = capacity;
         _stopping = false;
-        _pending.clear();
         _worker = std::thread(&Streamer::run, this);
         return true;
     }
@@ -94,22 +95,66 @@ namespace DK
         {
             _worker.join();
         }
+        _wantedSections.clear();
+        _sectionRequests.clear();
         _requests.clear();
+        _readySections.clear();
         _ready.clear();
         _pending.clear();
-        _archive = nullptr;
+        _residencyChanged = false;
+        _loadingSectionId = ~0u;
+        _world = {};
     }
 
-    void Streamer::request(const DKVector<TileRequest>& tiles)
+    void Streamer::request(const DKVector<uint32>& sections, const DKVector<uint32>& missingSections, const DKVector<TileRequest>& tiles)
     {
         std::lock_guard<std::mutex> lock(_mutex);
         if (_stopping)
         {
             return;
         }
+        DK_ASSERT_LOG(sections.size() <= 9, "Terrain section residency exceeds 3 x 3");
+        _residencyChanged = _residencyChanged || _wantedSections != sections;
+        _wantedSections = sections;
+        for (DKDeque<SectionPage>::iterator page = _readySections.begin(); page != _readySections.end();)
+        {
+            if (std::find(sections.begin(), sections.end(), page->_sectionId) == sections.end())
+            {
+                page = _readySections.erase(page);
+            }
+            else
+            {
+                ++page;
+            }
+        }
+        for (DKDeque<TilePage>::iterator page = _ready.begin(); page != _ready.end();)
+        {
+            if (std::find(tiles.begin(), tiles.end(), page->_request) == tiles.end())
+            {
+                _pending.erase(page->_request);
+                page = _ready.erase(page);
+            }
+            else
+            {
+                ++page;
+            }
+        }
+        _sectionRequests.clear();
+        for (const uint32 sectionId : missingSections)
+        {
+            DK_ASSERT_LOG(sectionId < _world._sections.size() && std::find(sections.begin(), sections.end(), sectionId) != sections.end(), "Invalid terrain section request");
+            const bool ready = std::find_if(_readySections.begin(), _readySections.end(), [sectionId](const SectionPage& page)
+            {
+                return page._sectionId == sectionId;
+            }) != _readySections.end();
+            if (ready == false && _loadingSectionId != sectionId)
+            {
+                _sectionRequests.push_back(sectionId);
+            }
+        }
         for (const TileRequest& request : _requests)
         {
-            _pending.erase(request.key());
+            _pending.erase(request);
         }
         _requests.clear();
         for (const TileRequest& request : tiles)
@@ -118,9 +163,8 @@ namespace DK
             {
                 break;
             }
-            if (request._lod < _tailLod && _pending.find(request.key()) == _pending.end())
+            if (request._lod < _world._overviewLod && std::find(sections.begin(), sections.end(), request._sectionId) != sections.end() && _pending.insert(request).second)
             {
-                _pending.insert(request.key());
                 _requests.push_back(request);
             }
         }
@@ -131,38 +175,105 @@ namespace DK
     {
         std::lock_guard<std::mutex> lock(_mutex);
         if (_ready.empty())
+        {
             return false;
-
+        }
         page = DK::move(_ready.front());
         _ready.pop_front();
-        _pending.erase(page._request.key());
+        _pending.erase(page._request);
+        _wake.notify_one();
+        return true;
+    }
+
+    bool Streamer::takeReady(SectionPage& page)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        if (_readySections.empty())
+        {
+            return false;
+        }
+        page = DK::move(_readySections.front());
+        _readySections.pop_front();
         _wake.notify_one();
         return true;
     }
 
     void Streamer::run()
     {
+        DKHashMap<uint32, Archive> archives;
         for (;;)
         {
+            uint32 sectionId = ~0u;
             TileRequest request;
             {
                 std::unique_lock<std::mutex> lock(_mutex);
-                _wake.wait(lock, [&] { return _stopping || (_requests.empty() == false && _ready.size() < _capacity); });
+                _wake.wait(lock, [&]
+                {
+                    return _stopping || (_sectionRequests.empty() == false && _readySections.size() < 9) || (_sectionRequests.empty() && _requests.empty() == false && _ready.size() < _capacity) || _residencyChanged;
+                });
                 if (_stopping)
+                {
                     return;
-
-                request = _requests.front();
-                _requests.pop_front();
+                }
+                _residencyChanged = false;
+                for (DKHashMap<uint32, Archive>::iterator archive = archives.begin(); archive != archives.end();)
+                {
+                    if (std::find(_wantedSections.begin(), _wantedSections.end(), archive->first) == _wantedSections.end())
+                    {
+                        archive = archives.erase(archive);
+                    }
+                    else
+                    {
+                        ++archive;
+                    }
+                }
+                if (_sectionRequests.empty() == false && _readySections.size() < 9)
+                {
+                    sectionId = _sectionRequests.front();
+                    _sectionRequests.pop_front();
+                    _loadingSectionId = sectionId;
+                }
+                else if (_sectionRequests.empty() && _requests.empty() == false && _ready.size() < _capacity)
+                {
+                    request = _requests.front();
+                    _requests.pop_front();
+                }
+                else
+                {
+                    continue;
+                }
             }
-
-            TilePage page;
-            page._request = request;
-            page._loaded = _archive->loadVirtualTile(request._x, request._z, request._lod, page._tile);
-            DK_ASSERT_LOG(page._loaded, "Terrain page load failed: lod=%u, tile=(%u, %u)", request._lod, request._x, request._z);
-
-            std::lock_guard<std::mutex> lock(_mutex);
-            if (_stopping == false)
-                _ready.push_back(DK::move(page));
+            if (sectionId != ~0u)
+            {
+                SectionPage page;
+                page._sectionId = sectionId;
+                Archive& archive = archives[sectionId];
+                page._loaded = (archive.isOpen() || archive.open(_world._sections[sectionId]._archivePath)) && _world.matchesSectionArchive(sectionId, archive.header()) && archive.loadOverview(_world._overviewLod, page._overview);
+                DK_ASSERT_LOG(page._loaded, "Terrain section load failed: %u", sectionId);
+                std::lock_guard<std::mutex> lock(_mutex);
+                _loadingSectionId = ~0u;
+                if (_stopping == false && std::find(_wantedSections.begin(), _wantedSections.end(), sectionId) != _wantedSections.end())
+                {
+                    _readySections.push_back(DK::move(page));
+                }
+            }
+            else
+            {
+                TilePage page;
+                page._request = request;
+                const DKHashMap<uint32, Archive>::const_iterator archive = archives.find(request._sectionId);
+                page._loaded = archive != archives.end() && archive->second.loadVirtualTile(request._x, request._z, request._lod, page._tile);
+                DK_ASSERT_LOG(page._loaded, "Terrain page load failed: section=%u lod=%u tile=(%u,%u)", request._sectionId, request._lod, request._x, request._z);
+                std::lock_guard<std::mutex> lock(_mutex);
+                if (_stopping == false && std::find(_wantedSections.begin(), _wantedSections.end(), request._sectionId) != _wantedSections.end())
+                {
+                    _ready.push_back(DK::move(page));
+                }
+                else
+                {
+                    _pending.erase(request);
+                }
+            }
         }
     }
 }

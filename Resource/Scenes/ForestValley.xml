@@ -1,7 +1,6 @@
 <Level>
-	<Terrain Archive="Scenes/Cooked/forest_valley_extended.dkterrain"
+	<Terrain World="Scenes/Cooked/forest_valley_world/terrain.xml"
 	         ModelProperty="Scenes/ModelProperty/TerrainClipMap.xml"
-	         HeightTexture="Scenes/textures/forest_valley_extended_height_8k.png"
 	         OriginX="-1024" OriginZ="-1024" />
 	<Grass PlacementMap="Scenes/ForestValleyGrassPlacement.png" TileGridSide="128"
 	       MapOriginX="0" MapOriginZ="0" MapWidth="2047" MapDepth="2047" />

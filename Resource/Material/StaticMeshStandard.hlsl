@@ -24,6 +24,17 @@ cbuffer SceneObjectConstantBuffer : register(b1)
     float4x4 _worldMatrix;
 }
 
+struct StaticMeshInstance
+{
+    float4x4 _worldMatrix;
+};
+StructuredBuffer<StaticMeshInstance> _staticMeshInstances : register(t0);
+
+cbuffer StaticMeshInstanceConstants : register(b3)
+{
+    uint _firstInstance;
+}
+
 cbuffer StaticMeshStandard : register(b2)
 {
     TextureParameter _diffuseTexture;
@@ -33,20 +44,30 @@ cbuffer StaticMeshStandard : register(b2)
     float _alphaCutoff;
 }
 
-VS_OUTPUT VSMain(VS_INPUT input)
+VS_OUTPUT TransformStaticMeshVertex(VS_INPUT input, float4x4 worldMatrix)
 {
     VS_OUTPUT output;
     output.position = float4(input.position, 1.0f);
     output.normal = float4(input.normal, 0.0f);
     output.uv0 = input.uv0;
 
-    output.position = mul(output.position, _worldMatrix);
+    output.position = mul(output.position, worldMatrix);
     output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
-    output.normal = float4(transformNormal(input.normal, (float3x3)_worldMatrix), 0);
+    output.normal = float4(transformNormal(input.normal, (float3x3)worldMatrix), 0);
 
     return output;
+}
+
+VS_OUTPUT VSMain(VS_INPUT input)
+{
+    return TransformStaticMeshVertex(input, _worldMatrix);
+}
+
+VS_OUTPUT VSMainInstanced(VS_INPUT input, uint instanceID : SV_InstanceID)
+{
+    return TransformStaticMeshVertex(input, _staticMeshInstances[_firstInstance + instanceID]._worldMatrix);
 }
 
 GBufferOutput PSMain(VS_OUTPUT input)

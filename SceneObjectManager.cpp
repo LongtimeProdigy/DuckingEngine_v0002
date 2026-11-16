@@ -67,7 +67,20 @@ namespace DK
 	};
 	SceneObject* SceneObjectManager::loadGLTF(const char* path)
 	{
-		return loadGLTF(path, { Transform(float3::Zero, Quaternion::Identity, float3::Identity) });
+		DKVector<StaticMeshModelRef> models;
+		if (loadStaticMeshModels(path, models) == false)
+			return nullptr;
+
+		SceneObject object;
+		for (const StaticMeshModelRef& model : models)
+		{
+			StaticMeshComponent* component = dk_new StaticMeshComponent;
+			object.addComponent(component);
+			component->set_modelPath(path);
+			component->set_modelPropertyPath("GLTF_ModelProperty");
+			component->set_model(model);
+		}
+		return publish(DK::move(object), _sceneObjectContainer);
 	}
 
 	bool SceneObjectManager::loadStaticMeshPlacements(const char* path)
@@ -114,13 +127,14 @@ namespace DK
 				return false;
 			}
 			const ScopeString<DK_MAX_PATH> modelFullPath = GlobalPath::makeResourceFullPath(modelPath);
-			if (loadGLTF(modelFullPath.c_str(), transforms) == nullptr)
+			DKVector<StaticMeshModelRef> models;
+			if (loadStaticMeshModels(modelFullPath.c_str(), models) == false || createStaticMeshInstances(models, transforms) == false)
 				return false;
 		}
 		return true;
 	}
 
-	SceneObject* SceneObjectManager::loadGLTF(const char* path, const DKVector<Transform>& transforms)
+	bool SceneObjectManager::loadStaticMeshModels(const char* path, DKVector<StaticMeshModelRef>& models)
 	{
 		tinygltf::TinyGLTF loader;
 		tinygltf::Model gltfModel;
@@ -139,12 +153,12 @@ namespace DK
 		else
 		{
 			DK_ASSERT_LOG(false, "Unsupported glTF file extension: %s", extension.c_str());
-			return nullptr;
+			return false;
 		}
 		if (loaded == false)
 		{
 			DK_ASSERT_LOG(false, "glTF file load failed: %s", error.c_str());
-			return nullptr;
+			return false;
 		}
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
@@ -165,24 +179,24 @@ namespace DK
 			if (imageIndex < 0 || imageIndex >= static_cast<int>(gltfModel.images.size()))
 			{
 				DK_ASSERT_LOG(false, "Invalid image index.");
-				return nullptr;
+				return false;
 			}
 
 			const tinygltf::Image& src = gltfModel.images[imageIndex];
 			if (src.width <= 0 || src.height <= 0)
 			{
 				DK_ASSERT_LOG(false, "Invalid image size.");
-				return nullptr;
+				return false;
 			}
 			if (src.bits != 8)
 			{
 				DK_ASSERT_LOG(false, "Only 8-bit images are supported.");
-				return nullptr;
+				return false;
 			}
 			if (src.component < 1 || src.component > 4)
 			{
 				DK_ASSERT_LOG(false, "Invalid image channel count.");
-				return nullptr;
+				return false;
 			}
 
 			DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -200,13 +214,13 @@ namespace DK
 			default:
 			{
 				DK_ASSERT_LOG(false, "Unsupported image channel count.");
-				return nullptr;
+				return false;
 			}
 			}
 
 			textures[i] = renderModule.createTexture(DK_DEBUG_NAME(src.uri.c_str()), src.width, src.height, src.image.data(), format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
 			if (textures[i] == nullptr)
-				return nullptr;
+				return false;
 		}
 
 		// Material 추출
@@ -330,7 +344,7 @@ namespace DK
 		{
 			Ptr<Material> material(ConvertMaterial(gltfModel, src));
 			if (material.get() == nullptr)
-				return nullptr;
+				return false;
 
 			materials.push_back(DK::move(material));
 		}
@@ -770,7 +784,6 @@ namespace DK
 			return true;
 		};
 
-		DKVector<StaticMeshModelRef> models;
 		models.reserve(gltfModel.meshes.size());
 
 		for (uint32_t meshIndex = 0; meshIndex < static_cast<uint32_t>(gltfModel.meshes.size()); ++meshIndex)
@@ -784,23 +797,23 @@ namespace DK
 				const tinygltf::Primitive& primitive = mesh.primitives[primitiveIndex];
 				CpuPrimitive<StaticMeshModel::SubMeshType::VertexType> cpuPrimitive;
 				if (ConvertPrimitive(gltfModel, primitive, meshIndex, primitiveIndex, cpuPrimitive) == false)
-					return nullptr;
+					return false;
 
 				//result.model.primitives.push_back();
 
 				VertexBufferViewRef vertexBufferView;
 				IBufferRef vertexBuffer = renderModule.createVertexBuffer(cpuPrimitive._vertices.data(), sizeof(StaticMeshModel::SubMeshType::VertexType), cpuPrimitive._vertices.size(), vertexBufferView, DK_DEBUG_NAME(L"GLTF_VertexBuffer"));
 				if (vertexBuffer == nullptr)
-					return nullptr;
+					return false;
 
 				IndexBufferViewRef indexBufferView;
 				IBufferRef indexBuffer = renderModule.createIndexBuffer(cpuPrimitive._indices.data(), cpuPrimitive._indices.size(), indexBufferView, DK_DEBUG_NAME(L"GLTF_IndexBuffer"));
 				if (indexBuffer == nullptr)
-					return nullptr;
+					return false;
 
 				Material* newMaterial = materials[cpuPrimitive._materialIndex]->clone();
 				if (newMaterial == nullptr)
-					return nullptr;
+					return false;
 
 				StaticMeshModel::SubMeshType subMesh(
 					DK::move(cpuPrimitive._vertices), DK::move(cpuPrimitive._indices),
@@ -813,34 +826,72 @@ namespace DK
 
 			models.push_back(DK::makeRef<StaticMeshModel>(DK::move(subMeshArr)));
 		}
-		if (models.empty() || transforms.empty())
-		{
-			DK_ASSERT_LOG(false, "glTF scene needs meshes and at least one transform: %s", path);
-			return nullptr;
-		}
+		DK_ASSERT_LOG(models.empty() == false, "glTF scene needs meshes: %s", path);
+		return models.empty() == false;
+	}
 
-		DKVector<SceneObject> objects;
-		objects.reserve(transforms.size());
+	bool SceneObjectManager::createStaticMeshInstances(const DKVector<StaticMeshModelRef>& models, const DKVector<Transform>& transforms)
+	{
+		constexpr float chunkMeters = 32.0f;
+		DKHashMap<uint64, DKVector<StaticMeshInstance>> chunkInstances;
 		for (const Transform& transform : transforms)
 		{
-			SceneObject object;
-			object.set_worldTransform(transform);
-			for (size_t meshIndex = 0; meshIndex < models.size(); ++meshIndex)
-			{
-				StaticMeshComponent* component = dk_new StaticMeshComponent;
-				object.addComponent(component);
-				component->set_modelPath(gltfModel.meshes[meshIndex].name);
-				component->set_modelPropertyPath("GLTF_ModelProperty");
-				component->set_model(models[meshIndex]);
-			}
-			if (publish(DK::move(object), objects) == nullptr)
-				return nullptr;
+			const float3& position = transform.get_translation();
+			const int chunkX = static_cast<int>(Math::floor(position.x / chunkMeters));
+			const int chunkZ = static_cast<int>(Math::floor(position.z / chunkMeters));
+			const uint64 chunkKey = (uint64(static_cast<uint32>(chunkX)) << 32) | static_cast<uint32>(chunkZ);
+			StaticMeshInstance instance;
+			transform.tofloat4x4(instance._worldMatrix);
+			chunkInstances[chunkKey].push_back(instance);
 		}
-		const size_t firstObjectIndex = _sceneObjectContainer.size();
-		for (SceneObject& object : objects)
-			_sceneObjectContainer.push_back(DK::move(object));
 
-		return &_sceneObjectContainer[firstObjectIndex];
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
+		for (const StaticMeshModelRef& model : models)
+		{
+			float3 minimum(FLT_MAX, FLT_MAX, FLT_MAX);
+			float3 maximum(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+			for (const StaticMeshModel::SubMeshType& subMesh : model->get_subMeshArr())
+			{
+				for (const StaticMeshVertex& vertex : subMesh._vertices)
+				{
+					minimum = float3(Math::min(minimum.x, vertex._position.x), Math::min(minimum.y, vertex._position.y), Math::min(minimum.z, vertex._position.z));
+					maximum = float3(Math::max(maximum.x, vertex._position.x), Math::max(maximum.y, vertex._position.y), Math::max(maximum.z, vertex._position.z));
+				}
+			}
+			DK_ASSERT_LOG(minimum.x <= maximum.x && minimum.y <= maximum.y && minimum.z <= maximum.z, "Static mesh needs valid bounds");
+
+			StaticMeshInstanceBatch batch;
+			batch._model = model;
+			DKVector<StaticMeshInstance> instances;
+			instances.reserve(transforms.size());
+			for (const DKHashMap<uint64, DKVector<StaticMeshInstance>>::value_type& entry : chunkInstances)
+			{
+				StaticMeshInstanceChunk chunk;
+				chunk._firstInstance = static_cast<uint32>(instances.size());
+				chunk._instanceCount = static_cast<uint32>(entry.second.size());
+				for (const StaticMeshInstance& instance : entry.second)
+				{
+					for (uint32 cornerIndex = 0; cornerIndex < 8; ++cornerIndex)
+					{
+						const float4 corner((cornerIndex & 1) == 0 ? minimum.x : maximum.x, (cornerIndex & 2) == 0 ? minimum.y : maximum.y, (cornerIndex & 4) == 0 ? minimum.z : maximum.z, 1.0f);
+						const float4 worldCorner = corner * instance._worldMatrix;
+						chunk._minimum = float3(Math::min(chunk._minimum.x, worldCorner.x), Math::min(chunk._minimum.y, worldCorner.y), Math::min(chunk._minimum.z, worldCorner.z));
+						chunk._maximum = float3(Math::max(chunk._maximum.x, worldCorner.x), Math::max(chunk._maximum.y, worldCorner.y), Math::max(chunk._maximum.z, worldCorner.z));
+					}
+					instances.push_back(instance);
+				}
+				batch._chunks.push_back(chunk);
+			}
+
+			batch._staticMeshInstances = renderModule.createStructuredBuffer(instances.data(), sizeof(StaticMeshInstance), static_cast<uint32>(instances.size()), DK_DEBUG_NAME(L"StaticMeshInstances"));
+			if (batch._staticMeshInstances == nullptr)
+				return false;
+
+			batch._instances = DK::move(instances);
+			_staticMeshInstanceBatches.push_back(DK::move(batch));
+		}
+
+		return true;
 	}
 
 	SceneObject* SceneObjectManager::publish(SceneObject&& object, DKVector<SceneObject>& objects)

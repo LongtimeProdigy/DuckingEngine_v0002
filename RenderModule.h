@@ -679,6 +679,7 @@ do{ \
 		// helper 함수
 		IBufferRef createConstantBuffer(const uint32 size, const wchar_t* debugName);
 		IBufferRef createUploadBuffer(const uint32 size, const wchar_t* debugName);
+		IBufferRef createStructuredBuffer(const void* data, uint32 elementSize, uint32 elementCount, const wchar_t* debugName);
 		IBufferRef createVertexBuffer(const void* data, const uint32 strideSize, const uint32 vertexCount, VertexBufferViewRef& outView, const wchar_t* debugName);
 		IBufferRef createIndexBuffer(const uint32* data, const uint32 indexCount, IndexBufferViewRef& outView, const wchar_t* debugName);
 		ITextureRef createTexture(const char* debugName, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);

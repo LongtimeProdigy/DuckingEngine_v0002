@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|x64">
@@ -36,6 +36,11 @@
     <ClCompile Include="..\..\FileUtil.cpp" />
     <ClCompile Include="..\..\StringUtil.cpp" />
     <ClCompile Include="..\..\TerrainData.cpp" />
+    <ClCompile Include="..\..\TerrainWorld.cpp" />
+    <ClCompile Include="..\..\lib\tinyXML\tinystr.cpp" />
+    <ClCompile Include="..\..\lib\tinyXML\tinyxml.cpp" />
+    <ClCompile Include="..\..\lib\tinyXML\tinyxmlerror.cpp" />
+    <ClCompile Include="..\..\lib\tinyXML\tinyxmlparser.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

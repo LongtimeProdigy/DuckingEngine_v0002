@@ -29,43 +29,59 @@ namespace DK
 
         DKVector<RaytracingGeometry> geometries;
         DKVector<ITextureRef> textures;
-        for (const SceneObject& object : DuckingEngine::getInstance().GetSceneObjectManager().getSceneObjects())
+        const auto appendModel = [&](const StaticMeshModelRef& model, const float4x4& worldMatrix)
         {
+            for (const StaticMeshModel::SubMeshType& submesh : model->get_subMeshArr())
+            {
+                const Material* material = submesh._material.get();
+                if (submesh._indices.empty() || submesh._vertices.empty() || material == nullptr)
+                    continue;
+                if (material->get_materialNameHash() != StringUtil::hash("StaticMeshStandard") || material->_parameterBufferForCPU.size() != 8)
+                    continue;
+                if (geometries.size() == kRaytracingDescriptorCount)
+                    return false;
+                RaytracingGeometry geometry;
+                geometry._vertices = submesh._vertexBuffer;
+                geometry._indices = submesh._indexBuffer;
+                geometry._material = material->get_parameterBufferForGPU();
+                geometry._vertexCount = static_cast<uint32>(submesh._vertices.size());
+                geometry._vertexStride = sizeof(StaticMeshVertex);
+                geometry._indexCount = static_cast<uint32>(submesh._indices.size());
+                geometry._materialStride = static_cast<uint32>(material->_parameterBufferForCPU.size());
+                geometry._world = worldMatrix;
+                geometries.push_back(DK::move(geometry));
+                for (const Ptr<MaterialParameter>& parameter : material->_parameterArr)
+                {
+                    if (parameter->getType() == MaterialParameterType::TEXTURE)
+                    {
+                        ITextureRef texture = static_cast<const MaterialParameterTexture*>(parameter.get())->_value;
+                        if (texture != nullptr)
+                            textures.push_back(DK::move(texture));
+                    }
+                }
+            }
+            return true;
+        };
+        const SceneObjectManager& sceneObjectManager = DuckingEngine::getInstance().GetSceneObjectManager();
+        for (const SceneObject& object : sceneObjectManager.getSceneObjects())
+        {
+            float4x4 worldMatrix;
+            object.get_worldTransform().tofloat4x4(worldMatrix);
             for (const Ptr<Component>& component : object.getComponents())
             {
                 const StaticMeshComponent* mesh = dynamic_cast<const StaticMeshComponent*>(component.get());
                 if (mesh == nullptr || mesh->get_model() == nullptr)
                     continue;
-                for (const StaticMeshModel::SubMeshType& submesh : mesh->get_model()->get_subMeshArr())
-                {
-                    const Material* material = submesh._material.get();
-                    if (submesh._indices.empty() || submesh._vertices.empty() || material == nullptr)
-                        continue;
-                    // The current hit shader uses the StaticMeshStandard material layout.
-                    if (material->get_materialNameHash() != StringUtil::hash("StaticMeshStandard") || material->_parameterBufferForCPU.size() != 8)
-                        continue;
-                    if (geometries.size() == kRaytracingDescriptorCount)
-                        return false;
-                    RaytracingGeometry geometry;
-                    geometry._vertices = submesh._vertexBuffer;
-                    geometry._indices = submesh._indexBuffer;
-                    geometry._material = material->get_parameterBufferForGPU();
-                    geometry._vertexCount = static_cast<uint32>(submesh._vertices.size());
-                    geometry._vertexStride = sizeof(StaticMeshVertex);
-                    geometry._indexCount = static_cast<uint32>(submesh._indices.size());
-                    geometry._materialStride = static_cast<uint32>(material->_parameterBufferForCPU.size());
-                    object.get_worldTransform().tofloat4x4(geometry._world);
-                    geometries.push_back(DK::move(geometry));
-                    for (const Ptr<MaterialParameter>& parameter : material->_parameterArr)
-                    {
-                        if (parameter->getType() == MaterialParameterType::TEXTURE)
-                        {
-                            ITextureRef texture = static_cast<const MaterialParameterTexture*>(parameter.get())->_value;
-                            if (texture != nullptr)
-                                textures.push_back(DK::move(texture));
-                        }
-                    }
-                }
+                if (appendModel(mesh->get_model(), worldMatrix) == false)
+                    return false;
+            }
+        }
+        for (const StaticMeshInstanceBatch& batch : sceneObjectManager.getStaticMeshInstanceBatches())
+        {
+            for (const StaticMeshInstance& instance : batch._instances)
+            {
+                if (appendModel(batch._model, instance._worldMatrix) == false)
+                    return false;
             }
         }
         if (geometries.empty())

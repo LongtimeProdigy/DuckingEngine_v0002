@@ -121,6 +121,17 @@
 			<PixelShader Entry="PSMain">Material\StaticMeshStandard.hlsl</PixelShader>
 		</Pipeline>
 
+		<Pipeline Name="StaticMeshInstancedPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
+			<RootConstant Buffer="StaticMeshInstanceConstants"/>
+			<LayoutInfo>
+				<Element Type="float3">POSITION</Element>
+				<Element Type="float3">NORMAL</Element>
+				<Element Type="float2">TEXCOORD</Element>
+			</LayoutInfo>
+			<VertexShader Entry="VSMainInstanced">Material\StaticMeshStandard.hlsl</VertexShader>
+			<PixelShader Entry="PSMain">Material\StaticMeshStandard.hlsl</PixelShader>
+		</Pipeline>
+
 		<Pipeline Name="SkinnedMeshStandardPipeline" PrimitiveTopologyType="Triangle" DepthEnable="True" FillMode="Solid" CullMode="Back">
 			<LayoutInfo>
 				<Element Type="float3">POSITION</Element>

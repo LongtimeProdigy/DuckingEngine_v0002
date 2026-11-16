@@ -130,6 +130,9 @@
     <ClCompile Include="TerrainStreaming.cpp">
       <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
+    <ClCompile Include="TerrainWorld.cpp">
+      <Filter>1. EngineCore\Resource</Filter>
+    </ClCompile>
     <ClCompile Include="TerrainData.cpp">
       <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
@@ -259,6 +262,9 @@
     </ClInclude>
     <ClInclude Include="FileUtil.h">
       <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="TerrainWorld.h">
+      <Filter>1. EngineCore</Filter>
     </ClInclude>
     <ClInclude Include="TerrainData.h">
       <Filter>1. EngineCore</Filter>

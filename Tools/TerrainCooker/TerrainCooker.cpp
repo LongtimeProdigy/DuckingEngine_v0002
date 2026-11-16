@@ -2,6 +2,7 @@
 #include "FileUtil.h"
 #include "StringUtil.h"
 #include "TerrainData.h"
+#include "TerrainWorld.h"
 
 #include <cstdio>
 #include <limits>
@@ -71,7 +72,7 @@ namespace DK
             {
                 return false;
             }
-            sampleCount += chunk.find(SectionType::Height)->_info._count;
+            sampleCount += chunk.find(ChunkDataType::Height)->_info._count;
         }
         std::printf("Verified %u x %u samples, %zu chunks, %llu stored samples, %llu bytes.\n", archive.header()._width, archive.header()._height, archive.chunks().size(), sampleCount, archive.header()._fileBytes);
         return true;
@@ -84,11 +85,22 @@ namespace DK
             std::puts("TerrainCooker.exe <8-bit or 16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]");
             std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCells=128");
             std::puts("TerrainCooker.exe --verify <archive.dkterrain>");
+            std::puts("TerrainCooker.exe --split <archive.dkterrain> <outputDirectory> <sectionCells>");
             return 0;
         }
         if (argumentCount == 3 && DKStringW(arguments[1]) == L"--verify")
         {
             return verifyTerrain(FileUtil::fromWidePath(arguments[2])) ? 0 : 1;
+        }
+        if (argumentCount == 5 && DKStringW(arguments[1]) == L"--split")
+        {
+            int sectionCells = 0;
+            if (StringUtil::parseInt(StringUtil::convertWCtoC(arguments[4]), sectionCells) == false || sectionCells <= 0)
+            {
+                DK_ASSERT_LOG(false, "Invalid terrain section cell count");
+                return 1;
+            }
+            return splitTerrainWorld(FileUtil::fromWidePath(arguments[2]), FileUtil::fromWidePath(arguments[3]), uint32(sectionCells)) ? 0 : 1;
         }
         if (argumentCount != 3 && argumentCount != 7)
         {

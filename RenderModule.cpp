@@ -2064,6 +2064,13 @@ namespace DK
 		return IBufferRef(dk_new IBuffer(IBuffer::Type::UPLOAD, DK::move(buffer), size, D3D12_RESOURCE_STATE_GENERIC_READ));
 	}
 
+	IBufferRef RenderModule::createStructuredBuffer(const void* data, uint32 elementSize, uint32 elementCount, const wchar_t* debugName)
+	{
+		const uint64 bufferSize = uint64(elementSize) * elementCount;
+		DK_ASSERT_LOG(elementSize > 0 && elementCount > 0 && bufferSize <= UINT32_MAX, "Invalid structured buffer size");
+		return createDefaultBuffer(data, static_cast<uint32>(bufferSize), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, DK_DEBUG_NAME(debugName));
+	}
+
 	IBufferRef RenderModule::createDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const wchar_t* debugName)
 	{
 		DK_ASSERT_LOG(data != nullptr, "DefaultBuffer 생성시에는 반드시 Data가 있어야합니다.");

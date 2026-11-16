@@ -155,7 +155,7 @@ namespace DK
         void updateAtmosphereMultipleScattering();
         void prepareSurfaceCapture(const float3& cameraPosition);
         void updateSurfaceTransport();
-        void drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, bool includeDebug);
+        void drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, const SceneConstantBuffer& sceneConstantsData, bool includeDebug);
     void drawGrass(RenderModule& renderModule);
 
 	private:
@@ -222,6 +222,12 @@ namespace DK
         float _surfaceCaptureDepth = 8000.0f;
         IBufferRef _surfaceSceneConstantBuffer = nullptr;
         IBufferRef _nearShadowSceneConstants[3];
+        SceneConstantBuffer _surfaceSceneConstantsData[4];
+        uint32 _staticMeshDrawCount = 0;
+        uint32 _staticMeshInstanceCount = 0;
+        uint32 _staticMeshVisibleChunkCount = 0;
+        uint32 _staticMeshTotalChunkCount = 0;
+        uint64 _staticMeshTriangleCount = 0;
         ITextureRef _surfaceBounce = nullptr;
 	};
 }

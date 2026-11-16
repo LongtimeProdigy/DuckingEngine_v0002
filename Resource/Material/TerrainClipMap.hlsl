@@ -242,6 +242,7 @@ GBufferOutput PSMain(VS_OUTPUT input)
     const float2 maximum = float2(int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
     const float2 boundaryDistance = min(input.relativeXZ - minimum, maximum - input.relativeXZ);
     clip(min(boundaryDistance.x, boundaryDistance.y));
+    clip(TerrainAvailableRelative(input.relativeXZ) ? 1.0f : -1.0f);
 
     float3 normal;
     if (_terrainStreamingEnabled)

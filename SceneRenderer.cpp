@@ -23,6 +23,19 @@
 
 namespace DK
 {
+	static bool intersectsGeometryFrustum(const StaticMeshInstanceChunk& chunk, const DKArray<float4, 6>& frustumPlanes)
+	{
+		for (const float4& plane : frustumPlanes)
+		{
+			const float x = plane.x >= 0.0f ? chunk._maximum.x : chunk._minimum.x;
+			const float y = plane.y >= 0.0f ? chunk._maximum.y : chunk._minimum.y;
+			const float z = plane.z >= 0.0f ? chunk._maximum.z : chunk._minimum.z;
+			if (plane.x * x + plane.y * y + plane.z * z + plane.w < 0.0f)
+				return false;
+		}
+		return true;
+	}
+
 	static std::random_device rd;
 	static std::mt19937 gen(rd());
 	//static std::normal_distribution<float> dist(0, 1);
@@ -1370,6 +1383,8 @@ namespace DK
 #if defined(_DK_DEBUG_)
 					if (ImGui::BeginTabItem("GPU"))
 					{
+						ImGui::Text("Static placements: %u draws, %u mesh instances", _staticMeshDrawCount, _staticMeshInstanceCount);
+						ImGui::Text("Visible chunks: %u / %u, triangles: %llu", _staticMeshVisibleChunkCount, _staticMeshTotalChunkCount, _staticMeshTriangleCount);
 						if (ImGui::Button("Reset peaks"))
 							renderModule.resetGpuTimingPeaks();
 						if (ImGui::BeginTable("GPU timings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY))
@@ -1544,6 +1559,7 @@ namespace DK
             scene._cameraProjectionMatrix = float4x4(1 / extent, 0, 0, 0, 0, 1 / extent, 0, 0, 0, 0, -1 / depth, 0, 0, 0, 1, 1);
 
 			IBufferRef& surfaceSceneConstantBuffer = (cascadeIndex == 3u ? _surfaceSceneConstantBuffer : _nearShadowSceneConstants[cascadeIndex]);
+			_surfaceSceneConstantsData[cascadeIndex] = scene;
 			surfaceSceneConstantBuffer->upload(&scene);
 
 			SurfaceShadowCascade& cascade = atmosphereData._shadowCascades[cascadeIndex];
@@ -1579,13 +1595,13 @@ namespace DK
 			for (uint32 i = 0; i < DK_COUNT_OF(_nearShadowPasses); ++i)
 			{
 				startRenderPass(renderModule, *_nearShadowPasses[i]);
-				drawSceneGeometry(renderModule, _nearShadowSceneConstants[i], false);
+				drawSceneGeometry(renderModule, _nearShadowSceneConstants[i], _surfaceSceneConstantsData[i], false);
 				endRenderPass();
 			}
 		}
 
 		startRenderPass(renderModule, *_surfaceCapturePass);
-		drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, false);
+		drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, _surfaceSceneConstantsData[3], false);
 		endRenderPass();
 
         if (updateBounce && _atmosphereConstantBufferData._surfaceBounceStrength > 0.0f)
@@ -1613,7 +1629,7 @@ namespace DK
         _surfaceTransportValid = true;
         _skyLightingValid = false; // Only invalidate when capture/bounce data were refreshed.
     }
-    void SceneRenderer::drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, bool includeDebug)
+    void SceneRenderer::drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, const SceneConstantBuffer& sceneConstantsData, bool includeDebug)
     {
         RenderModule& currentRenderModule = renderModule;
 		if (_renderLocalScene)
@@ -1709,6 +1725,75 @@ namespace DK
 			}
 			endPipeline();
 #endif
+
+			startPipeline("StaticMeshInstancedPipeline");
+			{
+				setConstantBuffer("SceneConstantBuffer", sceneConstants);
+				const float4x4 viewProjection = sceneConstantsData._cameraWorldMatrixInv * sceneConstantsData._cameraProjectionMatrix;
+				const DKArray<float4, 6> frustumPlanes = {
+					float4(viewProjection._14 + viewProjection._11, viewProjection._24 + viewProjection._21, viewProjection._34 + viewProjection._31, viewProjection._44 + viewProjection._41),
+					float4(viewProjection._14 - viewProjection._11, viewProjection._24 - viewProjection._21, viewProjection._34 - viewProjection._31, viewProjection._44 - viewProjection._41),
+					float4(viewProjection._14 + viewProjection._12, viewProjection._24 + viewProjection._22, viewProjection._34 + viewProjection._32, viewProjection._44 + viewProjection._42),
+					float4(viewProjection._14 - viewProjection._12, viewProjection._24 - viewProjection._22, viewProjection._34 - viewProjection._32, viewProjection._44 - viewProjection._42),
+					float4(viewProjection._13, viewProjection._23, viewProjection._33, viewProjection._43),
+					float4(viewProjection._14 - viewProjection._13, viewProjection._24 - viewProjection._23, viewProjection._34 - viewProjection._33, viewProjection._44 - viewProjection._43)
+				};
+				if (includeDebug)
+				{
+					_staticMeshDrawCount = 0;
+					_staticMeshInstanceCount = 0;
+					_staticMeshVisibleChunkCount = 0;
+					_staticMeshTotalChunkCount = 0;
+					_staticMeshTriangleCount = 0;
+				}
+				struct InstanceDrawRange
+				{
+					uint32 _firstInstance;
+					uint32 _instanceCount;
+				};
+				DKVector<InstanceDrawRange> visibleRanges;
+				for (const StaticMeshInstanceBatch& batch : DuckingEngine::getInstance().GetSceneObjectManager().getStaticMeshInstanceBatches())
+				{
+					visibleRanges.clear();
+					for (const StaticMeshInstanceChunk& chunk : batch._chunks)
+					{
+						if (includeDebug)
+							++_staticMeshTotalChunkCount;
+						if (intersectsGeometryFrustum(chunk, frustumPlanes) == false)
+							continue;
+						if (visibleRanges.empty() == false && visibleRanges.back()._firstInstance + visibleRanges.back()._instanceCount == chunk._firstInstance)
+							visibleRanges.back()._instanceCount += chunk._instanceCount;
+						else
+							visibleRanges.push_back({ chunk._firstInstance, chunk._instanceCount });
+						if (includeDebug)
+						{
+							++_staticMeshVisibleChunkCount;
+							_staticMeshInstanceCount += chunk._instanceCount;
+						}
+					}
+					if (visibleRanges.empty())
+						continue;
+					setShaderResourceView("_staticMeshInstances", batch._staticMeshInstances);
+					for (const StaticMeshModel::SubMeshType& subMesh : batch._model->get_subMeshArr())
+					{
+						const Material* material = subMesh._material.get();
+						setConstantBuffer(material->get_materialNameHash(), material->get_parameterBufferForGPU());
+						renderModule.setVertexBuffers(0, 1, subMesh._vertexBufferView.get());
+						renderModule.setIndexBuffer(subMesh._indexBufferView.get());
+						for (const InstanceDrawRange& range : visibleRanges)
+						{
+							setRootConstantParameter("_firstInstance", range._firstInstance);
+							renderModule.drawIndexedInstanced(static_cast<uint32>(subMesh._indices.size()), range._instanceCount, 0, 0, 0);
+							if (includeDebug)
+							{
+								++_staticMeshDrawCount;
+								_staticMeshTriangleCount += uint64(subMesh._indices.size() / 3) * range._instanceCount;
+							}
+						}
+					}
+				}
+			}
+			endPipeline();
 
 			startPipeline("StaticMeshStandardPipeline");
 			{
@@ -2201,7 +2286,7 @@ namespace DK
 			renderModule.beginRenderPass(*_mainGeometryPass);
 		else
 			renderModule.beginRenderPass(*_mainGeometryClearPass);
-		drawSceneGeometry(renderModule, _sceneConstantBuffer, true);
+		drawSceneGeometry(renderModule, _sceneConstantBuffer, _sceneConstantBufferData, true);
 		if (_renderLocalScene)
 			drawGrass(renderModule);
 		renderModule.finishRenderPass();
