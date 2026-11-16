@@ -74,52 +74,54 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     }
 #endif
 
-    int WIDTH = 1920;
-    int HEIGHT = 1080;
-#if defined(_DK_DEBUG_)
-    int num = 0;
-    LPWSTR lp = GetCommandLine();
-    LPWSTR* argv = CommandLineToArgvW(lp, &num);
-    if (argv == NULL)
+    int width = 1920;
+    int height = 1080;
+    DK::DKString levelPath;
+    int argumentCount = 0;
+    LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);
+    if (arguments == nullptr)
     {
         DK_ASSERT_LOG(false, "Commandline Parsing Failed");
         return -1;
     }
-    for (int i = 1; i < num; ++i)
+    for (int argumentIndex = 1; argumentIndex < argumentCount; ++argumentIndex)
     {
-        DK::StringSplitter splitter(DK::StringUtil::convertWCtoC(argv[i]), "=");
-        if (splitter[0].find("--") == 0)
+        DK::StringSplitter splitter(DK::StringUtil::convertWCtoC(arguments[argumentIndex]), "=");
+        if (splitter.size() != 2)
         {
-            if (DK::StringUtil::strcmp(splitter[0].c_str(), "--resourcePath") == 0)
-                DK::GlobalPath::setResourcePath(splitter[1]);
-            else if (DK::StringUtil::strcmp(splitter[0].c_str(), "--width") == 0)
-                WIDTH = DK::StringUtil::atoi(splitter[1].c_str());
-            else if (DK::StringUtil::strcmp(splitter[0].c_str(), "--height") == 0)
-                HEIGHT = DK::StringUtil::atoi(splitter[1].c_str());
+            LocalFree(arguments);
+            MessageBoxW(nullptr, L"실행 인자는 --이름=값 형식으로 지정하세요.\n예: --level=Scenes/ForestValley.xml", L"DuckingEngine 경고", MB_OK | MB_ICONWARNING);
+            return -1;
         }
-        else if (splitter[0].find('-') == 0)
+        if (splitter[0] == "--resourcePath" || splitter[0] == "-r")
         {
-            if (DK::StringUtil::strcmp(splitter[0].c_str(), "-r") == 0)
-                DK::GlobalPath::setResourcePath(splitter[1]);
-            else if (DK::StringUtil::strcmp(splitter[0].c_str(), "-w") == 0)
-                WIDTH = DK::StringUtil::atoi(splitter[1].c_str());
-            else if (DK::StringUtil::strcmp(splitter[0].c_str(), "-h") == 0)
-                HEIGHT = DK::StringUtil::atoi(splitter[1].c_str());
+            DK::GlobalPath::setResourcePath(splitter[1]);
+        }
+        else if (splitter[0] == "--width" || splitter[0] == "-w")
+        {
+            width = DK::StringUtil::atoi(splitter[1].c_str());
+        }
+        else if (splitter[0] == "--height" || splitter[0] == "-h")
+        {
+            height = DK::StringUtil::atoi(splitter[1].c_str());
+        }
+        else if (splitter[0] == "--level")
+        {
+            levelPath = splitter[1];
         }
         else
         {
-            DK_ASSERT_LOG(false, "CommandLine Argument Parsing Error.");
+            LocalFree(arguments);
+            MessageBoxW(nullptr, L"알 수 없는 실행 인자입니다.", L"DuckingEngine 경고", MB_OK | MB_ICONWARNING);
             return -1;
         }
     }
-    LocalFree(argv);
-#endif
+    LocalFree(arguments);
 
 	DK::Application* application = dk_new DK::Application;
-	DK::ApplicationInitializeData data(hInstance, true, WIDTH, HEIGHT, false);
+	DK::ApplicationInitializeData data(hInstance, true, width, height, false, levelPath);
 	if (application->initialize(data) == false)
 	{
-		DK_ASSERT_LOG(false, "Application Initialization - Failed");
         return -1;
 	}
 

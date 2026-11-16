@@ -7,7 +7,7 @@ namespace DK
 	class GameModule
 	{
 	public:
-		bool initialize();
+		bool initialize(const DKString& levelPath);
 
 	private:
 		SceneObject* _sponza = nullptr;

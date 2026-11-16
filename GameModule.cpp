@@ -11,11 +11,11 @@
 
 namespace DK
 {
-	bool GameModule::initialize()
+	bool GameModule::initialize(const DKString& levelPath)
 	{
 		// Test Terrain
 		DuckingEngine::getInstance().getSceneManagerWritable().loadOcean();
-		if (DuckingEngine::getInstance().getSceneManagerWritable().loadLevel("Scenes/ForestValley.xml") == false)
+		if (DuckingEngine::getInstance().getSceneManagerWritable().loadLevel(levelPath) == false)
 			return false;
 		DuckingEngine::getInstance().getSceneManagerWritable().loadSkyDome();
 		DuckingEngine::getInstance().getSceneManagerWritable().loadPostProcess();

@@ -5,6 +5,7 @@
 #include "RenderModule.h"
 #include "InputModule.h"
 #include "Camera.h"
+#include "FileUtil.h"
 
 #if defined(USE_IMGUI)
 #include "imgui_impl_win32.h"
@@ -87,6 +88,12 @@ namespace DK
 
 	bool Application::initialize(const ApplicationInitializeData& data)
 	{
+		if (data._levelPath.empty() || FileUtil::exist(GlobalPath::makeResourceFullPath(data._levelPath).c_str()) == false)
+		{
+			DK_LOG("Level not specified or not found: %s", data._levelPath.c_str());
+			MessageBoxW(nullptr, L"로드할 레벨을 지정하지 않았거나 파일을 찾을 수 없습니다.\n--level=Scenes/ForestValley.xml 인자를 확인하세요.", L"DuckingEngine 경고", MB_OK | MB_ICONWARNING);
+			return false;
+		}
 		QueryPerformanceFrequency(&g_tSecond);
 		QueryPerformanceCounter(&g_tTime);
 
@@ -105,7 +112,7 @@ namespace DK
 
 		const int clientWidth = clientRect.right - clientRect.left;
 		const int clientHeight = clientRect.bottom - clientRect.top;
-		if (DuckingEngine::getInstance().Initialize(_hwnd, clientWidth, clientHeight) == false)
+		if (DuckingEngine::getInstance().Initialize(_hwnd, clientWidth, clientHeight, data._levelPath) == false)
 		{
 			DK_ASSERT_LOG(false, "Engine Initialize - Failed");
 			return false;

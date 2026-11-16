@@ -23,7 +23,7 @@ namespace DK
 		DuckingEngine();
 		~DuckingEngine();
 
-		bool Initialize(HWND hwnd, int width, int height);
+		bool Initialize(HWND hwnd, int width, int height, const DKString& levelPath);
 
 		void Update(const float deltaTime);
 		void Render(const float deltaTime);

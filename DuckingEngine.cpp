@@ -77,7 +77,7 @@ namespace DK
 	{
 	}
 
-	bool DuckingEngine::Initialize(HWND hwnd, int width, int height)
+	bool DuckingEngine::Initialize(HWND hwnd, int width, int height, const DKString& levelPath)
 	{
 		if (InputModule::InitializePCController() == false) 
 			return false;
@@ -114,7 +114,7 @@ namespace DK
 #endif
 
 		_gameModule = dk_new GameModule;
-		if (_gameModule->initialize() == false)
+		if (_gameModule->initialize(levelPath) == false)
 			return false;
 
 		_initialized = true;

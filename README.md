@@ -2,6 +2,16 @@
 
 - [Ocean 시스템 — 위상·스펙트럼·IFFT의 수학과 구현](docs/Ocean.md)
 
+## 실행
+
+레벨 경로는 Resource 폴더 기준으로 지정한다. Debug와 Release 모두 필수이며, 인자가 없거나 파일이 없으면 경고를 표시하고 실패 코드로 종료한다.
+
+```powershell
+DuckginEngine_v0002.exe --resourcePath=Resource --level=Scenes/ForestValley.xml
+```
+
+지형 데이터·재질·텍스처와 레벨 XML은 `Resource/Scenes`에서 관리한다.
+
 ## Renderer (DX12, Windows)
 - RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정
 - Material
