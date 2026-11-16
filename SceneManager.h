@@ -154,37 +154,37 @@ namespace DK
 			Streamer _streamer;
 			struct alignas(16) StreamingConstants
 			{
-				uint32 _terrainStreamEnabled = 0;		// 청크 스트리밍 방식의 Terrain을 사용할지 여부. 0: 비활성, 1: 활성
-				uint32 _terrainHeightCache = 0;			// 상세 높이 캐시 텍스처의 SRV 인덱스
-				uint32 _terrainNormalCache = 0;			// 상세 법선 캐시 텍스처의 SRV 인덱스
-				uint32 _terrainPageTable = 0;			// 청크와 캐시 슬롯을 연결하는 페이지 테이블의 SRV 인덱스
-				uint32 _terrainTailHeight = 0;			// 전체 지형의 상주 저해상도 높이 텍스처 SRV 인덱스
-				uint32 _terrainTailNormal = 0;			// 전체 지형의 상주 저해상도 법선 텍스처 SRV 인덱스
-				uint32 _terrainCacheColumns = 8;		// 물리 atlas에서 가로로 배치하는 슬롯 수
-				uint32 _terrainCacheRows = 0;			// 물리 atlas에서 세로로 배치하는 슬롯 수
-				uint32 _terrainCacheSide = 0;			// 캐시 슬롯 한 변의 텍셀 수
-				float _terrainSampleSpacing = 1;		// LOD 0 높이 샘플 사이의 월드 거리
-				float _terrainHeightOffset = -16;		// 정규화 높이가 0일 때의 월드 Y
-				float _terrainHeightScale = 128;		// 정규화 높이 0~1에 대응하는 높이 범위
-				uint32 _terrainCellsX = 0;				// 전체 지형 X 방향 셀 수
-				uint32 _terrainCellsZ = 0;				// 전체 지형 Z 방향 셀 수
-				uint32 _terrainChunkCells = 128;		// 디스크 청크 한 변의 셀 수. GPU 가상 타일도 한 변에 이 개수의 셀을 가짐
-				uint32 _terrainTilesX = 0;				// LOD 0 가상 타일의 X 방향 개수
-				uint32 _terrainTilesZ = 0;				// LOD 0 가상 타일의 Z 방향 개수
-				uint32 _terrainTailLod = 3;				// 전체 지형에 상주시킬 저해상도 LOD. 이보다 작은 LOD만 상세 스트리밍
-				uint32 _terrainTailWidth = 0;			// 상주 저해상도 텍스처의 가로 샘플 수
-				uint32 _terrainTailHeightPixels = 0;	// 상주 저해상도 텍스처의 세로 샘플 수
-				uint32 _terrainPageTableSide = 16;		// LOD 하나가 사용하는 페이지 테이블의 한 변
-				float _terrainCameraX = 0;				// 기준점에서 본 카메라의 상대 X 위치
-				float _terrainCameraZ = 0;				// 기준점에서 본 카메라의 상대 Z 위치
-				int32_t _terrainAnchorX = 0;			// 카메라 근처 렌더링 기준점의 X 샘플 좌표
-				int32_t _terrainAnchorZ = 0;			// 카메라 근처 렌더링 기준점의 Z 샘플 좌표
-				float _terrainCameraWorldX = 0;			// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 X 위치 복사본
-				float _terrainCameraWorldZ = 0;			// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 Z 위치 복사본
-				float _terrainDetailRadius = 128.0f;	// LOD 0 상세 영역의 카메라 기준 월드 반경. 거리가 두 배가 될 때마다 LOD가 한 단계 증가
-				uint32 _terrainHeightTexture = 0;		// 스트리밍 비활성 시 사용하는 전체 지형 높이 텍스처의 SRV 인덱스
-				float _terrainWorldOriginX = 0;			// 지형 샘플 좌표 (0, 0)에 대응하는 월드 X 위치
-				float _terrainWorldOriginZ = 0;			// 지형 샘플 좌표 (0, 0)에 대응하는 월드 Z 위치
+				uint32 _terrainStreamingEnabled = 0;			// 청크 스트리밍 방식의 Terrain을 사용할지 여부. 0: 비활성, 1: 활성
+				uint32 _terrainHeightCacheSRV = 0;				// 상세 높이 캐시 텍스처의 SRV 인덱스
+				uint32 _terrainNormalCacheSRV = 0;				// 상세 법선 캐시 텍스처의 SRV 인덱스
+				uint32 _terrainPageTableSRV = 0;				// 청크와 캐시 슬롯을 연결하는 페이지 테이블의 SRV 인덱스
+				uint32 _terrainOverviewHeightSRV = 0;			// 전체 지형의 상주 저해상도 높이 텍스처 SRV 인덱스
+				uint32 _terrainOverviewNormalSRV = 0;			// 전체 지형의 상주 저해상도 법선 텍스처 SRV 인덱스
+				uint32 _terrainCacheSlotColumnCount = 8;		// 물리 atlas에서 가로로 배치하는 슬롯 수
+				uint32 _terrainCacheSlotRowCount = 0;			// 물리 atlas에서 세로로 배치하는 슬롯 수
+				uint32 _terrainCacheSlotTexelCountPerSide = 0;	// 캐시 슬롯 한 변의 텍셀 수
+				float _terrainSampleWorldSpacing = 1;			// LOD 0 높이 샘플 사이의 월드 거리
+				float _terrainBaseWorldHeight = -16;			// 정규화 높이가 0일 때의 월드 Y
+				float _terrainWorldHeightRange = 128;			// 정규화 높이 0~1에 대응하는 높이 범위
+				uint32 _terrainCellCountX = 0;					// 전체 지형 X 방향 셀 수
+				uint32 _terrainCellCountZ = 0;					// 전체 지형 Z 방향 셀 수
+				uint32 _terrainChunkCellCountPerSide = 128;		// 디스크 청크 한 변의 셀 수. GPU 가상 타일도 한 변에 이 개수의 셀을 가짐
+				uint32 _terrainLod0TileCountX = 0;				// LOD 0 가상 타일의 X 방향 개수
+				uint32 _terrainLod0TileCountZ = 0;				// LOD 0 가상 타일의 Z 방향 개수
+				uint32 _terrainOverviewLod = 3;					// 전체 지형에 상주시킬 저해상도 LOD. 이보다 작은 LOD만 상세 스트리밍
+				uint32 _terrainOverviewSampleCountX = 0;		// 상주 저해상도 텍스처의 가로 샘플 수
+				uint32 _terrainOverviewSampleCountZ = 0;		// 상주 저해상도 텍스처의 세로 샘플 수
+				uint32 _terrainPageTableEntryCountPerSide = 16;	// LOD 하나가 사용하는 페이지 테이블의 한 변
+				float _terrainCameraAnchorRelativeWorldX = 0;	// 기준점에서 본 카메라의 상대 X 위치
+				float _terrainCameraAnchorRelativeWorldZ = 0;	// 기준점에서 본 카메라의 상대 Z 위치
+				int32_t _terrainAnchorSampleX = 0;				// 카메라 근처 렌더링 기준점의 X 샘플 좌표
+				int32_t _terrainAnchorSampleZ = 0;				// 카메라 근처 렌더링 기준점의 Z 샘플 좌표
+				float _terrainCameraWorldX = 0;					// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 X 위치 복사본
+				float _terrainCameraWorldZ = 0;					// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 Z 위치 복사본
+				float _terrainLod0WorldRadius = 128.0f;			// LOD 0 상세 영역의 카메라 기준 월드 반경. 거리가 두 배가 될 때마다 LOD가 한 단계 증가
+				uint32 _terrainFullHeightTextureSRV = 0;		// 스트리밍 비활성 시 사용하는 전체 지형 높이 텍스처의 SRV 인덱스
+				float _terrainOriginWorldX = 0;					// 지형 샘플 좌표 (0, 0)에 대응하는 월드 X 위치
+				float _terrainOriginWorldZ = 0;					// 지형 샘플 좌표 (0, 0)에 대응하는 월드 Z 위치
 			};
 			static_assert(sizeof(StreamingConstants) == 128);
 			struct CacheSlot

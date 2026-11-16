@@ -474,10 +474,10 @@ namespace DK
 				return false;
 			}
 			const ClipMapTerrain::StreamingConstants& terrainConstants = _clipmapTerrain._streamingConstants;
-			_grass._grassMapOriginX = terrainConstants._terrainWorldOriginX;
-			_grass._grassMapOriginZ = terrainConstants._terrainWorldOriginZ;
-			_grass._grassMapWidth = terrainConstants._terrainCellsX * terrainConstants._terrainSampleSpacing;
-			_grass._grassMapDepth = terrainConstants._terrainCellsZ * terrainConstants._terrainSampleSpacing;
+			_grass._grassMapOriginX = terrainConstants._terrainOriginWorldX;
+			_grass._grassMapOriginZ = terrainConstants._terrainOriginWorldZ;
+			_grass._grassMapWidth = terrainConstants._terrainCellCountX * terrainConstants._terrainSampleWorldSpacing;
+			_grass._grassMapDepth = terrainConstants._terrainCellCountZ * terrainConstants._terrainSampleWorldSpacing;
 			if (readOptionalLevelFloat(*grass, "MapOriginX", _grass._grassMapOriginX) == false ||
 				readOptionalLevelFloat(*grass, "MapOriginZ", _grass._grassMapOriginZ) == false ||
 				readOptionalLevelFloat(*grass, "MapWidth", _grass._grassMapWidth) == false ||
@@ -544,7 +544,7 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		ClipMapTerrain::StreamingConstants& constants = _clipmapTerrain._streamingConstants;
 		_clipmapTerrain._heightTexture = nullptr;
-		if (constants._terrainStreamEnabled == 0)
+		if (constants._terrainStreamingEnabled == 0)
 		{
 			_clipmapTerrain._heightTexture = renderModule.loadAndCreateTexture(heightTexturePath);
 			if (_clipmapTerrain._heightTexture == nullptr)
@@ -555,9 +555,9 @@ namespace DK
 				DK_ASSERT_LOG(false, "Invalid terrain height texture: %s", heightTexturePath.c_str());
 				return false;
 			}
-			constants._terrainHeightTexture = _clipmapTerrain._heightTexture->getSRV();
-			constants._terrainCellsX = static_cast<uint32>(description.Width - 1);
-			constants._terrainCellsZ = description.Height - 1;
+			constants._terrainFullHeightTextureSRV = _clipmapTerrain._heightTexture->getSRV();
+			constants._terrainCellCountX = static_cast<uint32>(description.Width - 1);
+			constants._terrainCellCountZ = description.Height - 1;
 			_clipmapTerrain._streamingBuffer->upload(&constants);
 		}
 
@@ -622,8 +622,8 @@ namespace DK
         ClipMapTerrain& terrain = _clipmapTerrain;
         ClipMapTerrain::StreamingConstants& constants = terrain._streamingConstants;
         constants = {};
-        constants._terrainWorldOriginX = terrainWorldOrigin.x;
-        constants._terrainWorldOriginZ = terrainWorldOrigin.y;
+        constants._terrainOriginWorldX = terrainWorldOrigin.x;
+        constants._terrainOriginWorldZ = terrainWorldOrigin.y;
         terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), L"TerrainStreaming_CBuffer");
         if (terrain._chunkArchive.isOpen() == false || terrain._chunkArchive.header()._chunkCells < 2)
         {
@@ -643,27 +643,27 @@ namespace DK
 		};
 
         const ArchiveHeader& header = terrain._chunkArchive.header();
-        constants._terrainSampleSpacing = header._sampleSpacing;
-        constants._terrainHeightOffset = header._heightOffset;
-        constants._terrainHeightScale = header._heightScale;
-        constants._terrainCellsX = header._width - 1;
-        constants._terrainCellsZ = header._height - 1;
-        constants._terrainChunkCells = header._chunkCells;
-        constants._terrainTilesX = (header._width - 2) / header._chunkCells + 1;
-        constants._terrainTilesZ = (header._height - 2) / header._chunkCells + 1;
-        constants._terrainTailLod = overviewLod(header, 256);
-        constants._terrainCacheSide = header._chunkCells + 1;
-        const uint32 slotCount = constants._terrainTailLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
-        constants._terrainCacheRows = (slotCount + constants._terrainCacheColumns - 1) / constants._terrainCacheColumns;
+        constants._terrainSampleWorldSpacing = header._sampleSpacing;
+        constants._terrainBaseWorldHeight = header._heightOffset;
+        constants._terrainWorldHeightRange = header._heightScale;
+        constants._terrainCellCountX = header._width - 1;
+        constants._terrainCellCountZ = header._height - 1;
+        constants._terrainChunkCellCountPerSide = header._chunkCells;
+        constants._terrainLod0TileCountX = (header._width - 2) / header._chunkCells + 1;
+        constants._terrainLod0TileCountZ = (header._height - 2) / header._chunkCells + 1;
+        constants._terrainOverviewLod = overviewLod(header, 256);
+        constants._terrainCacheSlotTexelCountPerSide = header._chunkCells + 1;
+        const uint32 slotCount = constants._terrainOverviewLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
+        constants._terrainCacheSlotRowCount = (slotCount + constants._terrainCacheSlotColumnCount - 1) / constants._terrainCacheSlotColumnCount;
         TerrainOverview overview;
-        if (terrain._chunkArchive.loadOverview(constants._terrainTailLod, overview) == false)
+        if (terrain._chunkArchive.loadOverview(constants._terrainOverviewLod, overview) == false)
             return;
 
-        constants._terrainTailWidth = overview._width;
-        constants._terrainTailHeightPixels = overview._height;
+        constants._terrainOverviewSampleCountX = overview._width;
+        constants._terrainOverviewSampleCountZ = overview._height;
         const D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-        const uint32 cacheWidth = constants._terrainCacheSide * constants._terrainCacheColumns;
-        const uint32 cacheHeight = constants._terrainCacheSide * constants._terrainCacheRows;
+        const uint32 cacheWidth = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotColumnCount;
+        const uint32 cacheHeight = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotRowCount;
         if (cacheWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION)
         {
             DK_ASSERT_LOG(false, "Terrain cache exceeds the texture size limit");
@@ -672,7 +672,7 @@ namespace DK
 
         terrain._heightCache = rm.createTexture("TerrainHeightCache", cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         terrain._normalCache = rm.createTexture("TerrainNormalCache", cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
-        terrain._pageTable = rm.createTexture("TerrainPageTable", constants._terrainPageTableSide, constants._terrainPageTableSide * constants._terrainTailLod, static_cast<const byte*>(nullptr), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._pageTable = rm.createTexture("TerrainPageTable", constants._terrainPageTableEntryCountPerSide, constants._terrainPageTableEntryCountPerSide * constants._terrainOverviewLod, static_cast<const byte*>(nullptr), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         terrain._tailHeight = rm.createTexture("TerrainTailHeight", overview._width, overview._height, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         terrain._tailNormal = rm.createTexture("TerrainTailNormal", overview._width, overview._height, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         if (terrain._heightCache == nullptr || terrain._normalCache == nullptr || terrain._pageTable == nullptr || terrain._tailHeight == nullptr || terrain._tailNormal == nullptr)
@@ -681,22 +681,22 @@ namespace DK
             return;
         }
 
-        DKVector<DKArray<float, 4>> pages(size_t(constants._terrainPageTableSide) * constants._terrainPageTableSide * constants._terrainTailLod);
+        DKVector<DKArray<float, 4>> pages(size_t(constants._terrainPageTableEntryCountPerSide) * constants._terrainPageTableEntryCountPerSide * constants._terrainOverviewLod);
         const bool heightQueued = rm.queueTextureRegion(terrain._tailHeight, 0, 0, overview._width, overview._height, overview._heights.data(), overview._width * 2);
         const bool normalQueued = rm.queueTextureRegion(terrain._tailNormal, 0, 0, overview._width, overview._height, overview._normals.data(), overview._width * 4);
-        const bool pagesQueued = rm.queueTextureRegion(terrain._pageTable, 0, 0, constants._terrainPageTableSide, constants._terrainPageTableSide * constants._terrainTailLod, pages.data(), constants._terrainPageTableSide * 16);
-        if (heightQueued == false || normalQueued == false || pagesQueued == false || terrain._streamer.start(terrain._chunkArchive, constants._terrainTailLod, slotCount) == false)
+        const bool pagesQueued = rm.queueTextureRegion(terrain._pageTable, 0, 0, constants._terrainPageTableEntryCountPerSide, constants._terrainPageTableEntryCountPerSide * constants._terrainOverviewLod, pages.data(), constants._terrainPageTableEntryCountPerSide * 16);
+        if (heightQueued == false || normalQueued == false || pagesQueued == false || terrain._streamer.start(terrain._chunkArchive, constants._terrainOverviewLod, slotCount) == false)
         {
             DK_ASSERT_LOG(false, "Terrain streaming initialization failed");
             return;
         }
 
-        constants._terrainStreamEnabled = 1;
-        constants._terrainHeightCache = terrain._heightCache->getSRV();
-        constants._terrainNormalCache = terrain._normalCache->getSRV();
-        constants._terrainPageTable = terrain._pageTable->getSRV();
-        constants._terrainTailHeight = terrain._tailHeight->getSRV();
-        constants._terrainTailNormal = terrain._tailNormal->getSRV();
+        constants._terrainStreamingEnabled = 1;
+        constants._terrainHeightCacheSRV = terrain._heightCache->getSRV();
+        constants._terrainNormalCacheSRV = terrain._normalCache->getSRV();
+        constants._terrainPageTableSRV = terrain._pageTable->getSRV();
+        constants._terrainOverviewHeightSRV = terrain._tailHeight->getSRV();
+        constants._terrainOverviewNormalSRV = terrain._tailNormal->getSRV();
         terrain._cacheSlots.assign(slotCount, {});
         terrain._streamingBuffer->upload(&constants);
     }
@@ -708,15 +708,15 @@ namespace DK
         if (terrain._streamingBuffer == nullptr)
             return;
 
-        const double archiveCameraX = cameraX - constants._terrainWorldOriginX;
-        const double archiveCameraZ = cameraZ - constants._terrainWorldOriginZ;
-        constants._terrainAnchorX = static_cast<int32>(std::floor(archiveCameraX / constants._terrainSampleSpacing));
-        constants._terrainAnchorZ = static_cast<int32>(std::floor(archiveCameraZ / constants._terrainSampleSpacing));
-        constants._terrainCameraX = static_cast<float>(archiveCameraX - double(constants._terrainAnchorX) * constants._terrainSampleSpacing);
-        constants._terrainCameraZ = static_cast<float>(archiveCameraZ - double(constants._terrainAnchorZ) * constants._terrainSampleSpacing);
+        const double archiveCameraX = cameraX - constants._terrainOriginWorldX;
+        const double archiveCameraZ = cameraZ - constants._terrainOriginWorldZ;
+        constants._terrainAnchorSampleX = static_cast<int32>(std::floor(archiveCameraX / constants._terrainSampleWorldSpacing));
+        constants._terrainAnchorSampleZ = static_cast<int32>(std::floor(archiveCameraZ / constants._terrainSampleWorldSpacing));
+        constants._terrainCameraAnchorRelativeWorldX = static_cast<float>(archiveCameraX - double(constants._terrainAnchorSampleX) * constants._terrainSampleWorldSpacing);
+        constants._terrainCameraAnchorRelativeWorldZ = static_cast<float>(archiveCameraZ - double(constants._terrainAnchorSampleZ) * constants._terrainSampleWorldSpacing);
         constants._terrainCameraWorldX = static_cast<float>(cameraX);
         constants._terrainCameraWorldZ = static_cast<float>(cameraZ);
-        if (constants._terrainStreamEnabled == 0)
+        if (constants._terrainStreamingEnabled == 0)
         {
             terrain._streamingBuffer->upload(&constants);
             return;
@@ -727,7 +727,7 @@ namespace DK
 
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
         const ArchiveHeader& header = terrain._chunkArchive.header();
-        const DKVector<TileRequest> wanted = selectPages(header, archiveCameraX, archiveCameraZ, constants._terrainDetailRadius, constants._terrainTailLod, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
+        const DKVector<TileRequest> wanted = selectPages(header, archiveCameraX, archiveCameraZ, constants._terrainLod0WorldRadius, constants._terrainOverviewLod, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
 
         TilePage page;
         for (uint32 uploads = 0; uploads < 4 && terrain._streamer.takeReady(page); ++uploads)
@@ -757,8 +757,8 @@ namespace DK
             const uint32 index = static_cast<uint32>(slot - terrain._cacheSlots.begin());
             slot->_valid = false;
             slot->_fade = 0;
-            const uint32 x = (index % constants._terrainCacheColumns) * constants._terrainCacheSide;
-            const uint32 y = (index / constants._terrainCacheColumns) * constants._terrainCacheSide;
+            const uint32 x = (index % constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
+            const uint32 y = (index / constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
             const MipTile& tile = page._tile;
             const bool heightQueued = rm.queueTextureRegion(terrain._heightCache, x, y, tile._side, tile._side, tile._heights.data(), tile._side * 2);
             const bool normalQueued = rm.queueTextureRegion(terrain._normalCache, x, y, tile._side, tile._side, tile._normals.data(), tile._side * 4);
@@ -772,8 +772,8 @@ namespace DK
         }
 
 		// PageTable 구성 및 업로드
-        const uint32 tableSide = constants._terrainPageTableSide;
-        DKVector<DKArray<float, 4>> pages(size_t(tableSide) * tableSide * constants._terrainTailLod);
+        const uint32 tableSide = constants._terrainPageTableEntryCountPerSide;
+        DKVector<DKArray<float, 4>> pages(size_t(tableSide) * tableSide * constants._terrainOverviewLod);
         for (uint32 index = 0; index < terrain._cacheSlots.size(); ++index)
         {
             const ClipMapTerrain::CacheSlot& slot = terrain._cacheSlots[index];
@@ -784,7 +784,7 @@ namespace DK
                 pages[size_t(y) * tableSide + x] = { float(index + 1), slot._fade, float(slot._request._x), float(slot._request._z) };
             }
         }
-        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, tableSide, tableSide * constants._terrainTailLod, pages.data(), tableSide * sizeof(DKArray<float, 4>)) == false)
+        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, tableSide, tableSide * constants._terrainOverviewLod, pages.data(), tableSide * sizeof(DKArray<float, 4>)) == false)
         {
             DK_ASSERT_LOG(false, "Terrain page table upload failed");
             return;

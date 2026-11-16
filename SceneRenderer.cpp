@@ -765,13 +765,13 @@ namespace DK
         const double gy = double(cameraPosition.y) - _localGeometryCentre.y;
         const double gz = double(cameraPosition.z) - _localGeometryCentre.z;
         const SceneManager::ClipMapTerrain::StreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
-        const double terrainLocalX = preciseCamera[0] - terrainBounds._terrainWorldOriginX;
-        const double terrainLocalZ = preciseCamera[2] - terrainBounds._terrainWorldOriginZ;
-        const double terrainX = terrainLocalX - std::clamp(terrainLocalX, 0.0, double(terrainBounds._terrainCellsX) * terrainBounds._terrainSampleSpacing);
-        const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, 0.0, double(terrainBounds._terrainCellsZ) * terrainBounds._terrainSampleSpacing);
-        const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainHeightOffset), double(terrainBounds._terrainHeightOffset + terrainBounds._terrainHeightScale));
+        const double terrainLocalX = preciseCamera[0] - terrainBounds._terrainOriginWorldX;
+        const double terrainLocalZ = preciseCamera[2] - terrainBounds._terrainOriginWorldZ;
+        const double terrainX = terrainLocalX - std::clamp(terrainLocalX, 0.0, double(terrainBounds._terrainCellCountX) * terrainBounds._terrainSampleWorldSpacing);
+        const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, 0.0, double(terrainBounds._terrainCellCountZ) * terrainBounds._terrainSampleWorldSpacing);
+        const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainBaseWorldHeight), double(terrainBounds._terrainBaseWorldHeight + terrainBounds._terrainWorldHeightRange));
         const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
-        const bool nearTerrain = terrainBounds._terrainCellsX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
+        const bool nearTerrain = terrainBounds._terrainCellCountX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
         _renderLocalScene = _localGeometryEnabled && (nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius);
 
 		// Upload Scene ConstantBuffer
@@ -845,15 +845,15 @@ namespace DK
 			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 
 			const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
-			const float2 cameraPos(streaming._terrainCameraX, streaming._terrainCameraZ);
+			const float2 cameraPos(streaming._terrainCameraAnchorRelativeWorldX, streaming._terrainCameraAnchorRelativeWorldZ);
 
 			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
 			constexpr const uint32 morphCells = 4; // 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
 			static_assert(morphCells > 0);
 			static_assert(morphCells <= SceneManager::ClipMapTerrain::TILE_RESOLUTION - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
 
-            const double anchorWorldX = streaming._terrainWorldOriginX + double(streaming._terrainAnchorX) * streaming._terrainSampleSpacing;
-            const double anchorWorldZ = streaming._terrainWorldOriginZ + double(streaming._terrainAnchorZ) * streaming._terrainSampleSpacing;
+            const double anchorWorldX = streaming._terrainOriginWorldX + double(streaming._terrainAnchorSampleX) * streaming._terrainSampleWorldSpacing;
+            const double anchorWorldZ = streaming._terrainOriginWorldZ + double(streaming._terrainAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
 
 			// 입력 위치를 월드 원점 기준의 격자에 맞춘 뒤, Anchor 상대 좌표로 돌려주는 함수
 			const DKFunction<float2(float)> snapTerrainGrid = [&](float spacing)->float2
@@ -883,7 +883,7 @@ namespace DK
 							position = float2(-position.x, -position.y);
 						const double worldX = anchorWorldX + double(patchOrigin.x) + double(position.x) * spacing;
 						const double worldZ = anchorWorldZ + double(patchOrigin.y) + double(position.y) * spacing;
-						//DK_ASSERT_LOG(worldX >= 0.0 && worldZ >= 0.0 && worldX <= double(streaming._terrainCellsX) * streaming._terrainSampleSpacing && worldZ <= double(streaming._terrainCellsZ) * streaming._terrainSampleSpacing, "Terrain mesh outside bounds: level=%u, type=%u, worldXZ=(%.3f, %.3f)", level, type, worldX, worldZ);
+						//DK_ASSERT_LOG(worldX >= 0.0 && worldZ >= 0.0 && worldX <= double(streaming._terrainCellCountX) * streaming._terrainSampleWorldSpacing && worldZ <= double(streaming._terrainCellCountZ) * streaming._terrainSampleWorldSpacing, "Terrain mesh outside bounds: level=%u, type=%u, worldXZ=(%.3f, %.3f)", level, type, worldX, worldZ);
 					}
 #endif
 					const float parentSpacing = spacing * 2.0f;
@@ -1815,13 +1815,13 @@ namespace DK
         const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
         const SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
         const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
-        const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainWorldOriginX);
-        const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainWorldOriginZ);
-        const float mapMaxX = Math::min(grass._grassMapOriginX + grass._grassMapWidth, streaming._terrainWorldOriginX + streaming._terrainCellsX * streaming._terrainSampleSpacing);
-        const float mapMaxZ = Math::min(grass._grassMapOriginZ + grass._grassMapDepth, streaming._terrainWorldOriginZ + streaming._terrainCellsZ * streaming._terrainSampleSpacing);
+        const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainOriginWorldX);
+        const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainOriginWorldZ);
+        const float mapMaxX = Math::min(grass._grassMapOriginX + grass._grassMapWidth, streaming._terrainOriginWorldX + streaming._terrainCellCountX * streaming._terrainSampleWorldSpacing);
+        const float mapMaxZ = Math::min(grass._grassMapOriginZ + grass._grassMapDepth, streaming._terrainOriginWorldZ + streaming._terrainCellCountZ * streaming._terrainSampleWorldSpacing);
         constexpr float tileMeters = GRASS_TILE_METERS;
         constexpr float maxDistance = GRASS_LOD5_END;
-        const float maxGrassY = streaming._terrainHeightOffset + streaming._terrainHeightScale + 1.2f;
+        const float maxGrassY = streaming._terrainBaseWorldHeight + streaming._terrainWorldHeightRange + 1.2f;
         int (*const tileAt)(float) = [](float position) { return static_cast<int>(Math::floor(position / GRASS_TILE_METERS)); };
         const float minX = Math::max(mapMinX, camera.x - maxDistance);
         const float minZ = Math::max(mapMinZ, camera.z - maxDistance);
@@ -1857,8 +1857,8 @@ namespace DK
         const int lastTileZ = tileAt(maxZ);
         constexpr float bladeOverhang = 1.2f;
         const double grassCellMeters = double(GRASS_TILE_METERS) / grass._tileGridSide;
-        const double anchorX = streaming._terrainWorldOriginX + double(streaming._terrainAnchorX) * streaming._terrainSampleSpacing;
-        const double anchorZ = streaming._terrainWorldOriginZ + double(streaming._terrainAnchorZ) * streaming._terrainSampleSpacing;
+        const double anchorX = streaming._terrainOriginWorldX + double(streaming._terrainAnchorSampleX) * streaming._terrainSampleWorldSpacing;
+        const double anchorZ = streaming._terrainOriginWorldZ + double(streaming._terrainAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
         const int32 grassAnchorX = static_cast<int32>(std::floor(anchorX / grassCellMeters));
         const int32 grassAnchorZ = static_cast<int32>(std::floor(anchorZ / grassCellMeters));
         const float grassOffsetX = static_cast<float>(anchorX - double(grassAnchorX) * grassCellMeters);

@@ -113,7 +113,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
     output.relativeXZ = relativePos.xz;
     const float2 anchorWorldXZ = TerrainAnchorWorldXZ();
     output.worldPosition = relativePos + float3(anchorWorldXZ.x, 0.0f, anchorWorldXZ.y);
-    const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraX, _terrainCameraZ);
+    const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraAnchorRelativeWorldX, _terrainCameraAnchorRelativeWorldZ);
     const float3 relativeViewPosition = float3(relativePos.x - viewRelativeXZ.x, relativePos.y - getViewPosition().y, relativePos.z - viewRelativeXZ.y);
     output.position = float4(mul(relativeViewPosition, (float3x3)_cameraWorldMatrixInv), 1.0f);
     output.position = mul(output.position, _cameraProjectionMatrix);
@@ -202,8 +202,8 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
     const float distanceToGround = length(worldPosition - getViewPosition());
     const float2 coverageSize = float2(_groundCoverageWidth, _groundCoverageDepth);
     const bool hasCoverageBounds = all(coverageSize > 0.0f);
-    const float2 mapSize = hasCoverageBounds ? coverageSize : float2(_terrainCellsX, _terrainCellsZ) * _terrainSampleSpacing;
-    const float2 mapOrigin = hasCoverageBounds ? float2(_groundCoverageOriginX, _groundCoverageOriginZ) : float2(_terrainWorldOriginX, _terrainWorldOriginZ);
+    const float2 mapSize = hasCoverageBounds ? coverageSize : float2(_terrainCellCountX, _terrainCellCountZ) * _terrainSampleWorldSpacing;
+    const float2 mapOrigin = hasCoverageBounds ? float2(_groundCoverageOriginX, _groundCoverageOriginZ) : float2(_terrainOriginWorldX, _terrainOriginWorldZ);
     const float2 mapXZ = worldXZ - mapOrigin;
     const float distanceOutside = length(mapXZ - clamp(mapXZ, 0.0f, mapSize));
     const float coverageFade = 1.0f - smoothstep(0.0f, max(_groundCoverageFadeMeters, 1e-4f), distanceOutside);
@@ -238,13 +238,13 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
 
 GBufferOutput PSMain(VS_OUTPUT input)
 {
-    const float2 minimum = -float2(_terrainAnchorX, _terrainAnchorZ) * _terrainSampleSpacing;
-    const float2 maximum = float2(int2(_terrainCellsX, _terrainCellsZ) - int2(_terrainAnchorX, _terrainAnchorZ)) * _terrainSampleSpacing;
+    const float2 minimum = -float2(_terrainAnchorSampleX, _terrainAnchorSampleZ) * _terrainSampleWorldSpacing;
+    const float2 maximum = float2(int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
     const float2 boundaryDistance = min(input.relativeXZ - minimum, maximum - input.relativeXZ);
     clip(min(boundaryDistance.x, boundaryDistance.y));
 
     float3 normal;
-    if (_terrainStreamEnabled)
+    if (_terrainStreamingEnabled)
         normal = DecodeTerrainNormal(SampleTerrainStreamRelative(input.relativeXZ).yz);
     else
     {

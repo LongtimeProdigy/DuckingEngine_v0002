@@ -90,14 +90,14 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float2 rootRelativeXZ = (float2(worldCell - int2(_grassAnchorX, _grassAnchorZ)) + lerp(0.08f, 0.92f, jitter)) * (GRASS_TILE_METERS / _grassTileGridSide) - float2(_grassOffsetX, _grassOffsetZ);
     const float2 rootXZ = rootRelativeXZ + TerrainAnchorWorldXZ();
     const float2 mapUV = (rootXZ - float2(_grassMapOriginX, _grassMapOriginZ)) / float2(_grassMapWidth, _grassMapDepth);
-    const float2 minimum = -float2(_terrainAnchorX, _terrainAnchorZ) * _terrainSampleSpacing;
-    const float2 maximum = float2(int2(_terrainCellsX, _terrainCellsZ) - int2(_terrainAnchorX, _terrainAnchorZ)) * _terrainSampleSpacing;
+    const float2 minimum = -float2(_terrainAnchorSampleX, _terrainAnchorSampleZ) * _terrainSampleWorldSpacing;
+    const float2 maximum = float2(int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
     if (any(rootRelativeXZ < minimum) || any(rootRelativeXZ > maximum) || any(mapUV < 0.0f) || any(mapUV > 1.0f))
     {
         return output;
     }
 
-    const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraX, _terrainCameraZ);
+    const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraAnchorRelativeWorldX, _terrainCameraAnchorRelativeWorldZ);
     const float2 rootToViewXZ = rootRelativeXZ - viewRelativeXZ;
     const float2 fadeRange = GrassFadeRange(tileCell ^ phase);
     if (dot(rootToViewXZ, rootToViewXZ) >= fadeRange.y * fadeRange.y)
