@@ -812,7 +812,7 @@ namespace DK
 		if (SUCCEEDED(hr) == false)
 			return false;
 
-#ifdef USE_IMGUI
+#if defined(USE_IMGUI)
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -1912,7 +1912,7 @@ namespace DK
 
 		if (isPresent)
 		{
-#ifdef USE_IMGUI
+#if defined(USE_IMGUI)
 			// Submit secondary viewports after the main draw list and before the frame fence.
 			if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 			{
@@ -3290,7 +3290,7 @@ namespace DK
 		resolveGpuTimings();
 #endif
 
-#ifdef USE_IMGUI
+#if defined(USE_IMGUI)
 		ID3D12DescriptorHeap* heaps[] = { _imguiDescriptorHeap.get(), };
 		_commandList->SetDescriptorHeaps(DK_COUNT_OF(heaps), heaps);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _commandList._commandList.get());

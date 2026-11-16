@@ -40,9 +40,11 @@ namespace DK
 #endif
 		_renderModule->waitAllGPU();
 
+#if defined(USE_IMGUI)
 		ImGui_ImplDX12_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
+#endif
 
 #if defined(_DK_DEBUG_)
 		EditorDebugDrawManager::getSingleton().get_primitiveInfoSphereArrWritable().clear();
@@ -137,7 +139,9 @@ namespace DK
 
 	void DuckingEngine::Render(const float deltaTime)
 	{
+#if defined(USE_IMGUI)
 		_sceneRenderer->renderUI();
+#endif
 		_sceneRenderer->prepareShaderData(deltaTime);
 
 		_sceneRenderer->updateRender();

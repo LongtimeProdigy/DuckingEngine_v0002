@@ -52,10 +52,7 @@ namespace DK
 #include <Windows.h>
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
-    //SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-#ifdef USE_IMGUI
-    ImGui_ImplWin32_EnableDpiAwareness();
-#endif
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
 #if defined(_DK_DEBUG_)
     DK::gMainThreadID = GetCurrentThreadId();

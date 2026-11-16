@@ -4,7 +4,7 @@
   "Items": [
     {
       "Id": "39a5800f-5558-4c5e-a583-299e4f59fbd9",
-      "Command": "--resourcePath=\"C:\\Users\\Lee\\Desktop\\Projects\\DuckingEngine_v0002\\Resource\""
+      "Command": "--resourcePath=Resource --level=Scenes/ForestValley.xml"
     }
   ]
 }

@@ -48,7 +48,8 @@
 /*
 * #todo- 외부 라이브러리 목록 (필요시 나중에 따로 자체제작 할 목록들)
 */
-#ifdef _DK_DEBUG_
+#define USE_IMGUI
+#if defined(USE_IMGUI)
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx12.h"

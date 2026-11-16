@@ -792,7 +792,7 @@ namespace DK
         const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
         const bool nearTerrain = terrainBounds._terrainCellCountX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
         _renderLocalScene = nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius;
-#if defined(_DK_DEBUG_)
+#if defined(USE_IMGUI)
         _renderLocalScene = _localGeometryEnabled && _renderLocalScene;
 #endif
 
@@ -1064,7 +1064,6 @@ namespace DK
 			gIsReload = false;
 		}
 #endif
-#if defined(USE_IMGUI)
 		ImGui_ImplWin32_NewFrame();
 		ImGui_ImplDX12_NewFrame();
 		ImGui::NewFrame();
@@ -1452,7 +1451,6 @@ namespace DK
 		}
 
 		ImGui::Render();
-#endif
 	}
 #endif
 

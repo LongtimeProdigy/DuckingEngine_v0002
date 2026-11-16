@@ -137,7 +137,7 @@ namespace DK
 
 		// Render
 		void prepareShaderData(const float deltaTime) noexcept;
-#if defined(_DK_DEBUG_)
+#if defined(USE_IMGUI)
 		void renderUI() noexcept;
 #endif
 		void updateRender() noexcept;
@@ -180,7 +180,7 @@ namespace DK
 		const RenderPassInstance* _nearShadowPasses[3] = {};
 
         // Debug
-#if defined(_DK_DEBUG_)
+#if defined(USE_IMGUI)
         bool _localGeometryEnabled = true;
         bool _compareExtendedAtmosphereTop = false;
 #endif

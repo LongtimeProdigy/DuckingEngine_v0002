@@ -342,7 +342,7 @@
   <Target Name="CopyD3D12Runtime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
     <ItemGroup>
       <D3D12Runtime Include="$(ProjectDir)packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\bin\x64\D3D12Core.dll" />
-      <D3D12Runtime Include="$(ProjectDir)packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\bin\x64\d3d12SDKLayers.dll" />
+      <D3D12Runtime Include="$(ProjectDir)packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\bin\x64\d3d12SDKLayers.dll" Condition="'$(Configuration)'=='Debug'" />
     </ItemGroup>
     <Copy SourceFiles="@(D3D12Runtime)" DestinationFolder="$(TargetDir)D3D12\" SkipUnchangedFiles="true" />
   </Target>
