@@ -446,12 +446,14 @@ namespace DK
 			DK_ASSERT_LOG(false, "Terrain needs an archive, model property and height texture: %s", fullPath.c_str());
 			return false;
 		}
+
 		float2 terrainWorldOrigin(0.0f, 0.0f);
 		if (readOptionalLevelFloat(*terrain, "OriginX", terrainWorldOrigin.x) == false || readOptionalLevelFloat(*terrain, "OriginZ", terrainWorldOrigin.y) == false)
 		{
 			DK_ASSERT_LOG(false, "Terrain origin must be finite: %s", fullPath.c_str());
 			return false;
 		}
+
 		if (loadTerrain(terrainArchive, terrainModelProperty, terrainHeightTexture, terrainWorldOrigin) == false)
 			return false;
 
@@ -623,12 +625,22 @@ namespace DK
         constants._terrainWorldOriginX = terrainWorldOrigin.x;
         constants._terrainWorldOriginZ = terrainWorldOrigin.y;
         terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), L"TerrainStreaming_CBuffer");
-        terrain._streamingBuffer->upload(&constants);
         if (terrain._chunkArchive.isOpen() == false || terrain._chunkArchive.header()._chunkCells < 2)
         {
+			terrain._streamingBuffer->upload(&constants);
             DK_ASSERT_LOG(false, "Terrain streaming requires an open archive with at least two cells per chunk");
             return;
         }
+
+		auto overviewLod = [](const ArchiveHeader& header, uint32 maxCells)->uint32
+		{
+			uint32 lod = 1;
+			while (((std::max(header._width, header._height) - 2) >> lod) + 1 > maxCells)
+			{
+				++lod;
+			}
+			return std::max(lod, 3u);
+		};
 
         const ArchiveHeader& header = terrain._chunkArchive.header();
         constants._terrainSampleSpacing = header._sampleSpacing;

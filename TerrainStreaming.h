@@ -30,7 +30,6 @@ namespace DK
 
     DKVector<uint32_t> selectTiles(const ArchiveHeader& header, double cameraX, double cameraZ, float radius, uint32_t budget);
 
-    uint32 overviewLod(const ArchiveHeader& header, uint32 maxCells);
     DKVector<TileRequest> selectPages(const ArchiveHeader& header, double cameraX, double cameraZ, float detailRadius, uint32 tailLod, uint32 budgetPerLod);
 
     class Streamer

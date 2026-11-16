@@ -181,10 +181,10 @@ namespace DK
 				int32_t _terrainAnchorZ = 0;			// 카메라 근처 렌더링 기준점의 Z 샘플 좌표
 				float _terrainCameraWorldX = 0;			// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 X 위치 복사본
 				float _terrainCameraWorldZ = 0;			// 기존 float 뷰 좌표와 연결하기 위한 카메라의 절대 Z 위치 복사본
-				float _terrainDetailRadius = 128.0f;
-				uint32 _terrainHeightTexture = 0;
-				float _terrainWorldOriginX = 0;
-				float _terrainWorldOriginZ = 0;
+				float _terrainDetailRadius = 128.0f;	// LOD 0 상세 영역의 카메라 기준 월드 반경. 거리가 두 배가 될 때마다 LOD가 한 단계 증가
+				uint32 _terrainHeightTexture = 0;		// 스트리밍 비활성 시 사용하는 전체 지형 높이 텍스처의 SRV 인덱스
+				float _terrainWorldOriginX = 0;			// 지형 샘플 좌표 (0, 0)에 대응하는 월드 X 위치
+				float _terrainWorldOriginZ = 0;			// 지형 샘플 좌표 (0, 0)에 대응하는 월드 Z 위치
 			};
 			static_assert(sizeof(StreamingConstants) == 128);
 			struct CacheSlot

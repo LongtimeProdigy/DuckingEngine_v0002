@@ -39,16 +39,6 @@ namespace DK
         return selected;
     }
 
-    uint32 overviewLod(const ArchiveHeader& header, uint32 maxCells)
-    {
-        uint32 lod = 1;
-        while (((std::max(header._width, header._height) - 2) >> lod) + 1 > maxCells)
-        {
-            ++lod;
-        }
-        return std::max(lod, 3u);
-    }
-
     DKVector<TileRequest> selectPages(const ArchiveHeader& header, double cameraX, double cameraZ, float detailRadius, uint32 tailLod, uint32 budgetPerLod)
     {
         DKVector<TileRequest> result;
