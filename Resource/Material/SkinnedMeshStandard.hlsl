@@ -1,4 +1,4 @@
-﻿#ifndef __DEFINE_SKINNEDMESHSTANDARD_HLSL__
+#ifndef __DEFINE_SKINNEDMESHSTANDARD_HLSL__
 #define __DEFINE_SKINNEDMESHSTANDARD_HLSL__
 
 #include "SkinningLimits.h"
@@ -8,18 +8,18 @@
 
 struct VS_INPUT
 {
-    float3 position : POSITION;
-    float3 normal : NORMAL;
-    float2 uv0 : TEXCOORD0;
-    uint4 boneIndexes : BONEINDEXES;
-    float4 boneWeights : BONEWEIGHTS;
+    float3 _position : POSITION;
+    float3 _normal : NORMAL;
+    float2 _uv : TEXCOORD0;
+    uint4 _boneIndices : BONEINDEXES;
+    float4 _boneWeights : BONEWEIGHTS;
 };
 
 struct VS_OUTPUT
 {
     float4 position : SV_POSITION;
-    float4 normal : NORMAL;
-    float2 uv0 : TEXCOORD0;
+    float4 _normal : NORMAL;
+    float2 _uv : TEXCOORD0;
 };
 
 cbuffer SceneObjectConstantBuffer : register(b1)
@@ -37,7 +37,6 @@ cbuffer SkinnedMeshStandard : register(b2)
 
 // #todo- StructuredBuffer로 교체 가능?
 #define MAX_BONE_COUNT DK_MAX_BONE_COUNT
-#define MAX_SKINNING_COUNT 4
 cbuffer SkeletonConstantBuffer : register(b3)
 {
     float4x4 _skeletonConstantBuffer[MAX_BONE_COUNT];
@@ -46,21 +45,21 @@ cbuffer SkeletonConstantBuffer : register(b3)
 VS_OUTPUT VSMain(VS_INPUT input)
 {
     VS_OUTPUT output;
-    output.position = float4(input.position, 1.0f);
-    output.normal = float4(input.normal, 0.0f);
-    output.uv0 = input.uv0;
+    output.position = float4(input._position, 1.0f);
+    output._normal = float4(input._normal, 0.0f);
+    output._uv = input._uv;
 
     // Skinning
     float4x4 skinMatrix = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    for(uint i = 0; i < MAX_SKINNING_COUNT; ++i)
+    for(uint i = 0; i < DK_MAX_SKINNING_COUNT; ++i)
     {
-        if(input.boneIndexes[i] >= MAX_BONE_COUNT)
+        if(input._boneIndices[i] >= MAX_BONE_COUNT)
             continue;
 
-        if(input.boneWeights[i] == 0)
+        if(input._boneWeights[i] == 0)
             continue;
 
-        skinMatrix += _skeletonConstantBuffer[input.boneIndexes[i]] * input.boneWeights[i];
+        skinMatrix += _skeletonConstantBuffer[input._boneIndices[i]] * input._boneWeights[i];
     }
 
     output.position = mul(output.position, skinMatrix);
@@ -68,16 +67,16 @@ VS_OUTPUT VSMain(VS_INPUT input)
     output.position = mul(output.position, _cameraWorldMatrixInv);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
-    output.normal = float4(transformNormal(input.normal, (float3x3)mul(skinMatrix, _worldMatrix)), 0);
-    
+    output._normal = float4(transformNormal(input._normal, (float3x3)mul(skinMatrix, _worldMatrix)), 0);
+
     return output;
 }
 
 GBufferOutput PSMain(VS_OUTPUT input)
 {
     Texture2D<float4> diffuseTexture = getTexture(_diffuseTexture);
-    const float4 albedo = diffuseTexture.Sample(bilinearRepeatSampler, input.uv0);
-    return writeGBuffer(albedo.rgb, input.normal.xyz, _metallic, _roughness);
+    const float4 albedo = diffuseTexture.Sample(bilinearRepeatSampler, input._uv);
+    return writeGBuffer(albedo.rgb, input._normal.xyz, _metallic, _roughness);
 }
 
 #endif

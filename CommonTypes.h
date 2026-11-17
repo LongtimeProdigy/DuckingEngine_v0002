@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -41,7 +42,7 @@ namespace DK
         return std::move(value);
     }
 
-    template<typename T> dk_inline void swap(T&& lhs, T&& rhs) noexcept
+    template<typename T> dk_inline void swap(T&& lhs, T&& rhs) noexcept(noexcept(std::swap(lhs, rhs)))
     {
         std::swap(lhs, rhs);
     }

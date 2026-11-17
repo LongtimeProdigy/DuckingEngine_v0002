@@ -62,7 +62,7 @@ namespace DK
 			_height = height;
 		}
 
-		void getCameraWorldMatrix(float4x4& outMatrix)
+		void getCameraWorldMatrix(float4x4& outMatrix) const
 		{
 			Transform invertTransform = get_worldTransform();
 			invertTransform.invert();
@@ -77,9 +77,9 @@ namespace DK
 
 			outMatrix = translationMatrix * rotationMatrix;
 		}
-		void getCameraProjectionMatrix(float4x4& outMaterix)
+		void getCameraProjectionMatrix(float4x4& outMatrix) const
 		{
-			outMaterix = float4x4::Identity;
+			outMatrix = float4x4::Identity;
 
 			// https://marmelo12.tistory.com/338 (h == 1 이라는 가정하게 설명하지만 더 자세하게 설명해줌)
 			// https://jw910911.tistory.com/19
@@ -89,20 +89,20 @@ namespace DK
 			const float aspect = static_cast<float>(_width) / static_cast<float>(_height);
 			const float h = _nearPlaneDistance * tanf(_halfFov);
 			const float w = h * aspect;
-			outMaterix._11 = _nearPlaneDistance / w;
-			outMaterix._22 = _nearPlaneDistance / h;
+			outMatrix._11 = _nearPlaneDistance / w;
+			outMatrix._22 = _nearPlaneDistance / h;
 #else	// optimized
 			const float h = 1.0f / tanf(_halfFov);
 			const float w = h * (static_cast<float>(_height) / static_cast<float>(_width));
-			outMaterix._11 = w;
-			outMaterix._22 = h;
+			outMatrix._11 = w;
+			outMatrix._22 = h;
 #endif
 
-			outMaterix._33 = 0.0f;
-			outMaterix._43 = _nearPlaneDistance;
+			outMatrix._33 = 0.0f;
+			outMatrix._43 = _nearPlaneDistance;
 
-			outMaterix._34 = 1.0f;
-			outMaterix._44 = 0.0f;
+			outMatrix._34 = 1.0f;
+			outMatrix._44 = 0.0f;
 		}
 
 		dk_inline float getNearPlaneDistance() const { return _nearPlaneDistance; }

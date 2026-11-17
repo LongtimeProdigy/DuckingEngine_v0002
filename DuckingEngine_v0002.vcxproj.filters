@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
@@ -138,6 +138,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Resource\Material\ShaderBindings.h" />
+    <ClInclude Include="Resource\Material\Atmosphere\AtmosphereLimits.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Application.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Object.h">

@@ -46,6 +46,12 @@ namespace DK
 			float3 _color;
 		};
 
+		static_assert(sizeof(SpherePrimitiveInfo) == 32);
+		static_assert(offsetof(SpherePrimitiveInfo, _color) == 16);
+		static_assert(sizeof(LinePrimitiveInfo) == 36);
+		static_assert(offsetof(LinePrimitiveInfo, _endWorldPosition) == 12);
+		static_assert(offsetof(LinePrimitiveInfo, _color) == 24);
+
 	private:
 		static EditorDebugDrawManager* _this;
 	public:
@@ -83,11 +89,7 @@ namespace DK
 		}
 		dk_inline void addAxis(const float4x4& worldMatrix, const float3& scale)
 		{
-			if (_primitiveInfoLineArr.size() >= MAX_ELEMENT_COUNT)
-			{
-				DK_ASSERT_LOG(false, "최대 개수를 넘어갑니다. 랜더링 버퍼가 충분하지 않습니다. 건너뜁니다.");
-				return;
-			}
+			DK_ASSERT_LOG(_primitiveInfoLineArr.size() + 3 <= MAX_ELEMENT_COUNT, "Debug axis requires three line slots");
 
 			static const float3 up(0, 1, 0);
 			static const float3 right(1, 0, 0);

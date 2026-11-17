@@ -1,4 +1,4 @@
-﻿#ifndef ATMOSPHERE_INTEGRATION_HLSL
+#ifndef ATMOSPHERE_INTEGRATION_HLSL
 #define ATMOSPHERE_INTEGRATION_HLSL
 
 #include "Atmosphere/AtmosphereParameters.hlsl"
@@ -33,18 +33,18 @@ float3 atmosphereMieExtinction()
 float3 atmosphereAbsorptionExtinction(uint layer)
 {
     GPUASSERT(_scatteringScale >= 0);
-    GPUASSERT(all(_absorptionLayers[layer].extinction >= 0));
-    GPUASSERT(_absorptionLayers[layer].strength >= 0);
-    return _absorptionLayers[layer].extinction * _absorptionLayers[layer].strength * _scatteringScale;
+    GPUASSERT(all(_absorptionLayers[layer]._extinction >= 0));
+    GPUASSERT(_absorptionLayers[layer]._strength >= 0);
+    return _absorptionLayers[layer]._extinction * _absorptionLayers[layer]._strength * _scatteringScale;
 }
 // 흡수층에서 흡수밀도의 비율을 높이에 따라 반환 (흡수율이 아님!)
 float atmosphereAbsorptionDensity(float heightAtReference, uint layer)
 {
-    GPUASSERT(_absorptionLayers[layer].lowerWidth > 0);
-    GPUASSERT(_absorptionLayers[layer].upperWidth > 0);
-    const float peakHeightAtReference = _absorptionLayers[layer].peakRadius - _densityReferenceRadius;
+    GPUASSERT(_absorptionLayers[layer]._lowerWidth > 0);
+    GPUASSERT(_absorptionLayers[layer]._upperWidth > 0);
+    const float peakHeightAtReference = _absorptionLayers[layer]._peakRadius - _densityReferenceRadius;
     const float delta = heightAtReference - peakHeightAtReference;
-    const float width = delta < 0.0f ? _absorptionLayers[layer].lowerWidth : _absorptionLayers[layer].upperWidth;
+    const float width = delta < 0.0f ? _absorptionLayers[layer]._lowerWidth : _absorptionLayers[layer]._upperWidth;
     return saturate(1.0f - (abs(delta) / width));
 }
 
@@ -154,15 +154,15 @@ float atmosphereSplitPoint(float heightAtReference, float radialDot, float start
     // peak               // 흡수 밀도가 최대인 위치
     // peak + upperWidth  // 흡수가 끝나는 위 경계
     [unroll] 
-    for (uint layer = 0u; layer < 2u; ++layer)
+    for (uint layer = 0u; layer < DK_ATMOSPHERE_ABSORPTION_LAYER_COUNT; ++layer)
     {
         if (all(atmosphereAbsorptionExtinction(layer) <= 0.0f))
             continue;
 
-        GPUASSERT(_absorptionLayers[layer].peakRadius >= 0);
-        const float peak = _absorptionLayers[layer].peakRadius;
-        GPUASSERT(peak - _absorptionLayers[layer].lowerWidth >= 0);
-        const float radii[3] = { peak - _absorptionLayers[layer].lowerWidth, peak, peak + _absorptionLayers[layer].upperWidth };
+        GPUASSERT(_absorptionLayers[layer]._peakRadius >= 0);
+        const float peak = _absorptionLayers[layer]._peakRadius;
+        GPUASSERT(peak - _absorptionLayers[layer]._lowerWidth >= 0);
+        const float radii[3] = { peak - _absorptionLayers[layer]._lowerWidth, peak, peak + _absorptionLayers[layer]._upperWidth };
         [unroll]
         for (uint boundary = 0u; boundary < 3u; ++boundary)
         {

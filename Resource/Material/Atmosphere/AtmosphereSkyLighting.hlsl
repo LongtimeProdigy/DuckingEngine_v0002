@@ -3,8 +3,6 @@
 #include "CommonTexture.hlsl"
 #include "CommonMathConstant.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"
-static const uint SKY_WIDTH = 64u;
-static const uint SKY_HEIGHT = 32u;
 
 float2 skyCoordinates(float3 direction)
 {

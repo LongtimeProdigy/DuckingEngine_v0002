@@ -4,9 +4,9 @@
 #include "CommonTexture.hlsl"
 #include "CommonRendering.hlsl"
 
-#define BINDLESSVERTEXARRAY_SPACE space11
-#define BINDLESSINDEXARRAY_SPACE space12
-#define BINDLESSMATERIALARRAY_SPACE space13
+#define BINDLESSVERTEXARRAY_SPACE DK_REGISTER_SPACE(DK_BINDLESS_VERTEX_SPACE)
+#define BINDLESSINDEXARRAY_SPACE DK_REGISTER_SPACE(DK_BINDLESS_INDEX_SPACE)
+#define BINDLESSMATERIALARRAY_SPACE DK_REGISTER_SPACE(DK_BINDLESS_MATERIAL_SPACE)
 
 cbuffer RaytracingConstants : register(b1)
 {
@@ -20,9 +20,9 @@ RaytracingAccelerationStructure gTLAS : register(t0);
 
 struct VS_INPUT
 {
-    float3 position : POSITION;
-    float3 normal : NORMAL;
-    float2 uv0 : TEXCOORD0;
+    float3 _position : POSITION;
+    float3 _normal : NORMAL;
+    float2 _uv : TEXCOORD0;
 };
 StructuredBuffer<VS_INPUT> gVertices[] : register(t0, BINDLESSVERTEXARRAY_SPACE);
 StructuredBuffer<uint> gIndices[]  : register(t0, BINDLESSINDEXARRAY_SPACE);
@@ -151,17 +151,17 @@ void ClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttribut
     uint index1 = gIndices[NonUniformResourceIndex(subMeshIndex)][primitiveIndex * 3 + 1];
     uint index2 = gIndices[NonUniformResourceIndex(subMeshIndex)][primitiveIndex * 3 + 2];
 
-    float3 p0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0].position;
-    float3 p1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1].position;
-    float3 p2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2].position;
+    const float3 p0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0]._position;
+    const float3 p1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1]._position;
+    const float3 p2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2]._position;
 
-    float3 n0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0].normal;
-    float3 n1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1].normal;
-    float3 n2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2].normal;
+    const float3 n0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0]._normal;
+    const float3 n1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1]._normal;
+    const float3 n2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2]._normal;
 
-    float2 uv0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0].uv0;
-    float2 uv1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1].uv0;
-    float2 uv2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2].uv0;
+    const float2 uv0 = gVertices[NonUniformResourceIndex(subMeshIndex)][index0]._uv;
+    const float2 uv1 = gVertices[NonUniformResourceIndex(subMeshIndex)][index1]._uv;
+    const float2 uv2 = gVertices[NonUniformResourceIndex(subMeshIndex)][index2]._uv;
 
     float b1 = attributes.barycentrics.x;
     float b2 = attributes.barycentrics.y;

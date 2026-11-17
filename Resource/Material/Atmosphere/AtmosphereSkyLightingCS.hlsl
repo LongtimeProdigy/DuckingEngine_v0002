@@ -78,7 +78,6 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
     output[id.xy] = float4(radiance, 1);
 }
 
-static const uint SKY_BANDS = 6u; // 0..4: GGX roughness, 5: diffuse irradiance.
 
 [numthreads(8, 8, 1)]
 void CSFilter(uint3 id : SV_DispatchThreadID)

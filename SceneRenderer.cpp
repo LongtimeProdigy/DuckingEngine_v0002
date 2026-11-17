@@ -42,6 +42,8 @@ namespace DK
 
 	bool SceneRenderer::initialize()
 	{
+        _atmosphereConstantBufferData.validate();
+        validateSurfaceCaptureParameters();
 		if (initialize_createRenderPass() == false)
 			return false;
 		if (initialize_renderPassHandles() == false || initialize_createMaterialDefinition() == false)
@@ -709,24 +711,24 @@ namespace DK
 			return false;
 
         RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		for (uint32 i = 0; i < 2u; ++i)
+		for (uint32 i = 0; i < DK_COUNT_OF(_multipleScatteringLut); ++i)
 		{
 			_multipleScatteringLut[i] = renderModule.createTexture(DK_DEBUG_NAME(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1"), 32, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
 			if (_multipleScatteringLut[i] == nullptr)
 				return false;
 		}
 
-		_skyRadiance = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereSkyRadiance"), 64, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+		_skyRadiance = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereSkyRadiance"), SKY_WIDTH, SKY_HEIGHT, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
 		if (_skyRadiance == nullptr)
 			return false;
-		_skyFiltered = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereSkyFiltered"), 64, 192, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		_skyFiltered = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereSkyFiltered"), SKY_WIDTH, SKY_HEIGHT * SKY_BANDS, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
 		if (_skyFiltered == nullptr)
 			return false;
 
         _surfaceSceneConstantBuffer = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), DK_DEBUG_NAME(L"SurfaceCaptureSceneConstantBuffer"));
 		if (_surfaceSceneConstantBuffer == nullptr)
 			return false;
-        _surfaceBounce = renderModule.createTexture(DK_DEBUG_NAME("Atmosphere surface bounce field"), 256, 16, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+        _surfaceBounce = renderModule.createTexture(DK_DEBUG_NAME("Atmosphere surface bounce field"), SURFACE_BOUNCE_GRID * SURFACE_BOUNCE_GRID, SURFACE_BOUNCE_GRID, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
         if (_surfaceBounce == nullptr)
 			return false;
 
@@ -739,6 +741,7 @@ namespace DK
 
 		AtmosphereConstantBuffer& surface = _atmosphereConstantBufferData;
 		const RenderPassTargets& capture = _surfaceCapturePass->_binding._target->_targets;
+        DK_ASSERT_LOG(capture._width > 0 && capture._width == capture._height && capture._width % (2u * SURFACE_BOUNCE_GRID) == 0u, "Surface capture must be square and its side must be an even multiple of the bounce grid: %u x %u", capture._width, capture._height);
 		surface._surfaceMapSize = capture._width;
 		surface._transmittanceLutIndex = _atmosphereTransmittanceLut->getSRV();
         surface._multipleScatteringLutIndex = _multipleScatteringLut[0]->getSRV();
@@ -781,6 +784,7 @@ namespace DK
 	}
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
+        _atmosphereConstantBufferData.validate();
 		const float3 cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
 		const DKArray<double, 3>& preciseCamera = Camera::gMainCamera->getWorldPosition();
 		DuckingEngine::getInstance().getSceneManagerWritable().prepareTerrainStreaming(preciseCamera[0], preciseCamera[2], deltaTime);
@@ -1199,6 +1203,7 @@ namespace DK
 							ImGui::Text("Density reference radius (m): %.1f km", atmosphere._densityReferenceRadius / 1000.0f);
 							ImGui::InputFloat("Density transition radius (m)", &atmosphere._densityTransitionRadius, 100.0f, 1000.0f, "%.1f");
 							ImGui::InputFloat("Atmosphere radius (m)", &atmosphere._atmosphereRadius, 100.0f, 1000.0f, "%.1f");
+                            atmosphere.validate();
 
                             if (ImGui::Checkbox("Compare extended atmosphere top", &_compareExtendedAtmosphereTop))
                             {
@@ -1207,8 +1212,8 @@ namespace DK
                                     float top = atmosphere._densityReferenceRadius + 12.0f * Math::max(atmosphere._rayleighHeight, atmosphere._mieHeight);
 									for (const AtmosphereAbsorptionLayer& layer : atmosphere._absorptionLayers)
 									{
-										if (layer.strength > 0.0f)
-											top = Math::max(top, layer.peakRadius + layer.upperWidth);
+										if (layer._strength > 0.0f)
+											top = Math::max(top, layer._peakRadius + layer._upperWidth);
 									}
 
                                     atmosphere._atmosphereRadius = Math::max(top, atmosphere._atmosphereRadius);
@@ -1249,6 +1254,7 @@ namespace DK
 							ImGui::TextDisabled("Relative HDR units; color normalized to unit luminance.");
 							InspectorProperty("Disk radius (deg)", [&] { ImGui::DragFloat("##value", &atmosphere._sunAngularRadius, 0.01f, 0.01f, 5.0f, "%.3f"); });
 							InspectorProperty("Disk brightness", [&] { ImGui::DragFloat("##value", &atmosphere._sunRadianceScale, 0.01f, 0.0f, 100.0f, "%.2f"); });
+                            atmosphere.validate();
 						}
 						if (ImGui::CollapsingHeader("Scattering"))
 						{
@@ -1266,6 +1272,7 @@ namespace DK
                             });
                             InspectorProperty("Sky lighting", [&] { ImGui::SliderFloat("##value", &atmosphere._skyLightingStrength, 0.0f, 2.0f); });
 							InspectorProperty("Density multiplier", [&] { ImGui::DragFloat("##value", &atmosphere._scatteringScale, 0.01f, 0.0f, 0.0f, "%.2f"); });
+                            atmosphere.validate();
 						}
                         if (ImGui::CollapsingHeader("Surface to atmosphere"))
                         {
@@ -1274,10 +1281,9 @@ namespace DK
                             InspectorProperty("Capture half-width (m)", [&] { ImGui::InputFloat("##value", &_surfaceCaptureExtent); });
                             InspectorProperty("Capture depth (m)", [&] { ImGui::InputFloat("##value", &_surfaceCaptureDepth); });
                             InspectorProperty("Shadow bias (m)", [&] { ImGui::InputFloat("##value", &atmosphere._surfaceBias); });
-                            InspectorProperty("Bounce samples", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._surfaceBounceSamples), 8, 64); });
-                            _surfaceCaptureExtent = Math::max(_surfaceCaptureExtent, 1.0f);
-							_surfaceCaptureDepth = Math::max(_surfaceCaptureDepth, 1.0f);
-                            atmosphere._surfaceBias = Math::max(atmosphere._surfaceBias, 0.0f);
+                            InspectorProperty("Bounce samples", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._surfaceBounceSamples), 8, static_cast<int>(SURFACE_BOUNCE_MAX_SAMPLES)); });
+                            validateSurfaceCaptureParameters();
+                            atmosphere.validate();
                             ImGui::TextWrapped("Four 512x512 shadow cascades (1/8, 1/4, 1/2, full half-width), with blended boundaries. The outer capture feeds the 16x16x16 bounce field.");
                         }
                         if (ImGui::CollapsingHeader("Gas absorption layers"))
@@ -1286,29 +1292,27 @@ namespace DK
                             if (ImGui::Button("Earth ozone example (layer 0)"))
                             {
                                 AtmosphereAbsorptionLayer& layer = atmosphere._absorptionLayers[0];
-                                layer.extinction[0] = 0.650e-6f;
-								layer.extinction[1] = 1.881e-6f;
-								layer.extinction[2] = 0.085e-6f;
-                                layer.strength = 1.0f;
-								layer.peakRadius = atmosphere._densityReferenceRadius + 25000.0f;
-                                layer.lowerWidth = layer.upperWidth = 15000.0f;
+                                layer._extinction[0] = 0.650e-6f;
+								layer._extinction[1] = 1.881e-6f;
+								layer._extinction[2] = 0.085e-6f;
+                                layer._strength = 1.0f;
+								layer._peakRadius = atmosphere._densityReferenceRadius + 25000.0f;
+                                layer._lowerWidth = layer._upperWidth = 15000.0f;
                             }
-                            for (uint32 i = 0; i < 2u; ++i)
+                            for (uint32 i = 0; i < DK_COUNT_OF(atmosphere._absorptionLayers); ++i)
                             {
                                 ImGui::PushID(static_cast<int>(i));
                                 ImGui::Text("Layer %u", i);
                                 AtmosphereAbsorptionLayer& layer = atmosphere._absorptionLayers[i];
-                                InspectorProperty("Amount", [&] { ImGui::DragFloat("##value", &layer.strength, 0.01f, 0.0f, 10.0f); });
-                                float inverseKm[3] = { layer.extinction[0] * 1000, layer.extinction[1] * 1000, layer.extinction[2] * 1000 };
+                                InspectorProperty("Amount", [&] { ImGui::DragFloat("##value", &layer._strength, 0.01f, 0.0f, 10.0f); });
+                                float inverseKm[3] = { layer._extinction[0] * 1000, layer._extinction[1] * 1000, layer._extinction[2] * 1000 };
                                 InspectorProperty("Absorption RGB (1/km)", [&] { ImGui::InputFloat3("##value", inverseKm, "%.6f"); });
-                                InspectorProperty("Peak radius (m)", [&] { ImGui::InputFloat("##value", &layer.peakRadius, 100, 1000, "%.1f"); });
-                                InspectorProperty("Lower width (m)", [&] { ImGui::InputFloat("##value", &layer.lowerWidth); });
-                                InspectorProperty("Upper width (m)", [&] { ImGui::InputFloat("##value", &layer.upperWidth); });
+                                InspectorProperty("Peak radius (m)", [&] { ImGui::InputFloat("##value", &layer._peakRadius, 100, 1000, "%.1f"); });
+                                InspectorProperty("Lower width (m)", [&] { ImGui::InputFloat("##value", &layer._lowerWidth); });
+                                InspectorProperty("Upper width (m)", [&] { ImGui::InputFloat("##value", &layer._upperWidth); });
 								for (uint32 c = 0; c < 3u; ++c)
-									layer.extinction[c] = Math::max(inverseKm[c], 0.0f) / 1000.0f;
-                                layer.peakRadius = Math::max(layer.peakRadius, 0.0f);
-                                layer.lowerWidth = Math::max(layer.lowerWidth, 0.001f);
-								layer.upperWidth = Math::max(layer.upperWidth, 0.001f);
+									layer._extinction[c] = inverseKm[c] / 1000.0f;
+                                layer.validate(i);
                                 ImGui::PopID();
                             }
                         }
@@ -1449,12 +1453,8 @@ namespace DK
 #endif
 					ImGui::EndTabBar();
 				}
-
-				atmosphere._rayleighHeight = Math::max(atmosphere._rayleighHeight, 0.000001f);
-				atmosphere._mieHeight = Math::max(atmosphere._mieHeight, 0.000001f);
+                atmosphere.validate();
 				atmosphere._multipleScatteringMaxOrder = Math::clamp(atmosphere._multipleScatteringMaxOrder, 1u, 8u);
-				atmosphere._scatteringScale = Math::max(atmosphere._scatteringScale, 0.0f);
-				atmosphere._sunIrradiance = Math::clamp(atmosphere._sunIrradiance, 0.0f, 100000.0f);
 				atmosphere._sunAngularRadius = Math::clamp(atmosphere._sunAngularRadius, 0.01f, 5.0f);
 				atmosphere._sunRadianceScale = Math::clamp(atmosphere._sunRadianceScale, 0.0f, 100.0f);
 				atmosphere._exposureEV = Math::clamp(atmosphere._exposureEV, -16.0f, 16.0f);
@@ -1469,34 +1469,26 @@ namespace DK
 	}
 #endif
 
+    void SceneRenderer::validateSurfaceCaptureParameters() const
+    {
+        DK_ASSERT_LOG(std::isfinite(_surfaceCaptureExtent) && _surfaceCaptureExtent > 0.0f, "Invalid _surfaceCaptureExtent=%g", _surfaceCaptureExtent);
+        DK_ASSERT_LOG(std::isfinite(_surfaceCaptureDepth) && _surfaceCaptureDepth > 0.0f, "Invalid _surfaceCaptureDepth=%g", _surfaceCaptureDepth);
+        DK_ASSERT_LOG(2.0f * _surfaceCaptureExtent / SURFACE_BOUNCE_GRID >= SURFACE_BOUNCE_MIN_CELL_WORLD_SIZE, "Surface bounce cell is too small: _surfaceCaptureExtent=%g, grid=%u, minimum cell size=%g", _surfaceCaptureExtent, SURFACE_BOUNCE_GRID, SURFACE_BOUNCE_MIN_CELL_WORLD_SIZE);
+        DK_ASSERT_LOG(std::isfinite(_atmosphereConstantBufferData._surfaceBias) && _atmosphereConstantBufferData._surfaceBias >= 0.0f, "Invalid _surfaceBias=%g", _atmosphereConstantBufferData._surfaceBias);
+    }
+
     void SceneRenderer::prepareSurfaceCapture(const float3& cameraPosition)
     {
 		AtmosphereConstantBuffer& atmosphereData = _atmosphereConstantBufferData;
 
-#if defined(_DK_DEBUG_)
-		// HLSL의 SURFACE_BOUNCE_GRID와 반드시 동일해야 합니다.
-		constexpr uint32 kSurfaceBounceGrid = 16u;
-		const uint32 mapSize = atmosphereData._surfaceMapSize;
-		// 격자 중심이 텍셀 경계에 위치하도록 강제합니다. 예: 512 / 16 = 32 → 짝수이므로 유효.
-		const bool validGrid = mapSize > 0u && mapSize % (2u * kSurfaceBounceGrid) == 0u;
-		// 셰이더가 사용하는 해상도와 실제 텍스처 해상도 일치.
-		const bool validMapSize = mapSize == _surfaceCapturePass->_binding._target->_targets._width;
-		const bool validCapture = std::isfinite(_surfaceCaptureExtent) && _surfaceCaptureExtent > 0.0f && std::isfinite(_surfaceCaptureDepth) && _surfaceCaptureDepth > 0.0f;
-		const bool valid = validGrid && validMapSize && validCapture;
-		DK_ASSERT_LOG(valid, "Invalid surface capture: map size must match the texture and be an even multiple of the bounce grid.");
-
-		// Assert가 비활성화된 빌드에서도 잘못된 설정을 사용하지 않습니다.
-		if (valid == false)
-		{
-			atmosphereData._surfaceMapEnabled = 0u;
-			_surfaceTransportValid = false;
-			return;
-		}
-#endif
+        DK_ASSERT_LOG(atmosphereData._surfaceMapSize > 0u && atmosphereData._surfaceMapSize % (2u * SURFACE_BOUNCE_GRID) == 0u, "Surface capture size must be an even multiple of the bounce grid");
+        DK_ASSERT_LOG(atmosphereData._surfaceMapSize == _surfaceCapturePass->_binding._target->_targets._width, "Surface capture size does not match the texture");
+        validateSurfaceCaptureParameters();
+        DK_ASSERT_LOG(atmosphereData._shadowCascadeCount <= DK_ATMOSPHERE_SHADOW_CASCADE_COUNT, "Invalid shadow cascade count");
 
         atmosphereData._surfaceMapEnabled = _renderLocalScene && (atmosphereData._surfaceShadowStrength > 0 || atmosphereData._surfaceBounceStrength > 0) ? 1u : 0u;
 
-        const float depth = Math::max(_surfaceCaptureDepth, 1.0f);
+        const float depth = _surfaceCaptureDepth;
         const float directionalLightAngle = atmosphereData._sunDegree * Math::kToRadian;
         const float3 directionalLightDir(0, -Math::sin(directionalLightAngle), -Math::cos(directionalLightAngle));
 		const float4 directionalLightDir4 = float4(directionalLightDir.x, directionalLightDir.y, directionalLightDir.z, 0);
@@ -1517,8 +1509,8 @@ namespace DK
         for (uint32 cascadeIndex = 0; cascadeIndex < atmosphereData._shadowCascadeCount; ++cascadeIndex)
         {
             // Nested light-space coverage also serves off-screen atmospheric samples.
-            const float extent = Math::max(_surfaceCaptureExtent, 1.0f) / float(1u << (3u - cascadeIndex));
-            const RenderPassInstance* pass = cascadeIndex == 3u ? _surfaceCapturePass : _nearShadowPasses[cascadeIndex];
+            const float extent = _surfaceCaptureExtent / float(1u << (DK_ATMOSPHERE_SHADOW_CASCADE_COUNT - 1u - cascadeIndex));
+            const RenderPassInstance* pass = cascadeIndex == DK_ATMOSPHERE_SHADOW_CASCADE_COUNT - 1u ? _surfaceCapturePass : _nearShadowPasses[cascadeIndex];
             const RenderPassTargets& map = pass->_binding._target->_targets;
             const float cell = 2.0f * extent / map._width;
             const float snapRight = std::round(doublePrecisionDot(cameraPosition, right) / cell) * cell - doublePrecisionDot(cameraPosition, right);
@@ -1558,20 +1550,20 @@ namespace DK
             // Orthographic reversed Z: capture near -> 1, far -> 0.
             scene._cameraProjectionMatrix = float4x4(1 / extent, 0, 0, 0, 0, 1 / extent, 0, 0, 0, 0, -1 / depth, 0, 0, 0, 1, 1);
 
-			IBufferRef& surfaceSceneConstantBuffer = (cascadeIndex == 3u ? _surfaceSceneConstantBuffer : _nearShadowSceneConstants[cascadeIndex]);
+			IBufferRef& surfaceSceneConstantBuffer = (cascadeIndex == DK_ATMOSPHERE_SHADOW_CASCADE_COUNT - 1u ? _surfaceSceneConstantBuffer : _nearShadowSceneConstants[cascadeIndex]);
 			_surfaceSceneConstantsData[cascadeIndex] = scene;
 			surfaceSceneConstantBuffer->upload(&scene);
 
 			SurfaceShadowCascade& cascade = atmosphereData._shadowCascades[cascadeIndex];
-            DK::memcpy(cascade.right, atmosphereData._surfaceRight, sizeof(cascade.right));
-            DK::memcpy(cascade.up, atmosphereData._surfaceUp, sizeof(cascade.up));
-            DK::memcpy(cascade.forward, atmosphereData._surfaceForward, sizeof(cascade.forward));
-            DK::memcpy(cascade.origin, atmosphereData._surfaceOrigin, sizeof(cascade.origin));
+            DK::memcpy(cascade._right, atmosphereData._surfaceRight, sizeof(cascade._right));
+            DK::memcpy(cascade._up, atmosphereData._surfaceUp, sizeof(cascade._up));
+            DK::memcpy(cascade._forward, atmosphereData._surfaceForward, sizeof(cascade._forward));
+            DK::memcpy(cascade._origin, atmosphereData._surfaceOrigin, sizeof(cascade._origin));
 
 
-            cascade.albedoIndex = map._colors[0]._texture->getSRV();
-			cascade.depthIndex = map._depth._texture->getSRV();
-			cascade.mapSize = map._width;
+            cascade._albedoIndex = map._colors[0]._texture->getSRV();
+			cascade._depthIndex = map._depth._texture->getSRV();
+			cascade._mapSize = map._width;
         } // Keep the outermost capture in the legacy fields for bounce transport.
     }
     void SceneRenderer::updateSurfaceTransport()
@@ -1601,7 +1593,7 @@ namespace DK
 		}
 
 		startRenderPass(renderModule, *_surfaceCapturePass);
-		drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, _surfaceSceneConstantsData[3], false);
+		drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, _surfaceSceneConstantsData[DK_ATMOSPHERE_SHADOW_CASCADE_COUNT - 1u], false);
 		endRenderPass();
 
         if (updateBounce && _atmosphereConstantBufferData._surfaceBounceStrength > 0.0f)
@@ -1613,7 +1605,7 @@ namespace DK
 					renderModule.resourceBarrierTransition(_surfaceBounce, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 					setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 					setRootConstantParameter("_surfaceBounceOutputUav", _surfaceBounce->getUAV());
-					renderModule.dispatch(256u, 16u, 1u);
+					renderModule.dispatch(SURFACE_BOUNCE_GRID * SURFACE_BOUNCE_GRID, SURFACE_BOUNCE_GRID, 1u);
 					renderModule.resourceBarrierTransition(_surfaceBounce, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 				}
 				endPipeline();
@@ -2122,7 +2114,7 @@ namespace DK
 				rm.resourceBarrierTransition(_skyRadiance, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 				setRootConstantParameter("_skyOutputUav", _skyRadiance->getUAV());
-				rm.dispatch(64, 32, 1);
+				rm.dispatch(SKY_WIDTH, SKY_HEIGHT, 1);
 				rm.resourceBarrierTransition(_skyRadiance, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			}
 			endPipeline();
@@ -2131,7 +2123,7 @@ namespace DK
 				rm.resourceBarrierTransition(_skyFiltered, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
 				setRootConstantParameter("_skyOutputUav", _skyFiltered->getUAV());
-				rm.dispatch(64, 192, 1);
+				rm.dispatch(SKY_WIDTH, SKY_HEIGHT * SKY_BANDS, 1);
 				rm.resourceBarrierTransition(_skyFiltered, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 			}
 			endPipeline();

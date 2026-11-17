@@ -16,7 +16,7 @@ namespace DK
 		TEXTURE,
 		COUNT
 	};
-	constexpr static const char* gMaterialParameterTypeName[static_cast<uint32>(MaterialParameterType::COUNT)]
+	constexpr static const char* gMaterialParameterTypeName[]
 	{
 		"int",
 		"uint",
@@ -24,7 +24,7 @@ namespace DK
 		"Texture",
 	};
 
-	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) != (DK_COUNT_OF(gMaterialParameterTypeName) - 1), "Type과 TypeName 개수가 일치되어야합니다.");
+	static_assert(static_cast<uint32>(MaterialParameterType::COUNT) == DK_COUNT_OF(gMaterialParameterTypeName), "Type과 TypeName 개수가 일치되어야합니다.");
 	dk_inline MaterialParameterType convertStringToEnum(const char* str)
 	{
 		const uint32 count = static_cast<uint32>(MaterialParameterType::COUNT);
@@ -110,7 +110,7 @@ namespace DK
 #if defined(_DK_DEBUG_)
 		DKString _name;
 #endif
-		void* _valuePtr;
+		void* _valuePtr = nullptr;
 	};
 
 	template <typename T>
@@ -125,10 +125,20 @@ namespace DK
 		virtual ~MaterialParameterTemplate() override final
 		{}
 
-		dk_inline virtual MaterialParameterType getType() const noexcept override;
+		dk_inline MaterialParameterType getType() const noexcept override
+		{
+			static_assert(std::is_same_v<T, float> || std::is_same_v<T, ITextureRef>, "Unsupported material parameter type");
+			if constexpr (std::is_same_v<T, ITextureRef>)
+				return MaterialParameterType::TEXTURE;
+			else
+				return MaterialParameterType::FLOAT;
+		}
 		dk_inline virtual uint32 getParameterSize() const noexcept override
 		{
-			return sizeof(T);
+			if constexpr (std::is_same_v<T, ITextureRef>)
+				return sizeof(uint32);
+			else
+				return sizeof(T);
 		}
 
 		void setParameterValue(const T& value) noexcept;

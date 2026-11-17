@@ -36,9 +36,9 @@ namespace DK
         uint32 _headerBytes = 64;
         uint32 _width = 0;              // 원본 높이 샘플 수
         uint32 _height = 0;             // 원본 높이 샘플 수
-        uint32 _chunkCells = 128;       // 청크당 셀 수
+        uint32 _chunkCellCountPerSide = 128;       // 청크당 셀 수
         uint32 _chunkCount = 0;         // 전체 청크 개수
-        float _sampleSpacing = 1;       // 샘플 사이의 월드 거리
+        float _sampleWorldSpacing = 1;       // 샘플 사이의 월드 거리
         float _heightOffset = -16;      // 저장된 높이 정수를 실제 Y 좌표로 복원하는 기준
         float _heightScale = 128;       // 저장된 높이 정수를 실제 Y 좌표로 복원하는 기준
         uint32 _reserved = 0;
@@ -47,12 +47,12 @@ namespace DK
     };
     struct ChunkInfo
     {
-        // 청크의 월드 시작 XZ = chunkXZ × chunkCells × sampleSpacing
+        // 청크의 월드 시작 XZ = chunkXZ × chunkCellCountPerSide × sampleSpacing
 
         uint32 _x = 0;                  // 청크 인덱스
         uint32 _z = 0;                  // 청크 인덱스
-        uint32 _cellsX = 0;             // 실제 셀 수
-        uint32 _cellsZ = 0;             // 실제 셀 수
+        uint32 _cellCountX = 0;             // 실제 셀 수
+        uint32 _cellCountZ = 0;             // 실제 셀 수
         uint32 _dataBlockCount = 0;
         uint32 _reserved = 0;
         float _minY = 0;                // 높이 범위
@@ -76,7 +76,13 @@ namespace DK
     };
 #pragma pack(pop)
     static_assert(sizeof(ArchiveHeader) == 64 && sizeof(ChunkInfo) == 48);
+    static_assert(offsetof(ArchiveHeader, _chunkCellCountPerSide) == 24);
+    static_assert(offsetof(ArchiveHeader, _sampleWorldSpacing) == 32);
+    static_assert(offsetof(ArchiveHeader, _directoryOffset) == 48);
+    static_assert(offsetof(ChunkInfo, _dataBlocksOffset) == 32);
     static_assert(sizeof(ChunkDataBlockInfo) == 32 && sizeof(MeshReference) == 56);
+    static_assert(offsetof(ChunkDataBlockInfo, _offset) == 16);
+    static_assert(offsetof(MeshReference, _transform) == 8);
 
     struct ChunkDataBlock
     {
@@ -92,7 +98,7 @@ namespace DK
 
     struct MipTile
     {
-        uint32_t _x = 0, _z = 0, _lod = 0, _side = 0;
+        uint32_t _x = 0, _z = 0, _lod = 0, _sampleCountPerSide = 0;
         DKVector<uint16_t> _heights;
         DKVector<DKArray<int16_t, 2>> _normals;
     };
@@ -140,5 +146,5 @@ namespace DK
     bool writeArchive(const DKString& path, ArchiveHeader header, const DKVector<Chunk>& chunks);
 
     bool buildHeightfield(const ArchiveHeader& settings, const DKVector<uint16_t>& heights, DKVector<Chunk>& out);
-    uint32_t mipCount(uint32_t chunkCells);
+    uint32_t mipCount(uint32_t chunkCellCountPerSide);
 }

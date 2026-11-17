@@ -3,7 +3,6 @@
 #include "CommonTexture.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"
 
-static const uint SURFACE_BOUNCE_GRID = 16u;
 
 float3 atmosphereSurfaceCoordinates(float3 p)
 {
@@ -19,49 +18,57 @@ bool atmosphereInsideSurfaceCapture(float3 uvw)
 }
 float atmosphereSurfaceShadowTap(float3 uvw)
 {
-    if (!atmosphereInsideSurfaceCapture(uvw)) return 1.0f;
+    if (atmosphereInsideSurfaceCapture(uvw) == false)
+        return 1.0f;
     const uint2 pixel = min(uint2(uvw.xy * _surfaceMapSize), _surfaceMapSize - 1u);
     const float covered = getTexture(_surfaceAlbedoIndex).Load(int3(pixel, 0)).a;
-    if (covered <= 0.0f) return 1.0f; // Empty texels are gas, never an implicit planet surface.
+    if (covered <= 0.0f)
+        return 1.0f; // Empty texels are gas, never an implicit planet surface.
     const float depth = getTexture(_surfaceDepthIndex).Load(int3(pixel, 0)).x;
     // Bias the receiver toward the light (toward larger reversed depth).
     return uvw.z >= depth - max(_surfaceBias, 0.0f) / max(_surfaceForward.w, 1e-6f) ? 1.0f : 0.0f;
 }
 float3 atmosphereCascadeCoordinates(float3 p, SurfaceShadowCascade c)
 {
-    const float3 local = p - c.origin.xyz;
-    return float3(0.5f + 0.5f * dot(local, c.right.xyz) / max(c.right.w, 1e-6f),
-                  0.5f - 0.5f * dot(local, c.up.xyz) / max(c.up.w, 1e-6f),
-                  1.0f - dot(local, c.forward.xyz) / max(c.forward.w, 1e-6f));
+    const float3 local = p - c._origin.xyz;
+    return float3(0.5f + 0.5f * dot(local, c._right.xyz) / max(c._right.w, 1e-6f),
+                  0.5f - 0.5f * dot(local, c._up.xyz) / max(c._up.w, 1e-6f),
+                  1.0f - dot(local, c._forward.xyz) / max(c._forward.w, 1e-6f));
 }
 float atmosphereCascadeTap(float3 uvw, SurfaceShadowCascade c)
 {
-    if (!atmosphereInsideSurfaceCapture(uvw)) return 1.0f;
-    const uint size = max(c.mapSize, 1u);
+    if (atmosphereInsideSurfaceCapture(uvw) == false)
+        return 1.0f;
+    const uint size = max(c._mapSize, 1u);
     const uint2 pixel = min(uint2(uvw.xy * size), size - 1u);
     // Cascade selection can differ between lanes in a pixel/compute wave.
-    const float covered = getTexture(NonUniformResourceIndex(c.albedoIndex)).Load(int3(pixel, 0)).a;
-    if (covered <= 0.0f) return 1.0f;
-    const float depth = getTexture(NonUniformResourceIndex(c.depthIndex)).Load(int3(pixel, 0)).x;
-    return uvw.z >= depth - max(_surfaceBias, 0.0f) / max(c.forward.w, 1e-6f) ? 1.0f : 0.0f;
+    const float covered = getTexture(NonUniformResourceIndex(c._albedoIndex)).Load(int3(pixel, 0)).a;
+    if (covered <= 0.0f)
+        return 1.0f;
+    const float depth = getTexture(NonUniformResourceIndex(c._depthIndex)).Load(int3(pixel, 0)).x;
+    return uvw.z >= depth - max(_surfaceBias, 0.0f) / max(c._forward.w, 1e-6f) ? 1.0f : 0.0f;
 }
 float atmosphereCascadedVisibility(float3 p, bool filtered)
 {
-    float visibility = 0.0f, remaining = 1.0f;
-    [loop] for (uint i = 0u; i < min(_shadowCascadeCount, 4u); ++i)
+    GPUASSERT(_shadowCascadeCount <= DK_ATMOSPHERE_SHADOW_CASCADE_COUNT);
+    float visibility = 0.0f;
+    float remaining = 1.0f;
+    [loop] for (uint i = 0u; i < _shadowCascadeCount; ++i)
     {
         const SurfaceShadowCascade c = _shadowCascades[i];
         const float3 uvw = atmosphereCascadeCoordinates(p, c);
-        if (!atmosphereInsideSurfaceCapture(uvw)) continue;
+        if (atmosphereInsideSurfaceCapture(uvw) == false)
+            continue;
         // Blend into the next enclosing cascade; the last one fades to unshadowed.
         const float edge = min(min(uvw.x, 1.0f - uvw.x), min(uvw.y, 1.0f - uvw.y));
-        const float band = max(clamp(_shadowCascadeBlend, 0.0f, 0.5f), 2.0f / max(float(c.mapSize), 1.0f));
+        const float band = max(clamp(_shadowCascadeBlend, 0.0f, 0.5f), 2.0f / max(float(c._mapSize), 1.0f));
         const float weight = smoothstep(0.0f, band, edge);
-        if (weight <= 0.0f) continue;
+        if (weight <= 0.0f)
+            continue;
         float sampleVisibility = 0.0f;
         if (filtered)
         {
-            const float delta = 0.5f / max(float(c.mapSize), 1.0f);
+            const float delta = 0.5f / max(float(c._mapSize), 1.0f);
             [unroll] for (uint tap = 0u; tap < 4u; ++tap)
             {
                 const float2 offset = float2((tap & 1u) ? delta : -delta, (tap & 2u) ? delta : -delta);
@@ -74,7 +81,8 @@ float atmosphereCascadedVisibility(float3 p, bool filtered)
         sampleVisibility = lerp(1.0f, sampleVisibility, depthWeight);
         visibility += remaining * weight * sampleVisibility;
         remaining *= 1.0f - weight;
-        if (remaining <= 0.0f) break;
+        if (remaining <= 0.0f)
+            break;
     }
     return visibility + remaining;
 }

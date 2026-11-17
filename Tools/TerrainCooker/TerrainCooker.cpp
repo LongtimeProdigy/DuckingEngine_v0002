@@ -82,8 +82,8 @@ namespace DK
     {
         if (argumentCount == 2 && DKStringW(arguments[1]) == L"--help")
         {
-            std::puts("TerrainCooker.exe <8-bit or 16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]");
-            std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCells=128");
+            std::puts("TerrainCooker.exe <8-bit or 16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCellCountPerSide]");
+            std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCellCountPerSide=128");
             std::puts("TerrainCooker.exe --verify <archive.dkterrain>");
             std::puts("TerrainCooker.exe --split <archive.dkterrain> <outputDirectory> <sectionCells>");
             return 0;
@@ -111,18 +111,18 @@ namespace DK
         ArchiveHeader header;
         if (argumentCount == 7)
         {
-            int chunkCells = 0;
-            if (StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[3]), header._sampleSpacing) == false ||
+            int chunkCellCountPerSide = 0;
+            if (StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[3]), header._sampleWorldSpacing) == false ||
                 StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[4]), header._heightOffset) == false ||
                 StringUtil::parseFloat(StringUtil::convertWCtoC(arguments[5]), header._heightScale) == false ||
-                StringUtil::parseInt(StringUtil::convertWCtoC(arguments[6]), chunkCells) == false ||
-                header._sampleSpacing <= 0.0f || header._heightScale <= 0.0f ||
-                chunkCells < 2 || chunkCells > 512 || (chunkCells & (chunkCells - 1)) != 0)
+                StringUtil::parseInt(StringUtil::convertWCtoC(arguments[6]), chunkCellCountPerSide) == false ||
+                header._sampleWorldSpacing <= 0.0f || header._heightScale <= 0.0f ||
+                chunkCellCountPerSide < 2 || chunkCellCountPerSide > 512 || (chunkCellCountPerSide & (chunkCellCountPerSide - 1)) != 0)
             {
                 std::fputs("Invalid terrain settings. Chunk cells must be a power of two from 2 to 512.\n", stderr);
                 return 1;
             }
-            header._chunkCells = static_cast<uint32>(chunkCells);
+            header._chunkCellCountPerSide = static_cast<uint32>(chunkCellCountPerSide);
         }
 
         const DKString outputPath = FileUtil::fromWidePath(arguments[2]);

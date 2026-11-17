@@ -334,15 +334,15 @@ namespace DK
 			bytesRead += vertexBufferData.size() * sizeof(SkinnedMeshModel::SubMeshType::VertexType);
 
 #ifdef _DK_DEBUG_
-			for (SkinnedMeshVertex vertex : vertexBufferData)
+			for (const SkinnedMeshVertex& vertex : vertexBufferData)
 			{
 				float sumWeight = 0.0f;
-				for (uint32 i = 0; i < MAX_SKINNING_COUNT; ++i)
+				for (uint32 i = 0; i < DK_MAX_SKINNING_COUNT; ++i)
 				{
-					sumWeight += vertex.weights[i];
+					sumWeight += vertex._boneWeights[i];
 
-					if (vertex.boneIndexArr[i] == Bone::kInvalidBoneIndex)
-						DK_ASSERT_LOG(vertex.weights[i] == 0, "BoneIndex가 Invalid(Bone::kInvalidBoneIndex)한데 Weight(%f)가 존재합니다.", sumWeight);
+					if (vertex._boneIndices[i] == Bone::kInvalidBoneIndex)
+						DK_ASSERT_LOG(vertex._boneWeights[i] == 0, "BoneIndex가 Invalid(Bone::kInvalidBoneIndex)한데 Weight(%f)가 존재합니다.", sumWeight);
 				}
 #define EPSILON 0.00001f
 				DK_ASSERT_LOG(1.0f - sumWeight < EPSILON, "weight의 합이 1.0이 되지 않습니다.");

@@ -2,6 +2,7 @@
 #define ATMOSPHERE_PARAMETERS_HLSL
 
 #include "Assert.hlsl"
+#include "Atmosphere/AtmosphereLimits.h"
 
 #define ATEMOSPHERE_PRODUCTION 0
 #define ATEMOSPHERE_REFERENCE 1
@@ -11,18 +12,18 @@
 
 struct AtmosphereAbsorptionLayer
 {
-    float3 extinction; // RGB coefficient at unit layer density, in inverse metres.
-    float strength;
-    float peakRadius; // Absolute distance from the planet centre; independent of terrain.
-    float lowerWidth;
-    float upperWidth;
-    float reserved;
+    float3 _extinction; // RGB coefficient at unit layer density, in inverse metres.
+    float _strength;
+    float _peakRadius; // Absolute distance from the planet centre; independent of terrain.
+    float _lowerWidth;
+    float _upperWidth;
+    float _reserved;
 };
 
 struct SurfaceShadowCascade
 {
-    float4 right, up, forward, origin;
-    uint albedoIndex, depthIndex, mapSize, padding;
+    float4 _right, _up, _forward, _origin;
+    uint _albedoIndex, _depthIndex, _mapSize, _padding;
 };
 
 cbuffer AtmosphereConstantBuffer : register(b1)
@@ -68,7 +69,7 @@ cbuffer AtmosphereConstantBuffer : register(b1)
     uint _viewNodeBudget;
     uint _opticalNodeBudget;
 
-    AtmosphereAbsorptionLayer _absorptionLayers[2];
+    AtmosphereAbsorptionLayer _absorptionLayers[DK_ATMOSPHERE_ABSORPTION_LAYER_COUNT];
     float4 _surfaceRight; // xyz: world basis, w: half-width in metres.
     float4 _surfaceUp;
     float4 _surfaceForward; // w: total capture depth.
@@ -89,7 +90,7 @@ cbuffer AtmosphereConstantBuffer : register(b1)
     float _multipleScatteringStrength;
     uint _multipleScatteringMaxOrder;
     float _multipleScatteringPadding;
-    SurfaceShadowCascade _shadowCascades[4];
+    SurfaceShadowCascade _shadowCascades[DK_ATMOSPHERE_SHADOW_CASCADE_COUNT];
     uint _shadowCascadeCount;
     float _shadowCascadeBlend;
     float2 _shadowCascadePadding;

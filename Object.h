@@ -22,8 +22,8 @@ namespace DK
 
 		void addComponent(Component* component)
 		{
-		    if (component)
-		        _components.push_back(Ptr<Component>(component));
+		    DK_ASSERT_LOG(component != nullptr, "Cannot add a null component");
+		    _components.push_back(Ptr<Component>(component));
 		}
 		const DKVector<Ptr<Component>>& getComponents() const noexcept { return _components; }
 

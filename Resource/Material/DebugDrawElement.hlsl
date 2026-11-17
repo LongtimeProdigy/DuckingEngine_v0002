@@ -3,6 +3,7 @@
 
 #include "CommonRendering.hlsl"
 #include "GBufferCommon.hlsl"
+#include "Assert.hlsl"
 
 struct VS_INPUT
 {
@@ -28,7 +29,8 @@ StructuredBuffer<SpherePrimitiveInfo> SpherePrimitiveInfoBuffer : register(t0);
 // per DrawElement (Cube, Sphere, Capsule...etc)
 struct LinePrimitiveInfo
 {
-	float3 _worldPosition[2];	// 0 : start , 1 : end
+	float3 _startWorldPosition;
+	float3 _endWorldPosition;
 	float3 _color;
 };
 StructuredBuffer<LinePrimitiveInfo> LinePrimitiveInfoBuffer : register(t0);
@@ -66,7 +68,8 @@ VS_OUTPUT VSMainLine(VS_INPUT input, uint vertexID : SV_VertexID, uint instanceI
 
 	const LinePrimitiveInfo instanceData = LinePrimitiveInfoBuffer[instanceID];
 
-	const float3 worldPosition = input.position + instanceData._worldPosition[vertexID];
+	GPUASSERT(vertexID < 2u);
+	const float3 worldPosition = input.position + (vertexID == 0u ? instanceData._startWorldPosition : instanceData._endWorldPosition);
 	output.position = convertToWorldSpace(worldPosition);
 	output.color = float4(instanceData._color, 1);
 

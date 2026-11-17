@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "PipelinePermutation.h"
+#include "Resource/Material/ShaderBindings.h"
 
 struct ID3D12Device8;
 struct ID3D12RootSignature;
@@ -183,10 +184,10 @@ namespace DK
 		DKHashMap<uint64, ShaderParameter> _shaderParameterMap;
 
 		// Binding pointers are valid only until the next pipeline reload.
-		dk_inline RootConstant32BitParameterBindingInfo* getRootConstantParameter(const char* name) { return getRootConstantParameter(StringUtil::hash(name)); }
-		dk_inline RootConstant32BitParameterBindingInfo* getRootConstantParameter(uint64 nameHash)
+		dk_inline const RootConstant32BitParameterBindingInfo* getRootConstantParameter(const char* name) const { return getRootConstantParameter(StringUtil::hash(name)); }
+		dk_inline const RootConstant32BitParameterBindingInfo* getRootConstantParameter(uint64 nameHash) const
 		{
-			DKHashMap<uint64, RootConstant32BitParameterBindingInfo>::iterator iter = _rootConstant32BitParameterMap.find(nameHash);
+			DKHashMap<uint64, RootConstant32BitParameterBindingInfo>::const_iterator iter = _rootConstant32BitParameterMap.find(nameHash);
 			DK_ASSERT_LOG(iter != _rootConstant32BitParameterMap.end(), "존재하지 않는 RootConstantParameter을 찾습니다.\nRootConstantParameterHash: %llu", nameHash);
 #ifdef _DK_DEBUG_
 			if (iter == _rootConstant32BitParameterMap.end())
@@ -196,10 +197,10 @@ namespace DK
 			return &iter->second;
 		}
 		// Binding pointers are valid only until the next pipeline reload.
-		dk_inline ShaderParameter* getShaderParameter(const char* name) { return getShaderParameter(StringUtil::hash(name)); }
-		dk_inline ShaderParameter* getShaderParameter(uint64 nameHash)
+		dk_inline const ShaderParameter* getShaderParameter(const char* name) const { return getShaderParameter(StringUtil::hash(name)); }
+		dk_inline const ShaderParameter* getShaderParameter(uint64 nameHash) const
 		{
-			DKHashMap<uint64, ShaderParameter>::iterator iter = _shaderParameterMap.find(nameHash);
+			DKHashMap<uint64, ShaderParameter>::const_iterator iter = _shaderParameterMap.find(nameHash);
 			DK_ASSERT_LOG(iter != _shaderParameterMap.end(), "존재하지 않는 ShaderParameter을 찾습니다.\nShaderParameterHash: %llu", nameHash);
 #ifdef _DK_DEBUG_
 			if (iter == _shaderParameterMap.end())
@@ -345,7 +346,8 @@ do{ \
 	Pipeline* findPipeline = gCurrentBindedRenderPass->getPipeline(pipelineName, permutationIndex); \
 	gCurrentBindedPipeline = findPipeline; \
 	RENDERING_VERIFY(gCurrentBindedPipeline, pipelineName); \
-	if (gCurrentBindedPipeline == nullptr) break; \
+	if (gCurrentBindedPipeline == nullptr) \
+		break; \
 	GPU_TIMING_SCOPE(currentRenderModule, pipelinePermutationName(pipelineName, permutationIndex)); \
 	currentRenderModule.bindPipeline(*gCurrentBindedPipeline, gCurrentBindedPipeline->_type)
 
@@ -356,7 +358,7 @@ do{ \
 #define setRootConstantParameter(name, value) \
 { \
 	static_assert(sizeof(value) == 4, "Root constant value must be 4 bytes."); \
-	RootConstant32BitParameterBindingInfo* bindingInfo = gCurrentBindedPipeline->getRootConstantParameter(name); \
+	const RootConstant32BitParameterBindingInfo* bindingInfo = gCurrentBindedPipeline->getRootConstantParameter(name); \
 	RENDERING_VERIFY(bindingInfo, name); \
 	currentRenderModule.setRoot32BitConstants(bindingInfo->_rootParameterIndex, 1, &value, bindingInfo->_offset, gCurrentBindedPipeline->_type); \
 }

@@ -12,29 +12,31 @@ namespace DK
     constexpr uint64_t maxChunkBytes = 64ull * 1024 * 1024;
     static uint32_t columns(const ArchiveHeader& h)
     {
-        return (h._width - 2) / h._chunkCells + 1;
+        return (h._width - 2) / h._chunkCellCountPerSide + 1;
     }
     static uint32_t rows(const ArchiveHeader& h)
     {
-        return (h._height - 2) / h._chunkCells + 1;
+        return (h._height - 2) / h._chunkCellCountPerSide + 1;
     }
 
     static bool validHeader(const ArchiveHeader& h)
     {
-        const bool version3 = h._version == 3 && std::memcmp(h._magic, "DKTRN003", 8) == 0 && (h._chunkCells & (h._chunkCells - 1)) == 0;
-        return version3 && h._headerBytes == sizeof(ArchiveHeader) && h._directoryOffset == sizeof(ArchiveHeader) && h._width >= 2 && h._height >= 2 && h._width <= 1048576 && h._height <= 1048576 && h._chunkCells >= 1 && h._chunkCells <= 512 && h._reserved == 0 && std::isfinite(h._sampleSpacing) && h._sampleSpacing > 0 && std::isfinite(h._heightOffset) && std::isfinite(h._heightScale) && h._heightScale > 0 && std::isfinite(h._heightOffset + h._heightScale);
+        const bool version3 = h._version == 3 && std::memcmp(h._magic, "DKTRN003", 8) == 0 && (h._chunkCellCountPerSide & (h._chunkCellCountPerSide - 1)) == 0;
+        return version3 && h._headerBytes == sizeof(ArchiveHeader) && h._directoryOffset == sizeof(ArchiveHeader) && h._width >= 2 && h._height >= 2 && h._width <= 1048576 && h._height <= 1048576 && h._chunkCellCountPerSide >= 1 && h._chunkCellCountPerSide <= 512 && h._reserved == 0 && std::isfinite(h._sampleWorldSpacing) && h._sampleWorldSpacing > 0 && std::isfinite(h._heightOffset) && std::isfinite(h._heightScale) && h._heightScale > 0 && std::isfinite(h._heightOffset + h._heightScale);
     }
     template<class T> static bool read(FileReader& in, T& value)
     {
+        static_assert(std::is_trivially_copyable_v<T>, "Terrain binary data must be trivially copyable");
         return in.read(&value, sizeof(value));
     }
-    template<class T> static void write(FileWriter& out, const T& value)
+    template<class T> static bool write(FileWriter& out, const T& value)
     {
-        out.write(&value, sizeof(value));
+        static_assert(std::is_trivially_copyable_v<T>, "Terrain binary data must be trivially copyable");
+        return out.write(&value, sizeof(value));
     }
     static bool validLayout(const ChunkDataBlockInfo& s, const ChunkInfo& c, const ArchiveHeader& h)
     {
-        const uint32_t vertices = (c._cellsX + 1) * (c._cellsZ + 1);
+        const uint32_t vertices = (c._cellCountX + 1) * (c._cellCountZ + 1);
         uint32_t count = vertices, stride = 0;
         Format format = Format::R16UInt;
         switch (s._type)
@@ -58,7 +60,7 @@ namespace DK
         case ChunkDataType::Holes:
             stride = 1;
             format = Format::R8UInt;
-            count = c._cellsX * c._cellsZ;
+            count = c._cellCountX * c._cellCountZ;
             break;
         case ChunkDataType::MeshReferences:
             stride = sizeof(MeshReference);
@@ -68,9 +70,9 @@ namespace DK
         case ChunkDataType::HeightPyramid:
         case ChunkDataType::NormalPyramid:
             count = 0;
-            for (uint32_t lod = 1; lod < mipCount(h._chunkCells); ++lod)
+            for (uint32_t lod = 1; lod < mipCount(h._chunkCellCountPerSide); ++lod)
             {
-                const uint32_t side = (h._chunkCells >> lod) + 1;
+                const uint32_t side = (h._chunkCellCountPerSide >> lod) + 1;
                 count += side * side;
             }
             stride = s._type == ChunkDataType::HeightPyramid ? 2 : 4;
@@ -83,6 +85,7 @@ namespace DK
     }
     template<class T> static ChunkDataBlock makeDataBlock(ChunkDataType type, Format format, const DKVector<T>& values)
     {
+        static_assert(std::is_trivially_copyable_v<T>, "Terrain payload must be trivially copyable");
         ChunkDataBlock s;
         s._info._type = type;
         s._info._format = format;
@@ -162,7 +165,7 @@ namespace DK
             const ChunkInfo& c = chunks[i];
             const uint32 x = i % columns(h);
             const uint32 z = i / columns(h);
-            if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > 9 || (c._cellsX == std::min(h._chunkCells, h._width - 1 - x * h._chunkCells)) == false || (c._cellsZ == std::min(h._chunkCells, h._height - 1 - z * h._chunkCells)) == false || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
+            if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > 9 || (c._cellCountX == std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide)) == false || (c._cellCountZ == std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide)) == false || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
             {
                 DK_ASSERT_LOG(false, "Invalid chunk bounds, coordinates or offsets");
                 return false;
@@ -320,16 +323,26 @@ namespace DK
             return false;
         }
 
-        write(out, h);
+        if (write(out, h) == false)
+            return false;
 
         for (const ChunkInfo& info : infos)
-            write(out, info);
+        {
+            if (write(out, info) == false)
+                return false;
+        }
         for (size_t i = 0; i < chunks.size(); ++i)
         {
-            for (const ChunkDataBlockInfo& s : tables[i])
-                write(out, s);
-            for (const ChunkDataBlock& s : chunks[i]._dataBlocks)
-                out.write(s._data.data(), s._data.size());
+            for (const ChunkDataBlockInfo& dataBlockInfo : tables[i])
+            {
+                if (write(out, dataBlockInfo) == false)
+                    return false;
+            }
+            for (const ChunkDataBlock& dataBlock : chunks[i]._dataBlocks)
+            {
+                if (out.write(dataBlock._data.data(), dataBlock._data.size()) == false)
+                    return false;
+            }
         }
 
         const bool good = out.close();
@@ -364,8 +377,8 @@ namespace DK
     {
         const uint32_t left = x >= step ? x - step : 0, right = std::min(x + step, h._width - 1);
         const uint32_t top = z >= step ? z - step : 0, bottom = std::min(z + step, h._height - 1);
-        const double nx = -(double(heightAt(h, heights, right, z)) - heightAt(h, heights, left, z)) / ((right - left) * double(h._sampleSpacing));
-        const double nz = -(double(heightAt(h, heights, x, bottom)) - heightAt(h, heights, x, top)) / ((bottom - top) * double(h._sampleSpacing));
+        const double nx = -(double(heightAt(h, heights, right, z)) - heightAt(h, heights, left, z)) / ((right - left) * double(h._sampleWorldSpacing));
+        const double nz = -(double(heightAt(h, heights, x, bottom)) - heightAt(h, heights, x, top)) / ((bottom - top) * double(h._sampleWorldSpacing));
         const double length = std::sqrt(nx * nx + 1 + nz * nz);
         return DKArray<int16_t, 2>{ static_cast<int16_t>(std::lround(nx / length * 32767)), static_cast<int16_t>(std::lround(nz / length * 32767)) };
     }
@@ -378,54 +391,63 @@ namespace DK
             return false;
         }
         DKVector<Chunk> built;
-        for (uint32_t z = 0; z < rows(h); ++z) for (uint32_t x = 0; x < columns(h); ++x)
+        for (uint32_t z = 0; z < rows(h); ++z)
         {
-            Chunk c;
-            c._info._x = x;
-            c._info._z = z;
-            c._info._cellsX = std::min(h._chunkCells, h._width - 1 - x * h._chunkCells);
-            c._info._cellsZ = std::min(h._chunkCells, h._height - 1 - z * h._chunkCells);
-            c._info._minY = std::numeric_limits<float>::max();
-            c._info._maxY = std::numeric_limits<float>::lowest();
-            DKVector<uint16_t> samples;
-            DKVector<DKArray<int16_t, 2>> normals;
-            for (uint32_t v = 0; v <= c._info._cellsZ; ++v) for (uint32_t u = 0; u <= c._info._cellsX; ++u)
+            for (uint32_t x = 0; x < columns(h); ++x)
             {
-                const uint32_t sx = x * h._chunkCells + u, sz = z * h._chunkCells + v;
-                samples.push_back(heights[size_t(sz) * h._width + sx]);
-                const float y = heightAt(h, heights, sx, sz);
-                c._info._minY = std::min(c._info._minY, y);
-                c._info._maxY = std::max(c._info._maxY, y);
-                normals.push_back(normalAt(h, heights, sx, sz, 1));
-            }
-            c._dataBlocks.push_back(makeDataBlock(ChunkDataType::Height, Format::R16UInt, samples));
-            c._dataBlocks.push_back(makeDataBlock(ChunkDataType::Normal, Format::RG16SNorm, normals));
-            samples.clear();
-            normals.clear();
-            for (uint32_t lod = 1; lod < mipCount(h._chunkCells); ++lod)
-            {
-                const uint32_t step = 1u << lod, side = (h._chunkCells >> lod) + 1;
-                for (uint32_t v = 0; v < side; ++v) for (uint32_t u = 0; u < side; ++u)
+                Chunk c;
+                c._info._x = x;
+                c._info._z = z;
+                c._info._cellCountX = std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide);
+                c._info._cellCountZ = std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide);
+                c._info._minY = std::numeric_limits<float>::max();
+                c._info._maxY = std::numeric_limits<float>::lowest();
+                DKVector<uint16_t> samples;
+                DKVector<DKArray<int16_t, 2>> normals;
+                for (uint32_t v = 0; v <= c._info._cellCountZ; ++v)
                 {
-                    const uint32_t sx = std::min(x * h._chunkCells + u * step, h._width - 1), sz = std::min(z * h._chunkCells + v * step, h._height - 1);
-                    samples.push_back(heights[size_t(sz) * h._width + sx]);
-                    normals.push_back(normalAt(h, heights, sx, sz, step));
+                    for (uint32_t u = 0; u <= c._info._cellCountX; ++u)
+                    {
+                        const uint32_t sx = x * h._chunkCellCountPerSide + u, sz = z * h._chunkCellCountPerSide + v;
+                        samples.push_back(heights[size_t(sz) * h._width + sx]);
+                        const float y = heightAt(h, heights, sx, sz);
+                        c._info._minY = std::min(c._info._minY, y);
+                        c._info._maxY = std::max(c._info._maxY, y);
+                        normals.push_back(normalAt(h, heights, sx, sz, 1));
+                    }
                 }
+                c._dataBlocks.push_back(makeDataBlock(ChunkDataType::Height, Format::R16UInt, samples));
+                c._dataBlocks.push_back(makeDataBlock(ChunkDataType::Normal, Format::RG16SNorm, normals));
+                samples.clear();
+                normals.clear();
+                for (uint32_t lod = 1; lod < mipCount(h._chunkCellCountPerSide); ++lod)
+                {
+                    const uint32_t step = 1u << lod, side = (h._chunkCellCountPerSide >> lod) + 1;
+                    for (uint32_t v = 0; v < side; ++v)
+                    {
+                        for (uint32_t u = 0; u < side; ++u)
+                        {
+                            const uint32_t sx = std::min(x * h._chunkCellCountPerSide + u * step, h._width - 1), sz = std::min(z * h._chunkCellCountPerSide + v * step, h._height - 1);
+                            samples.push_back(heights[size_t(sz) * h._width + sx]);
+                            normals.push_back(normalAt(h, heights, sx, sz, step));
+                        }
+                    }
+                }
+                c._dataBlocks.push_back(makeDataBlock(ChunkDataType::HeightPyramid, Format::R16UInt, samples));
+                c._dataBlocks.push_back(makeDataBlock(ChunkDataType::NormalPyramid, Format::RG16SNorm, normals));
+                built.push_back(DK::move(c));
             }
-            c._dataBlocks.push_back(makeDataBlock(ChunkDataType::HeightPyramid, Format::R16UInt, samples));
-            c._dataBlocks.push_back(makeDataBlock(ChunkDataType::NormalPyramid, Format::RG16SNorm, normals));
-            built.push_back(DK::move(c));
         }
         out = DK::move(built);
         return true;
     }
 
-    uint32_t mipCount(uint32_t chunkCells)
+    uint32_t mipCount(uint32_t chunkCellCountPerSide)
     {
         uint32_t count = 1;
-        while (chunkCells > 1)
+        while (chunkCellCountPerSide > 1)
         {
-            chunkCells >>= 1;
+            chunkCellCountPerSide >>= 1;
             ++count;
         }
         return count;
@@ -433,7 +455,7 @@ namespace DK
 
     bool Archive::loadMip(uint32_t x, uint32_t z, uint32_t lod, MipTile& out) const
     {
-        if (isOpen() == false || x >= columns(_header) || z >= rows(_header) || lod >= mipCount(_header._chunkCells))
+        if (isOpen() == false || x >= columns(_header) || z >= rows(_header) || lod >= mipCount(_header._chunkCellCountPerSide))
         {
             DK_ASSERT_LOG(false, "Terrain mip is outside archive");
             return false;
@@ -465,12 +487,12 @@ namespace DK
         uint64_t first = 0;
         for (uint32_t level = 1; level < lod; ++level)
         {
-            const uint32_t side = (_header._chunkCells >> level) + 1;
+            const uint32_t side = (_header._chunkCellCountPerSide >> level) + 1;
             first += uint64_t(side) * side;
         }
 
-        const uint32_t sourceWidth = lod == 0 ? chunk._cellsX + 1 : (_header._chunkCells >> lod) + 1;
-        const uint32_t sourceHeight = lod == 0 ? chunk._cellsZ + 1 : sourceWidth;
+        const uint32_t sourceWidth = lod == 0 ? chunk._cellCountX + 1 : (_header._chunkCellCountPerSide >> lod) + 1;
+        const uint32_t sourceHeight = lod == 0 ? chunk._cellCountZ + 1 : sourceWidth;
         const size_t count = size_t(sourceWidth) * sourceHeight;
         DKVector<uint16_t> heights(count);
         DKVector<DKArray<int16_t, 2>> normals(count);
@@ -485,14 +507,14 @@ namespace DK
         tile._x = x;
         tile._z = z;
         tile._lod = lod;
-        tile._side = (_header._chunkCells >> lod) + 1;
-        tile._heights.resize(size_t(tile._side) * tile._side);
+        tile._sampleCountPerSide = (_header._chunkCellCountPerSide >> lod) + 1;
+        tile._heights.resize(size_t(tile._sampleCountPerSide) * tile._sampleCountPerSide);
         tile._normals.resize(tile._heights.size());
-        for (uint32_t v = 0; v < tile._side; ++v)
+        for (uint32_t v = 0; v < tile._sampleCountPerSide; ++v)
         {
-            for (uint32 u = 0; u < tile._side; ++u)
+            for (uint32 u = 0; u < tile._sampleCountPerSide; ++u)
             {
-                const size_t source = size_t(std::min(v, sourceHeight - 1)) * sourceWidth + std::min(u, sourceWidth - 1), destination = size_t(v) * tile._side + u;
+                const size_t source = size_t(std::min(v, sourceHeight - 1)) * sourceWidth + std::min(u, sourceWidth - 1), destination = size_t(v) * tile._sampleCountPerSide + u;
                 tile._heights[destination] = heights[source];
                 tile._normals[destination] = normals[source];
             }
@@ -505,9 +527,9 @@ namespace DK
     bool Archive::loadGrid(uint32 startX, uint32 startZ, uint32 lod, uint32 width, uint32 height, TerrainOverview& out) const
     {
         const uint32 step = 1u << lod;
-        const uint32 sourceLod = std::min(lod, mipCount(_header._chunkCells) - 1);
+        const uint32 sourceLod = std::min(lod, mipCount(_header._chunkCellCountPerSide) - 1);
         const uint32 sourceStep = 1u << sourceLod;
-        const uint32 sourceSide = (_header._chunkCells >> sourceLod) + 1;
+        const uint32 sourceSide = (_header._chunkCellCountPerSide >> sourceLod) + 1;
         const uint32 gridWidth = width;
         const uint32 gridHeight = height;
         DKVector<uint32> positionsX(gridWidth);
@@ -524,7 +546,7 @@ namespace DK
         uint64 mipOffset = 0;
         for (uint32 level = 1; level < sourceLod; ++level)
         {
-            const uint32 side = (_header._chunkCells >> level) + 1;
+            const uint32 side = (_header._chunkCellCountPerSide >> level) + 1;
             mipOffset += uint64(side) * side;
         }
 
@@ -538,18 +560,18 @@ namespace DK
         const uint32 chunkRows = rows(_header);
         for (uint32 z = 0; z < gridHeight; ++z)
         {
-            const uint32 chunkZ = std::min(positionsZ[z] / _header._chunkCells, chunkRows - 1);
-            const uint32 localZ = positionsZ[z] - chunkZ * _header._chunkCells;
+            const uint32 chunkZ = std::min(positionsZ[z] / _header._chunkCellCountPerSide, chunkRows - 1);
+            const uint32 localZ = positionsZ[z] - chunkZ * _header._chunkCellCountPerSide;
             const uint32 sampleZ = (localZ + sourceStep - 1) / sourceStep;
             for (uint32 x = 0; x < gridWidth;)
             {
-                const uint32 chunkX = std::min(positionsX[x] / _header._chunkCells, chunkColumns - 1);
-                const uint32 localX = positionsX[x] - chunkX * _header._chunkCells;
+                const uint32 chunkX = std::min(positionsX[x] / _header._chunkCellCountPerSide, chunkColumns - 1);
+                const uint32 localX = positionsX[x] - chunkX * _header._chunkCellCountPerSide;
                 const uint32 sampleX = (localX + sourceStep - 1) / sourceStep;
                 const uint32 id = chunkZ * chunkColumns + chunkX;
-                const uint32 rowWidth = sourceLod == 0 ? _chunks[id]._cellsX + 1 : sourceSide;
+                const uint32 rowWidth = sourceLod == 0 ? _chunks[id]._cellCountX + 1 : sourceSide;
                 uint32 count = 1;
-                while (x + count < gridWidth && positionsX[x + count] == positionsX[x] + count * sourceStep && std::min(positionsX[x + count] / _header._chunkCells, chunkColumns - 1) == chunkX)
+                while (x + count < gridWidth && positionsX[x + count] == positionsX[x] + count * sourceStep && std::min(positionsX[x + count] / _header._chunkCellCountPerSide, chunkColumns - 1) == chunkX)
                 {
                     ++count;
                 }
@@ -600,14 +622,14 @@ namespace DK
 
     bool Archive::loadVirtualTile(uint32 x, uint32 z, uint32 lod, MipTile& out) const
     {
-        if (isOpen() == false || lod > 20 || uint64(x) * _header._chunkCells * (1ull << lod) >= _header._width - 1 || uint64(z) * _header._chunkCells * (1ull << lod) >= _header._height - 1)
+        if (isOpen() == false || lod > 20 || uint64(x) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._width - 1 || uint64(z) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._height - 1)
         {
             DK_ASSERT_LOG(false, "Virtual terrain tile is outside archive");
             return false;
         }
         TerrainOverview grid;
-        const uint32 startX = (x * _header._chunkCells) << lod, startZ = (z * _header._chunkCells) << lod;
-        if (loadGrid(startX, startZ, lod, _header._chunkCells + 1, _header._chunkCells + 1, grid) == false)
+        const uint32 startX = (x * _header._chunkCellCountPerSide) << lod, startZ = (z * _header._chunkCellCountPerSide) << lod;
+        if (loadGrid(startX, startZ, lod, _header._chunkCellCountPerSide + 1, _header._chunkCellCountPerSide + 1, grid) == false)
         {
             return false;
         }
@@ -615,7 +637,7 @@ namespace DK
         tile._x = x;
         tile._z = z;
         tile._lod = lod;
-        tile._side = _header._chunkCells + 1;
+        tile._sampleCountPerSide = _header._chunkCellCountPerSide + 1;
         tile._heights = DK::move(grid._heights);
         tile._normals = DK::move(grid._normals);
         out = DK::move(tile);

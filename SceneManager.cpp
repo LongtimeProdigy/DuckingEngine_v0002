@@ -615,12 +615,12 @@ namespace DK
         constants = {};
         constants._terrainOriginWorldX = terrainWorldOrigin.x;
         constants._terrainOriginWorldZ = terrainWorldOrigin.y;
-        constants._terrainSampleWorldSpacing = header._sampleSpacing;
+        constants._terrainSampleWorldSpacing = header._sampleWorldSpacing;
         constants._terrainBaseWorldHeight = header._heightOffset;
         constants._terrainWorldHeightRange = header._heightScale;
         constants._terrainCellCountX = header._width - 1;
         constants._terrainCellCountZ = header._height - 1;
-        constants._terrainChunkCellCountPerSide = header._chunkCells;
+        constants._terrainChunkCellCountPerSide = header._chunkCellCountPerSide;
         constants._terrainSectionCellCountPerSide = world._sectionCellCountPerSide;
         constants._terrainSectionCountX = world._sectionCountX;
         constants._terrainSectionCountZ = world._sectionCountZ;
@@ -628,14 +628,14 @@ namespace DK
         constants._terrainOverviewSlotSampleCountPerSide = (world._sectionCellCountPerSide >> world._overviewLod) + 1;
         constants._terrainOverviewSampleCountX = constants._terrainOverviewSlotSampleCountPerSide * 3;
         constants._terrainOverviewSampleCountZ = constants._terrainOverviewSlotSampleCountPerSide * 3;
-        constants._terrainCacheSlotTexelCountPerSide = header._chunkCells + 1;
+        constants._terrainCacheSlotTexelCountPerSide = header._chunkCellCountPerSide + 1;
         const uint32 slotCount = world._overviewLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
         const uint32 maxSlotCountPerSide = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION / constants._terrainCacheSlotTexelCountPerSide;
         constants._terrainCacheSlotColumnCount = std::max(constants._terrainCacheSlotColumnCount, (slotCount + maxSlotCountPerSide - 1) / maxSlotCountPerSide);
         constants._terrainCacheSlotRowCount = (slotCount + constants._terrainCacheSlotColumnCount - 1) / constants._terrainCacheSlotColumnCount;
         const uint32 cacheWidth = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotColumnCount;
         const uint32 cacheHeight = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotRowCount;
-        const double pageDiameter = std::ceil(4.0 * constants._terrainLod0WorldRadius / (double(header._chunkCells) * header._sampleSpacing)) + 2.0;
+        const double pageDiameter = std::ceil(4.0 * constants._terrainLod0WorldRadius / (double(header._chunkCellCountPerSide) * header._sampleWorldSpacing)) + 2.0;
         const uint32 minimumTableSide = uint32(std::min(pageDiameter, double(ClipMapTerrain::CACHE_SLOTS_PER_LOD + 1)));
         while (constants._terrainPageTableEntryCountPerSide < minimumTableSide)
         {
@@ -644,7 +644,7 @@ namespace DK
         const uint32 tableHeight = constants._terrainPageTableEntryCountPerSide * world._overviewLod * 9;
         const double clipmapRadius = double(ClipMapTerrain::TILE_RESOLUTION * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
         if (cacheWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
-            constants._terrainOverviewSampleCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * header._sampleSpacing * 2.0 > clipmapRadius)
+            constants._terrainOverviewSampleCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * header._sampleWorldSpacing * 2.0 > clipmapRadius)
         {
             DK_ASSERT_LOG(false, "Terrain section layout exceeds the cache or clipmap coverage");
             return false;
@@ -780,8 +780,8 @@ namespace DK
             const uint32 x = (index % constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
             const uint32 y = (index / constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
             const MipTile& tile = page._tile;
-            if (rm.queueTextureRegion(terrain._heightCache, x, y, tile._side, tile._side, tile._heights.data(), tile._side * 2) == false ||
-                rm.queueTextureRegion(terrain._normalCache, x, y, tile._side, tile._side, tile._normals.data(), tile._side * 4) == false)
+            if (rm.queueTextureRegion(terrain._heightCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._heights.data(), tile._sampleCountPerSide * 2) == false ||
+                rm.queueTextureRegion(terrain._normalCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._normals.data(), tile._sampleCountPerSide * 4) == false)
             {
                 return;
             }

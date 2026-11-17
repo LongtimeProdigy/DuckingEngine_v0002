@@ -261,7 +261,6 @@ namespace DK
 	}
 
 #define TEXTUREBINDLESS_MAX_COUNT 8192
-#define BINDLESSTEXTUREARRAY_SPACE 10
 	static constexpr const D3D12_DESCRIPTOR_HEAP_TYPE gTextureBindlessDescriptorHeapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
 	RenderModule::~RenderModule()
@@ -999,7 +998,7 @@ namespace DK
 		srvDescriptorTableRanges.resize(isRaytracing ? 4 : 1);
 		srvDescriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		srvDescriptorTableRanges[0].NumDescriptors = kMaxTextureSRVCount;// TEXTUREBINDLESS_MAX_COUNT;
-		srvDescriptorTableRanges[0].RegisterSpace = BINDLESSTEXTUREARRAY_SPACE;
+		srvDescriptorTableRanges[0].RegisterSpace = DK_BINDLESS_TEXTURE_SPACE;
 		srvDescriptorTableRanges[0].BaseShaderRegister = 0;
 		srvDescriptorTableRanges[0].OffsetInDescriptorsFromTableStart = 0;
 
@@ -1037,7 +1036,7 @@ namespace DK
 		D3D12_DESCRIPTOR_RANGE  uavDescriptorTableRanges[1];
 		uavDescriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		uavDescriptorTableRanges[0].NumDescriptors = kMaxTextureUAVCount;// TEXTUREBINDLESS_MAX_COUNT;
-		uavDescriptorTableRanges[0].RegisterSpace = BINDLESSTEXTUREARRAY_SPACE;
+		uavDescriptorTableRanges[0].RegisterSpace = DK_BINDLESS_TEXTURE_SPACE;
 		uavDescriptorTableRanges[0].BaseShaderRegister = 0;
 		uavDescriptorTableRanges[0].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount;
 		D3D12_ROOT_DESCRIPTOR_TABLE uavDescriptorTable;
@@ -1052,7 +1051,7 @@ namespace DK
 		for(const ShaderResourceReflection& resource : resources)
 		{
 			// check bindless
-			if (resource._bindCount == 0 && (resource._space == BINDLESSTEXTUREARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSVERTEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSINDEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSMATERIALARRAY_SPACE)
+			if (resource._bindCount == 0 && (resource._space == DK_BINDLESS_TEXTURE_SPACE || resource._space == RaytracingRenderer::BINDLESSVERTEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSINDEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSMATERIALARRAY_SPACE)
 				|| resource._type == D3D_SIT_SAMPLER)
 				continue;
 

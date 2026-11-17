@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\Microsoft.Direct3D.D3D12.props" Condition="Exists('packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\Microsoft.Direct3D.D3D12.props')" />
   <ItemGroup Label="ProjectConfigurations">
@@ -136,6 +136,8 @@
     <ClCompile Include="XboxState.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Resource\Material\ShaderBindings.h" />
+    <ClInclude Include="Resource\Material\Atmosphere\AtmosphereLimits.h" />
     <ClInclude Include="Animation.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="Camera.h" />

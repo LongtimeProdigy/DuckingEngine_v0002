@@ -20,9 +20,9 @@ namespace DK
         };
 
         static constexpr uint32 kRaytracingDescriptorCount = 1024;
-        static constexpr uint32 BINDLESSVERTEXARRAY_SPACE = 11;
-        static constexpr uint32 BINDLESSINDEXARRAY_SPACE = 12;
-        static constexpr uint32 BINDLESSMATERIALARRAY_SPACE = 13;
+        static constexpr uint32 BINDLESSVERTEXARRAY_SPACE = DK_BINDLESS_VERTEX_SPACE;
+        static constexpr uint32 BINDLESSINDEXARRAY_SPACE = DK_BINDLESS_INDEX_SPACE;
+        static constexpr uint32 BINDLESSMATERIALARRAY_SPACE = DK_BINDLESS_MATERIAL_SPACE;
 
         const bool initialize(RenderModule* renderModule, uint32 width, uint32 height);
         bool updateRaytracingRenderer(RenderModule& renderModule);

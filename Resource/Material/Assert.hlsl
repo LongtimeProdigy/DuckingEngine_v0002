@@ -1,4 +1,4 @@
-﻿#ifndef ASSERT_HLSL
+#ifndef ASSERT_HLSL
 #define ASSERT_HLSL
 
 #if defined(__INTELLISENSE__)
@@ -9,7 +9,7 @@ void GPUAssert(bool condition, float4 data) {}
 
 #define GPUASSERT GPUAssert
 
-#elif defined(DK_GPU_ASSERT_ENABLED) && 0
+#elif defined(DK_GPU_ASSERT_ENABLED)
 
 static bool gGpuAssertAttempted = false;
 RWByteAddressBuffer GpuAssertBuffer : register(u0, space0);
@@ -47,7 +47,7 @@ void GPUAssertImpl(uint fileId, uint sourceLine, bool condition, float4 data)
     do \
     { \
         [branch] \
-        if (!(condition)) \
+        if ((condition) == false) \
         { \
             GPUAssertImpl( \
                 GpuAssertFileId(__FILE__), \
@@ -62,7 +62,7 @@ void GPUAssertImpl(uint fileId, uint sourceLine, bool condition, float4 data)
     do \
     { \
         [branch] \
-        if (!(condition)) \
+        if ((condition) == false) \
         { \
             GPUAssertImpl( \
                 GpuAssertFileId(__FILE__), \

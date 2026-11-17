@@ -1,11 +1,9 @@
-﻿#ifndef ATMOSPHERE_TRANSMITTANCE_HLSL
+#ifndef ATMOSPHERE_TRANSMITTANCE_HLSL
 #define ATMOSPHERE_TRANSMITTANCE_HLSL
 #include "CommonTexture.hlsl"
 #include "Atmosphere/AtmosphereIntegration.hlsl"
 #include "Atmosphere/AtmosphereGeometry.hlsl"
 
-static const uint ATMOSPHERE_LUT_WIDTH = 512u;
-static const uint ATMOSPHERE_LUT_HEIGHT = 128u;
 
 // heightAtReference부터 rayDir방향으로 쏠 때 atmosphereRadius구를 벗어나는 path length룰 반환함
 float atmosphereTopDistance(float heightAtReference, float radialDot)
@@ -107,7 +105,8 @@ AtmosphereOpticalDepth atmosphereSunOpticalDepthOutsideTransitionRadius(float he
 
 float atmosphereAbsorptionGauss(float height, float radialDot, float a, float b, uint layer)
 {
-    if (b <= a) return 0.0f;
+    if (b <= a)
+        return 0.0f;
     const float nodes[4] = { -0.8611363116f, -0.3399810436f, 0.3399810436f, 0.8611363116f };
     const float weights[4] = { 0.3478548451f, 0.6521451549f, 0.6521451549f, 0.3478548451f };
     const float middle = 0.5f * (a + b), halfWidth = 0.5f * (b - a);
@@ -118,10 +117,12 @@ float atmosphereAbsorptionGauss(float height, float radialDot, float a, float b,
 }
 float atmosphereAbsorptionShell(float height, float radialDot, float length, float innerRadius, float outerRadius, uint layer)
 {
-    if (outerRadius <= innerRadius || outerRadius <= 0.0f) return 0.0f;
+    if (outerRadius <= innerRadius || outerRadius <= 0.0f)
+        return 0.0f;
     const float2 outer = atmosphereAbsorptionSphereHits(height, radialDot, outerRadius);
     const float a = max(outer.x, 0.0f), b = min(outer.y, length);
-    if (b <= a) return 0.0f;
+    if (b <= a)
+        return 0.0f;
     const float2 inner = atmosphereAbsorptionSphereHits(height, radialDot, innerRadius);
     const float leftEnd = min(b, max(a, inner.x));
     const float rightStart = max(a, min(b, inner.y));
@@ -147,15 +148,15 @@ float2 atmosphereInteriorOpticalDepth(float heightAtTransition, float radialDot,
 float2 atmosphereInteriorAbsorptionDepth(float heightAtReference, float radialDot, float length)
 {
     float2 result = 0.0f;
-    [unroll] 
-    for (uint layer = 0u; layer < 2u; ++layer)
+    [unroll]
+    for (uint layer = 0u; layer < DK_ATMOSPHERE_ABSORPTION_LAYER_COUNT; ++layer)
     {
-        if (any(atmosphereAbsorptionExtinction(layer) > 0.0f) == false) 
+        if (any(atmosphereAbsorptionExtinction(layer) > 0.0f) == false)
             continue;
 
-        const float peak = max(_absorptionLayers[layer].peakRadius, 0.0f);
-        result[layer] = atmosphereAbsorptionShell(heightAtReference, radialDot, length, max(peak - _absorptionLayers[layer].lowerWidth, 0.0f), peak, layer) 
-            + atmosphereAbsorptionShell(heightAtReference, radialDot, length, peak, peak + max(_absorptionLayers[layer].upperWidth, 0.0f), layer);
+        const float peak = max(_absorptionLayers[layer]._peakRadius, 0.0f);
+        result[layer] = atmosphereAbsorptionShell(heightAtReference, radialDot, length, max(peak - _absorptionLayers[layer]._lowerWidth, 0.0f), peak, layer)
+            + atmosphereAbsorptionShell(heightAtReference, radialDot, length, peak, peak + max(_absorptionLayers[layer]._upperWidth, 0.0f), layer);
     }
     return result;
 }
@@ -220,9 +221,9 @@ float3 getSunTransmittance(float3 cameraRelativePosition, float3 sunDir)
 
 // 2.3283064365386963e-10: 1 / 2³²입니다. 0~1 값 반환
 // 의도: 연속된 샘플이 한쪽 각도에 몰리지 않도록 합니다. 난수를 매번 생성하는 방식은 아닙니다.
-float radicalInverse(uint bits) 
-{ 
-    return float(reversebits(bits)) * 2.3283064365386963e-10f; 
+float radicalInverse(uint bits)
+{
+    return float(reversebits(bits)) * 2.3283064365386963e-10f;
 }
 
 #endif

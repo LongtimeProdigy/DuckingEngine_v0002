@@ -34,6 +34,7 @@ namespace DK
 	};
 
 	static_assert(sizeof(StaticMeshInstance) == 64);
+	static_assert(sizeof(SceneObjectConstantBufferStruct) == 64);
 
 	struct StaticMeshInstanceChunk
 	{

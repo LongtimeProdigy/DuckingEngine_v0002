@@ -246,7 +246,7 @@ namespace DK
 {
 	enum class ReflectionFlag : uint8
 	{
-		NoSave, 
+		NoSave,
 	};
 
 #define DK_REFLECTION_PROPERTY(type, name) \
@@ -845,7 +845,7 @@ namespace DK
 			DirectX::XMMATRIX lerpScaleMatrix = DirectX::XMMatrixScalingFromVector(lerpScale);
 
 			DirectX::XMMATRIX lerpMatrix = lerpScaleMatrix * lerpQuaternionMatrix * lerpTranslationMatrix;
-			
+
 			float4x4 outMatrix;
 			outMatrix.convertfloat4x4(lerpMatrix);
 
@@ -881,19 +881,43 @@ namespace DK
 
 		dk_inline const float4x4& operator+=(const float4x4& rhs) noexcept
 		{
-			_11 += rhs._11; _12 += rhs._12; _13 += rhs._13; _14 += rhs._14;
-			_21 += rhs._21; _22 += rhs._22; _23 += rhs._23; _24 += rhs._24;
-			_31 += rhs._31; _32 += rhs._32; _33 += rhs._33; _34 += rhs._34;
-			_41 += rhs._41; _42 += rhs._42; _43 += rhs._43; _44 += rhs._44;
+			_11 += rhs._11;
+			_12 += rhs._12;
+			_13 += rhs._13;
+			_14 += rhs._14;
+			_21 += rhs._21;
+			_22 += rhs._22;
+			_23 += rhs._23;
+			_24 += rhs._24;
+			_31 += rhs._31;
+			_32 += rhs._32;
+			_33 += rhs._33;
+			_34 += rhs._34;
+			_41 += rhs._41;
+			_42 += rhs._42;
+			_43 += rhs._43;
+			_44 += rhs._44;
 
 			return *this;
 		}
 		dk_inline const float4x4& operator*(const float& rhs) noexcept
 		{
-			_11 *= rhs; _12 *= rhs; _13 *= rhs; _14 *= rhs;
-			_21 *= rhs; _22 *= rhs; _23 *= rhs; _24 *= rhs;
-			_31 *= rhs; _32 *= rhs; _33 *= rhs; _34 *= rhs;
-			_41 *= rhs; _42 *= rhs; _43 *= rhs; _44 *= rhs;
+			_11 *= rhs;
+			_12 *= rhs;
+			_13 *= rhs;
+			_14 *= rhs;
+			_21 *= rhs;
+			_22 *= rhs;
+			_23 *= rhs;
+			_24 *= rhs;
+			_31 *= rhs;
+			_32 *= rhs;
+			_33 *= rhs;
+			_34 *= rhs;
+			_41 *= rhs;
+			_42 *= rhs;
+			_43 *= rhs;
+			_44 *= rhs;
 
 			return *this;
 		}
@@ -962,21 +986,23 @@ namespace DK
 		DirectX::XMMATRIX convertXMMATRIX() const
 		{
 			DirectX::XMMATRIX matrix;
-			matrix.r[0].m128_f32[0] = _rows[0].x; matrix.r[0].m128_f32[1] = _rows[0].y; matrix.r[0].m128_f32[2] = _rows[0].z; matrix.r[0].m128_f32[3] = _rows[0].w;
-			matrix.r[1].m128_f32[0] = _rows[1].x; matrix.r[1].m128_f32[1] = _rows[1].y; matrix.r[1].m128_f32[2] = _rows[1].z; matrix.r[1].m128_f32[3] = _rows[1].w;
-			matrix.r[2].m128_f32[0] = _rows[2].x; matrix.r[2].m128_f32[1] = _rows[2].y; matrix.r[2].m128_f32[2] = _rows[2].z; matrix.r[2].m128_f32[3] = _rows[2].w;
-			matrix.r[3].m128_f32[0] = _rows[3].x; matrix.r[3].m128_f32[1] = _rows[3].y; matrix.r[3].m128_f32[2] = _rows[3].z; matrix.r[3].m128_f32[3] = _rows[3].w;
-
+			for (uint32 row = 0; row < DK_COUNT_OF(_rows); ++row)
+			{
+				for (uint32 column = 0; column < DK_COUNT_OF(_rows[row].m); ++column)
+					matrix.r[row].m128_f32[column] = _rows[row].m[column];
+			}
 			return matrix;
 		}
 
 		void convertfloat4x4(const DirectX::XMMATRIX& matrix)
 		{
-			_11 = matrix.r[0].m128_f32[0]; _12 = matrix.r[0].m128_f32[1]; _13 = matrix.r[0].m128_f32[2]; _14 = matrix.r[0].m128_f32[3];
-			_21 = matrix.r[1].m128_f32[0]; _22 = matrix.r[1].m128_f32[1]; _23 = matrix.r[1].m128_f32[2]; _24 = matrix.r[1].m128_f32[3];
-			_31 = matrix.r[2].m128_f32[0]; _32 = matrix.r[2].m128_f32[1]; _33 = matrix.r[2].m128_f32[2]; _34 = matrix.r[2].m128_f32[3];
-			_41 = matrix.r[3].m128_f32[0]; _42 = matrix.r[3].m128_f32[1]; _43 = matrix.r[3].m128_f32[2]; _44 = matrix.r[3].m128_f32[3];
+			for (uint32 row = 0; row < DK_COUNT_OF(_rows); ++row)
+			{
+				for (uint32 column = 0; column < DK_COUNT_OF(_rows[row].m); ++column)
+					_rows[row].m[column] = matrix.r[row].m128_f32[column];
+			}
 		}
+
 #endif
 
 	public:
@@ -1082,9 +1108,9 @@ namespace DK
 #ifdef USE_DIRECTX_MATH
 			DirectX::XMMATRIX matrix = DirectX::XMMatrixRotationQuaternion(r);
 			outMatrix = float4x4(
-				matrix.r[0].m128_f32[0], matrix.r[0].m128_f32[1], matrix.r[0].m128_f32[2], matrix.r[0].m128_f32[3], 
-				matrix.r[1].m128_f32[0], matrix.r[1].m128_f32[1], matrix.r[1].m128_f32[2], matrix.r[1].m128_f32[3], 
-				matrix.r[2].m128_f32[0], matrix.r[2].m128_f32[1], matrix.r[2].m128_f32[2], matrix.r[2].m128_f32[3], 
+				matrix.r[0].m128_f32[0], matrix.r[0].m128_f32[1], matrix.r[0].m128_f32[2], matrix.r[0].m128_f32[3],
+				matrix.r[1].m128_f32[0], matrix.r[1].m128_f32[1], matrix.r[1].m128_f32[2], matrix.r[1].m128_f32[3],
+				matrix.r[2].m128_f32[0], matrix.r[2].m128_f32[1], matrix.r[2].m128_f32[2], matrix.r[2].m128_f32[3],
 				matrix.r[3].m128_f32[0], matrix.r[3].m128_f32[1], matrix.r[3].m128_f32[2], matrix.r[3].m128_f32[3]
 			);
 #else
@@ -1344,12 +1370,13 @@ namespace DK
 
 namespace DK
 {
-	namespace ConstPath
+	class ConstPath
 	{
+	public:
 		static constexpr const char* gMaterialDefinition = "Material/MaterialDefinition.xml";
 
 		static constexpr const char* gTerrainModelProperty = "Scenes/ModelProperty";
 		static constexpr const char* gPostProcessModelProperty = "System/ModelProperty";
-	}
+	};
 }
 #endif // !__DEFINE_STDAFX__

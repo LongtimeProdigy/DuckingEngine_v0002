@@ -39,11 +39,7 @@ namespace DK
 	void float4x4::toTransform(Transform& outTransform) const
 	{
 #ifdef USE_DIRECTX_MATH
-		DirectX::XMMATRIX matrix;
-		matrix.r[0].m128_f32[0] = _rows[0].x; matrix.r[0].m128_f32[1] = _rows[0].y; matrix.r[0].m128_f32[2] = _rows[0].z; matrix.r[0].m128_f32[3] = _rows[0].w;
-		matrix.r[1].m128_f32[0] = _rows[1].x; matrix.r[1].m128_f32[1] = _rows[1].y; matrix.r[1].m128_f32[2] = _rows[1].z; matrix.r[1].m128_f32[3] = _rows[1].w;
-		matrix.r[2].m128_f32[0] = _rows[2].x; matrix.r[2].m128_f32[1] = _rows[2].y; matrix.r[2].m128_f32[2] = _rows[2].z; matrix.r[2].m128_f32[3] = _rows[2].w;
-		matrix.r[3].m128_f32[0] = _rows[3].x; matrix.r[3].m128_f32[1] = _rows[3].y; matrix.r[3].m128_f32[2] = _rows[3].z; matrix.r[3].m128_f32[3] = _rows[3].w;
+		const DirectX::XMMATRIX matrix = convertXMMATRIX();
 
 		DirectX::XMVECTOR scale, quaternion, translation;
 		DirectX::XMMatrixDecompose(&scale, &quaternion, &translation, matrix);

@@ -45,9 +45,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     const float3 uvw = (float3(cell) + 0.5f) / SURFACE_BOUNCE_GRID;
     const float3 p = atmosphereSurfacePoint(uvw);
     const float3 sunDir = -normalize(_surfaceForward.xyz);  //const float angle = radians(_sunDegree); const float3 sunDir = float3(0, sin(angle), cos(angle));
-    GPUASSERT(_surfaceBounceSamples <= 64);
+    GPUASSERT(_surfaceBounceSamples <= SURFACE_BOUNCE_MAX_SAMPLES);
     const float scale = 2.0f * max(_surfaceRight.w, _surfaceUp.w) / SURFACE_BOUNCE_GRID;    // 긴 축 기준 격자 셀 한 칸의 크기입니다.
-    GPUASSERT(scale >= 0.01);
+    GPUASSERT(scale >= SURFACE_BOUNCE_MIN_CELL_WORLD_SIZE);
     GPUASSERT(_surfaceMapSize >= 1);
     // 캡처 평면에서 텍셀 하나가 차지하는 면적 : 캡처 전체 면적 = (가로 반폭 × 2) × (세로 반폭 × 2) -> 텍셀 하나 면적 = 캡처 전체 면적 / 텍셀 개수
     float3 bounce = 0.0f;

@@ -35,6 +35,9 @@ namespace DK
 		uint32 _padding;
 	};
 
+	static_assert(sizeof(TerrainMeshConstantBuffer) == 64);
+	static_assert(offsetof(TerrainMeshConstantBuffer, _type) == 48);
+
 	class SceneManager
 	{
 	public:
@@ -95,7 +98,7 @@ namespace DK
 					const TextureResourceViewType heightSRV, const TextureResourceViewType heightUAV,
 					const TextureResourceViewType normalSRV, const TextureResourceViewType normalUAV
 				)
-					: _time(time)
+					: _timeForOcean(time)
 					, _g(g)
 					, _windDir(windDir)
 					, _heightScale(heightScale)
@@ -112,7 +115,7 @@ namespace DK
 					, _normalUAV(normalUAV)
 				{}
 
-				const float _time;
+				const float _timeForOcean;
 				const float _g;
 				const float2 _windDir;
 
@@ -131,6 +134,9 @@ namespace DK
 				const TextureResourceViewType _normalSRV;
 				const TextureResourceViewType _normalUAV;
 			};
+
+			static_assert(sizeof(OceanParams) == 64);
+			static_assert(offsetof(OceanParams, _N) == 32);
 
 			IBufferRef _initialSpectrumConstantBuffer;
 			ITextureRef _h0[kFrameCount];

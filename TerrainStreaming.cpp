@@ -15,20 +15,20 @@ namespace DK
     {
         DKVector<TileRequest> result;
         const ArchiveHeader& header = world._header;
-        const double sectionWorldSize = double(world._sectionCellCountPerSide) * header._sampleSpacing;
+        const double sectionWorldSize = double(world._sectionCellCountPerSide) * header._sampleWorldSpacing;
         for (uint32 lod = 0; lod < world._overviewLod; ++lod)
         {
             DKVector<RankedTerrainPage> ranked;
-            const uint32 tileCells = header._chunkCells << lod;
-            const double tileWorldSize = double(tileCells) * header._sampleSpacing;
+            const uint32 tileCellCountPerSide = header._chunkCellCountPerSide << lod;
+            const double tileWorldSize = double(tileCellCountPerSide) * header._sampleWorldSpacing;
             const double radius = double(detailRadius) * (1u << (lod + 1));
             for (const uint32 sectionId : sections)
             {
                 const TerrainSection& section = world._sections[sectionId];
                 const uint32 cellsX = std::min(world._sectionCellCountPerSide, header._width - 1 - section._x * world._sectionCellCountPerSide);
                 const uint32 cellsZ = std::min(world._sectionCellCountPerSide, header._height - 1 - section._z * world._sectionCellCountPerSide);
-                const uint32 columns = (cellsX - 1) / tileCells + 1;
-                const uint32 rows = (cellsZ - 1) / tileCells + 1;
+                const uint32 columns = (cellsX - 1) / tileCellCountPerSide + 1;
+                const uint32 rows = (cellsZ - 1) / tileCellCountPerSide + 1;
                 const double localX = cameraX - section._x * sectionWorldSize;
                 const double localZ = cameraZ - section._z * sectionWorldSize;
                 const int minX = int(std::clamp(std::floor((localX - radius) / tileWorldSize), 0.0, double(columns)));
@@ -41,8 +41,8 @@ namespace DK
                     {
                         const double left = x * tileWorldSize;
                         const double top = z * tileWorldSize;
-                        const double right = std::min(left + tileWorldSize, cellsX * double(header._sampleSpacing));
-                        const double bottom = std::min(top + tileWorldSize, cellsZ * double(header._sampleSpacing));
+                        const double right = std::min(left + tileWorldSize, cellsX * double(header._sampleWorldSpacing));
+                        const double bottom = std::min(top + tileWorldSize, cellsZ * double(header._sampleWorldSpacing));
                         const double dx = localX - std::clamp(localX, left, right);
                         const double dz = localZ - std::clamp(localZ, top, bottom);
                         if (dx * dx + dz * dz <= radius * radius)

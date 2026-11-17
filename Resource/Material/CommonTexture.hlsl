@@ -1,11 +1,12 @@
-﻿#ifndef __DEFINE_COMMON_HLSL__
+#ifndef __DEFINE_COMMON_HLSL__
 #define __DEFINE_COMMON_HLSL__
 
 SamplerState pointSampler : register(s0);
 SamplerState bilinearRepeatSampler : register(s1);
 
 #define TextureParameter uint
-#define BINDLESSTEXTUREARRAY_SPACE space10
+#include "ShaderBindings.h"
+#define BINDLESSTEXTUREARRAY_SPACE DK_REGISTER_SPACE(DK_BINDLESS_TEXTURE_SPACE)
 Texture2D<float4> gBindlessTextureSRVArray[] : register(t0, BINDLESSTEXTUREARRAY_SPACE);
 RWTexture2D<float4> gBindlessTextureUAVArray[] : register(u0, BINDLESSTEXTUREARRAY_SPACE);
 

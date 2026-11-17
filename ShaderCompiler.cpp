@@ -258,7 +258,7 @@ namespace DK
 		sourceBuffer.Encoding = DXC_CP_UTF8;
 
 		IDxcIncludeHandler* handler;
-		hr = const_cast<RenderResourcePtr<IDxcUtils>&>(_utils)->CreateDefaultIncludeHandler(&handler);
+		hr = _utils->CreateDefaultIncludeHandler(&handler);
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "IncludeHandler 생성에 실패했습니다. Shader Compiler을 하지 않습니다.");

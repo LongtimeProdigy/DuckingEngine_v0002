@@ -28,30 +28,25 @@ namespace DK
 		return nullptr;
 	}
 
-	MaterialParameterType MaterialParameterFloat::getType() const noexcept
-	{
-		return MaterialParameterType::FLOAT;
-	}
-	MaterialParameterType MaterialParameterTexture::getType() const noexcept
-	{
-		return MaterialParameterType::TEXTURE;
-	}
-	uint32 MaterialParameterTexture::getParameterSize() const noexcept
-	{
-		return sizeof(TextureResourceViewType);
-	}
 	template<typename T>
 	void MaterialParameterTemplate<T>::setParameterValue(const T& value) noexcept
 	{
-		_value = value;
-		DK::memcpy(_valuePtr, &_value, getParameterSize());
+		DK_ASSERT_LOG(_valuePtr != nullptr, "Material parameter storage is not bound");
+		if constexpr (std::is_same_v<T, ITextureRef>)
+		{
+			DK_ASSERT_LOG(value != nullptr, "Material texture must not be null");
+			_value = value;
+			DK::memcpy(_valuePtr, &_value->getSRV(), getParameterSize());
+		}
+		else
+		{
+			_value = value;
+			DK::memcpy(_valuePtr, &_value, getParameterSize());
+		}
 	}
-	void MaterialParameterTexture::setParameterValue(const ITextureRef& value) noexcept
-	{
-		DK_ASSERT_LOG(value != nullptr, "value가 nullptr입니다. 크래시가 날 것입니다.");
-		_value = value;
-		DK::memcpy(_valuePtr, &_value->getSRV(), getParameterSize());
-	}
+
+	template void MaterialParameterFloat::setParameterValue(const float& value) noexcept;
+	template void MaterialParameterTexture::setParameterValue(const ITextureRef& value) noexcept;
 
 	Material* Material::createMaterial(uint64 materialNameHash)
 	{
