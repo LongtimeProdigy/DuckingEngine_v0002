@@ -1,7 +1,8 @@
 #ifndef __DEFINE_TEXTURESTANDARD_HLSL__
 #define __DEFINE_TEXTURESTANDARD_HLSL__
 
-#include "TextureCommon.hlsl"
+#include "CommonTexture.hlsl"
+#include "CommonRendering.hlsl"
 
 struct VS_INPUT
 {
@@ -16,11 +17,6 @@ struct VS_OUTPUT
     float4 color : TEXCOORD1;
 };
 
-cbuffer SceneConstantBuffer : register(b0)
-{
-    float4x4 _cameraWorldMatrixInv;
-	float4x4 _cameraProjectionMatrix;
-}
 
 cbuffer TerrainStandard : register(b1)
 {

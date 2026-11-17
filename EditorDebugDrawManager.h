@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "Resource/Material/ShaderStructures.h"
+
 namespace DK
 {
 #ifdef _DK_DEBUG_
@@ -8,49 +10,6 @@ namespace DK
 	class EditorDebugDrawManager
 	{
 	public:
-		struct SpherePrimitiveInfo
-		{
-			static IBufferRef kVertexBuffer;
-			static IBufferRef kIndexBuffer;
-			static VertexBufferViewRef kVertexBufferView;
-			static IndexBufferViewRef kIndexBufferView;
-			static uint32 indexCount;
-
-			SpherePrimitiveInfo(const float3& worldPosition, const float3& color, const float& radius)
-				: _worldPosition(worldPosition)
-				, _color(color)
-				, _radius(radius)
-			{}
-
-			float3 _worldPosition;
-			float _radius = 1.0f;	// _radius를 _color 밑으로내리면 class alignment로 인해서 data upload시에 값이 틀어짐
-			float3 _color;
-			float _padding = 1.0f;
-		};
-		struct LinePrimitiveInfo
-		{
-			static IBufferRef kVertexBuffer;
-			static IBufferRef kIndexBuffer;
-			static VertexBufferViewRef kVertexBufferView;
-			static IndexBufferViewRef kIndexBufferView;
-			static uint32 indexCount;
-
-			LinePrimitiveInfo(const float3& startWorldPosition, const float3& endWorldPosition, const float3& color)
-				: _startWorldPosition(startWorldPosition)
-				, _endWorldPosition(endWorldPosition)
-				, _color(color)
-			{}
-
-			float3 _startWorldPosition;
-			float3 _endWorldPosition;
-			float3 _color;
-		};
-
-		static_assert(sizeof(SpherePrimitiveInfo) == 32);
-		static_assert(offsetof(SpherePrimitiveInfo, _color) == 16);
-		static_assert(sizeof(LinePrimitiveInfo) == 36);
-		static_assert(offsetof(LinePrimitiveInfo, _endWorldPosition) == 12);
-		static_assert(offsetof(LinePrimitiveInfo, _color) == 24);
 
 	private:
 		static EditorDebugDrawManager* _this;

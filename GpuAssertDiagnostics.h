@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "Resource/Material/ShaderStructures.h"
+
 #include "CommonTypes.h"
 #include "StringUtil.h"
 #include "FileUtil.h"
@@ -13,19 +15,6 @@
 
 namespace DK
 {
-    enum class GpuAssertDataType : uint32_t { Uint4 = 0, Float4 = 1 };
-
-    // Matches Assert.hlsl. The first failing invocation owns the whole record.
-    struct GpuAssertRecord
-    {
-        uint32_t _failed = 0;
-        uint32_t _fileId = 0;
-        uint32_t _sourceLine = 0;
-        GpuAssertDataType _dataType = GpuAssertDataType::Uint4;
-        uint32_t _data[4] = {};
-    };
-    static_assert(sizeof(GpuAssertRecord) == 32, "GPU assert record layout mismatch");
-
     dk_inline std::mutex& gpuAssertFileMutex()
     {
         static std::mutex mutex;

@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "Resource/Material/ShaderStructures.h"
+
 namespace DK
 {
 	struct AppearanceData
@@ -22,19 +24,6 @@ namespace DK
 			: _skeletonPath(skeletonPath), _animationSetPath(animationSetPath), _modelDataArr(DK::move(modelDataArr))
 		{}
 	};
-
-	struct SceneObjectConstantBufferStruct
-	{
-		float4x4 _worldMatrix;
-	};
-
-	struct StaticMeshInstance
-	{
-		float4x4 _worldMatrix;
-	};
-
-	static_assert(sizeof(StaticMeshInstance) == 64);
-	static_assert(sizeof(SceneObjectConstantBufferStruct) == 64);
 
 	struct StaticMeshInstanceChunk
 	{

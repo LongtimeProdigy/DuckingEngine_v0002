@@ -23,6 +23,44 @@
 
 namespace DK
 {
+    void AtmosphereAbsorptionLayer::validate([[maybe_unused]] uint32 layerIndex) const
+    {
+        for (uint32 channel = 0; channel < DK_COUNT_OF(_extinction); ++channel)
+            DK_ASSERT_LOG(std::isfinite(_extinction[channel]) && _extinction[channel] >= 0.0f, "Absorption layer %u: invalid _extinction[%u]=%g", layerIndex, channel, _extinction[channel]);
+        DK_ASSERT_LOG(std::isfinite(_strength) && _strength >= 0.0f, "Absorption layer %u: invalid _strength=%g", layerIndex, _strength);
+        DK_ASSERT_LOG(std::isfinite(_peakRadius) && _peakRadius >= 0.0f, "Absorption layer %u: invalid _peakRadius=%g", layerIndex, _peakRadius);
+        DK_ASSERT_LOG(std::isfinite(_lowerWidth) && _lowerWidth > 0.0f, "Absorption layer %u: invalid _lowerWidth=%g", layerIndex, _lowerWidth);
+        DK_ASSERT_LOG(std::isfinite(_upperWidth) && _upperWidth > 0.0f, "Absorption layer %u: invalid _upperWidth=%g", layerIndex, _upperWidth);
+        if (_strength > 0.0f && (_extinction[0] > 0.0f || _extinction[1] > 0.0f || _extinction[2] > 0.0f))
+            DK_ASSERT_LOG(_peakRadius >= _lowerWidth, "Absorption layer %u: inner radius is negative, _peakRadius=%g, _lowerWidth=%g", layerIndex, _peakRadius, _lowerWidth);
+    }
+
+    void AtmosphereConstantBuffer::validate() const
+    {
+        DK_ASSERT_LOG(std::isfinite(_densityReferenceRadius) && _densityReferenceRadius > 0.0f, "Invalid _densityReferenceRadius=%g", _densityReferenceRadius);
+        DK_ASSERT_LOG(std::isfinite(_densityTransitionRadius) && _densityTransitionRadius > 0.0f && _densityTransitionRadius < _densityReferenceRadius, "Invalid _densityTransitionRadius=%g, _densityReferenceRadius=%g", _densityTransitionRadius, _densityReferenceRadius);
+        DK_ASSERT_LOG(std::isfinite(_atmosphereRadius) && _atmosphereRadius > _densityTransitionRadius, "Invalid _atmosphereRadius=%g, _densityTransitionRadius=%g", _atmosphereRadius, _densityTransitionRadius);
+        DK_ASSERT_LOG(_atmosphereRadius - _densityTransitionRadius <= ATMOSPHERE_LUT_MAX_RADIAL_DEPTH, "Transmittance LUT diagnostic range exceeded: _atmosphereRadius=%g, _densityTransitionRadius=%g, maximum span=%g", _atmosphereRadius, _densityTransitionRadius, ATMOSPHERE_LUT_MAX_RADIAL_DEPTH);
+        DK_ASSERT_LOG(std::isfinite(_rayleighHeight) && _rayleighHeight > 0.0f, "Invalid _rayleighHeight=%g", _rayleighHeight);
+        DK_ASSERT_LOG(std::isfinite(_mieHeight) && _mieHeight > 0.0f, "Invalid _mieHeight=%g", _mieHeight);
+        DK_ASSERT_LOG(std::isfinite(_scatteringScale) && _scatteringScale >= 0.0f, "Invalid _scatteringScale=%g", _scatteringScale);
+        DK_ASSERT_LOG(std::isfinite(_rayleighScale) && _rayleighScale >= 0.0f, "Invalid _rayleighScale=%g", _rayleighScale);
+        DK_ASSERT_LOG(std::isfinite(_mieScale) && _mieScale >= 0.0f, "Invalid _mieScale=%g", _mieScale);
+        DK_ASSERT_LOG(std::isfinite(_mieAbsorptionScale) && _mieAbsorptionScale >= 0.0f, "Invalid _mieAbsorptionScale=%g", _mieAbsorptionScale);
+        DK_ASSERT_LOG(std::isfinite(_mieAnisotropy), "Invalid _mieAnisotropy=%g", _mieAnisotropy);
+        DK_ASSERT_LOG(std::isfinite(_sunDegree), "Invalid _sunDegree=%g", _sunDegree);
+        DK_ASSERT_LOG(std::isfinite(_sunIrradiance) && _sunIrradiance >= 0.0f, "Invalid _sunIrradiance=%g", _sunIrradiance);
+        for (uint32 channel = 0; channel < DK_COUNT_OF(_sunColor); ++channel)
+        {
+            DK_ASSERT_LOG(std::isfinite(_sunColor[channel]) && _sunColor[channel] >= 0.0f, "Invalid _sunColor[%u]=%g", channel, _sunColor[channel]);
+            DK_ASSERT_LOG(std::isfinite(_planetCentre[channel]), "Invalid _planetCentre[%u]=%g", channel, _planetCentre[channel]);
+        }
+        DK_ASSERT_LOG(_surfaceBounceSamples <= SURFACE_BOUNCE_MAX_SAMPLES, "Invalid _surfaceBounceSamples=%u, maximum=%u", _surfaceBounceSamples, SURFACE_BOUNCE_MAX_SAMPLES);
+        DK_ASSERT_LOG(_shadowCascadeCount <= DK_ATMOSPHERE_SHADOW_CASCADE_COUNT, "Invalid _shadowCascadeCount=%u", _shadowCascadeCount);
+        for (uint32 index = 0; index < DK_COUNT_OF(_absorptionLayers); ++index)
+            _absorptionLayers[index].validate(index);
+    }
+
 	static bool intersectsGeometryFrustum(const StaticMeshInstanceChunk& chunk, const DKArray<float4, 6>& frustumPlanes)
 	{
 		for (const float4& plane : frustumPlanes)
@@ -800,7 +838,7 @@ namespace DK
         const double gx = double(cameraPosition.x) - _localGeometryCentre.x;
         const double gy = double(cameraPosition.y) - _localGeometryCentre.y;
         const double gz = double(cameraPosition.z) - _localGeometryCentre.z;
-        const SceneManager::ClipMapTerrain::StreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
+        const TerrainStreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
         const double terrainLocalX = preciseCamera[0] - terrainBounds._terrainOriginWorldX;
         const double terrainLocalZ = preciseCamera[2] - terrainBounds._terrainOriginWorldZ;
         const double terrainX = terrainLocalX - std::clamp(terrainLocalX, 0.0, double(terrainBounds._terrainCellCountX) * terrainBounds._terrainSampleWorldSpacing);
@@ -867,7 +905,7 @@ namespace DK
 
 			ITextureRef sourceTexture = ocean._ht[ocean._currentReadTextureIndex * kFrameCount];
 
-			SceneManager::Ocean::OceanParams params(
+			OceanParams params(
 				time, g, windDir, ocean._heightScale, length, A, L, N,
 				ocean._h0[0]->getSRV(), ocean._h0[0]->getUAV(),
 				sourceTexture->getUAV(),
@@ -883,7 +921,7 @@ namespace DK
 			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 
-			const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
+			const TerrainStreamingConstants& streaming = terrain._streamingConstants;
 			const float2 cameraPos(streaming._terrainCameraAnchorRelativeWorldX, streaming._terrainCameraAnchorRelativeWorldZ);
 
 			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
@@ -997,7 +1035,7 @@ namespace DK
 			if (sceneObject._sceneObjectConstantBuffer == nullptr)
 				continue;
 
-			SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+			SceneObjectConstantBuffer sceneObjectConstantBufferData;
 			sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
 			sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
 		}
@@ -1008,7 +1046,7 @@ namespace DK
 			if (sceneObject._sceneObjectConstantBuffer == nullptr)
 				continue;
 
-			SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+			SceneObjectConstantBuffer sceneObjectConstantBufferData;
 			sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
 			sceneObject._sceneObjectConstantBuffer->upload(&sceneObjectConstantBufferData);
 
@@ -1023,9 +1061,7 @@ namespace DK
 				if (skinnedMeshComponent == nullptr || skinnedMeshComponent->_currentAnimationBufferCS == nullptr)
 					continue;
 
-				const DKVector<float4x4>& currentCharacterSpaceBoneAnimation = skinnedMeshComponent->_currentCharacterSpaceBoneAnimation;
-				if (currentCharacterSpaceBoneAnimation.empty() == false)
-					skinnedMeshComponent->_currentAnimationBufferCS->upload(currentCharacterSpaceBoneAnimation.data());
+				skinnedMeshComponent->_currentAnimationBufferCS->upload(&skinnedMeshComponent->_skeletonConstantBufferData);
 			}
 		}
 
@@ -1561,7 +1597,6 @@ namespace DK
             DK::memcpy(cascade._forward, atmosphereData._surfaceForward, sizeof(cascade._forward));
             DK::memcpy(cascade._origin, atmosphereData._surfaceOrigin, sizeof(cascade._origin));
 
-
             cascade._albedoIndex = map._colors[0]._texture->getSRV();
 			cascade._depthIndex = map._depth._texture->getSRV();
 			cascade._mapSize = map._width;
@@ -1870,7 +1905,7 @@ namespace DK
             if (includeDebug)
             {
 			EditorDebugDrawManager& debugDrawManager = EditorDebugDrawManager::getSingleton();
-			const DKVector<EditorDebugDrawManager::SpherePrimitiveInfo>& spherePrimitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
+			const DKVector<SpherePrimitiveInfo>& spherePrimitiveInfo = debugDrawManager.get_primitiveInfoSphereArr();
 			const uint32 sphereInstanceCount = static_cast<uint32>(spherePrimitiveInfo.size());
 			if (sphereInstanceCount)
 			{
@@ -1878,13 +1913,13 @@ namespace DK
 				{
 					setConstantBuffer("SceneConstantBuffer", sceneConstants);
 					setShaderResourceView("SpherePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoSphereBuffer());
-					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView.get());
-					renderModule.setIndexBuffer(EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::SpherePrimitiveInfo::indexCount), sphereInstanceCount, 0, 0, 0);
+					renderModule.setVertexBuffers(0, 1, SpherePrimitiveInfo::kVertexBufferView.get());
+					renderModule.setIndexBuffer(SpherePrimitiveInfo::kIndexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(SpherePrimitiveInfo::indexCount), sphereInstanceCount, 0, 0, 0);
 				}
 				endPipeline();
 			}
-			const DKVector<EditorDebugDrawManager::LinePrimitiveInfo>& linePrimitiveInfo = debugDrawManager.get_primitiveInfoLineArr();
+			const DKVector<LinePrimitiveInfo>& linePrimitiveInfo = debugDrawManager.get_primitiveInfoLineArr();
 			const uint32 lineInstanceCount = static_cast<uint32>(linePrimitiveInfo.size());
 			if (lineInstanceCount)
 			{
@@ -1892,9 +1927,9 @@ namespace DK
 				{
 					setConstantBuffer("SceneConstantBuffer", sceneConstants);
 					setShaderResourceView("LinePrimitiveInfoBuffer", debugDrawManager.get_primitiveInfoLineBuffer());
-					renderModule.setVertexBuffers(0, 1, EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView.get());
-					renderModule.setIndexBuffer(EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(EditorDebugDrawManager::LinePrimitiveInfo::indexCount), lineInstanceCount, 0, 0, 0);
+					renderModule.setVertexBuffers(0, 1, LinePrimitiveInfo::kVertexBufferView.get());
+					renderModule.setIndexBuffer(LinePrimitiveInfo::kIndexBufferView.get());
+					renderModule.drawIndexedInstanced(static_cast<UINT>(LinePrimitiveInfo::indexCount), lineInstanceCount, 0, 0, 0);
 				}
 				endPipeline();
 			}
@@ -1913,7 +1948,7 @@ namespace DK
 
         const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
         const SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
-        const SceneManager::ClipMapTerrain::StreamingConstants& streaming = terrain._streamingConstants;
+        const TerrainStreamingConstants& streaming = terrain._streamingConstants;
         const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainOriginWorldX);
         const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainOriginWorldZ);
         const float mapMaxX = Math::min(grass._grassMapOriginX + grass._grassMapWidth, streaming._terrainOriginWorldX + streaming._terrainCellCountX * streaming._terrainSampleWorldSpacing);
@@ -2329,7 +2364,6 @@ namespace DK
 		}
 		endRenderPass();
         }
-
 
         // The horizontal pass can reuse the lighting output after atmosphere has read it.
 		if (_atmosphereConstantBufferData._bloomStrength > 0.0f)

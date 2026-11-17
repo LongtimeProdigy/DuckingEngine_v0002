@@ -3,21 +3,9 @@
 
 #include "CommonMath.hlsl"
 
-cbuffer SceneConstantBuffer : register(b0)
-{
-    uint _frameIndex;
-
-	uint2 _resolution;
-    float _time;
-
-    float _nearDistance;
-    uint _rngState;
-    uint2 _paddingSCB;
-
-    float4x4 _cameraWorldMatrix;
-    float4x4 _cameraWorldMatrixInv;
-	float4x4 _cameraProjectionMatrix;
-}
+#define DK_SHADER_SCENE
+#include "ShaderStructures.h"
+#undef DK_SHADER_SCENE
 
 float getFOVTangent()
 {

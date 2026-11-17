@@ -100,7 +100,7 @@ namespace DK
 		const bool success = createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
 		_ocean._mesh = SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 
-		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(Ocean::OceanParams), DK_DEBUG_NAME(L"_initialSpectrumConstantBuffer"));
+		_ocean._initialSpectrumConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(OceanParams), DK_DEBUG_NAME(L"_initialSpectrumConstantBuffer"));
 
 		// TODO : h0, ht 둘 다 R32, G32만 사용중인데, Bindless연결하려다보니 B32, A32까지 만들었다. 추후에 개선하자
 		for (uint32 i = 0; i < kFrameCount; ++i)
@@ -484,7 +484,7 @@ namespace DK
 				DK_ASSERT_LOG(false, "Grass TileGridSide must be a multiple of 32 between 32 and 128: %s", fullPath.c_str());
 				return false;
 			}
-			const ClipMapTerrain::StreamingConstants& terrainConstants = _clipmapTerrain._streamingConstants;
+			const TerrainStreamingConstants& terrainConstants = _clipmapTerrain._streamingConstants;
 			_grass._grassMapOriginX = terrainConstants._terrainOriginWorldX;
 			_grass._grassMapOriginZ = terrainConstants._terrainOriginWorldZ;
 			_grass._grassMapWidth = terrainConstants._terrainCellCountX * terrainConstants._terrainSampleWorldSpacing;
@@ -608,7 +608,7 @@ namespace DK
     {
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
         ClipMapTerrain& terrain = _clipmapTerrain;
-        ClipMapTerrain::StreamingConstants& constants = terrain._streamingConstants;
+        TerrainStreamingConstants& constants = terrain._streamingConstants;
         const TerrainWorld& world = terrain._world;
         const ArchiveHeader& header = world._header;
         constants = {};
@@ -679,7 +679,7 @@ namespace DK
     void SceneManager::prepareTerrainStreaming(double cameraX, double cameraZ, float deltaTime)
     {
         ClipMapTerrain& terrain = _clipmapTerrain;
-        ClipMapTerrain::StreamingConstants& constants = terrain._streamingConstants;
+        TerrainStreamingConstants& constants = terrain._streamingConstants;
         if (terrain._streamingBuffer == nullptr)
         {
             return;
@@ -697,7 +697,7 @@ namespace DK
         constants._terrainCameraWorldZ = static_cast<float>(cameraZ);
         const TerrainWorld& world = terrain._world;
         const DKVector<uint32> sections = world.selectSections(localCameraX, localCameraZ);
-        for (ClipMapTerrain::SectionConstants& section : constants._terrainSections)
+        for (TerrainSectionConstants& section : constants._terrainSections)
         {
             const uint32 id = section._terrainSectionZ * world._sectionCountX + section._terrainSectionX;
             if (std::find(sections.begin(), sections.end(), id) == sections.end())
@@ -729,7 +729,7 @@ namespace DK
             {
                 return;
             }
-            ClipMapTerrain::SectionConstants& metadata = constants._terrainSections[slotZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + slotX];
+            TerrainSectionConstants& metadata = constants._terrainSections[slotZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + slotX];
             metadata._terrainSectionX = section._x;
             metadata._terrainSectionZ = section._z;
             metadata._terrainSectionCellCountX = world._sectionCellCountPerSide;
@@ -742,7 +742,7 @@ namespace DK
         for (const uint32 sectionId : sections)
         {
             const TerrainSection& section = world._sections[sectionId];
-            const ClipMapTerrain::SectionConstants& metadata = constants._terrainSections[(section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE];
+            const TerrainSectionConstants& metadata = constants._terrainSections[(section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE];
             if (metadata._terrainSectionResident == 0 || metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z)
             {
                 missingSections.push_back(sectionId);

@@ -17,22 +17,14 @@ struct VS_OUTPUT
 };
 
 // per DrawElement (Cube, Sphere, Capsule...etc)
-struct SpherePrimitiveInfo
-{
-	float3 _worldPosition;
-	float _radius;
-	float3 _color;
-	float _padding;
-};
+#define DK_SHADER_DEBUG_DRAW
+#include "ShaderStructures.h"
+#undef DK_SHADER_DEBUG_DRAW
+
 StructuredBuffer<SpherePrimitiveInfo> SpherePrimitiveInfoBuffer : register(t0);
 
 // per DrawElement (Cube, Sphere, Capsule...etc)
-struct LinePrimitiveInfo
-{
-	float3 _startWorldPosition;
-	float3 _endWorldPosition;
-	float3 _color;
-};
+
 StructuredBuffer<LinePrimitiveInfo> LinePrimitiveInfoBuffer : register(t0);
 
 float4 convertToWorldSpace(in float3 localPosition)

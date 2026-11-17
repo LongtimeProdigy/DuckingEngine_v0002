@@ -75,10 +75,10 @@ namespace DK
 			}
 			_animatedPose[i].inverse_copy(_inverseBindPose[i]);
 		}
-		_currentCharacterSpaceBoneAnimation.assign(Bone::kMaxBoneCount, float4x4::Identity);
+		_skeletonConstantBufferData._currentCharacterSpaceBoneAnimation.fill(float4x4::Identity);
 
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		_currentAnimationBufferCS = renderModule.createConstantBuffer(sizeof(float4x4) * Bone::kMaxBoneCount, DK_DEBUG_NAME(L"SkinnedMesh_Skeleton_Cbuffer"));
+		_currentAnimationBufferCS = renderModule.createConstantBuffer(sizeof(_skeletonConstantBufferData), DK_DEBUG_NAME(L"SkinnedMesh_Skeleton_Cbuffer"));
 		if (_currentAnimationBufferCS == nullptr)
 			return false;
 
@@ -109,7 +109,7 @@ namespace DK
 			if (bones[i]._parentBoneIndex != Bone::kInvalidBoneIndex)
 				_animatedPose[i] = _animatedPose[i] * _animatedPose[bones[i]._parentBoneIndex];
 
-			_currentCharacterSpaceBoneAnimation[i] = _inverseBindPose[i] * _animatedPose[i];
+			_skeletonConstantBufferData._currentCharacterSpaceBoneAnimation[i] = _inverseBindPose[i] * _animatedPose[i];
 		}
 	}
 }

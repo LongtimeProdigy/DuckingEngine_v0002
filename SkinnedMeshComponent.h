@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "Resource/Material/ShaderStructures.h"
 #include "RenderableComponent.h"
 
 namespace DK
@@ -29,7 +30,7 @@ namespace DK
 		DKVector<float4x4> _inverseBindPose;
 		DKVector<float4x4> _animatedPose;
 
-		DKVector<float4x4> _currentCharacterSpaceBoneAnimation;
+		SkeletonConstantBuffer _skeletonConstantBufferData;
 		IBufferRef _currentAnimationBufferCS;
 	};
 }

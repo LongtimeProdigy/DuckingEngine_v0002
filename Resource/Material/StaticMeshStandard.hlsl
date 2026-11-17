@@ -5,12 +5,9 @@
 #include "CommonRendering.hlsl"
 #include "GBufferCommon.hlsl"
 
-struct VS_INPUT
-{
-    float3 _position : POSITION;
-    float3 _normal : NORMAL;
-    float2 _uv : TEXCOORD0;
-};
+#define DK_SHADER_STATIC_VERTEX
+#include "ShaderStructures.h"
+#undef DK_SHADER_STATIC_VERTEX
 
 struct VS_OUTPUT
 {
@@ -19,15 +16,14 @@ struct VS_OUTPUT
     float2 _uv : TEXCOORD0;
 };
 
-cbuffer SceneObjectConstantBuffer : register(b1)
-{
-    float4x4 _worldMatrix;
-}
+#define DK_SHADER_OBJECT
+#include "ShaderStructures.h"
+#undef DK_SHADER_OBJECT
 
-struct StaticMeshInstance
-{
-    float4x4 _worldMatrix;
-};
+#define DK_SHADER_INSTANCE
+#include "ShaderStructures.h"
+#undef DK_SHADER_INSTANCE
+
 StructuredBuffer<StaticMeshInstance> _staticMeshInstances : register(t0);
 
 cbuffer StaticMeshInstanceConstants : register(b3)
@@ -44,7 +40,7 @@ cbuffer StaticMeshStandard : register(b2)
     float _alphaCutoff;
 }
 
-VS_OUTPUT TransformStaticMeshVertex(VS_INPUT input, float4x4 worldMatrix)
+VS_OUTPUT TransformStaticMeshVertex(StaticMeshVertex input, float4x4 worldMatrix)
 {
     VS_OUTPUT output;
     output.position = float4(input._position, 1.0f);
@@ -60,12 +56,12 @@ VS_OUTPUT TransformStaticMeshVertex(VS_INPUT input, float4x4 worldMatrix)
     return output;
 }
 
-VS_OUTPUT VSMain(VS_INPUT input)
+VS_OUTPUT VSMain(StaticMeshVertex input)
 {
     return TransformStaticMeshVertex(input, _worldMatrix);
 }
 
-VS_OUTPUT VSMainInstanced(VS_INPUT input, uint instanceID : SV_InstanceID)
+VS_OUTPUT VSMainInstanced(StaticMeshVertex input, uint instanceID : SV_InstanceID)
 {
     return TransformStaticMeshVertex(input, _staticMeshInstances[_firstInstance + instanceID]._worldMatrix);
 }

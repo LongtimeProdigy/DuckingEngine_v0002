@@ -1,18 +1,9 @@
-﻿#ifndef DK_CLIPMAP_COMMON_HLSL
+#ifndef DK_CLIPMAP_COMMON_HLSL
 #define DK_CLIPMAP_COMMON_HLSL
 
-// 현재 엔진의 바인딩 이름을 유지한다.
-cbuffer TerrainMeshConstantBuffer : register(b2)
-{
-    float4 _baseXY_scale_rotate;
-    float4 _morphCenter_start_end;
-    float4 _parentOrigin_spacing;
-
-    uint _type;
-    uint _level;
-    uint _hasParent;
-    uint _padding;
-};
+#define DK_SHADER_TERRAIN_MESH
+#include "ShaderStructures.h"
+#undef DK_SHADER_TERRAIN_MESH
 
 // Terrain/Ocean 셰이더가 구현한다.
 //

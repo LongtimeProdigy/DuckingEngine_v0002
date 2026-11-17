@@ -1,33 +1,11 @@
 ﻿#pragma once
 
-#include "Resource/Material/SkinningLimits.h"
+#include "Resource/Material/ShaderStructures.h"
 
 namespace DK
 {
 	class Material;
 	struct IBuffer;
-
-	struct StaticMeshVertex
-	{
-		const float3 _position = float3::Zero;
-		const float3 _normal = float3::Zero;
-		const float2 _uv = float2::Zero;
-	};
-
-	struct SkinnedMeshVertex
-	{
-		const float3 _position = float3::Zero;
-		const float3 _normal = float3::Zero;
-		const float2 _uv = float2::Zero;
-		const uint32 _boneIndices[DK_MAX_SKINNING_COUNT] = { static_cast<uint32>(-1), static_cast<uint32>(-1),static_cast<uint32>(-1),static_cast<uint32>(-1) };
-		const float _boneWeights[DK_MAX_SKINNING_COUNT] = { 0.0f,0.0f,0.0f,0.0f };
-	};
-
-	static_assert(sizeof(StaticMeshVertex) == 32);
-	static_assert(offsetof(StaticMeshVertex, _uv) == 24);
-	static_assert(sizeof(SkinnedMeshVertex) == 64);
-	static_assert(offsetof(SkinnedMeshVertex, _boneIndices) == 32);
-	static_assert(offsetof(SkinnedMeshVertex, _boneWeights) == 48);
 
 	template<typename T>
 	class SubMesh

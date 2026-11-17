@@ -6,14 +6,9 @@
 #include "CommonRendering.hlsl"
 #include "GBufferCommon.hlsl"
 
-struct VS_INPUT
-{
-    float3 _position : POSITION;
-    float3 _normal : NORMAL;
-    float2 _uv : TEXCOORD0;
-    uint4 _boneIndices : BONEINDEXES;
-    float4 _boneWeights : BONEWEIGHTS;
-};
+#define DK_SHADER_SKINNED_VERTEX
+#include "ShaderStructures.h"
+#undef DK_SHADER_SKINNED_VERTEX
 
 struct VS_OUTPUT
 {
@@ -22,10 +17,9 @@ struct VS_OUTPUT
     float2 _uv : TEXCOORD0;
 };
 
-cbuffer SceneObjectConstantBuffer : register(b1)
-{
-    float4x4 _worldMatrix;
-}
+#define DK_SHADER_OBJECT
+#include "ShaderStructures.h"
+#undef DK_SHADER_OBJECT
 
 cbuffer SkinnedMeshStandard : register(b2)
 {
@@ -37,12 +31,11 @@ cbuffer SkinnedMeshStandard : register(b2)
 
 // #todo- StructuredBuffer로 교체 가능?
 #define MAX_BONE_COUNT DK_MAX_BONE_COUNT
-cbuffer SkeletonConstantBuffer : register(b3)
-{
-    float4x4 _skeletonConstantBuffer[MAX_BONE_COUNT];
-}
+#define DK_SHADER_SKELETON
+#include "ShaderStructures.h"
+#undef DK_SHADER_SKELETON
 
-VS_OUTPUT VSMain(VS_INPUT input)
+VS_OUTPUT VSMain(SkinnedMeshVertex input)
 {
     VS_OUTPUT output;
     output.position = float4(input._position, 1.0f);
@@ -59,7 +52,7 @@ VS_OUTPUT VSMain(VS_INPUT input)
         if(input._boneWeights[i] == 0)
             continue;
 
-        skinMatrix += _skeletonConstantBuffer[input._boneIndices[i]] * input._boneWeights[i];
+        skinMatrix += _currentCharacterSpaceBoneAnimation[input._boneIndices[i]] * input._boneWeights[i];
     }
 
     output.position = mul(output.position, skinMatrix);

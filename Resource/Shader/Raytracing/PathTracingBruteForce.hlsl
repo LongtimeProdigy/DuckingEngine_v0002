@@ -18,13 +18,11 @@ cbuffer RaytracingConstants : register(b1)
 
 RaytracingAccelerationStructure gTLAS : register(t0);
 
-struct VS_INPUT
-{
-    float3 _position : POSITION;
-    float3 _normal : NORMAL;
-    float2 _uv : TEXCOORD0;
-};
-StructuredBuffer<VS_INPUT> gVertices[] : register(t0, BINDLESSVERTEXARRAY_SPACE);
+#define DK_SHADER_STATIC_VERTEX
+#include "ShaderStructures.h"
+#undef DK_SHADER_STATIC_VERTEX
+
+StructuredBuffer<StaticMeshVertex> gVertices[] : register(t0, BINDLESSVERTEXARRAY_SPACE);
 StructuredBuffer<uint> gIndices[]  : register(t0, BINDLESSINDEXARRAY_SPACE);
 struct Material
 {

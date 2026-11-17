@@ -27,7 +27,7 @@ namespace DK
 	{
 		// for GPU resource
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-		SceneObjectConstantBufferStruct sceneObjectConstantBufferData;
+		SceneObjectConstantBuffer sceneObjectConstantBufferData;
 		sceneObject.get_worldTransform().tofloat4x4(sceneObjectConstantBufferData._worldMatrix);
 		sceneObject._sceneObjectConstantBuffer = renderModule.createConstantBuffer(sizeof(sceneObjectConstantBufferData), DK_DEBUG_NAME(L"SceneObject_Cbuffer"));
 		if (sceneObject._sceneObjectConstantBuffer == nullptr)

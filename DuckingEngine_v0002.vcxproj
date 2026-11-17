@@ -160,6 +160,7 @@
     <ClInclude Include="TerrainData.h" />
     <ClInclude Include="TerrainWorld.h" />
     <ClInclude Include="Resource\Material\TerrainStreamingLimits.h" />
+    <ClInclude Include="Resource\Material\ShaderStructures.h" />
     <ClInclude Include="TerrainStreaming.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="GpuAssertDiagnostics.h" />

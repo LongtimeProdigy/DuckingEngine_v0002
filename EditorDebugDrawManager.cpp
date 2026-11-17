@@ -9,17 +9,17 @@ namespace DK
 {
 	EditorDebugDrawManager* EditorDebugDrawManager::_this = nullptr;
 
-	IBufferRef EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBuffer = nullptr;
-	IBufferRef EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBuffer = nullptr;
-	VertexBufferViewRef EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBufferView = nullptr;
-	IndexBufferViewRef EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBufferView = nullptr;
-	uint32 EditorDebugDrawManager::SpherePrimitiveInfo::indexCount = 0;
+	IBufferRef SpherePrimitiveInfo::kVertexBuffer = nullptr;
+	IBufferRef SpherePrimitiveInfo::kIndexBuffer = nullptr;
+	VertexBufferViewRef SpherePrimitiveInfo::kVertexBufferView = nullptr;
+	IndexBufferViewRef SpherePrimitiveInfo::kIndexBufferView = nullptr;
+	uint32 SpherePrimitiveInfo::indexCount = 0;
 
-	IBufferRef EditorDebugDrawManager::LinePrimitiveInfo::kVertexBuffer = nullptr;
-	IBufferRef EditorDebugDrawManager::LinePrimitiveInfo::kIndexBuffer = nullptr;
-	VertexBufferViewRef EditorDebugDrawManager::LinePrimitiveInfo::kVertexBufferView = nullptr;
-	IndexBufferViewRef EditorDebugDrawManager::LinePrimitiveInfo::kIndexBufferView = nullptr;
-	uint32 EditorDebugDrawManager::LinePrimitiveInfo::indexCount = 0;
+	IBufferRef LinePrimitiveInfo::kVertexBuffer = nullptr;
+	IBufferRef LinePrimitiveInfo::kIndexBuffer = nullptr;
+	VertexBufferViewRef LinePrimitiveInfo::kVertexBufferView = nullptr;
+	IndexBufferViewRef LinePrimitiveInfo::kIndexBufferView = nullptr;
+	uint32 LinePrimitiveInfo::indexCount = 0;
 
 	bool EditorDebugDrawManager::initialize()
 	{

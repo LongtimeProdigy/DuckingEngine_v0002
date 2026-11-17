@@ -4,54 +4,9 @@
 #include "CommonTexture.hlsl"
 #include "TerrainStreamingLimits.h"
 
-struct TerrainSectionConstants
-{
-    uint _terrainSectionX;
-    uint _terrainSectionZ;
-    uint _terrainSectionCellCountX;
-    uint _terrainSectionCellCountZ;
-    uint _terrainSectionOverviewSampleCountX;
-    uint _terrainSectionOverviewSampleCountZ;
-    uint _terrainSectionResident;
-    uint _terrainSectionPadding;
-};
-
-cbuffer TerrainStreamingConstants : register(b3)
-{
-    uint _terrainStreamingEnabled;
-    uint _terrainHeightCacheSRV;
-    uint _terrainNormalCacheSRV;
-    uint _terrainPageTableSRV;
-    uint _terrainOverviewHeightSRV;
-    uint _terrainOverviewNormalSRV;
-    uint _terrainCacheSlotColumnCount;
-    uint _terrainCacheSlotRowCount;
-    uint _terrainCacheSlotTexelCountPerSide;
-    float _terrainSampleWorldSpacing;
-    float _terrainBaseWorldHeight;
-    float _terrainWorldHeightRange;
-    uint _terrainCellCountX;
-    uint _terrainCellCountZ;
-    uint _terrainChunkCellCountPerSide;
-    uint _terrainSectionCellCountPerSide;
-    uint _terrainOverviewLod;
-    uint _terrainOverviewSampleCountX;
-    uint _terrainOverviewSampleCountZ;
-    uint _terrainPageTableEntryCountPerSide;
-    float _terrainCameraAnchorRelativeWorldX;
-    float _terrainCameraAnchorRelativeWorldZ;
-    int _terrainAnchorSampleX;
-    int _terrainAnchorSampleZ;
-    float _terrainCameraWorldX;
-    float _terrainCameraWorldZ;
-    float _terrainLod0WorldRadius;
-    float _terrainOriginWorldX;
-    float _terrainOriginWorldZ;
-    uint _terrainSectionCountX;
-    uint _terrainSectionCountZ;
-    uint _terrainOverviewSlotSampleCountPerSide;
-    TerrainSectionConstants _terrainSections[TERRAIN_SECTION_SLOT_COUNT];
-}
+#define DK_SHADER_TERRAIN_STREAMING
+#include "ShaderStructures.h"
+#undef DK_SHADER_TERRAIN_STREAMING
 
 float2 TerrainAnchorWorldXZ()
 {

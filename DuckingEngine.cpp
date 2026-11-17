@@ -51,10 +51,10 @@ namespace DK
 		EditorDebugDrawManager::getSingleton().get_primitiveInfoSphereBufferWritable().reset();
 		EditorDebugDrawManager::getSingleton().get_primitiveInfoLineArrWritable().clear();
 		EditorDebugDrawManager::getSingleton().get_primitiveInfoLineBufferWritable().reset();
-		EditorDebugDrawManager::SpherePrimitiveInfo::kVertexBuffer.reset();
-		EditorDebugDrawManager::SpherePrimitiveInfo::kIndexBuffer.reset();
-		EditorDebugDrawManager::LinePrimitiveInfo::kVertexBuffer.reset();
-		EditorDebugDrawManager::LinePrimitiveInfo::kIndexBuffer.reset();
+		SpherePrimitiveInfo::kVertexBuffer.reset();
+		SpherePrimitiveInfo::kIndexBuffer.reset();
+		LinePrimitiveInfo::kVertexBuffer.reset();
+		LinePrimitiveInfo::kIndexBuffer.reset();
 #endif
 
 		_gameModule.release();

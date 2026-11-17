@@ -1,6 +1,10 @@
 #ifndef ASSERT_HLSL
 #define ASSERT_HLSL
 
+#define DK_SHADER_GPU_ASSERT
+#include "ShaderStructures.h"
+#undef DK_SHADER_GPU_ASSERT
+
 #if defined(__INTELLISENSE__)
 
 void GPUAssert(bool condition) {}
@@ -29,17 +33,17 @@ void GPUAssertRecordImpl(uint fileId, uint sourceLine, bool condition, uint4 dat
     GpuAssertBuffer.InterlockedCompareExchange(0, 0u, 1u, previous);
     if (previous == 0u)
     {
-        GpuAssertBuffer.Store3(4, uint3(fileId, sourceLine, dataType));
-        GpuAssertBuffer.Store4(16, data);
+        GpuAssertBuffer.Store3(DK_GPU_ASSERT_HEADER_OFFSET, uint3(fileId, sourceLine, dataType));
+        GpuAssertBuffer.Store4(DK_GPU_ASSERT_DATA_OFFSET, data);
     }
 }
 void GPUAssertImpl(uint fileId, uint sourceLine, bool condition, uint4 data = uint4(0, 0, 0, 0))
 {
-    GPUAssertRecordImpl(fileId, sourceLine, condition, data, 0u);
+    GPUAssertRecordImpl(fileId, sourceLine, condition, data, DK_GPU_ASSERT_UINT4);
 }
 void GPUAssertImpl(uint fileId, uint sourceLine, bool condition, float4 data)
 {
-    GPUAssertRecordImpl(fileId, sourceLine, condition, asuint(data), 1u);
+    GPUAssertRecordImpl(fileId, sourceLine, condition, asuint(data), DK_GPU_ASSERT_FLOAT4);
 }
 
 // 조건만 전달한 경우

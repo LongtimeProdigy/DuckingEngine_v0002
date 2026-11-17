@@ -139,6 +139,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Resource\Material\ShaderBindings.h" />
+    <ClInclude Include="Resource\Material\ShaderStructures.h">
+      <Filter>1. EngineCore\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Resource\Material\Atmosphere\AtmosphereLimits.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
