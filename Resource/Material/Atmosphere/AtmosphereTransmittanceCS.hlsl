@@ -12,7 +12,7 @@ cbuffer AtmosphereLutOutputConstants : register(b2)
 float2 atmosphereLutParameters(float2 uv)
 {
     // uv.y의 0은 transitionradius 높이를 가리키기 때문에 referenceheight로 변환하기 위해서는 atmosphereTransitionHeight()를 더해야함
-    GPUASSERT(_densityTransitionRadius - _densityReferenceRadius <= 2000);
+    GPUASSERT(_densityTransitionRadius < _densityReferenceRadius);
     GPUASSERT(uv.y * uv.y <= 1.0f);
     GPUASSERT(_atmosphereRadius - _densityTransitionRadius <= ATMOSPHERE_LUT_MAX_RADIAL_DEPTH);
     const float heightAtReference = atmosphereTransitionHeight() + uv.y * uv.y * (_atmosphereRadius - _densityTransitionRadius); //uv.y²로 높이를 배치해 전환 경계 근처에 샘플이 집중됨

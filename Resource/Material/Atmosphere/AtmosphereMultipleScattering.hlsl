@@ -3,9 +3,6 @@
 
 #include "Atmosphere/AtmosphereTransmittance.hlsl"
 
-static const uint ATMOSPHERE_MULTIPLESCATTERING_WIDTH = 32u;
-static const uint ATMOSPHERE_MULTIPLESCATTERING_HEIGHT = 32u;
-
 // atmosphereMultipleScatteringHeightAtReference의 역함수
 float2 atmosphereMultipleScatteringCoordinates(float heightAtReference, float mu)
 {

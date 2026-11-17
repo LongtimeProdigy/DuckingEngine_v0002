@@ -26,9 +26,9 @@ float3 atmosphereSkyAmbient(float3 N, float3 V, float3 baseColor, float metallic
     const float NoV = saturate(dot(N, V));
     const float3 F0 = lerp(float3(0.04f, 0.04f, 0.04f), baseColor, metallic);
     const float3 F = F0 + (max(1.0f - roughness, F0) - F0) * pow(1.0f - NoV, 5.0f);
-    const float3 irradiance = sampleSkyBand(_skyFilteredIndex, N, 5u);                                                                      // 표면 법선 방향의 확산 irradiance를 조회
-    const float level = saturate(roughness) * 4.0f;
-    const uint band0 = uint(level), band1 = min(band0 + 1u, 4u);
+    const float3 irradiance = sampleSkyBand(_skyFilteredIndex, N, SKY_DIFFUSE_BAND);                                                       // 표면 법선 방향의 확산 irradiance를 조회
+    const float level = saturate(roughness) * float(SKY_SPECULAR_BAND_COUNT - 1u);
+    const uint band0 = uint(level), band1 = min(band0 + 1u, SKY_SPECULAR_BAND_COUNT - 1u);
     const float3 R = reflect(-V, N);
     const float3 reflection = lerp(sampleSkyBand(_skyFilteredIndex, R, band0), sampleSkyBand(_skyFilteredIndex, R, band1), frac(level));    // 정반사 환경광
     return ((1.0f - F) * (1.0f - metallic) * baseColor * irradiance / PI + F * reflection) * saturate(ao) * _skyLightingStrength;

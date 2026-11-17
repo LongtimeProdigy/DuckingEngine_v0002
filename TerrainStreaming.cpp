@@ -248,7 +248,7 @@ namespace DK
                 SectionPage page;
                 page._sectionId = sectionId;
                 Archive& archive = archives[sectionId];
-                page._loaded = (archive.isOpen() || archive.open(_world._sections[sectionId]._archivePath)) && _world.matchesSectionArchive(sectionId, archive.header()) && archive.loadOverview(_world._overviewLod, page._overview);
+                page._loaded = (archive.isOpen() || archive.open(_world._sections[sectionId]._archivePath)) && _world.matchesSectionArchive(archive.header()) && archive.loadOverview(_world._overviewLod, page._overview);
                 DK_ASSERT_LOG(page._loaded, "Terrain section load failed: %u", sectionId);
                 std::lock_guard<std::mutex> lock(_mutex);
                 _loadingSectionId = ~0u;

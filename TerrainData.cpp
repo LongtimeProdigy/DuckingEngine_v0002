@@ -21,7 +21,7 @@ namespace DK
 
     static bool validHeader(const ArchiveHeader& h)
     {
-        const bool version3 = h._version == 3 && std::memcmp(h._magic, "DKTRN003", 8) == 0 && (h._chunkCellCountPerSide & (h._chunkCellCountPerSide - 1)) == 0;
+        const bool version3 = h._version == 3 && std::memcmp(h._magic, "DKTRN003", sizeof(h._magic)) == 0 && (h._chunkCellCountPerSide & (h._chunkCellCountPerSide - 1)) == 0;
         return version3 && h._headerBytes == sizeof(ArchiveHeader) && h._directoryOffset == sizeof(ArchiveHeader) && h._width >= 2 && h._height >= 2 && h._width <= 1048576 && h._height <= 1048576 && h._chunkCellCountPerSide >= 1 && h._chunkCellCountPerSide <= 512 && h._reserved == 0 && std::isfinite(h._sampleWorldSpacing) && h._sampleWorldSpacing > 0 && std::isfinite(h._heightOffset) && std::isfinite(h._heightScale) && h._heightScale > 0 && std::isfinite(h._heightOffset + h._heightScale);
     }
     template<class T> static bool read(FileReader& in, T& value)
@@ -165,7 +165,7 @@ namespace DK
             const ChunkInfo& c = chunks[i];
             const uint32 x = i % columns(h);
             const uint32 z = i / columns(h);
-            if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > 9 || (c._cellCountX == std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide)) == false || (c._cellCountZ == std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide)) == false || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
+            if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > static_cast<uint32>(ChunkDataType::NormalPyramid) || (c._cellCountX == std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide)) == false || (c._cellCountZ == std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide)) == false || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
             {
                 DK_ASSERT_LOG(false, "Invalid chunk bounds, coordinates or offsets");
                 return false;
@@ -205,12 +205,12 @@ namespace DK
                 dataBlocks[i].push_back(s);
             }
 
-            if ((seen & (1u << static_cast<uint32>(ChunkDataType::Height))) == 0 || (next == c._endOffset) == false || (bool(seen & (1u << 3)) == bool(seen & (1u << 4))) == false)
+            if ((seen & (1u << static_cast<uint32>(ChunkDataType::Height))) == 0 || (next == c._endOffset) == false || (bool(seen & (1u << static_cast<uint32>(ChunkDataType::MaterialIds))) == bool(seen & (1u << static_cast<uint32>(ChunkDataType::MaterialWeights)))) == false)
             {
                 DK_ASSERT_LOG(false, "Missing heights, incomplete material layers or invalid chunk size");
                 return false;
             }
-            if (((seen & (1u << 8)) == 0 || (seen & (1u << 9)) == 0 || (seen & (1u << 2)) == 0))
+            if (((seen & (1u << static_cast<uint32>(ChunkDataType::HeightPyramid))) == 0 || (seen & (1u << static_cast<uint32>(ChunkDataType::NormalPyramid))) == 0 || (seen & (1u << static_cast<uint32>(ChunkDataType::Normal))) == 0))
             {
                 DK_ASSERT_LOG(false, "Missing terrain mip pyramid or normals");
                 return false;
@@ -497,7 +497,7 @@ namespace DK
         DKVector<uint16_t> heights(count);
         DKVector<DKArray<int16_t, 2>> normals(count);
         FileReader in(_path);
-        if (in.seek(heightInfo->_offset + first * 2) == false || in.read(heights.data(), count * 2) == false || in.seek(normalInfo->_offset + first * 4) == false || in.read(normals.data(), count * 4) == false)
+        if (in.seek(heightInfo->_offset + first * sizeof(uint16)) == false || in.read(heights.data(), count * sizeof(uint16)) == false || in.seek(normalInfo->_offset + first * sizeof(normals[0])) == false || in.read(normals.data(), count * sizeof(normals[0])) == false)
         {
             DK_ASSERT_LOG(false, "Cannot read terrain mip payload");
             return false;
@@ -599,8 +599,8 @@ namespace DK
                 }
                 const uint64 first = mipOffset + uint64(sampleZ) * rowWidth + sampleX;
                 const size_t destination = size_t(z) * gridWidth + x;
-                if (reader.seek(dataBlock->_offset + first * 2) == false || reader.read(samples.data() + destination, size_t(count) * 2) == false ||
-                    reader.seek(normalBlock->_offset + first * 4) == false || reader.read(normals.data() + destination, size_t(count) * 4) == false)
+                if (reader.seek(dataBlock->_offset + first * sizeof(uint16)) == false || reader.read(samples.data() + destination, size_t(count) * sizeof(uint16)) == false ||
+                    reader.seek(normalBlock->_offset + first * sizeof(normals[0])) == false || reader.read(normals.data() + destination, size_t(count) * sizeof(normals[0])) == false)
                 {
                     return false;
                 }

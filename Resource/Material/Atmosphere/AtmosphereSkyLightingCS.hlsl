@@ -4,6 +4,10 @@
 #include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
 #include "Atmosphere/AtmosphereMultipleScattering.hlsl"
 
+// 하늘 광선 적분과 환경광 필터의 고정 품질 예산이다. 분할 위치와 가중치도 같은 개수를 사용한다.
+#define SKY_RADIANCE_STEP_COUNT 64u
+#define SKY_FILTER_SAMPLE_COUNT 64u
+
 cbuffer SkyLightingOutputConstants : register(b2)
 {
     uint _skyOutputUav;
@@ -39,15 +43,15 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
     if (hit.y > 0.0f && _scatteringScale > 0.0f && _sunIrradiance > 0.0f)
     {
         [loop]
-        for (uint i = 0u; i < 64u; ++i)
+        for (uint i = 0u; i < SKY_RADIANCE_STEP_COUNT; ++i)
         {
-            const float u0 = float(i) / 64.0f, u1 = float(i + 1u) / 64.0f;
+            const float u0 = float(i) / float(SKY_RADIANCE_STEP_COUNT), u1 = float(i + 1u) / float(SKY_RADIANCE_STEP_COUNT);
             const float a = hit.y * u0 * u0 * u0, b = hit.y * u1 * u1 * u1;
             const float width = b - a;
             const float3 p = dir * (hit.x + 0.5f * (a + b));
             const float4 density = atmosphereDensity(atmosphereHeight(p));
             const float3 sigma = atmosphereOpticalExtinction(density);
-            GPUASSERT(all(sigma >= FLOAT_EPSILON_MIN));
+            GPUASSERT(all(isfinite(sigma)) && all(sigma >= 0.0f));
             const float3 tau = sigma * width;
             const float3 transmittance = exp(-tau);
             const float3 weight = float3(       // start -> end를 지나오면서 누적되는 투과율 (구간 모든 점에서 빛이 발생되고 해당 빛들이 각 구간을 지나 start에 도달할때 전체 투과율)
@@ -108,16 +112,16 @@ void CSFilter(uint3 id : SV_DispatchThreadID)
     else
     {
         [loop] 
-        for (uint i = 0u; i < 64u; ++i)
+        for (uint i = 0u; i < SKY_FILTER_SAMPLE_COUNT; ++i)
         {
             // xi.x: 기준 방향에서 얼마나 기울어질지 결정.
             // xi.y: 기준 방향 주위를 도는 방위각(phi)
-            const float2 xi = float2((float(i) + 0.5f) / 64.0f, radicalInverse(i));
+            const float2 xi = float2((float(i) + 0.5f) / float(SKY_FILTER_SAMPLE_COUNT), radicalInverse(i));
             const float phi = 2.0f * PI * xi.y;
             float3 L;
 
             // 표면이 받는 하늘빛을 구함
-            if (band == 5u)
+            if (band == SKY_DIFFUSE_BAND)
             {
                 // 코사인 가중 반구 샘플링 (xi.x를 sin²이라고 생각하면됨)
                 const float sinTheta = sqrt(xi.x), cosTheta = sqrt(1.0f - xi.x);
@@ -125,7 +129,7 @@ void CSFilter(uint3 id : SV_DispatchThreadID)
             }
             else
             {
-                const float roughness = float(band) / 4.0f;
+                const float roughness = float(band) / float(SKY_SPECULAR_BAND_COUNT - 1u);
                 // 거칠기를 GGX 분포의 폭으로 바꿉니다
                 const float a2 = pow(roughness, 4.0f);
 
@@ -144,7 +148,7 @@ void CSFilter(uint3 id : SV_DispatchThreadID)
             // PDF = \[p(\omega)=\frac{\cos\theta}{\pi}\]
             // 몬테카를로: \[E\approx\frac1K\sum_{k=1}^{K}\frac{L_{\mathrm{sky}}(\omega_k)\cos\theta_k}{p(\omega_k)}=\frac{\pi}{K}\sum_{k=1}^{K}L_{\mathrm{sky}}(\omega_k)\]
             // 따라서 cos이 상쇄되어 여기서는 cos을 빼고 64개 샘플의 평균에 마지막으로 \(\pi\)를 곱하면 됩니다. (마지막 output에 넣을때 PI를 곱해줌)
-            const float weight = band == 5u ? 1.0f : saturate(dot(N, L));
+            const float weight = band == SKY_DIFFUSE_BAND ? 1.0f : saturate(dot(N, L));
             sum += sampleSkyBand(_skyRadianceIndex, L, 0u) * weight;
             weights += weight;
         }
@@ -153,5 +157,5 @@ void CSFilter(uint3 id : SV_DispatchThreadID)
     GPUASSERT(weights > FLOAT_EPSILON);
 
     const RWTexture2D<float4> output = getTextureRW(_skyOutputUav);
-    output[id.xy] = float4((sum / weights) * (band == 5u ? PI : 1.0f), 1);
+    output[id.xy] = float4((sum / weights) * (band == SKY_DIFFUSE_BAND ? PI : 1.0f), 1);
 }

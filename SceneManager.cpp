@@ -523,9 +523,7 @@ namespace DK
 
 		const ScopeString<DK_MAX_PATH> worldPath = GlobalPath::makeResourceFullPath(terrainWorld.c_str());
 		if (_clipmapTerrain._world.open(worldPath.c_str()) == false || initializeTerrainStreaming(terrainWorldOrigin) == false)
-		{
 			return false;
-		}
 
 		// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
 		// TileMap
@@ -548,18 +546,18 @@ namespace DK
 		if (_clipmapTerrain._material.get() == nullptr)
 			return false;
 
-		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
-
 		// Cross(1) + (tile(4) + Filter(1) + Trim(1) + Seam(1)) * (level count)
 		const uint32 tileCountPerClipMap = 1 + (4 * 4 + 1 + 1 + 1) * ClipMapTerrain::NUM_CLIPMAP_LEVELS;
 		_clipmapTerrain._terrainConstantBuffer.reserve(tileCountPerClipMap);
 		for (uint32 i = 0; i < tileCountPerClipMap; ++i)
 		{
-			IBufferRef buffer = renderModule.createConstantBuffer(sizeof(TerrainMeshConstantBuffer), DK_DEBUG_NAME(L"TerrainMesh_CBuffer"));
+			IBufferRef buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(TerrainMeshConstantBuffer), DK_DEBUG_NAME(L"TerrainMesh_CBuffer"));
 			if (buffer == nullptr)
 				return false;
+
 			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
 		}
+
 		return true;
 	}
 
@@ -572,11 +570,12 @@ namespace DK
 			return false;
 
 		constexpr uint32 bladeIndices[] = { 0, 1, 2, 1, 3, 2, 2, 3, 4, 3, 5, 4, 4, 5, 6 };
+		static_assert(DK_COUNT_OF(bladeIndices) == GRASS_BLADE_INDEX_COUNT);
 		uint32 grassIndices[Grass::GRASS_INDEX_COUNT];
-		for (uint32 blade = 0; blade < Grass::GRASS_BLADE_COUNT; ++blade)
+		for (uint32 blade = 0; blade < GRASS_BLADE_COUNT; ++blade)
 		{
 			for (uint32 index = 0; index < DK_COUNT_OF(bladeIndices); ++index)
-				grassIndices[blade * DK_COUNT_OF(bladeIndices) + index] = blade * 7 + bladeIndices[index];
+				grassIndices[blade * DK_COUNT_OF(bladeIndices) + index] = blade * GRASS_BLADE_VERTEX_COUNT + bladeIndices[index];
 		}
 		_grass._indexBuffer = renderModule.createIndexBuffer(grassIndices, Grass::GRASS_INDEX_COUNT, _grass._indexBufferView, DK_DEBUG_NAME(L"GrassPatch_IndexBuffer"));
 		return _grass._indexBuffer != nullptr;
@@ -626,8 +625,8 @@ namespace DK
         constants._terrainSectionCountZ = world._sectionCountZ;
         constants._terrainOverviewLod = world._overviewLod;
         constants._terrainOverviewSlotSampleCountPerSide = (world._sectionCellCountPerSide >> world._overviewLod) + 1;
-        constants._terrainOverviewSampleCountX = constants._terrainOverviewSlotSampleCountPerSide * 3;
-        constants._terrainOverviewSampleCountZ = constants._terrainOverviewSlotSampleCountPerSide * 3;
+        constants._terrainOverviewSampleCountX = constants._terrainOverviewSlotSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+        constants._terrainOverviewSampleCountZ = constants._terrainOverviewSlotSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
         constants._terrainCacheSlotTexelCountPerSide = header._chunkCellCountPerSide + 1;
         const uint32 slotCount = world._overviewLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
         const uint32 maxSlotCountPerSide = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION / constants._terrainCacheSlotTexelCountPerSide;
@@ -641,7 +640,7 @@ namespace DK
         {
             constants._terrainPageTableEntryCountPerSide *= 2;
         }
-        const uint32 tableHeight = constants._terrainPageTableEntryCountPerSide * world._overviewLod * 9;
+        const uint32 tableHeight = constants._terrainPageTableEntryCountPerSide * world._overviewLod * TERRAIN_SECTION_SLOT_COUNT;
         const double clipmapRadius = double(ClipMapTerrain::TILE_RESOLUTION * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
         if (cacheWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
             constants._terrainOverviewSampleCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * header._sampleWorldSpacing * 2.0 > clipmapRadius)
@@ -662,7 +661,7 @@ namespace DK
             return false;
         }
         DKVector<DKArray<float, 4>> pages(size_t(constants._terrainPageTableEntryCountPerSide) * tableHeight);
-        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, constants._terrainPageTableEntryCountPerSide, tableHeight, pages.data(), constants._terrainPageTableEntryCountPerSide * 16) == false || terrain._streamer.start(world, slotCount) == false)
+        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, constants._terrainPageTableEntryCountPerSide, tableHeight, pages.data(), constants._terrainPageTableEntryCountPerSide * sizeof(pages[0])) == false || terrain._streamer.start(world, slotCount) == false)
         {
             return false;
         }
@@ -720,21 +719,21 @@ namespace DK
                 continue;
             }
             const TerrainSection& section = world._sections[sectionPage._sectionId];
-            const uint32 slotX = section._x % 3;
-            const uint32 slotZ = section._z % 3;
+            const uint32 slotX = section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+            const uint32 slotZ = section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
             const TerrainOverview& overview = sectionPage._overview;
             const uint32 x = slotX * constants._terrainOverviewSlotSampleCountPerSide;
             const uint32 z = slotZ * constants._terrainOverviewSlotSampleCountPerSide;
-            if (rm.queueTextureRegion(terrain._tailHeight, x, z, overview._width, overview._height, overview._heights.data(), overview._width * 2) == false ||
-                rm.queueTextureRegion(terrain._tailNormal, x, z, overview._width, overview._height, overview._normals.data(), overview._width * 4) == false)
+            if (rm.queueTextureRegion(terrain._tailHeight, x, z, overview._width, overview._height, overview._heights.data(), overview._width * sizeof(overview._heights[0])) == false ||
+                rm.queueTextureRegion(terrain._tailNormal, x, z, overview._width, overview._height, overview._normals.data(), overview._width * sizeof(overview._normals[0])) == false)
             {
                 return;
             }
-            ClipMapTerrain::SectionConstants& metadata = constants._terrainSections[slotZ * 3 + slotX];
+            ClipMapTerrain::SectionConstants& metadata = constants._terrainSections[slotZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + slotX];
             metadata._terrainSectionX = section._x;
             metadata._terrainSectionZ = section._z;
-            metadata._terrainSectionCellCountX = std::min(world._sectionCellCountPerSide, world._header._width - 1 - section._x * world._sectionCellCountPerSide);
-            metadata._terrainSectionCellCountZ = std::min(world._sectionCellCountPerSide, world._header._height - 1 - section._z * world._sectionCellCountPerSide);
+            metadata._terrainSectionCellCountX = world._sectionCellCountPerSide;
+            metadata._terrainSectionCellCountZ = world._sectionCellCountPerSide;
             metadata._terrainSectionOverviewSampleCountX = overview._width;
             metadata._terrainSectionOverviewSampleCountZ = overview._height;
             metadata._terrainSectionResident = 1;
@@ -743,7 +742,7 @@ namespace DK
         for (const uint32 sectionId : sections)
         {
             const TerrainSection& section = world._sections[sectionId];
-            const ClipMapTerrain::SectionConstants& metadata = constants._terrainSections[(section._z % 3) * 3 + section._x % 3];
+            const ClipMapTerrain::SectionConstants& metadata = constants._terrainSections[(section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE];
             if (metadata._terrainSectionResident == 0 || metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z)
             {
                 missingSections.push_back(sectionId);
@@ -780,8 +779,8 @@ namespace DK
             const uint32 x = (index % constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
             const uint32 y = (index / constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
             const MipTile& tile = page._tile;
-            if (rm.queueTextureRegion(terrain._heightCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._heights.data(), tile._sampleCountPerSide * 2) == false ||
-                rm.queueTextureRegion(terrain._normalCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._normals.data(), tile._sampleCountPerSide * 4) == false)
+            if (rm.queueTextureRegion(terrain._heightCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._heights.data(), tile._sampleCountPerSide * sizeof(tile._heights[0])) == false ||
+                rm.queueTextureRegion(terrain._normalCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._normals.data(), tile._sampleCountPerSide * sizeof(tile._normals[0])) == false)
             {
                 return;
             }
@@ -790,7 +789,7 @@ namespace DK
             slot->_valid = true;
         }
         const uint32 tableSide = constants._terrainPageTableEntryCountPerSide;
-        const uint32 tableHeight = tableSide * constants._terrainOverviewLod * 9;
+        const uint32 tableHeight = tableSide * constants._terrainOverviewLod * TERRAIN_SECTION_SLOT_COUNT;
         DKVector<DKArray<float, 4>> pages(size_t(tableSide) * tableHeight);
         for (uint32 index = 0; index < terrain._cacheSlots.size(); ++index)
         {
@@ -798,7 +797,7 @@ namespace DK
             if (slot._valid && std::find(wanted.begin(), wanted.end(), slot._request) != wanted.end())
             {
                 const TerrainSection& section = world._sections[slot._request._sectionId];
-                const uint32 sectionSlot = (section._z % 3) * 3 + section._x % 3;
+                const uint32 sectionSlot = (section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
                 const uint32 x = slot._request._x % tableSide;
                 const uint32 y = slot._request._z % tableSide + (sectionSlot * constants._terrainOverviewLod + slot._request._lod) * tableSide;
                 DK_ASSERT_LOG(pages[size_t(y) * tableSide + x][0] == 0, "Terrain page table collision");
@@ -813,7 +812,7 @@ namespace DK
         for (const TileRequest& request : wanted)
         {
             const TerrainSection& section = world._sections[request._sectionId];
-            const uint32 sectionSlot = (section._z % 3) * 3 + section._x % 3;
+            const uint32 sectionSlot = (section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
             const uint32 x = request._x % tableSide;
             const uint32 y = request._z % tableSide + (sectionSlot * constants._terrainOverviewLod + request._lod) * tableSide;
             const DKArray<float, 4>& resident = pages[size_t(y) * tableSide + x];

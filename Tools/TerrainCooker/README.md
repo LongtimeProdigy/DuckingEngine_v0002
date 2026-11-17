@@ -20,7 +20,7 @@ forest_valley_world/
     ...
 ```
 
-`terrain.xml`은 전체 샘플 수, 샘플 간격, 공통 높이 변환 범위, Chunk·Section 크기, 저해상도 LOD와 각 Section의 좌표·Archive 상대 경로를 저장한다. Section ID는 `Z * SectionCountX + X`다. 마지막 행과 열은 부분 크기를 허용한다. Section 내부 샘플 수는 셀 수보다 하나 많으며, 경계 샘플은 양쪽 Section에 들어 있다.
+`terrain.xml`은 전체 샘플 수, 샘플 간격, 공통 높이 변환 범위, Chunk·Section 크기, 저해상도 LOD와 각 Section의 좌표·Archive 상대 경로를 저장한다. Section ID는 `Z * SectionCountX + X`다. 전체 지형의 X/Z 셀 수(샘플 수 - 1)는 Section 한 변의 셀 수로 나누어떨어져야 한다. Cooker와 런타임 모두 나머지가 있는 입력을 거부하며 모든 Section은 같은 크기다. Section 내부 샘플 수는 셀 수보다 하나 많으며, 경계 샘플은 양쪽 Section에 들어 있다.
 
 현재 자산은 8193×8193 샘플, 0.5m 간격, 2048셀 Section이다. 전체 크기는 4096×4096m, Section 한 변은 1024m이며 4×4개로 나뉜다. Section 저해상도 LOD는 3으로, 기본 간격이 4m인 257×257 Height·Normal을 사용한다.
 
@@ -58,19 +58,8 @@ forest_valley_world/
 
 현재 월드는 직사각형 Section 격자이며, 모든 Section은 샘플 간격·Chunk 크기·높이 변환 범위를 공유한다. Section 크기는 Chunk 크기 이상의 2의 거듭제곱이다. 가장 큰 상세 가상 타일도 Section 안에 들어가야 한다. GPU texture 크기와 Clipmap의 3×3 영역 커버 여부는 초기화 위치에서 ASSERT로 검증한다.
 
-## 검증
-
-`tools/TerrainTests/TerrainTests.vcxproj`를 Release x64로 빌드한 뒤 새 출력 경로로 실행한다.
-
-```text
-TerrainTests.exe Platform/terrain_validation Resource/Scenes/Cooked/forest_valley_world/terrain.xml
-```
-
-합성 지형의 부분 크기 Section, 모든 스트리밍 LOD의 Height·Normal 원본 일치, 요청 ID 충돌, 공유 캐시 예산, 비동기 Section 이동·재진입·종료와 실제 월드의 Section·Chunk 스트리밍을 검사한다. Section 분할 산출물은 기존 Cooked 디렉터리 정책대로 Git에서 제외된다.
-
 ## 표준 API 사용 위치
 
 - `TerrainWorld.cpp`, `TerrainStreaming.cpp`, `TerrainData.cpp`: 정렬·검색 알고리즘과 정수·double 수학은 기존 Terrain 코드와 같이 `std::`를 유지했다. 공용 `Math`의 min/max/clamp/floor는 float 전용이라 월드 좌표와 정수 크기를 전달하면 정밀도가 손실되며, 독립 Cooker에서도 사용할 수 없다. 대응되는 공용 정밀도 보존 래퍼가 필요하다.
 - `TerrainStreaming.h/.cpp`: 스레드·mutex·condition_variable은 프로젝트 규칙대로 명시적인 `std::`를 유지한다.
-- `TerrainTests.cpp`: 테스트 제한 시간은 `std::chrono`, 대기는 `std::this_thread`, 결과 출력은 `std::printf/puts`를 사용한다. 이들은 엔진 렌더링 경로에 들어가지 않는다.
 - 새 Windows API 직접 호출은 추가하지 않았다.

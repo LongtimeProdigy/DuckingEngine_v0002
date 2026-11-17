@@ -2052,8 +2052,13 @@ namespace DK
 
 	IBufferRef RenderModule::createConstantBuffer(const uint32 size, const wchar_t* debugName)
 	{
-		const uint32 alignedSize = (size + 255) & ~255;
-		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, alignedSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, DK_DEBUG_NAME(debugName));
+		const uint64 alignedSize = (uint64(size) + D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1) & ~uint64(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1);
+		if (size == 0 || alignedSize > UINT32_MAX)
+		{
+			DK_ASSERT_LOG(false, "Invalid constant buffer size: %u", size);
+			return nullptr;
+		}
+		RenderResourcePtr<ID3D12Resource> buffer = createBufferInternalRaw(_device, static_cast<uint32>(alignedSize), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, DK_DEBUG_NAME(debugName));
 		return IBufferRef(dk_new IBuffer(IBuffer::Type::UPLOAD, DK::move(buffer), size, D3D12_RESOURCE_STATE_GENERIC_READ));
 	}
 

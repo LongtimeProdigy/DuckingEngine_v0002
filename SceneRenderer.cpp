@@ -713,7 +713,7 @@ namespace DK
         RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		for (uint32 i = 0; i < DK_COUNT_OF(_multipleScatteringLut); ++i)
 		{
-			_multipleScatteringLut[i] = renderModule.createTexture(DK_DEBUG_NAME(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1"), 32, 32, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
+			_multipleScatteringLut[i] = renderModule.createTexture(DK_DEBUG_NAME(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1"), ATMOSPHERE_MULTIPLESCATTERING_WIDTH, ATMOSPHERE_MULTIPLESCATTERING_HEIGHT, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
 			if (_multipleScatteringLut[i] == nullptr)
 				return false;
 		}
@@ -1185,17 +1185,18 @@ namespace DK
 							if (ImGui::Button("Reset Earth atmosphere"))
 							{
                                 _compareExtendedAtmosphereTop = false;
-								atmosphere._densityReferenceRadius = 6360000.0f;
-								atmosphere._densityTransitionRadius = 6358000.0f;
-								atmosphere._planetCentre[0] = atmosphere._planetCentre[2] = 0.0f;
-								atmosphere._planetCentre[1] = -6360000.0f;
-								atmosphere._atmosphereRadius = 6390000.0f;
-								atmosphere._rayleighHeight = 7994.0f;
-								atmosphere._mieHeight = 1200.0f;
-								atmosphere._scatteringScale = 1.0f;
-                                atmosphere._rayleighScale = atmosphere._mieScale = 1.0f;
-                                atmosphere._mieAbsorptionScale = 0.0f;
-                                atmosphere._mieAnisotropy = 0.76f;
+								const AtmosphereConstantBuffer defaults;
+                                atmosphere._densityReferenceRadius = defaults._densityReferenceRadius;
+                                atmosphere._densityTransitionRadius = defaults._densityTransitionRadius;
+                                DK::memcpy(atmosphere._planetCentre, defaults._planetCentre, sizeof(atmosphere._planetCentre));
+                                atmosphere._atmosphereRadius = defaults._atmosphereRadius;
+                                atmosphere._rayleighHeight = defaults._rayleighHeight;
+                                atmosphere._mieHeight = defaults._mieHeight;
+                                atmosphere._scatteringScale = defaults._scatteringScale;
+                                atmosphere._rayleighScale = defaults._rayleighScale;
+                                atmosphere._mieScale = defaults._mieScale;
+                                atmosphere._mieAbsorptionScale = defaults._mieAbsorptionScale;
+                                atmosphere._mieAnisotropy = defaults._mieAnisotropy;
                                 for (AtmosphereAbsorptionLayer& layer : atmosphere._absorptionLayers)
 									layer = AtmosphereAbsorptionLayer();
 							}
@@ -2075,7 +2076,7 @@ namespace DK
 				setRootConstantParameter("_multipleOutputUav", _multipleScatteringLut[output]->getUAV());
 				setRootConstantParameter("_multipleInputSrv", _multipleScatteringLut[input]->getSRV());
 				setRootConstantParameter("_multipleIteration", iteration);
-				rm.dispatch(32, 32, 1);
+				rm.dispatch(ATMOSPHERE_MULTIPLESCATTERING_WIDTH, ATMOSPHERE_MULTIPLESCATTERING_HEIGHT, 1);
 				rm.resourceBarrierTransition(_multipleScatteringLut[output], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			}
             endPipeline();

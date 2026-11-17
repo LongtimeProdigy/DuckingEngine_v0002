@@ -2,6 +2,7 @@
 #define __DEFINE_TERRAIN_HEIGHT__HLSL__
 
 #include "CommonTexture.hlsl"
+#include "TerrainStreamingLimits.h"
 
 struct TerrainSectionConstants
 {
@@ -49,7 +50,7 @@ cbuffer TerrainStreamingConstants : register(b3)
     uint _terrainSectionCountX;
     uint _terrainSectionCountZ;
     uint _terrainOverviewSlotSampleCountPerSide;
-    TerrainSectionConstants _terrainSections[9];
+    TerrainSectionConstants _terrainSections[TERRAIN_SECTION_SLOT_COUNT];
 }
 
 float2 TerrainAnchorWorldXZ()
@@ -59,7 +60,7 @@ float2 TerrainAnchorWorldXZ()
 
 uint TerrainSectionSlot(uint2 section)
 {
-    return (section.y % 3u) * 3u + section.x % 3u;
+    return (section.y % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section.x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
 }
 
 bool TerrainSectionAvailable(uint2 section)
@@ -169,7 +170,7 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
     const int2 localSample = sample - int2(section * _terrainSectionCellCountPerSide);
     const uint2 cells = uint2(metadata._terrainSectionCellCountX, metadata._terrainSectionCellCountZ);
     const float2 overviewPosition = TerrainGridPosition(localSample, fraction, _terrainOverviewLod, cells);
-    const float2 overviewOffset = float2(section.x % 3u, section.y % 3u) * _terrainOverviewSlotSampleCountPerSide;
+    const float2 overviewOffset = float2(section.x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE, section.y % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * _terrainOverviewSlotSampleCountPerSide;
     const float2 overviewUV = (overviewOffset + overviewPosition + 0.5f) / float2(_terrainOverviewSampleCountX, _terrainOverviewSampleCountZ);
     float3 result = float3(getTexture(_terrainOverviewHeightSRV).SampleLevel(bilinearRepeatSampler, overviewUV, 0.0f).x, getTexture(_terrainOverviewNormalSRV).SampleLevel(bilinearRepeatSampler, overviewUV, 0.0f).xy);
     const float distanceToCamera = length(relativeXZ - float2(_terrainCameraAnchorRelativeWorldX, _terrainCameraAnchorRelativeWorldZ));

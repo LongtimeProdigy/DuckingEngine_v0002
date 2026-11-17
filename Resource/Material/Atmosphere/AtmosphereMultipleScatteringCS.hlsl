@@ -5,7 +5,9 @@
 
 #include "Atmosphere/AtmosphereMultipleScattering.hlsl"
 
+// 방향 적분과 광선 구간 적분의 고정 품질 예산이다. 두 개수는 서로 독립적이다.
 #define MULTIPLESCATTERING_COUNT 32u
+#define MULTIPLESCATTERING_STEP_COUNT 32u
 
 cbuffer MultipleScatteringOutputConstants : register(b2)
 {
@@ -87,15 +89,15 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
         // 그냥 phase함수를 바로 쓰면 phase함수의 총합은 1이어야 한다는 규칙이 깨집니다. (샘플링이 랜덤이니 값이 큰 곳이 여러번 샘플링되면 당연 모두 합쳤을 때 값이 커짐)
         // 이걸 방지하고자 미리 샘플링을 돌려서 그 값들을 다 더한 total을 나누고 현재 샘플링은 total로 나눈 ratio로 사용하면 모든 샘플링의 phase값들을 다 더해도 1로 유지됩니다.
-        const float2 phase = float2(atmosphereRayleighPhase(mu), atmosphereMiePhase(mu)) * (32.0f / (4.0f * PI)) / phaseSum;
+        const float2 phase = float2(atmosphereRayleighPhase(mu), atmosphereMiePhase(mu)) * (float(MULTIPLESCATTERING_COUNT) / (4.0f * PI)) / phaseSum;
 
         float3 T = 1.0f;    // 시작 위치부터 현재 구간까지 누적된 투과율
         float3 L = 0.0f;
         [loop] 
-        for (uint step = 0u; step < 32u; ++step)    // integrateAtmosphereOpticalDepth와 비슷한 형태. 여기서는 opticalDepth적분값이 아닌 빛의 양을 구하는 게 목표
+        for (uint step = 0u; step < MULTIPLESCATTERING_STEP_COUNT; ++step)    // integrateAtmosphereOpticalDepth와 비슷한 형태. 여기서는 opticalDepth적분값이 아닌 빛의 양을 구하는 게 목표
         {
-            const float u0 = float(step) / 32.0f;
-            const float u1 = float(step + 1u) / 32.0f;
+            const float u0 = float(step) / float(MULTIPLESCATTERING_STEP_COUNT);
+            const float u1 = float(step + 1u) / float(MULTIPLESCATTERING_STEP_COUNT);
             const float start = distance * u0 * u0 * u0;    // u³으로 distance의 앞쪽을 더 많이 샘플링
             const float end = distance * u1 * u1 * u1;      // u³으로 distance의 앞쪽을 더 많이 샘플링
             const float width = end - start;
@@ -104,7 +106,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             GPUASSERT(heightAtReference2 <= (_atmosphereRadius - _densityReferenceRadius), float4(heightAtReference2, _densityReferenceRadius, mid, distance));
             const float4 density = atmosphereDensity(heightAtReference2);       // heightAtReference2높이일 때 밀도
             const float3 sigma = atmosphereOpticalExtinction(density);          // heightAtReference2높이일 때 산란과 흡수로 빛이 줄어드는 소멸계수 (단위미터당 소멸하는 정도)
-            GPUASSERT(all(sigma >= FLOAT_EPSILON_MIN));
+            GPUASSERT(all(isfinite(sigma)) && all(sigma >= 0.0f));
             const float3 tau = sigma * width;                                   // width 구간의 opticalDepth
             const float3 transmittance = exp(-tau);                             // width 구간의 투과율 (구간 끝이 구간을 전부를 통과하여 start에 도달할 때 투과율)
             const float3 weight = float3(                                       // start -> end를 지나오면서 누적되는 투과율 (구간 모든 점에서 빛이 발생되고 해당 빛들이 각 구간을 지나 start에 도달할때 전체 투과율)

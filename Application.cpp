@@ -139,7 +139,7 @@ namespace DK
 		wc.hInstance = hInstance;
 		wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-		wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 2);
+		wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
 		wc.lpszMenuName = NULL;
 		wc.lpszClassName = windowName;
 		wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);

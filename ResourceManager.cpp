@@ -195,7 +195,7 @@ namespace DK
 		uint32 subMeshCount = 0;
 		if (reader.read(&subMeshCount, sizeof(subMeshCount)) == false)
 			return nullptr;
-		bytesRead += 4;
+		bytesRead += sizeof(subMeshCount);
 		if (subMeshCount == 0)
 		{
 			DK_ASSERT_LOG(false, "SubMesh 개수는 0개일 수 없습니다!");
@@ -219,7 +219,7 @@ namespace DK
 			uint32 indexCount = 0;
 			if (reader.read(&indexCount, sizeof(indexCount)) == false)
 				return nullptr;
-			bytesRead += 4;
+			bytesRead += sizeof(indexCount);
 			// indexBuffer
 			DKVector<uint32> indexBufferData;
 			indexBufferData.resize(indexCount);
@@ -230,7 +230,7 @@ namespace DK
 			uint32 vertexCount = 0;
 			if (reader.read(&vertexCount, sizeof(vertexCount)) == false)
 				return nullptr;
-			bytesRead += 4;
+			bytesRead += sizeof(vertexCount);
 			DKVector<StaticMeshModel::SubMeshType::VertexType> vertexBufferData;
 			vertexBufferData.resize(vertexCount);
 			if (reader.read(vertexBufferData.data(), vertexBufferData.size() * sizeof(StaticMeshModel::SubMeshType::VertexType)) == false)
@@ -297,7 +297,7 @@ namespace DK
 		if (reader.read(&subMeshCount, sizeof(subMeshCount)) == false)
 			return nullptr;
 		DK_ASSERT_LOG(subMeshCount != 0, "SubMesh 개수는 0개일 수 없습니다!");
-		bytesRead += 4;
+		bytesRead += sizeof(subMeshCount);
 
 		const DKVector<MaterialDefinition>& materialDefinitionArr = modelProperty->get_materialDefinitionArr();
 		const uint32 materialDefinitionCount = static_cast<const uint32>(materialDefinitionArr.size());
@@ -316,7 +316,7 @@ namespace DK
 			uint32 indexCount = 0;
 			if (reader.read(&indexCount, sizeof(indexCount)) == false)
 				return nullptr;
-			bytesRead += 4;
+			bytesRead += sizeof(indexCount);
 			DKVector<uint32> indexBufferData;
 			indexBufferData.resize(indexCount);
 			if (reader.read(indexBufferData.data(), indexBufferData.size() * sizeof(uint32)) == false)
@@ -326,7 +326,7 @@ namespace DK
 			uint32 vertexCount = 0;
 			if (reader.read(&vertexCount, sizeof(vertexCount)) == false)
 				return nullptr;
-			bytesRead += 4;
+			bytesRead += sizeof(vertexCount);
 			DKVector<SkinnedMeshModel::SubMeshType::VertexType> vertexBufferData;
 			vertexBufferData.resize(vertexCount);
 			if (reader.read(vertexBufferData.data(), vertexBufferData.size() * sizeof(SkinnedMeshModel::SubMeshType::VertexType)) == false)

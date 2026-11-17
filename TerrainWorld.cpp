@@ -41,8 +41,14 @@ namespace DK
             return false;
         }
 
-        _sectionCountX = (_header._width - 2) / _sectionCellCountPerSide + 1;
-        _sectionCountZ = (_header._height - 2) / _sectionCellCountPerSide + 1;
+        if ((_header._width - 1) % _sectionCellCountPerSide != 0 || (_header._height - 1) % _sectionCellCountPerSide != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain world cell counts must be divisible by the section cell count");
+            return false;
+        }
+
+        _sectionCountX = (_header._width - 1) / _sectionCellCountPerSide;
+        _sectionCountZ = (_header._height - 1) / _sectionCellCountPerSide;
         if (uint64(_sectionCountX) * _sectionCountZ > 1048576)
         {
             DK_ASSERT_LOG(false, "Terrain world section count exceeds the supported range");
@@ -87,13 +93,9 @@ namespace DK
         return true;
     }
 
-    bool TerrainWorld::matchesSectionArchive(uint32 sectionId, const ArchiveHeader& header) const
+    bool TerrainWorld::matchesSectionArchive(const ArchiveHeader& header) const
     {
-        DK_ASSERT_LOG(sectionId < _sections.size(), "Invalid terrain section ID");
-        const TerrainSection& section = _sections[sectionId];
-        const uint32 cellsX = std::min(_sectionCellCountPerSide, _header._width - 1 - section._x * _sectionCellCountPerSide);
-        const uint32 cellsZ = std::min(_sectionCellCountPerSide, _header._height - 1 - section._z * _sectionCellCountPerSide);
-        return header._width == cellsX + 1 && header._height == cellsZ + 1 && header._chunkCellCountPerSide == _header._chunkCellCountPerSide &&
+        return header._width == _sectionCellCountPerSide + 1 && header._height == _sectionCellCountPerSide + 1 && header._chunkCellCountPerSide == _header._chunkCellCountPerSide &&
             header._sampleWorldSpacing == _header._sampleWorldSpacing && header._heightOffset == _header._heightOffset && header._heightScale == _header._heightScale;
     }
 
@@ -107,9 +109,10 @@ namespace DK
         {
             return result;
         }
-        for (int z = -1; z <= 1; ++z)
+        constexpr int sectionRadius = (TERRAIN_SECTION_SLOT_COUNT_PER_SIDE - 1) / 2;
+        for (int z = -sectionRadius; z <= sectionRadius; ++z)
         {
-            for (int x = -1; x <= 1; ++x)
+            for (int x = -sectionRadius; x <= sectionRadius; ++x)
             {
                 const int64 targetX = int64(sectionX) + x;
                 const int64 targetZ = int64(sectionZ) + z;
@@ -145,6 +148,11 @@ namespace DK
             DK_ASSERT_LOG(false, "Section cells must be a power of two and at least the chunk cell count");
             return false;
         }
+        if ((header._width - 1) % sectionCellCountPerSide != 0 || (header._height - 1) % sectionCellCountPerSide != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain world cell counts must be divisible by the section cell count");
+            return false;
+        }
         const DKString manifestPath = FileUtil::jointPath(directoryPath, "terrain.xml");
         if (FileUtil::exist(directoryPath) || FileUtil::createDirectory(directoryPath) == false)
         {
@@ -173,25 +181,24 @@ namespace DK
         root->SetAttribute("SampleSpacing", StringUtil::toString(double(header._sampleWorldSpacing)).c_str());
         root->SetAttribute("HeightOffset", StringUtil::toString(double(header._heightOffset)).c_str());
         root->SetAttribute("HeightScale", StringUtil::toString(double(header._heightScale)).c_str());
-        const uint32 sectionCountX = (header._width - 2) / sectionCellCountPerSide + 1;
-        const uint32 sectionCountZ = (header._height - 2) / sectionCellCountPerSide + 1;
+        const uint32 sectionCountX = (header._width - 1) / sectionCellCountPerSide;
+        const uint32 sectionCountZ = (header._height - 1) / sectionCellCountPerSide;
+        const uint32 chunkCountPerSectionSide = sectionCellCountPerSide / header._chunkCellCountPerSide;
         for (uint32 z = 0; z < sectionCountZ; ++z)
         {
             for (uint32 x = 0; x < sectionCountX; ++x)
             {
                 ArchiveHeader sectionHeader = header;
-                sectionHeader._width = std::min(sectionCellCountPerSide, header._width - 1 - x * sectionCellCountPerSide) + 1;
-                sectionHeader._height = std::min(sectionCellCountPerSide, header._height - 1 - z * sectionCellCountPerSide) + 1;
-                const uint32 columns = (sectionHeader._width - 2) / header._chunkCellCountPerSide + 1;
-                const uint32 rows = (sectionHeader._height - 2) / header._chunkCellCountPerSide + 1;
+                sectionHeader._width = sectionCellCountPerSide + 1;
+                sectionHeader._height = sectionCellCountPerSide + 1;
                 DKVector<Chunk> chunks;
-                chunks.reserve(size_t(columns) * rows);
-                for (uint32 chunkZ = 0; chunkZ < rows; ++chunkZ)
+                chunks.reserve(size_t(chunkCountPerSectionSide) * chunkCountPerSectionSide);
+                for (uint32 chunkZ = 0; chunkZ < chunkCountPerSectionSide; ++chunkZ)
                 {
-                    for (uint32 chunkX = 0; chunkX < columns; ++chunkX)
+                    for (uint32 chunkX = 0; chunkX < chunkCountPerSectionSide; ++chunkX)
                     {
                         Chunk chunk;
-                        if (source.loadChunk(x * (sectionCellCountPerSide / header._chunkCellCountPerSide) + chunkX, z * (sectionCellCountPerSide / header._chunkCellCountPerSide) + chunkZ, chunk) == false)
+                        if (source.loadChunk(x * chunkCountPerSectionSide + chunkX, z * chunkCountPerSectionSide + chunkZ, chunk) == false)
                         {
                             return false;
                         }

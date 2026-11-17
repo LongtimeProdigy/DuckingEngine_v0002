@@ -103,7 +103,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     if (dot(rootToViewXZ, rootToViewXZ) >= fadeRange.y * fadeRange.y)
         return output;
 
-    const uint blade = vertexID / 7u;
+    const uint blade = vertexID / GRASS_BLADE_VERTEX_COUNT;
     const uint shape = HashGridCell(worldCell + int2(-71, 313));
     const uint profileCount = sizeof(grassProfiles) / sizeof(grassProfiles[0]);
     const GrassProfile profile = grassProfiles[uint(pow(GrassRandom(shape), 1.35f) * profileCount)];
@@ -125,7 +125,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
         return output;
 
     // The indexed clump has two quads and one tip triangle per blade.
-    const uint bladeVertex = vertexID % 7u;
+    const uint bladeVertex = vertexID % GRASS_BLADE_VERTEX_COUNT;
     const uint row = bladeVertex / 2u;
     const float bladeRows[4] = { 0.0f, 0.36f, 0.72f, 1.0f };
     const float bladeWidths[4] = { 0.66f, 1.0f, 0.57f, 0.0f };
@@ -133,8 +133,8 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float sideSign = (bladeVertex & 1u) != 0u ? 1.0f : -1.0f;
 
     const uint bladeSeed = HashGridCell(worldCell + int2(97 + int(blade) * 23, -43));
-    const float angle = (float(blade) + GrassRandom(bladeSeed) * 0.85f) * 1.04719755f
-                      + GrassRandom(shape >> 16) * 6.28318531f;
+    const float angle = (float(blade) + GrassRandom(bladeSeed) * 0.85f) * (PI2 / float(GRASS_BLADE_COUNT))
+                      + GrassRandom(shape >> 16) * PI2;
     float2 heading;
     sincos(angle, heading.y, heading.x);
     const float2 side = float2(-heading.y, heading.x);

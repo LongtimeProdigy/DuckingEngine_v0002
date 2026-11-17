@@ -3,6 +3,7 @@
 #include "RenderModule.h"	// TODO: TextureResourceViewType때문에 있는데.. 분리하자
 #include "TerrainData.h"
 #include "TerrainStreaming.h"
+#include "Resource/Material/GrassTiles.h"
 
 namespace DK
 {
@@ -204,7 +205,7 @@ namespace DK
                 uint32 _terrainSectionCountX = 0;
                 uint32 _terrainSectionCountZ = 0;
                 uint32 _terrainOverviewSlotSampleCountPerSide = 0;
-                DKArray<SectionConstants, 9> _terrainSections;
+                DKArray<SectionConstants, TERRAIN_SECTION_SLOT_COUNT> _terrainSections;
             };
             static_assert(sizeof(StreamingConstants) == 416);
             static_assert(offsetof(StreamingConstants, _terrainSections) == 128);
@@ -236,8 +237,7 @@ namespace DK
 		};
 		struct Grass
 		{
-			static constexpr uint32 GRASS_BLADE_COUNT = 6;
-			static constexpr uint32 GRASS_INDEX_COUNT = GRASS_BLADE_COUNT * 15;
+			static constexpr uint32 GRASS_INDEX_COUNT = GRASS_BLADE_COUNT * GRASS_BLADE_INDEX_COUNT;
 
 			uint32 _tileGridSide = 0;
 			float _grassMapOriginX = 0;

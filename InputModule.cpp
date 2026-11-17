@@ -24,7 +24,7 @@ namespace DK
 
 	const bool InputModule::InitializeXBOXController(int playerNumber)
 	{
-		gXBOXController = dk_new XBOXController(0);
+		gXBOXController = dk_new XBOXController(playerNumber);
 		if (gXBOXController == nullptr)
 			return false;
 

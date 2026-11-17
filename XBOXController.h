@@ -2,6 +2,7 @@
 
 #pragma comment(lib, "XInput.lib") 
 #include <Xinput.h>
+#include <limits>
 
 #include "XboxState.h"
 
@@ -21,15 +22,15 @@ namespace DK
 			ZeroMemory(&_xInputState, sizeof(XINPUT_STATE));
 			DWORD Result = XInputGetState(_playerNumber, &_xInputState);
 
-			_joyStickL = float2((float)_xInputState.Gamepad.sThumbLX / 32767, (float)_xInputState.Gamepad.sThumbLY / 32767);
-			_joyStickR = float2((float)_xInputState.Gamepad.sThumbRX / 32767, (float)_xInputState.Gamepad.sThumbRY / 32767);
+			_joyStickL = float2(normalizeThumb(_xInputState.Gamepad.sThumbLX), normalizeThumb(_xInputState.Gamepad.sThumbLY));
+			_joyStickR = float2(normalizeThumb(_xInputState.Gamepad.sThumbRX), normalizeThumb(_xInputState.Gamepad.sThumbRY));
 
 			return Result == ERROR_SUCCESS;
 		}
 
 		dk_inline const bool GetXJoypadDown(const XboxState code) const noexcept
 		{
-			return _xInputState.Gamepad.wButtons & static_cast<uint8>(code);
+			return (_xInputState.Gamepad.wButtons & static_cast<WORD>(code)) != 0;
 		}
 
 		dk_inline const float2& GetJoystickL() const noexcept
@@ -59,6 +60,13 @@ namespace DK
 		}
 
 	private:
+		static dk_inline float normalizeThumb(SHORT value) noexcept
+		{
+			// XInput의 SHORT 범위는 음수와 양수의 절댓값이 달라 부호별 끝값으로 정규화한다.
+			const float range = value < 0 ? -static_cast<float>(std::numeric_limits<SHORT>::lowest()) : static_cast<float>(std::numeric_limits<SHORT>::max());
+			return static_cast<float>(value) / range;
+		}
+
 		int _playerNumber;
 		XINPUT_STATE _xInputState;
 
