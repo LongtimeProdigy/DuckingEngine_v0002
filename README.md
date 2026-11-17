@@ -1,143 +1,51 @@
-## 시스템 문서
+# DuckingEngine
 
-- [Ocean 시스템 — 위상·스펙트럼·IFFT의 수학과 구현](docs/Ocean.md)
+Windows에서 C++과 DirectX 12로 개발 중인 액션 게임 엔진입니다. 실사 자연환경 렌더링을 목표로, **Forest Valley** 데모에서 지형 스트리밍, 절차적 식생, 대기 산란을 한 장면에 통합합니다.
 
-## 실행
+![Forest Valley의 초지와 숲 경계. 전경의 잔디와 들꽃에서 뒤쪽 능선의 나무까지 이어지는 엔진 실행 화면](docs/images/forest-valley.png)
 
-레벨 경로는 Resource 폴더 기준으로 지정한다. Debug와 Release 모두 필수이며, 인자가 없거나 파일이 없으면 경고를 표시하고 실패 코드로 종료한다.
+## 핵심 구현
 
-```powershell
-DuckginEngine_v0002.exe --resourcePath=Resource --level=Scenes/ForestValley.xml
-```
+### 지형 스트리밍과 절차적 잔디
 
-지형 데이터·재질·텍스처와 레벨 XML은 `Resource/Scenes`에서 관리한다.
+Forest Valley는 **4.096 × 4.096 km** 월드를 16개 Section으로 나눕니다. 카메라 주변 3 × 3 Section의 저해상도 높이·법선과 가까운 Chunk의 상세 데이터를 비동기로 읽어 GPU 캐시에 올립니다. Geometry Clipmap은 LOD 경계에서 부모 격자로 모핑하고, 잔디 셰이더는 지형과 같은 높이 샘플링을 사용해 뿌리 위치를 계산합니다.
 
-## Renderer (DX12, Windows)
-- RenderPass, Pipeline과 Resource Binding을 XML을 이용하여 지정
-- Material
-- Bindless Resource
-- PushConstant
-- Deferred Rendering
-- Runtime Shader Reloading
+[스트리밍 구현](TerrainStreaming.cpp) · [Clipmap 셰이더](Resource/Material/TerrainClipMap.hlsl) · [잔디 셰이더](Resource/Material/GrassPatch.hlsl) · [Terrain Cooker 문서](Tools/TerrainCooker/README.md)
 
-### 렌더러 UI
+### 행성 규모 대기 렌더링
 
-- 기본 화면에는 FPS를 보여주는 작은 상태 표시줄만 나타난다.
-- `Inspector`로 우측 설정 패널을 열고 `Scene / Light / Image / Debug` 탭에서 기능을 선택한다. 상세 항목은 접이식 섹션으로 정리되어 있다.
-- `Close inspector` 또는 패널의 X로 설정을 닫는다. `F1`은 UI 전체를 숨기거나 다시 표시한다.
-- 설정 패널의 제목 표시줄을 메인 창 밖으로 드래그하면 별도 Windows 창으로 분리된다. 다른 모니터로 이동하거나 크기를 조절할 수 있다.
-- 메인 창 안으로 드래그한 뒤 도킹 표시 위에 놓으면 다시 붙일 수 있다. 패널 위치·크기·도킹 상태는 `imgui.ini`에 저장된다.
-- `... > Bring inspector back`은 설정 패널을 메인 창의 기본 위치로 되돌린다. 내용이 길면 스크롤할 수 있다.
-- Dear ImGui 코어와 Win32/DX12 백엔드는 공식 `v1.92.6-docking`으로 고정되어 있다. 업그레이드 정보는 `lib/imgui/UPSTREAM.md`를 참고한다.
+지표와 궤도에서 하나의 구형 대기를 관찰합니다. Rayleigh·Mie 산란을 계산하고, 대기 투과율과 다중 산란은 LUT에 저장해 재사용합니다. 카메라 상대 좌표와 CPU에서 double로 계산한 고도로 지표 근처의 정밀도를 확보합니다. Inspector의 `Surface`와 `Orbit`으로 시점을 전환하면 같은 태양 설정에서 장면을 비교할 수 있습니다.
 
-## Graphics
-- Rayleigh scattering
-- Mie scattering
-- Simple Ocean
+[대기 셰이더](Resource/Material/Atmosphere) · [카메라와 패스 실행](SceneRenderer.cpp) · [대기 렌더링 노트](output/Atmosphere_Rendering_Notes_Consistent.pptx)
 
-### 실제 크기 지구의 대기 테스트
+### XML 기반 DirectX 12 렌더러
 
-행성 반지름은 6,360,000m, 중심은 (0, -6360000, 0), 대기 두께는 30,000m이다.
-별도의 축소 행성 모드 없이 같은 행성과 대기를 지표·궤도 카메라로 관찰한다.
-기본 실행과 `Orbit`은 현재 태양 방향을 기준으로 지구와 태양을 한 화면에 배치한다.
-행성 중심에서 대기 반지름의 4배 떨어진 위치에 카메라를 놓고 지구 중심과 태양 사이를 바라본다.
-원점 부근의 지표에서는 기존 지형·바다·오브젝트를 렌더링하고, 궤도에서는 대기 패스의 구 교차로 전체 표면을 표시한다.
-기존 평면 지형은 구면 전체 지형이 아니므로 카메라가 북극 지표 패치에서 수평 50km 또는 고도 10km 밖이면 계산·렌더링을 건너뛴다.
+렌더 타깃, 패스, 파이프라인과 리소스 바인딩을 XML에서 정의합니다. 프레임은 **G-buffer → 디퍼드 조명 → 대기 합성 → Bloom → 톤 매핑** 순서로 실행됩니다. Bindless 리소스와 런타임 셰이더 리로드를 지원합니다.
 
-- `Orbit` / `Surface`: 카메라 위치와 방향만 전환한다. 대기·태양 설정은 유지된다. 태양 각도를 변경한 뒤 Orbit을 누르면 구도를 다시 맞춘다.
-- `Surface`: 기존 지표 장면의 (3, 23, -50)m 부근으로 이동한다.
-- `Reset Earth atmosphere`: 지구 반지름·중심·대기 두께와 Rayleigh/Mie 스케일 높이(7994m/1200m)를 복원한다.
-- `Air thickness`, `Rayleigh height`, `Mie height`, `Density multiplier`: 미터 단위의 대기 형상과 산란을 개별 조절한다. 반지름에 따른 beta 역배율 보정은 적용하지 않는다.
-- `Sun angle (deg)`: 태양 각도를 바꿔 낮·일몰·밤의 행성 차폐를 확인한다.
+[렌더 패스 XML](Resource/RenderPass/RenderPassGroup.xml) · [DX12 렌더 모듈](RenderModule.cpp)
 
-대기 계산은 카메라 기준 상대 좌표를 사용하고, CPU에서 double로 구한 카메라 고도로 지표 근처의 높이 정밀도를 보완한다.
-카메라 이동 속도와 near 거리는 고도에 따라 자동으로 증가한다. Far는 무한대이며 Shift/CapsLock 가속은 유지한다.
-엔진의 깊이 규칙은 D32_FLOAT_S8X24_UINT 기반 Reversed-Z로 고정하며 XML에서 깊이 방향을 선택하지 않는다. 모든 깊이 버퍼와 스텐실을 0으로 지우고 깊이는 GREATER로 검사한다. 메인 카메라는 Near를 깊이 1, 무한대를 0으로 투영하고 대기 합성은 깊이 0을 배경으로 처리한다.
-향후 스텐실 효과를 위해 모든 깊이 타깃에 8비트 스텐실을 확보한다. 현재 파이프라인의 스텐실 검사·쓰기는 비활성이다. 리소스는 R32G8X24_TYPELESS, 깊이 SRV는 R32_FLOAT_X8X24_TYPELESS를 사용한다. 포맷은 픽셀당 64비트로 D32_FLOAT의 두 배이다.
-SurfaceCapture와 그림자도 유한 직교 Reversed-Z를 사용한다(Near 1, Far 0). 그림자 비교와 bias, 캡처 위치 복원, 반사광 볼륨의 Z 좌표도 같은 방향을 사용한다. 메인 지오메트리·캡처·그림자 인스턴스는 같은 깊이 포맷과 파이프라인을 공유한다. 잔디 컬링은 별도의 유한 표시 거리 프러스텀을 사용한다.
-무한 Far는 원거리 클리핑을 제거한다. 지형 생성 범위·LOD·좌표 정밀도와 레이트레이싱 TMax는 별도 제한이다.
-고도에 따른 속도·클리핑과 구 표면 진입 제한은 SceneRenderer의 대기 장면 정책이다. 공용 Camera는 행성 정보를 저장하지 않고 외부에서 지정한 이동 속도와 near/far 값을 사용한다. setClipPlaneDistances의 far 생략 시 무한대이며, 유한 far를 지정해도 Reversed-Z를 사용한다.
-실제 지형 깊이가 있는 픽셀은 그 표면까지 대기를 적분하고, 지형이 없는 픽셀은 기준 구 표면으로 보완한다.
-행성 표면은 단순 Lambert 색상이며, 표면에 입사하는 태양광과 카메라로 나오는 빛 모두 대기 감쇠를 적용한다.
-카메라는 기준 구 표면의 최소 2m 위로 제한한다. 실제 산·건물의 충돌 처리는 별도이다.
+GPU Compute Shader로 스펙트럼을 갱신하고 IFFT로 수면을 생성하는 [Ocean](Resource/Material/Ocean)과 메시·스켈레톤·애니메이션을 내보내는 [Blender 애드온](DKBlenderAddnos/README.md)도 포함합니다.
 
-태양은 기본 각반경 0.27도의 흰 원반이며 픽셀 각도 폭으로 경계를 부드럽게 처리한다.
-`Irradiance`는 대기와 테스트 지표를 비추는 빛의 세기이다.
-원반 radiance는 `irradiance / (pi * sin(각반경)^2)`로 계산하고, `Disk brightness`로 원반의 밝기만 추가 조절한다(기본 1).
-일몰 색은 태양색을 바꾸지 않고 대기 투과율로 계산한다.
+## 빌드 및 Forest Valley 실행
 
-- `Exposure (EV)`: 양수 1마다 화면에 적용하는 노출이 2배가 된다.
-- `Image > Bloom > Intensity`: HDR 밝은 부분의 화면 번짐 강도이며 0이면 bloom 계산을 건너뛴다.
-- `Image > Bloom > Radius (px)`: 수평·수직 Gaussian 필터의 반경(1~32픽셀).
-- `Image > Bloom > Threshold`: 노출 적용 후 HDR 밝기 기준의 bloom 시작점.
+Visual Studio 2022의 **C++를 사용한 데스크톱 개발** 워크로드와 Windows SDK, DirectX 12 지원 GPU가 필요합니다. [DXC 릴리스](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.10.2605.37)의 `dxc_2026_08_11.zip`에서 `bin/x64/dxcompiler.dll`과 `bin/x64/dxil.dll`을 추출해 저장소의 `lib/dxc_2026_08_11/bin/x64/`에 둡니다.
 
-중간 렌더 타깃은 RGBA32 float이며 대기 합성 → 수평 bloom → 수직 bloom·HDR 합성 → 노출·ACES 톤매핑 순서로 처리한다.
-Bloom.hlsl의 PSHorizontal/PSVertical을 각각 독립 패스로 실행한다. RT1은 원본 HDR, RT0은 수평 bloom, RT2는 수직 bloom까지 합성한 HDR을 저장한다.
-GBuffer.hlsl은 렌더러가 지정한 HDR 텍스처에 노출·톤매핑만 적용한다. Bloom이 꺼져 있으면 원본 RT1, 켜져 있으면 합성된 RT2를 사용한다.
-Bloom 가중치·필터·합성은 Bloom.hlsl, 톤매핑은 GBuffer.hlsl에 둔다.
-필터는 지원 반경 안에 약 6 sigma를 배치하고 경계 가중치를 0으로 보정한다. 태양의 높은 HDR 밝기가 기존 3-sigma 필터의 사각형 절단 경계를 드러내던 문제를 줄인다.
-Bloom은 카메라의 눈부심 표현이고, 대기 중 태양 주변의 산란은 Rayleigh/Mie 계산에서 별도로 나온다.
-지표 태양광 감쇠는 현재 기준 구 표면에 적용하며, 기존 지형 재질의 직접광 계산은 별도이다.
-
-Atmosphere의 빛 전달 원리, Rayleigh/Mie 산란, ray marching, 장면 합성과 실시간 최적화는 [Atmosphere 렌더링 기술 이해 노트](docs/Atmosphere-System.md)에 정리되어 있다. [Notion 문서](https://app.notion.com/p/3f58d819296a81ecaaf3d28b3a270625?pvs=204)에서도 읽을 수 있다.
-
-## Terrain
-
-Terrain cooker는 `tools/TerrainCooker/TerrainCooker.vcxproj`에서 빌드한다.
+저장소 루트에서 Visual Studio Developer PowerShell로 빌드합니다. 첫 명령은 NuGet의 DirectX 12 Agility SDK도 복원합니다.
 
 ```powershell
-msbuild tools/TerrainCooker/TerrainCooker.vcxproj /p:Configuration=Release /p:Platform=x64
+msbuild .\DuckingEngine_v0002.sln /restore /p:RestorePackagesConfig=true /p:Configuration=Debug /p:Platform=x64
+msbuild .\Tools\TerrainCooker\TerrainCooker.vcxproj /p:Configuration=Release /p:Platform=x64 /p:OutDir=../../Platform/Tools/TerrainCooker/ /p:IntDir=../../Platform/Tools/TerrainCooker/Intermediate/
 ```
 
-`TerrainCooker.exe <8비트 또는 16비트 회색조 이미지> <출력.dkterrain> [sampleSpacing heightOffset heightScale chunkCells]`
+데모가 사용하는 `Resource/Scenes/Cooked/`는 Git에서 제외됩니다. 저장소에 포함된 높이맵으로 아카이브를 만든 뒤 Section으로 분할합니다. `--split`의 출력 폴더는 아직 존재하지 않아야 합니다.
 
-기본값은 순서대로 `1 -16 128 128`이며, 설정을 변경할 때는 네 값을 모두 지정한다.
-이미지 읽기 → 청크·LOD 생성 → 아카이브 저장 → 전체 청크 검증 순서로 실행한다.
-기존 아카이브는 `TerrainCooker.exe --verify <파일.dkterrain>`으로 검증한다.
-- ClipMap Terrain
-- [ClipMap 시스템 이해 문서](docs/ClipMap.md)
+```powershell
+$cooker = '.\Platform\Tools\TerrainCooker\TerrainCooker.exe'
+$cooked = '.\Resource\Scenes\Cooked'
+New-Item -ItemType Directory -Path $cooked -Force | Out-Null
+& $cooker .\Resource\Scenes\textures\forest_valley_extended_height_8k.png "$cooked\forest_valley_extended.dkterrain" 0.5 -16 128 128
+& $cooker --split "$cooked\forest_valley_extended.dkterrain" "$cooked\forest_valley_world" 2048
+.\Platform\x64\Debug\Binaries\DuckginEngine_v0002.exe --resourcePath=Resource --level=Scenes/ForestValley.xml
+```
 
-## 그 외
-- SkinnedMesh
-- StaticMesh
-- Animation
-- Keyboard/Mouse, Pad 입력 지원
-
-## 플러그인
-- Blender StaticMesh Exporter
-- Blender SkinnedMesh Exporter
-- Blender Skeleton Exporter
-- Blender Animation Exporter
-
-## 결과
-#### **RenderPass/Pipeline**
-![RenderPass/Pipeline XML Definition](https://github.com/user-attachments/assets/0fc44f75-78bf-463b-afd3-6f5831429358)
-
------
-#### **Atmosphere Scattering**
-![Rayleigh scattering](https://github.com/user-attachments/assets/97d5254b-ffe9-4f7f-aff6-d9f92c50e798)
-
------
-#### **Clipmap Terrain**
-![Clipmap Terrain 1](https://github.com/user-attachments/assets/641e291f-7f51-4f78-bfcf-775b234f5cc3)
-![Clipmap Terrain 2](https://github.com/user-attachments/assets/e1957ce8-df5a-4c62-9587-c3666e999a1a)
-
------
-#### **Ocean**
-<img width="2538" height="1429" alt="image" src="https://github.com/user-attachments/assets/8fd3cc27-4c07-412d-a0da-e47620fe7a83" />
-
------
-## TODO
-- RenderModule
-  - Shader Reflection
-  - Material/Pipeline Technique
-- Graphics
-  - PBR
-  - Mie Scattering
-  - Ocean, Water
-  - Realtime Raytracing
-  - Realtime Pathtracing(DI, GI, PT)
-- Object
-  - GLTF Model Loading
-  - Foliage
-  - Quad Tree Terrain
+실행 후 `Inspector`에서 대기·조명·이미지 설정을 조절할 수 있습니다. `F1`은 UI를 숨기거나 표시합니다.
