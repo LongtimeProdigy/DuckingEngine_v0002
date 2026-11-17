@@ -641,6 +641,7 @@ namespace DK
             constants._terrainPageTableEntryCountPerSide *= 2;
         }
         const uint32 tableHeight = constants._terrainPageTableEntryCountPerSide * world._overviewLod * TERRAIN_SECTION_SLOT_COUNT;
+#if defined(_DK_DEBUG_)
         const double clipmapRadius = double(ClipMapTerrain::TILE_RESOLUTION * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
         if (cacheWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
             constants._terrainOverviewSampleCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * header._sampleWorldSpacing * 2.0 > clipmapRadius)
@@ -648,6 +649,7 @@ namespace DK
             DK_ASSERT_LOG(false, "Terrain section layout exceeds the cache or clipmap coverage");
             return false;
         }
+#endif
         const D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
         terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), DK_DEBUG_NAME(L"TerrainStreaming_CBuffer"));
         terrain._heightCache = rm.createTexture(DK_DEBUG_NAME("TerrainHeightCache"), cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);

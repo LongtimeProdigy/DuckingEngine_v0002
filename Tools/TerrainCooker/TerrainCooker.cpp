@@ -57,6 +57,7 @@ namespace DK
         return true;
     }
 
+#if defined(_DK_DEBUG_)
     static bool verifyTerrain(const DKString& path)
     {
         Archive archive;
@@ -77,6 +78,7 @@ namespace DK
         std::printf("Verified %u x %u samples, %zu chunks, %llu stored samples, %llu bytes.\n", archive.header()._width, archive.header()._height, archive.chunks().size(), sampleCount, archive.header()._fileBytes);
         return true;
     }
+#endif
 
     static int cookTerrain(int argumentCount, wchar_t* arguments[])
     {
@@ -84,13 +86,18 @@ namespace DK
         {
             std::puts("TerrainCooker.exe <8-bit or 16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCellCountPerSide]");
             std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCellCountPerSide=128");
-            std::puts("TerrainCooker.exe --verify <archive.dkterrain>");
+            std::puts("TerrainCooker.exe --verify <archive.dkterrain> (Debug build only)");
             std::puts("TerrainCooker.exe --split <archive.dkterrain> <outputDirectory> <sectionCells>");
             return 0;
         }
         if (argumentCount == 3 && DKStringW(arguments[1]) == L"--verify")
         {
+#if defined(_DK_DEBUG_)
             return verifyTerrain(FileUtil::fromWidePath(arguments[2])) ? 0 : 1;
+#else
+            std::fputs("Terrain validation requires a Debug build.\n", stderr);
+            return 1;
+#endif
         }
         if (argumentCount == 5 && DKStringW(arguments[1]) == L"--split")
         {
@@ -155,7 +162,11 @@ namespace DK
         }
 
         std::printf("Wrote %u x %u samples in %zu chunks.\n", header._width, header._height, chunks.size());
+#if defined(_DK_DEBUG_)
         return verifyTerrain(outputPath) ? 0 : 1;
+#else
+        return 0;
+#endif
     }
 }
 

@@ -9,7 +9,9 @@
 
 namespace DK
 {
+#if defined(_DK_DEBUG_)
     constexpr uint64_t maxChunkBytes = 64ull * 1024 * 1024;
+#endif
     static uint32_t columns(const ArchiveHeader& h)
     {
         return (h._width - 2) / h._chunkCellCountPerSide + 1;
@@ -19,11 +21,13 @@ namespace DK
         return (h._height - 2) / h._chunkCellCountPerSide + 1;
     }
 
+#if defined(_DK_DEBUG_)
     static bool validHeader(const ArchiveHeader& h)
     {
         const bool version3 = h._version == 3 && std::memcmp(h._magic, "DKTRN003", sizeof(h._magic)) == 0 && (h._chunkCellCountPerSide & (h._chunkCellCountPerSide - 1)) == 0;
         return version3 && h._headerBytes == sizeof(ArchiveHeader) && h._directoryOffset == sizeof(ArchiveHeader) && h._width >= 2 && h._height >= 2 && h._width <= 1048576 && h._height <= 1048576 && h._chunkCellCountPerSide >= 1 && h._chunkCellCountPerSide <= 512 && h._reserved == 0 && std::isfinite(h._sampleWorldSpacing) && h._sampleWorldSpacing > 0 && std::isfinite(h._heightOffset) && std::isfinite(h._heightScale) && h._heightScale > 0 && std::isfinite(h._heightOffset + h._heightScale);
     }
+#endif
     template<class T> static bool read(FileReader& in, T& value)
     {
         static_assert(std::is_trivially_copyable_v<T>, "Terrain binary data must be trivially copyable");
@@ -34,6 +38,7 @@ namespace DK
         static_assert(std::is_trivially_copyable_v<T>, "Terrain binary data must be trivially copyable");
         return out.write(&value, sizeof(value));
     }
+#if defined(_DK_DEBUG_)
     static bool validLayout(const ChunkDataBlockInfo& s, const ChunkInfo& c, const ArchiveHeader& h)
     {
         const uint32_t vertices = (c._cellCountX + 1) * (c._cellCountZ + 1);
@@ -83,6 +88,7 @@ namespace DK
         }
         return s._stride == stride && s._format == format && s._count == count && s._bytes == uint64_t(count) * stride && s._bytes <= maxChunkBytes;
     }
+#endif
     template<class T> static ChunkDataBlock makeDataBlock(ChunkDataType type, Format format, const DKVector<T>& values)
     {
         static_assert(std::is_trivially_copyable_v<T>, "Terrain payload must be trivially copyable");
@@ -125,14 +131,22 @@ namespace DK
             DK_ASSERT_LOG(false, "Cannot open terrain archive");
             return false;
         }
+#if defined(_DK_DEBUG_)
         const uint64_t length = in.size();
         if (length < sizeof(ArchiveHeader))
         {
             DK_ASSERT_LOG(false, "Truncated terrain header");
             return false;
         }
+#endif
         ArchiveHeader h;
-        if (read(in, h) == false || validHeader(h) == false)
+        if (read(in, h) == false)
+        {
+            DK_ASSERT_LOG(false, "Unsupported or invalid terrain header");
+            return false;
+        }
+#if defined(_DK_DEBUG_)
+        if (validHeader(h) == false)
         {
             DK_ASSERT_LOG(false, "Unsupported or invalid terrain header");
             return false;
@@ -149,6 +163,7 @@ namespace DK
             DK_ASSERT_LOG(false, "Truncated terrain directory");
             return false;
         }
+#endif
         DKVector<ChunkInfo> chunks(h._chunkCount);
         for (ChunkInfo& c : chunks)
         {
@@ -159,10 +174,13 @@ namespace DK
             }
         }
         DKVector<DKVector<ChunkDataBlockInfo>> dataBlocks(h._chunkCount);
+#if defined(_DK_DEBUG_)
         uint64 next = directoryEnd;
+#endif
         for (uint32 i = 0; i < h._chunkCount; ++i)
         {
             const ChunkInfo& c = chunks[i];
+#if defined(_DK_DEBUG_)
             const uint32 x = i % columns(h);
             const uint32 z = i / columns(h);
             if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > static_cast<uint32>(ChunkDataType::NormalPyramid) || (c._cellCountX == std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide)) == false || (c._cellCountZ == std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide)) == false || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
@@ -177,22 +195,31 @@ namespace DK
                 DK_ASSERT_LOG(false, "Truncated chunk data block table");
                 return false;
             }
+#endif
             if (in.seek(c._dataBlocksOffset) == false)
             {
                 DK_ASSERT_LOG(false, "Cannot seek terrain chunk data block table");
                 return false;
             }
 
+#if defined(_DK_DEBUG_)
             uint32 seen = 0;
+#endif
             for (uint32 j = 0; j < c._dataBlockCount; ++j)
             {
                 ChunkDataBlockInfo s;
-                if (read(in, s) == false || validLayout(s, c, h) == false)
+                if (read(in, s) == false)
                 {
                     DK_ASSERT_LOG(false, "Invalid chunk data block format or size");
                     return false;
                 }
 
+#if defined(_DK_DEBUG_)
+                if (validLayout(s, c, h) == false)
+                {
+                    DK_ASSERT_LOG(false, "Invalid chunk data block format or size");
+                    return false;
+                }
                 const uint32 bit = 1u << static_cast<uint32>(s._type);
                 if ((seen & bit) || (s._offset == next) == false || s._bytes > c._endOffset - next)
                 {
@@ -202,9 +229,11 @@ namespace DK
 
                 seen |= bit;
                 next += s._bytes;
+#endif
                 dataBlocks[i].push_back(s);
             }
 
+#if defined(_DK_DEBUG_)
             if ((seen & (1u << static_cast<uint32>(ChunkDataType::Height))) == 0 || (next == c._endOffset) == false || (bool(seen & (1u << static_cast<uint32>(ChunkDataType::MaterialIds))) == bool(seen & (1u << static_cast<uint32>(ChunkDataType::MaterialWeights)))) == false)
             {
                 DK_ASSERT_LOG(false, "Missing heights, incomplete material layers or invalid chunk size");
@@ -215,13 +244,16 @@ namespace DK
                 DK_ASSERT_LOG(false, "Missing terrain mip pyramid or normals");
                 return false;
             }
+#endif
         }
 
+#if defined(_DK_DEBUG_)
         if ((next == h._fileBytes) == false)
         {
             DK_ASSERT_LOG(false, "Unexpected trailing terrain data");
             return false;
         }
+#endif
 
         _path = path;
         _header = h;
@@ -232,11 +264,13 @@ namespace DK
 
     bool Archive::loadChunk(uint32_t x, uint32_t z, Chunk& out) const
     {
+#if defined(_DK_DEBUG_)
         if (isOpen() == false || x >= columns(_header) || z >= rows(_header))
         {
             DK_ASSERT_LOG(false, "Chunk is outside terrain");
             return false;
         }
+#endif
 
         FileReader in(_path);
         if (in.isOpen() == false)
@@ -266,11 +300,13 @@ namespace DK
 
     bool writeArchive(const DKString& path, ArchiveHeader h, const DKVector<Chunk>& chunks)
     {
+#if defined(_DK_DEBUG_)
         if (validHeader(h) == false || (chunks.size() == uint64_t(columns(h)) * rows(h)) == false || chunks.size() > 1048576)
         {
             DK_ASSERT_LOG(false, "Invalid terrain build settings or chunk count");
             return false;
         }
+#endif
 
         h._chunkCount = static_cast<uint32>(chunks.size());
         DKVector<ChunkInfo> infos;
@@ -279,11 +315,13 @@ namespace DK
         for (const Chunk& c : chunks)
         {
             ChunkInfo info = c._info;
+#if defined(_DK_DEBUG_)
             if (c._dataBlocks.empty() || c._dataBlocks.size() > 9)
             {
                 DK_ASSERT_LOG(false, "Invalid chunk data block count");
                 return false;
             }
+#endif
 
             info._dataBlockCount = static_cast<uint32>(c._dataBlocks.size());
             info._dataBlocksOffset = offset;
@@ -292,11 +330,13 @@ namespace DK
             for (const ChunkDataBlock& dataBlock : c._dataBlocks)
             {
                 ChunkDataBlockInfo s = dataBlock._info;
+#if defined(_DK_DEBUG_)
                 if ((dataBlock._data.size() == s._bytes) == false)
                 {
                     DK_ASSERT_LOG(false, "ChunkDataBlock payload size mismatch");
                     return false;
                 }
+#endif
                 s._offset = offset;
                 offset += s._bytes;
                 table.push_back(s);
@@ -346,17 +386,20 @@ namespace DK
         }
 
         const bool good = out.close();
-        Archive check;
-        if (good == false || check.open(temporary) == false)
+        if (good == false)
         {
             FileUtil::remove(temporary);
-            if (good == false)
-            {
-                DK_ASSERT_LOG(false, "Failed writing terrain archive");
-                return false;
-            }
+            DK_ASSERT_LOG(false, "Failed writing terrain archive");
             return false;
         }
+#if defined(_DK_DEBUG_)
+        Archive check;
+        if (check.open(temporary) == false)
+        {
+            FileUtil::remove(temporary);
+            return false;
+        }
+#endif
 
         if (FileUtil::rename(temporary, path) == false)
         {
@@ -385,11 +428,13 @@ namespace DK
 
     bool buildHeightfield(const ArchiveHeader& h, const DKVector<uint16_t>& heights, DKVector<Chunk>& out)
     {
+#if defined(_DK_DEBUG_)
         if (validHeader(h) == false || (heights.size() == uint64_t(h._width) * h._height) == false || uint64_t(columns(h)) * rows(h) > 1048576)
         {
             DK_ASSERT_LOG(false, "Invalid heightfield dimensions or build settings");
             return false;
         }
+#endif
         DKVector<Chunk> built;
         for (uint32_t z = 0; z < rows(h); ++z)
         {
@@ -455,11 +500,13 @@ namespace DK
 
     bool Archive::loadMip(uint32_t x, uint32_t z, uint32_t lod, MipTile& out) const
     {
+#if defined(_DK_DEBUG_)
         if (isOpen() == false || x >= columns(_header) || z >= rows(_header) || lod >= mipCount(_header._chunkCellCountPerSide))
         {
             DK_ASSERT_LOG(false, "Terrain mip is outside archive");
             return false;
         }
+#endif
 
         const uint32_t index = z * columns(_header) + x;
         const ChunkInfo& chunk = _chunks[index];
@@ -478,11 +525,13 @@ namespace DK
                 normalInfo = &s;
             }
         }
+#if defined(_DK_DEBUG_)
         if (heightInfo == nullptr || normalInfo == nullptr)
         {
             DK_ASSERT_LOG(false, "Terrain mip data blocks are missing; rebuild the archive");
             return false;
         }
+#endif
 
         uint64_t first = 0;
         for (uint32_t level = 1; level < lod; ++level)
@@ -581,22 +630,26 @@ namespace DK
                 {
                     return value._type == type;
                 });
+#if defined(_DK_DEBUG_)
                 if (dataBlock == _dataBlocks[id].end())
                 {
                     DK_ASSERT_LOG(false, "Terrain height mip is missing");
                     return false;
                 }
+#endif
 
                 const ChunkDataType normalType = sourceLod == 0 ? ChunkDataType::Normal : ChunkDataType::NormalPyramid;
                 const DKVector<ChunkDataBlockInfo>::const_iterator normalBlock = std::find_if(_dataBlocks[id].begin(), _dataBlocks[id].end(), [normalType](const ChunkDataBlockInfo& value)
                 {
                     return value._type == normalType;
                 });
+#if defined(_DK_DEBUG_)
                 if (normalBlock == _dataBlocks[id].end())
                 {
                     DK_ASSERT_LOG(false, "Terrain normal mip is missing");
                     return false;
                 }
+#endif
                 const uint64 first = mipOffset + uint64(sampleZ) * rowWidth + sampleX;
                 const size_t destination = size_t(z) * gridWidth + x;
                 if (reader.seek(dataBlock->_offset + first * sizeof(uint16)) == false || reader.read(samples.data() + destination, size_t(count) * sizeof(uint16)) == false ||
@@ -622,11 +675,13 @@ namespace DK
 
     bool Archive::loadVirtualTile(uint32 x, uint32 z, uint32 lod, MipTile& out) const
     {
+#if defined(_DK_DEBUG_)
         if (isOpen() == false || lod > 20 || uint64(x) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._width - 1 || uint64(z) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._height - 1)
         {
             DK_ASSERT_LOG(false, "Virtual terrain tile is outside archive");
             return false;
         }
+#endif
         TerrainOverview grid;
         const uint32 startX = (x * _header._chunkCellCountPerSide) << lod, startZ = (z * _header._chunkCellCountPerSide) << lod;
         if (loadGrid(startX, startZ, lod, _header._chunkCellCountPerSide + 1, _header._chunkCellCountPerSide + 1, grid) == false)
@@ -646,11 +701,13 @@ namespace DK
 
     bool Archive::loadOverview(uint32 lod, TerrainOverview& out) const
     {
+#if defined(_DK_DEBUG_)
         if (isOpen() == false || lod > 20)
         {
             DK_ASSERT_LOG(false, "Invalid terrain overview LOD");
             return false;
         }
+#endif
 
         const uint32 step = 1u << lod;
         const uint32 width = (_header._width - 2) / step + 2;

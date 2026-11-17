@@ -34,18 +34,24 @@ namespace DK
 
 		const DKVector<Bone>& bones = _skeleton->getBoneArr();
 		const DKVector<Animation::BoneAnimation>& tracks = clip->getBoneAnimation();
+#if defined(_DK_DEBUG_)
 		if (bones.empty() || bones.size() > Bone::kMaxBoneCount || bones.size() != tracks.size())
 		{
 			DK_ASSERT_LOG(false, "Skeleton, Animation Not Matching");
 			return false;
 		}
+#endif
 
 		DKHashMap<uint64, uint32> trackIndices;
 		trackIndices.reserve(tracks.size());
 		for (uint32 i = 0; i < tracks.size(); ++i)
 		{
+#if defined(_DK_DEBUG_)
 			const bool inserted = trackIndices.try_emplace(tracks[i]._boneNameHash, i).second;
 			DK_ASSERT_LOG(inserted, "Duplicate animation bone hash");
+#else
+			trackIndices.try_emplace(tracks[i]._boneNameHash, i);
+#endif
 		}
 
 		_trackIndices.resize(bones.size());
@@ -55,21 +61,25 @@ namespace DK
 		{
 			const Bone& bone = bones[i];
 			const DKHashMap<uint64, uint32>::const_iterator track = trackIndices.find(bone._boneNameHash);
+#if defined(_DK_DEBUG_)
 			if (track == trackIndices.end())
 			{
 				DK_ASSERT_LOG(false, "Skeleton, Animation Not Matching");
 				return false;
 			}
+#endif
 
 			_trackIndices[i] = track->second;
 			bone._transform.tofloat4x4(_animatedPose[i]);
 			if (bone._parentBoneIndex != Bone::kInvalidBoneIndex)
 			{
+#if defined(_DK_DEBUG_)
 				if (bone._parentBoneIndex >= i)
 				{
 					DK_ASSERT_LOG(false, "invalid parent bone index");
 					return false;
 				}
+#endif
 
 				_animatedPose[i] = _animatedPose[i] * _animatedPose[bone._parentBoneIndex];
 			}
@@ -90,9 +100,10 @@ namespace DK
 
 	void SkinnedMeshComponent::update(float deltaTime)
 	{
-		if (_animation == nullptr || std::isfinite(deltaTime) == false || deltaTime < 0.0f)
+		if (_animation == nullptr)
 			return;
 
+		DK_ASSERT_LOG(std::isfinite(deltaTime) && deltaTime >= 0.0f, "Invalid animation delta time");
 		const DKVector<Bone>& bones = _skeleton->getBoneArr();
 		const DKVector<Animation::BoneAnimation>& tracks = _animation->getBoneAnimation();
 		const uint32 frameCount = _animation->getFrameCount();

@@ -23,6 +23,7 @@
 
 namespace DK
 {
+#if defined(_DK_DEBUG_)
     void AtmosphereAbsorptionLayer::validate([[maybe_unused]] uint32 layerIndex) const
     {
         for (uint32 channel = 0; channel < DK_COUNT_OF(_extinction); ++channel)
@@ -60,6 +61,7 @@ namespace DK
         for (uint32 index = 0; index < DK_COUNT_OF(_absorptionLayers); ++index)
             _absorptionLayers[index].validate(index);
     }
+#endif
 
 	static bool intersectsGeometryFrustum(const StaticMeshInstanceChunk& chunk, const DKArray<float4, 6>& frustumPlanes)
 	{
@@ -80,8 +82,10 @@ namespace DK
 
 	bool SceneRenderer::initialize()
 	{
+#if defined(_DK_DEBUG_)
         _atmosphereConstantBufferData.validate();
         validateSurfaceCaptureParameters();
+#endif
 		if (initialize_createRenderPass() == false)
 			return false;
 		if (initialize_renderPassHandles() == false || initialize_createMaterialDefinition() == false)
@@ -822,7 +826,9 @@ namespace DK
 	}
 	void SceneRenderer::prepareShaderData(const float deltaTime) noexcept
 	{
+#if defined(_DK_DEBUG_)
         _atmosphereConstantBufferData.validate();
+#endif
 		const float3 cameraPosition = Camera::gMainCamera->get_worldTransform().get_translation();
 		const DKArray<double, 3>& preciseCamera = Camera::gMainCamera->getWorldPosition();
 		DuckingEngine::getInstance().getSceneManagerWritable().prepareTerrainStreaming(preciseCamera[0], preciseCamera[2], deltaTime);
@@ -1240,7 +1246,9 @@ namespace DK
 							ImGui::Text("Density reference radius (m): %.1f km", atmosphere._densityReferenceRadius / 1000.0f);
 							ImGui::InputFloat("Density transition radius (m)", &atmosphere._densityTransitionRadius, 100.0f, 1000.0f, "%.1f");
 							ImGui::InputFloat("Atmosphere radius (m)", &atmosphere._atmosphereRadius, 100.0f, 1000.0f, "%.1f");
+#if defined(_DK_DEBUG_)
                             atmosphere.validate();
+#endif
 
                             if (ImGui::Checkbox("Compare extended atmosphere top", &_compareExtendedAtmosphereTop))
                             {
@@ -1291,7 +1299,9 @@ namespace DK
 							ImGui::TextDisabled("Relative HDR units; color normalized to unit luminance.");
 							InspectorProperty("Disk radius (deg)", [&] { ImGui::DragFloat("##value", &atmosphere._sunAngularRadius, 0.01f, 0.01f, 5.0f, "%.3f"); });
 							InspectorProperty("Disk brightness", [&] { ImGui::DragFloat("##value", &atmosphere._sunRadianceScale, 0.01f, 0.0f, 100.0f, "%.2f"); });
+#if defined(_DK_DEBUG_)
                             atmosphere.validate();
+#endif
 						}
 						if (ImGui::CollapsingHeader("Scattering"))
 						{
@@ -1309,7 +1319,9 @@ namespace DK
                             });
                             InspectorProperty("Sky lighting", [&] { ImGui::SliderFloat("##value", &atmosphere._skyLightingStrength, 0.0f, 2.0f); });
 							InspectorProperty("Density multiplier", [&] { ImGui::DragFloat("##value", &atmosphere._scatteringScale, 0.01f, 0.0f, 0.0f, "%.2f"); });
+#if defined(_DK_DEBUG_)
                             atmosphere.validate();
+#endif
 						}
                         if (ImGui::CollapsingHeader("Surface to atmosphere"))
                         {
@@ -1319,8 +1331,10 @@ namespace DK
                             InspectorProperty("Capture depth (m)", [&] { ImGui::InputFloat("##value", &_surfaceCaptureDepth); });
                             InspectorProperty("Shadow bias (m)", [&] { ImGui::InputFloat("##value", &atmosphere._surfaceBias); });
                             InspectorProperty("Bounce samples", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._surfaceBounceSamples), 8, static_cast<int>(SURFACE_BOUNCE_MAX_SAMPLES)); });
+#if defined(_DK_DEBUG_)
                             validateSurfaceCaptureParameters();
                             atmosphere.validate();
+#endif
                             ImGui::TextWrapped("Four 512x512 shadow cascades (1/8, 1/4, 1/2, full half-width), with blended boundaries. The outer capture feeds the 16x16x16 bounce field.");
                         }
                         if (ImGui::CollapsingHeader("Gas absorption layers"))
@@ -1349,7 +1363,9 @@ namespace DK
                                 InspectorProperty("Upper width (m)", [&] { ImGui::InputFloat("##value", &layer._upperWidth); });
 								for (uint32 c = 0; c < 3u; ++c)
 									layer._extinction[c] = inverseKm[c] / 1000.0f;
+#if defined(_DK_DEBUG_)
                                 layer.validate(i);
+#endif
                                 ImGui::PopID();
                             }
                         }
@@ -1490,7 +1506,9 @@ namespace DK
 #endif
 					ImGui::EndTabBar();
 				}
+#if defined(_DK_DEBUG_)
                 atmosphere.validate();
+#endif
 				atmosphere._multipleScatteringMaxOrder = Math::clamp(atmosphere._multipleScatteringMaxOrder, 1u, 8u);
 				atmosphere._sunAngularRadius = Math::clamp(atmosphere._sunAngularRadius, 0.01f, 5.0f);
 				atmosphere._sunRadianceScale = Math::clamp(atmosphere._sunRadianceScale, 0.0f, 100.0f);
@@ -1506,6 +1524,7 @@ namespace DK
 	}
 #endif
 
+#if defined(_DK_DEBUG_)
     void SceneRenderer::validateSurfaceCaptureParameters() const
     {
         DK_ASSERT_LOG(std::isfinite(_surfaceCaptureExtent) && _surfaceCaptureExtent > 0.0f, "Invalid _surfaceCaptureExtent=%g", _surfaceCaptureExtent);
@@ -1513,6 +1532,7 @@ namespace DK
         DK_ASSERT_LOG(2.0f * _surfaceCaptureExtent / SURFACE_BOUNCE_GRID >= SURFACE_BOUNCE_MIN_CELL_WORLD_SIZE, "Surface bounce cell is too small: _surfaceCaptureExtent=%g, grid=%u, minimum cell size=%g", _surfaceCaptureExtent, SURFACE_BOUNCE_GRID, SURFACE_BOUNCE_MIN_CELL_WORLD_SIZE);
         DK_ASSERT_LOG(std::isfinite(_atmosphereConstantBufferData._surfaceBias) && _atmosphereConstantBufferData._surfaceBias >= 0.0f, "Invalid _surfaceBias=%g", _atmosphereConstantBufferData._surfaceBias);
     }
+#endif
 
     void SceneRenderer::prepareSurfaceCapture(const float3& cameraPosition)
     {
@@ -1520,7 +1540,9 @@ namespace DK
 
         DK_ASSERT_LOG(atmosphereData._surfaceMapSize > 0u && atmosphereData._surfaceMapSize % (2u * SURFACE_BOUNCE_GRID) == 0u, "Surface capture size must be an even multiple of the bounce grid");
         DK_ASSERT_LOG(atmosphereData._surfaceMapSize == _surfaceCapturePass->_binding._target->_targets._width, "Surface capture size does not match the texture");
+#if defined(_DK_DEBUG_)
         validateSurfaceCaptureParameters();
+#endif
         DK_ASSERT_LOG(atmosphereData._shadowCascadeCount <= DK_ATMOSPHERE_SHADOW_CASCADE_COUNT, "Invalid shadow cascade count");
 
         atmosphereData._surfaceMapEnabled = _renderLocalScene && (atmosphereData._surfaceShadowStrength > 0 || atmosphereData._surfaceBounceStrength > 0) ? 1u : 0u;

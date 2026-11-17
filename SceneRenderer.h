@@ -38,7 +38,9 @@ namespace DK
         void setAbsorptionLayer(uint32 index, const AtmosphereAbsorptionLayer& layer)
         {
             DK_ASSERT_LOG(index < DK_COUNT_OF(_atmosphereConstantBufferData._absorptionLayers), "Invalid atmosphere absorption layer index: %u", index);
+#if defined(_DK_DEBUG_)
             layer.validate(index);
+#endif
             _atmosphereConstantBufferData._absorptionLayers[index] = layer;
         }
 
@@ -51,7 +53,9 @@ namespace DK
         void updateAtmosphereSkyLighting();
         void updateAtmosphereMultipleScattering();
         void prepareSurfaceCapture(const float3& cameraPosition);
+#if defined(_DK_DEBUG_)
 		void validateSurfaceCaptureParameters() const;
+#endif
         void updateSurfaceTransport();
         void drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, const SceneConstantBuffer& sceneConstantsData, bool includeDebug);
     void drawGrass(RenderModule& renderModule);

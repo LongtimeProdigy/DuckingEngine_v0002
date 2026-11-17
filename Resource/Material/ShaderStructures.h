@@ -76,7 +76,7 @@ struct AtmosphereAbsorptionLayer
     float _upperWidth DK_SHADER_DEFAULT(10000);
     float _reserved DK_SHADER_DEFAULT(0);
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(_DK_DEBUG_)
     void validate([[maybe_unused]] uint32 layerIndex) const;
 #endif
 };
@@ -167,7 +167,7 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
     float _shadowCascadeBlend DK_SHADER_DEFAULT(0.1f);
     DK_SHADER_FLOAT2(_shadowCascadePadding) DK_SHADER_DEFAULT({});
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(_DK_DEBUG_)
     void validate() const;
 #endif
 };

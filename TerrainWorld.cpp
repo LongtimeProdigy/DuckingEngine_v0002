@@ -30,6 +30,7 @@ namespace DK
             DK_ASSERT_LOG(false, "Invalid terrain world manifest: %s", path.c_str());
             return false;
         }
+#if defined(_DK_DEBUG_)
         if (_header._width < 2 || _header._height < 2 || _header._width > 0x7fffffffu || _header._height > 0x7fffffffu ||
             _header._chunkCellCountPerSide < 2 || _header._chunkCellCountPerSide > 512 || (_header._chunkCellCountPerSide & (_header._chunkCellCountPerSide - 1u)) != 0 ||
             _sectionCellCountPerSide < _header._chunkCellCountPerSide || _sectionCellCountPerSide > 524288 || (_sectionCellCountPerSide & (_sectionCellCountPerSide - 1u)) != 0 ||
@@ -46,14 +47,17 @@ namespace DK
             DK_ASSERT_LOG(false, "Terrain world cell counts must be divisible by the section cell count");
             return false;
         }
+#endif
 
         _sectionCountX = (_header._width - 1) / _sectionCellCountPerSide;
         _sectionCountZ = (_header._height - 1) / _sectionCellCountPerSide;
+#if defined(_DK_DEBUG_)
         if (uint64(_sectionCountX) * _sectionCountZ > 1048576)
         {
             DK_ASSERT_LOG(false, "Terrain world section count exceeds the supported range");
             return false;
         }
+#endif
 
         _sections.resize(size_t(_sectionCountX) * _sectionCountZ);
         for (const TiXmlElement* element = root->FirstChildElement("Section"); element != nullptr; element = element->NextSiblingElement("Section"))
@@ -69,11 +73,13 @@ namespace DK
             }
 
             TerrainSection& section = _sections[size_t(z) * _sectionCountX + x];
+#if defined(_DK_DEBUG_)
             if (section._archivePath.empty() == false)
             {
                 DK_ASSERT_LOG(false, "Duplicate terrain section entry");
                 return false;
             }
+#endif
 
             section._id = z * _sectionCountX + x;
             section._x = x;
@@ -81,6 +87,7 @@ namespace DK
             section._archivePath = FileUtil::jointPath(FileUtil::parentPath(path), archive);
         }
 
+#if defined(_DK_DEBUG_)
         for (const TerrainSection& section : _sections)
         {
             if (section._archivePath.empty())
@@ -90,14 +97,17 @@ namespace DK
             }
         }
 
+#endif
         return true;
     }
 
+#if defined(_DK_DEBUG_)
     bool TerrainWorld::matchesSectionArchive(const ArchiveHeader& header) const
     {
         return header._width == _sectionCellCountPerSide + 1 && header._height == _sectionCellCountPerSide + 1 && header._chunkCellCountPerSide == _header._chunkCellCountPerSide &&
             header._sampleWorldSpacing == _header._sampleWorldSpacing && header._heightOffset == _header._heightOffset && header._heightScale == _header._heightScale;
     }
+#endif
 
     DKVector<uint32> TerrainWorld::selectSections(double cameraX, double cameraZ) const
     {
@@ -143,6 +153,7 @@ namespace DK
             return false;
         }
         const ArchiveHeader& header = source.header();
+#if defined(_DK_DEBUG_)
         if (sectionCellCountPerSide < header._chunkCellCountPerSide || sectionCellCountPerSide > 524288 || (sectionCellCountPerSide & (sectionCellCountPerSide - 1u)) != 0)
         {
             DK_ASSERT_LOG(false, "Section cells must be a power of two and at least the chunk cell count");
@@ -153,6 +164,7 @@ namespace DK
             DK_ASSERT_LOG(false, "Terrain world cell counts must be divisible by the section cell count");
             return false;
         }
+#endif
         const DKString manifestPath = FileUtil::jointPath(directoryPath, "terrain.xml");
         if (FileUtil::exist(directoryPath) || FileUtil::createDirectory(directoryPath) == false)
         {
@@ -227,7 +239,11 @@ namespace DK
         {
             return false;
         }
+#if defined(_DK_DEBUG_)
         TerrainWorld check;
         return check.open(manifestPath);
+#else
+        return true;
+#endif
     }
 }

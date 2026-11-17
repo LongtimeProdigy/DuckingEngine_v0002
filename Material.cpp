@@ -125,18 +125,22 @@ namespace DK
 		const uint32 parameterDefinitionCount = modelProperty._parameters.size();
 		for (uint32 i = 0; i < parameterDefinitionCount; ++i)
 		{
+#if defined(_DK_DEBUG_)
 			bool validation = false;
+#endif
 			const MaterialParameterDefinition& parameterDefinition = modelProperty._parameters[i];
 			for (uint32 j = 0; j < parameterCount; ++j)
 			{
 				MaterialParameter* parameter = _parameterArr[j].get();
 				if (parameterDefinition._nameHash == parameter->getParameterNameHash())
 				{
+#if defined(_DK_DEBUG_)
 					if (parameterDefinition._type != parameter->getType())
 					{
 						DK_ASSERT_LOG(false, "Material %s: parameter %s has an incompatible type.", _materialName.c_str(), parameterDefinition._name.c_str());
 						return false;
 					}
+#endif
 					switch (parameterDefinition._type)
 					{
 					case MaterialParameterType::FLOAT:
@@ -159,16 +163,20 @@ namespace DK
 					}
 					}
 
+#if defined(_DK_DEBUG_)
 					validation = true;
+#endif
 					break;
 				}
 			}
 
+#if defined(_DK_DEBUG_)
 			if (validation == false)
 			{
 				DK_ASSERT_LOG(false, "Material %s: unknown model parameter %s.", _materialName.c_str(), parameterDefinition._name.c_str());
 				return false;
 			}
+#endif
 		}
 
 		_parameterBufferForGPU->upload(_parameterBufferForCPU.data());

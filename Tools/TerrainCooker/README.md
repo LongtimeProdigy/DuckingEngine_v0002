@@ -20,7 +20,7 @@ forest_valley_world/
     ...
 ```
 
-`terrain.xml`은 전체 샘플 수, 샘플 간격, 공통 높이 변환 범위, Chunk·Section 크기, 저해상도 LOD와 각 Section의 좌표·Archive 상대 경로를 저장한다. Section ID는 `Z * SectionCountX + X`다. 전체 지형의 X/Z 셀 수(샘플 수 - 1)는 Section 한 변의 셀 수로 나누어떨어져야 한다. Cooker와 런타임 모두 나머지가 있는 입력을 거부하며 모든 Section은 같은 크기다. Section 내부 샘플 수는 셀 수보다 하나 많으며, 경계 샘플은 양쪽 Section에 들어 있다.
+`terrain.xml`은 전체 샘플 수, 샘플 간격, 공통 높이 변환 범위, Chunk·Section 크기, 저해상도 LOD와 각 Section의 좌표·Archive 상대 경로를 저장한다. Section ID는 `Z * SectionCountX + X`다. 전체 지형의 X/Z 셀 수(샘플 수 - 1)는 Section 한 변의 셀 수로 나누어떨어져야 한다. Cooker와 런타임은 Debug 빌드에서 나머지가 있는 입력을 거부한다. Release 빌드는 Debug에서 검증한 데이터를 사용하며 모든 Section은 같은 크기다. Section 내부 샘플 수는 셀 수보다 하나 많으며, 경계 샘플은 양쪽 Section에 들어 있다.
 
 현재 자산은 8193×8193 샘플, 0.5m 간격, 2048셀 Section이다. 전체 크기는 4096×4096m, Section 한 변은 1024m이며 4×4개로 나뉜다. Section 저해상도 LOD는 3으로, 기본 간격이 4m인 257×257 Height·Normal을 사용한다.
 
@@ -63,3 +63,7 @@ forest_valley_world/
 - `TerrainWorld.cpp`, `TerrainStreaming.cpp`, `TerrainData.cpp`: 정렬·검색 알고리즘과 정수·double 수학은 기존 Terrain 코드와 같이 `std::`를 유지했다. 공용 `Math`의 min/max/clamp/floor는 float 전용이라 월드 좌표와 정수 크기를 전달하면 정밀도가 손실되며, 독립 Cooker에서도 사용할 수 없다. 대응되는 공용 정밀도 보존 래퍼가 필요하다.
 - `TerrainStreaming.h/.cpp`: 스레드·mutex·condition_variable은 프로젝트 규칙대로 명시적인 `std::`를 유지한다.
 - 새 Windows API 직접 호출은 추가하지 않았다.
+
+## 빌드별 검증
+
+TerrainCooker는 Debug와 Release 구성을 제공한다. 데이터 정합성 검사, 출력 Archive·Manifest 재검증과 `--verify`는 Debug 빌드에서만 실행한다. Release 빌드는 검증된 입력을 사용하며 파일 입출력·파싱 실패 처리는 유지한다.

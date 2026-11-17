@@ -72,11 +72,13 @@ namespace DK
     bool Streamer::start(const TerrainWorld& world, uint32 capacity)
     {
         stop();
+#if defined(_DK_DEBUG_)
         if (world._sections.empty() || world._overviewLod == 0 || capacity == 0)
         {
             DK_ASSERT_LOG(false, "Invalid terrain streamer configuration");
             return false;
         }
+#endif
         _world = world;
         _capacity = capacity;
         _stopping = false;
@@ -248,7 +250,15 @@ namespace DK
                 SectionPage page;
                 page._sectionId = sectionId;
                 Archive& archive = archives[sectionId];
-                page._loaded = (archive.isOpen() || archive.open(_world._sections[sectionId]._archivePath)) && _world.matchesSectionArchive(archive.header()) && archive.loadOverview(_world._overviewLod, page._overview);
+                page._loaded = archive.isOpen() || archive.open(_world._sections[sectionId]._archivePath);
+#if defined(_DK_DEBUG_)
+                if (page._loaded)
+                {
+                    page._loaded = _world.matchesSectionArchive(archive.header());
+                    DK_ASSERT_LOG(page._loaded, "Terrain section archive does not match the world: %u", sectionId);
+                }
+#endif
+                page._loaded = page._loaded && archive.loadOverview(_world._overviewLod, page._overview);
                 DK_ASSERT_LOG(page._loaded, "Terrain section load failed: %u", sectionId);
                 std::lock_guard<std::mutex> lock(_mutex);
                 _loadingSectionId = ~0u;

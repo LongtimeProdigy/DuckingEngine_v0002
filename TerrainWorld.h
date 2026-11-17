@@ -23,7 +23,9 @@ namespace DK
         DKVector<TerrainSection> _sections;    // 전체 Section의 경로·격자 위치 목록. Z행 안에서 X가 증가하는 순서이며 인덱스는 Section ID와 같다.
 
         bool open(const DKString& path);
+#if defined(_DK_DEBUG_)
         bool matchesSectionArchive(const ArchiveHeader& header) const;
+#endif
         DKVector<uint32> selectSections(double cameraX, double cameraZ) const;
     };
 
