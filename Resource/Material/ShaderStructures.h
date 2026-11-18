@@ -295,7 +295,7 @@ cbuffer TerrainStreamingConstants : register(b3)
     float _terrainOriginWorldZ DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainSectionCountX DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainSectionCountZ DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainOverviewSlotSampleCountPerSide DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainSectionOverviewSampleCountPerSide DK_SHADER_DEFAULT(0);
     DK_SHADER_ARRAY(TerrainSectionConstants, _terrainSections, TERRAIN_SECTION_SLOT_COUNT);
 };
 #endif

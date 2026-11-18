@@ -125,7 +125,7 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
     const int2 localSample = sample - int2(section * _terrainSectionCellCountPerSide);
     const uint2 cells = uint2(metadata._terrainSectionCellCountX, metadata._terrainSectionCellCountZ);
     const float2 overviewPosition = TerrainGridPosition(localSample, fraction, _terrainOverviewLod, cells);
-    const float2 overviewOffset = float2(section.x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE, section.y % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * _terrainOverviewSlotSampleCountPerSide;
+    const float2 overviewOffset = float2(section.x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE, section.y % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * _terrainSectionOverviewSampleCountPerSide;
     const float2 overviewUV = (overviewOffset + overviewPosition + 0.5f) / float2(_terrainOverviewSampleCountX, _terrainOverviewSampleCountZ);
     float3 result = float3(getTexture(_terrainOverviewHeightSRV).SampleLevel(bilinearRepeatSampler, overviewUV, 0.0f).x, getTexture(_terrainOverviewNormalSRV).SampleLevel(bilinearRepeatSampler, overviewUV, 0.0f).xy);
     const float distanceToCamera = length(relativeXZ - float2(_terrainCameraAnchorRelativeWorldX, _terrainCameraAnchorRelativeWorldZ));
