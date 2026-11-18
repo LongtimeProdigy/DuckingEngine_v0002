@@ -611,6 +611,7 @@ namespace DK
         TerrainStreamingConstants& constants = terrain._streamingConstants;
         const TerrainWorld& world = terrain._world;
         const ArchiveHeader& header = world._header;
+
         constants = {};
         constants._terrainOriginWorldX = terrainWorldOrigin.x;
         constants._terrainOriginWorldZ = terrainWorldOrigin.y;
@@ -624,22 +625,37 @@ namespace DK
         constants._terrainSectionCountX = world._sectionCountX;
         constants._terrainSectionCountZ = world._sectionCountZ;
         constants._terrainOverviewLod = world._overviewLod;
-        constants._terrainOverviewSlotSampleCountPerSide = (world._sectionCellCountPerSide >> world._overviewLod) + 1;
-        constants._terrainOverviewSampleCountX = constants._terrainOverviewSlotSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
-        constants._terrainOverviewSampleCountZ = constants._terrainOverviewSlotSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+        const uint32 overviewSampleStep = 1u << world._overviewLod;
+        if (world._sectionCellCountPerSide % overviewSampleStep != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain section cell count must be divisible by the overview sample step");
+            return false;
+        }
+        constants._terrainSectionOverviewSampleCountPerSide = world._sectionCellCountPerSide / overviewSampleStep + 1;
+        constants._terrainOverviewSampleCountX = constants._terrainSectionOverviewSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+        constants._terrainOverviewSampleCountZ = constants._terrainSectionOverviewSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
         constants._terrainCacheSlotTexelCountPerSide = header._chunkCellCountPerSide + 1;
         const uint32 slotCount = world._overviewLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
-        const uint32 maxSlotCountPerSide = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION / constants._terrainCacheSlotTexelCountPerSide;
-        constants._terrainCacheSlotColumnCount = std::max(constants._terrainCacheSlotColumnCount, (slotCount + maxSlotCountPerSide - 1) / maxSlotCountPerSide);
-        constants._terrainCacheSlotRowCount = (slotCount + constants._terrainCacheSlotColumnCount - 1) / constants._terrainCacheSlotColumnCount;
+        if (constants._terrainCacheSlotColumnCount == 0 || slotCount % constants._terrainCacheSlotColumnCount != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain cache slot count must be divisible by the cache column count");
+            return false;
+        }
+        constants._terrainCacheSlotRowCount = slotCount / constants._terrainCacheSlotColumnCount;
         const uint32 cacheWidth = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotColumnCount;
         const uint32 cacheHeight = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotRowCount;
-        const double pageDiameter = std::ceil(4.0 * constants._terrainLod0WorldRadius / (double(header._chunkCellCountPerSide) * header._sampleWorldSpacing)) + 2.0;
-        const uint32 minimumTableSide = uint32(std::min(pageDiameter, double(ClipMapTerrain::CACHE_SLOTS_PER_LOD + 1)));
-        while (constants._terrainPageTableEntryCountPerSide < minimumTableSide)
+        const double pageCountPerDiameter = 4.0 * constants._terrainLod0WorldRadius / (double(header._chunkCellCountPerSide) * header._sampleWorldSpacing);
+        if (pageCountPerDiameter != std::floor(pageCountPerDiameter))
         {
-            constants._terrainPageTableEntryCountPerSide *= 2;
+            DK_ASSERT_LOG(false, "Terrain streaming diameter must be divisible by the chunk world size");
+            return false;
         }
+        if (constants._terrainPageTableEntryCountPerSide < pageCountPerDiameter + 2.0)
+        {
+            DK_ASSERT_LOG(false, "Terrain page table side must cover the streaming diameter and both boundary pages");
+            return false;
+        }
+
         const uint32 tableHeight = constants._terrainPageTableEntryCountPerSide * world._overviewLod * TERRAIN_SECTION_SLOT_COUNT;
 #if defined(_DK_DEBUG_)
         const double clipmapRadius = double(ClipMapTerrain::TILE_RESOLUTION * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
@@ -724,8 +740,8 @@ namespace DK
             const uint32 slotX = section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
             const uint32 slotZ = section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
             const TerrainOverview& overview = sectionPage._overview;
-            const uint32 x = slotX * constants._terrainOverviewSlotSampleCountPerSide;
-            const uint32 z = slotZ * constants._terrainOverviewSlotSampleCountPerSide;
+            const uint32 x = slotX * constants._terrainSectionOverviewSampleCountPerSide;
+            const uint32 z = slotZ * constants._terrainSectionOverviewSampleCountPerSide;
             if (rm.queueTextureRegion(terrain._tailHeight, x, z, overview._width, overview._height, overview._heights.data(), overview._width * sizeof(overview._heights[0])) == false ||
                 rm.queueTextureRegion(terrain._tailNormal, x, z, overview._width, overview._height, overview._normals.data(), overview._width * sizeof(overview._normals[0])) == false)
             {
