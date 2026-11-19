@@ -203,7 +203,7 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
     const float2 coverageSize = float2(_groundCoverageWidth, _groundCoverageDepth);
     const bool hasCoverageBounds = all(coverageSize > 0.0f);
     const float2 mapSize = hasCoverageBounds ? coverageSize : float2(_terrainCellCountX, _terrainCellCountZ) * _terrainSampleWorldSpacing;
-    const float2 mapOrigin = hasCoverageBounds ? float2(_groundCoverageOriginX, _groundCoverageOriginZ) : float2(_terrainOriginWorldX, _terrainOriginWorldZ);
+    const float2 mapOrigin = hasCoverageBounds ? float2(_groundCoverageOriginX, _groundCoverageOriginZ) : float2(_terrainOriginWorldX, _terrainOriginWorldZ) + float2(_terrainMinimumSampleX, _terrainMinimumSampleZ) * _terrainSampleWorldSpacing;
     const float2 mapXZ = worldXZ - mapOrigin;
     const float distanceOutside = length(mapXZ - clamp(mapXZ, 0.0f, mapSize));
     const float coverageFade = 1.0f - smoothstep(0.0f, max(_groundCoverageFadeMeters, 1e-4f), distanceOutside);
@@ -238,8 +238,9 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
 
 GBufferOutput PSMain(VS_OUTPUT input)
 {
-    const float2 minimum = -float2(_terrainAnchorSampleX, _terrainAnchorSampleZ) * _terrainSampleWorldSpacing;
-    const float2 maximum = float2(int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
+    const int2 minimumSample = int2(_terrainMinimumSampleX, _terrainMinimumSampleZ);
+    const float2 minimum = float2(minimumSample - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
+    const float2 maximum = float2(minimumSample + int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainAnchorSampleX, _terrainAnchorSampleZ)) * _terrainSampleWorldSpacing;
     const float2 boundaryDistance = min(input.relativeXZ - minimum, maximum - input.relativeXZ);
     clip(min(boundaryDistance.x, boundaryDistance.y));
     clip(TerrainAvailableRelative(input.relativeXZ) ? 1.0f : -1.0f);

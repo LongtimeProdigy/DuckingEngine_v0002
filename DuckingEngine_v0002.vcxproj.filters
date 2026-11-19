@@ -291,6 +291,9 @@
     <ClInclude Include="GpuAssertDiagnostics.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Resource\Material\TerrainStreamingLimits.h">
+      <Filter>1. EngineCore\Resource</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="0. Common">

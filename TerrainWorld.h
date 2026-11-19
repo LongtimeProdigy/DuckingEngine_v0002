@@ -19,6 +19,8 @@ namespace DK
         uint32 _sectionCellCountPerSide = 0;    // 모든 Section에 공통인 한 변의 셀 수. 샘플 수는 셀 수 + 1이며, 전체 지형의 X/Z 셀 수를 나누어떨어지게 해야 한다.
         uint32 _sectionCountX = 0;             // 전체 지형을 X축으로 나눈 Section 개수
         uint32 _sectionCountZ = 0;             // 전체 지형을 Z축으로 나눈 Section 개수
+        int32 _minimumSampleX = 0;            // 전체 지형 X축 최소 샘플 좌표. Section (0, 0)의 X축 시작점
+        int32 _minimumSampleZ = 0;            // 전체 지형 Z축 최소 샘플 좌표. Section (0, 0)의 Z축 시작점
         uint32 _overviewLod = 0;               // Section 전체의 저해상도 Height·Normal에 사용하는 LOD. 샘플 간격은 원본의 2^LOD배다.
         DKVector<TerrainSection> _sections;    // 전체 Section의 경로·격자 위치 목록. Z행 안에서 X가 증가하는 순서이며 인덱스는 Section ID와 같다.
 
@@ -26,7 +28,6 @@ namespace DK
 #if defined(_DK_DEBUG_)
         bool matchesSectionArchive(const ArchiveHeader& header) const;
 #endif
-        DKVector<uint32> selectSections(double cameraX, double cameraZ) const;
     };
 
     bool splitTerrainWorld(const DKString& archivePath, const DKString& directoryPath, uint32 sectionCellCountPerSide);

@@ -31,6 +31,12 @@ namespace DK
             return false;
         }
 
+        if ((header._width - 1) % header._chunkCellCountPerSide != 0 || (header._height - 1) % header._chunkCellCountPerSide != 0)
+        {
+            DK_ASSERT_LOG(false, "Heightmap cell counts must be divisible by the chunk cell count");
+            return false;
+        }
+
         const uint64 sampleCount = uint64(header._width) * header._height;
         const uint64 byteCount = sampleCount * sizeof(uint16);
         if (byteCount > std::numeric_limits<UINT>::max())
@@ -85,7 +91,7 @@ namespace DK
         if (argumentCount == 2 && DKStringW(arguments[1]) == L"--help")
         {
             std::puts("TerrainCooker.exe <8-bit or 16-bit grayscale image> <output.dkterrain> [sampleSpacing heightOffset heightScale chunkCellCountPerSide]");
-            std::puts("Defaults: sampleSpacing=1, heightOffset=-16, heightScale=128, chunkCellCountPerSide=128");
+            std::puts("Defaults: sampleSpacing=0.5, heightOffset=-16, heightScale=128, chunkCellCountPerSide=128");
             std::puts("TerrainCooker.exe --verify <archive.dkterrain> (Debug build only)");
             std::puts("TerrainCooker.exe --split <archive.dkterrain> <outputDirectory> <sectionCells>");
             return 0;

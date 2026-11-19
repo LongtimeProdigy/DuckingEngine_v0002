@@ -847,8 +847,8 @@ namespace DK
         const TerrainStreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
         const double terrainLocalX = preciseCamera[0] - terrainBounds._terrainOriginWorldX;
         const double terrainLocalZ = preciseCamera[2] - terrainBounds._terrainOriginWorldZ;
-        const double terrainX = terrainLocalX - std::clamp(terrainLocalX, 0.0, double(terrainBounds._terrainCellCountX) * terrainBounds._terrainSampleWorldSpacing);
-        const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, 0.0, double(terrainBounds._terrainCellCountZ) * terrainBounds._terrainSampleWorldSpacing);
+        const double terrainX = terrainLocalX - std::clamp(terrainLocalX, double(terrainBounds._terrainMinimumSampleX) * terrainBounds._terrainSampleWorldSpacing, (double(terrainBounds._terrainMinimumSampleX) + terrainBounds._terrainCellCountX) * terrainBounds._terrainSampleWorldSpacing);
+        const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, double(terrainBounds._terrainMinimumSampleZ) * terrainBounds._terrainSampleWorldSpacing, (double(terrainBounds._terrainMinimumSampleZ) + terrainBounds._terrainCellCountZ) * terrainBounds._terrainSampleWorldSpacing);
         const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainBaseWorldHeight), double(terrainBounds._terrainBaseWorldHeight + terrainBounds._terrainWorldHeightRange));
         const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
         const bool nearTerrain = terrainBounds._terrainCellCountX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
@@ -1823,6 +1823,7 @@ namespace DK
 					}
 					if (visibleRanges.empty())
 						continue;
+
 					setShaderResourceView("_staticMeshInstances", batch._staticMeshInstances);
 					for (const StaticMeshModel::SubMeshType& subMesh : batch._model->get_subMeshArr())
 					{
@@ -1971,10 +1972,10 @@ namespace DK
         const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
         const SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
         const TerrainStreamingConstants& streaming = terrain._streamingConstants;
-        const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainOriginWorldX);
-        const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainOriginWorldZ);
-        const float mapMaxX = Math::min(grass._grassMapOriginX + grass._grassMapWidth, streaming._terrainOriginWorldX + streaming._terrainCellCountX * streaming._terrainSampleWorldSpacing);
-        const float mapMaxZ = Math::min(grass._grassMapOriginZ + grass._grassMapDepth, streaming._terrainOriginWorldZ + streaming._terrainCellCountZ * streaming._terrainSampleWorldSpacing);
+        const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainOriginWorldX + streaming._terrainMinimumSampleX * streaming._terrainSampleWorldSpacing);
+        const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainOriginWorldZ + streaming._terrainMinimumSampleZ * streaming._terrainSampleWorldSpacing);
+        const float mapMaxX = Math::min(grass._grassMapOriginX + grass._grassMapWidth, streaming._terrainOriginWorldX + (streaming._terrainMinimumSampleX + int32(streaming._terrainCellCountX)) * streaming._terrainSampleWorldSpacing);
+        const float mapMaxZ = Math::min(grass._grassMapOriginZ + grass._grassMapDepth, streaming._terrainOriginWorldZ + (streaming._terrainMinimumSampleZ + int32(streaming._terrainCellCountZ)) * streaming._terrainSampleWorldSpacing);
         constexpr float tileMeters = GRASS_TILE_METERS;
         constexpr float maxDistance = GRASS_LOD5_END;
         const float maxGrassY = streaming._terrainBaseWorldHeight + streaming._terrainWorldHeightRange + 1.2f;

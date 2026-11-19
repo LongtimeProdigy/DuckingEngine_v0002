@@ -38,7 +38,7 @@ namespace DK
         uint32 _height = 0;             // 원본 높이 샘플 수
         uint32 _chunkCellCountPerSide = 128;       // 청크당 셀 수
         uint32 _chunkCount = 0;         // 전체 청크 개수
-        float _sampleWorldSpacing = 1;       // 샘플 사이의 월드 거리
+        float _sampleWorldSpacing = 0.5f;       // 샘플 사이의 월드 거리
         float _heightOffset = -16;      // 저장된 높이 정수를 실제 Y 좌표로 복원하는 기준
         float _heightScale = 128;       // 저장된 높이 정수를 실제 Y 좌표로 복원하는 기준
         uint32 _reserved = 0;
@@ -98,7 +98,10 @@ namespace DK
 
     struct MipTile
     {
-        uint32_t _x = 0, _z = 0, _lod = 0, _sampleCountPerSide = 0;
+        uint32 _x = 0;
+        uint32 _z = 0;
+        uint32 _lod = 0;
+        uint32 _sampleCountPerSide = 0;
         DKVector<uint16_t> _heights;
         DKVector<DKArray<int16_t, 2>> _normals;
     };
@@ -116,8 +119,8 @@ namespace DK
     {
     public:
         bool open(const DKString& path);
-        bool loadChunk(uint32_t x, uint32_t z, Chunk& out) const;
-        bool loadMip(uint32_t x, uint32_t z, uint32_t lod, MipTile& out) const;
+        bool loadChunk(uint32 x, uint32 z, Chunk& out) const;
+        bool loadMip(uint32 x, uint32 z, uint32 lod, MipTile& out) const;
         bool loadVirtualTile(uint32 x, uint32 z, uint32 lod, MipTile& out) const;
         bool loadOverview(uint32 lod, TerrainOverview& out) const;
         dk_inline bool isOpen() const

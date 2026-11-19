@@ -14,18 +14,27 @@ namespace DK
 #endif
     static uint32_t columns(const ArchiveHeader& h)
     {
-        return (h._width - 2) / h._chunkCellCountPerSide + 1;
+        return (h._width - 1) / h._chunkCellCountPerSide;
     }
     static uint32_t rows(const ArchiveHeader& h)
     {
-        return (h._height - 2) / h._chunkCellCountPerSide + 1;
+        return (h._height - 1) / h._chunkCellCountPerSide;
     }
 
 #if defined(_DK_DEBUG_)
     static bool validHeader(const ArchiveHeader& h)
     {
         const bool version3 = h._version == 3 && std::memcmp(h._magic, "DKTRN003", sizeof(h._magic)) == 0 && (h._chunkCellCountPerSide & (h._chunkCellCountPerSide - 1)) == 0;
-        return version3 && h._headerBytes == sizeof(ArchiveHeader) && h._directoryOffset == sizeof(ArchiveHeader) && h._width >= 2 && h._height >= 2 && h._width <= 1048576 && h._height <= 1048576 && h._chunkCellCountPerSide >= 1 && h._chunkCellCountPerSide <= 512 && h._reserved == 0 && std::isfinite(h._sampleWorldSpacing) && h._sampleWorldSpacing > 0 && std::isfinite(h._heightOffset) && std::isfinite(h._heightScale) && h._heightScale > 0 && std::isfinite(h._heightOffset + h._heightScale);
+        const bool valid = version3 && h._headerBytes == sizeof(ArchiveHeader) && h._directoryOffset == sizeof(ArchiveHeader) && h._width >= 2 && h._height >= 2 && h._width <= 1048576 && h._height <= 1048576 && h._chunkCellCountPerSide >= 1 && h._chunkCellCountPerSide <= 512 && h._reserved == 0 && std::isfinite(h._sampleWorldSpacing) && h._sampleWorldSpacing > 0 && std::isfinite(h._heightOffset) && std::isfinite(h._heightScale) && h._heightScale > 0 && std::isfinite(h._heightOffset + h._heightScale);
+        if (valid == false)
+            return false;
+
+        if ((h._width - 1) % h._chunkCellCountPerSide != 0 || (h._height - 1) % h._chunkCellCountPerSide != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain archive cell counts must be divisible by the chunk cell count");
+            return false;
+        }
+        return true;
     }
 #endif
     template<class T> static bool read(FileReader& in, T& value)
@@ -183,7 +192,7 @@ namespace DK
 #if defined(_DK_DEBUG_)
             const uint32 x = i % columns(h);
             const uint32 z = i / columns(h);
-            if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > static_cast<uint32>(ChunkDataType::NormalPyramid) || (c._cellCountX == std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide)) == false || (c._cellCountZ == std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide)) == false || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
+            if ((c._x == x) == false || (c._z == z) == false || c._reserved > 0 || c._dataBlockCount == 0 || c._dataBlockCount > static_cast<uint32>(ChunkDataType::NormalPyramid) || c._cellCountX != h._chunkCellCountPerSide || c._cellCountZ != h._chunkCellCountPerSide || std::isfinite(c._minY) == false || std::isfinite(c._maxY) == false || c._minY > c._maxY || c._minY < h._heightOffset || c._maxY > h._heightOffset + h._heightScale || (c._dataBlocksOffset == next) == false || c._endOffset > h._fileBytes || c._endOffset < next || c._endOffset - next > maxChunkBytes)
             {
                 DK_ASSERT_LOG(false, "Invalid chunk bounds, coordinates or offsets");
                 return false;
@@ -316,6 +325,16 @@ namespace DK
         {
             ChunkInfo info = c._info;
 #if defined(_DK_DEBUG_)
+            if (info._x != infos.size() % columns(h) || info._z != infos.size() / columns(h) || info._cellCountX != h._chunkCellCountPerSide || info._cellCountZ != h._chunkCellCountPerSide)
+            {
+                DK_ASSERT_LOG(false, "Terrain archive chunks must fill the uniform chunk grid in row order");
+                return false;
+            }
+            if (c.find(ChunkDataType::Height) == nullptr || c.find(ChunkDataType::Normal) == nullptr || c.find(ChunkDataType::HeightPyramid) == nullptr || c.find(ChunkDataType::NormalPyramid) == nullptr || (c.find(ChunkDataType::MaterialIds) == nullptr) != (c.find(ChunkDataType::MaterialWeights) == nullptr))
+            {
+                DK_ASSERT_LOG(false, "Terrain chunk requires height and normal mip data and complete material layers before writing");
+                return false;
+            }
             if (c._dataBlocks.empty() || c._dataBlocks.size() > 9)
             {
                 DK_ASSERT_LOG(false, "Invalid chunk data block count");
@@ -327,15 +346,25 @@ namespace DK
             info._dataBlocksOffset = offset;
             offset += c._dataBlocks.size() * sizeof(ChunkDataBlockInfo);
             DKVector<ChunkDataBlockInfo> table;
+#if defined(_DK_DEBUG_)
+            uint32 seen = 0;
+#endif
             for (const ChunkDataBlock& dataBlock : c._dataBlocks)
             {
                 ChunkDataBlockInfo s = dataBlock._info;
 #if defined(_DK_DEBUG_)
-                if ((dataBlock._data.size() == s._bytes) == false)
+                if (dataBlock._data.size() != s._bytes || validLayout(s, info, h) == false)
                 {
-                    DK_ASSERT_LOG(false, "ChunkDataBlock payload size mismatch");
+                    DK_ASSERT_LOG(false, "Terrain data block format, sample count or payload size does not match the chunk layout");
                     return false;
                 }
+                const uint32 bit = 1u << static_cast<uint32>(s._type);
+                if ((seen & bit) != 0)
+                {
+                    DK_ASSERT_LOG(false, "Terrain chunk data block types must be unique before writing");
+                    return false;
+                }
+                seen |= bit;
 #endif
                 s._offset = offset;
                 offset += s._bytes;
@@ -443,8 +472,8 @@ namespace DK
                 Chunk c;
                 c._info._x = x;
                 c._info._z = z;
-                c._info._cellCountX = std::min(h._chunkCellCountPerSide, h._width - 1 - x * h._chunkCellCountPerSide);
-                c._info._cellCountZ = std::min(h._chunkCellCountPerSide, h._height - 1 - z * h._chunkCellCountPerSide);
+                c._info._cellCountX = h._chunkCellCountPerSide;
+                c._info._cellCountZ = h._chunkCellCountPerSide;
                 c._info._minY = std::numeric_limits<float>::max();
                 c._info._maxY = std::numeric_limits<float>::lowest();
                 DKVector<uint16_t> samples;
@@ -472,7 +501,7 @@ namespace DK
                     {
                         for (uint32_t u = 0; u < side; ++u)
                         {
-                            const uint32_t sx = std::min(x * h._chunkCellCountPerSide + u * step, h._width - 1), sz = std::min(z * h._chunkCellCountPerSide + v * step, h._height - 1);
+                            const uint32_t sx = x * h._chunkCellCountPerSide + u * step, sz = z * h._chunkCellCountPerSide + v * step;
                             samples.push_back(heights[size_t(sz) * h._width + sx]);
                             normals.push_back(normalAt(h, heights, sx, sz, step));
                         }
@@ -509,7 +538,7 @@ namespace DK
 #endif
 
         const uint32_t index = z * columns(_header) + x;
-        const ChunkInfo& chunk = _chunks[index];
+        DK_ASSERT_LOG(_chunks[index]._cellCountX == _header._chunkCellCountPerSide && _chunks[index]._cellCountZ == _header._chunkCellCountPerSide, "Terrain mip must use the full uniform chunk cell count");
         const ChunkDataType heightType = lod == 0 ? ChunkDataType::Height : ChunkDataType::HeightPyramid;
         const ChunkDataType normalType = lod == 0 ? ChunkDataType::Normal : ChunkDataType::NormalPyramid;
         const ChunkDataBlockInfo* heightInfo = nullptr;
@@ -540,9 +569,9 @@ namespace DK
             first += uint64_t(side) * side;
         }
 
-        const uint32_t sourceWidth = lod == 0 ? chunk._cellCountX + 1 : (_header._chunkCellCountPerSide >> lod) + 1;
-        const uint32_t sourceHeight = lod == 0 ? chunk._cellCountZ + 1 : sourceWidth;
-        const size_t count = size_t(sourceWidth) * sourceHeight;
+        const uint32 sampleCountPerSide = (_header._chunkCellCountPerSide >> lod) + 1;
+        const size_t count = size_t(sampleCountPerSide) * sampleCountPerSide;
+        DK_ASSERT_LOG(first + count <= heightInfo->_count && first + count <= normalInfo->_count, "Terrain mip samples must fit inside both data blocks");
         DKVector<uint16_t> heights(count);
         DKVector<DKArray<int16_t, 2>> normals(count);
         FileReader in(_path);
@@ -556,18 +585,9 @@ namespace DK
         tile._x = x;
         tile._z = z;
         tile._lod = lod;
-        tile._sampleCountPerSide = (_header._chunkCellCountPerSide >> lod) + 1;
-        tile._heights.resize(size_t(tile._sampleCountPerSide) * tile._sampleCountPerSide);
-        tile._normals.resize(tile._heights.size());
-        for (uint32_t v = 0; v < tile._sampleCountPerSide; ++v)
-        {
-            for (uint32 u = 0; u < tile._sampleCountPerSide; ++u)
-            {
-                const size_t source = size_t(std::min(v, sourceHeight - 1)) * sourceWidth + std::min(u, sourceWidth - 1), destination = size_t(v) * tile._sampleCountPerSide + u;
-                tile._heights[destination] = heights[source];
-                tile._normals[destination] = normals[source];
-            }
-        }
+        tile._sampleCountPerSide = sampleCountPerSide;
+        tile._heights = DK::move(heights);
+        tile._normals = DK::move(normals);
 
         out = DK::move(tile);
         return true;
@@ -578,6 +598,11 @@ namespace DK
         const uint32 step = 1u << lod;
         const uint32 sourceLod = std::min(lod, mipCount(_header._chunkCellCountPerSide) - 1);
         const uint32 sourceStep = 1u << sourceLod;
+        if (width == 0 || height == 0 || startX % sourceStep != 0 || startZ % sourceStep != 0 || uint64(startX) + uint64(width - 1) * step > _header._width - 1 || uint64(startZ) + uint64(height - 1) * step > _header._height - 1)
+        {
+            DK_ASSERT_LOG(false, "Terrain sample grid must be aligned to the source LOD and fit entirely inside the archive");
+            return false;
+        }
         const uint32 sourceSide = (_header._chunkCellCountPerSide >> sourceLod) + 1;
         const uint32 gridWidth = width;
         const uint32 gridHeight = height;
@@ -585,11 +610,11 @@ namespace DK
         DKVector<uint32> positionsZ(gridHeight);
         for (uint32 x = 0; x < gridWidth; ++x)
         {
-            positionsX[x] = uint32(std::min(uint64(startX) + uint64(x) * step, uint64(_header._width - 1)));
+            positionsX[x] = startX + x * step;
         }
         for (uint32 z = 0; z < gridHeight; ++z)
         {
-            positionsZ[z] = uint32(std::min(uint64(startZ) + uint64(z) * step, uint64(_header._height - 1)));
+            positionsZ[z] = startZ + z * step;
         }
 
         uint64 mipOffset = 0;
@@ -611,12 +636,14 @@ namespace DK
         {
             const uint32 chunkZ = std::min(positionsZ[z] / _header._chunkCellCountPerSide, chunkRows - 1);
             const uint32 localZ = positionsZ[z] - chunkZ * _header._chunkCellCountPerSide;
-            const uint32 sampleZ = (localZ + sourceStep - 1) / sourceStep;
+            DK_ASSERT_LOG(localZ % sourceStep == 0, "Terrain sample Z must be divisible by the source LOD sample step");
+            const uint32 sampleZ = localZ / sourceStep;
             for (uint32 x = 0; x < gridWidth;)
             {
                 const uint32 chunkX = std::min(positionsX[x] / _header._chunkCellCountPerSide, chunkColumns - 1);
                 const uint32 localX = positionsX[x] - chunkX * _header._chunkCellCountPerSide;
-                const uint32 sampleX = (localX + sourceStep - 1) / sourceStep;
+                DK_ASSERT_LOG(localX % sourceStep == 0, "Terrain sample X must be divisible by the source LOD sample step");
+                const uint32 sampleX = localX / sourceStep;
                 const uint32 id = chunkZ * chunkColumns + chunkX;
                 const uint32 rowWidth = sourceLod == 0 ? _chunks[id]._cellCountX + 1 : sourceSide;
                 uint32 count = 1;
@@ -650,7 +677,9 @@ namespace DK
                     return false;
                 }
 #endif
+                DK_ASSERT_LOG(sampleZ < rowWidth && sampleX + count <= rowWidth, "Terrain grid read must fit inside the selected mip row");
                 const uint64 first = mipOffset + uint64(sampleZ) * rowWidth + sampleX;
+                DK_ASSERT_LOG(first + count <= dataBlock->_count && first + count <= normalBlock->_count, "Terrain grid samples must fit inside both data blocks");
                 const size_t destination = size_t(z) * gridWidth + x;
                 if (reader.seek(dataBlock->_offset + first * sizeof(uint16)) == false || reader.read(samples.data() + destination, size_t(count) * sizeof(uint16)) == false ||
                     reader.seek(normalBlock->_offset + first * sizeof(normals[0])) == false || reader.read(normals.data() + destination, size_t(count) * sizeof(normals[0])) == false)
@@ -682,6 +711,12 @@ namespace DK
             return false;
         }
 #endif
+        const uint32 tileCellCountPerSide = _header._chunkCellCountPerSide << lod;
+        if ((_header._width - 1) % tileCellCountPerSide != 0 || (_header._height - 1) % tileCellCountPerSide != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain archive cell counts must be divisible by the virtual tile cell count");
+            return false;
+        }
         TerrainOverview grid;
         const uint32 startX = (x * _header._chunkCellCountPerSide) << lod, startZ = (z * _header._chunkCellCountPerSide) << lod;
         if (loadGrid(startX, startZ, lod, _header._chunkCellCountPerSide + 1, _header._chunkCellCountPerSide + 1, grid) == false)
@@ -710,8 +745,13 @@ namespace DK
 #endif
 
         const uint32 step = 1u << lod;
-        const uint32 width = (_header._width - 2) / step + 2;
-        const uint32 height = (_header._height - 2) / step + 2;
+        if ((_header._width - 1) % step != 0 || (_header._height - 1) % step != 0)
+        {
+            DK_ASSERT_LOG(false, "Terrain archive cell counts must be divisible by the overview sample step");
+            return false;
+        }
+        const uint32 width = (_header._width - 1) / step + 1;
+        const uint32 height = (_header._height - 1) / step + 1;
         return loadGrid(0, 0, lod, width, height, out);
     }
 }

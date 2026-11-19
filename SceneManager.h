@@ -89,13 +89,17 @@ namespace DK
 
 			struct CacheSlot
 			{
-				TileRequest _request;
+				PageRequest _request;
 				bool _valid = false;
 				float _fade = 0;
 			};
 			TerrainStreamingConstants _streamingConstants;
 			IBufferRef _streamingBuffer;
-			ITextureRef _heightCache, _normalCache, _pageTable, _tailHeight, _tailNormal;
+			ITextureRef _heightCache;
+			ITextureRef _normalCache;
+			ITextureRef _pageTable;
+			ITextureRef _tailHeight;
+			ITextureRef _tailNormal;
 			DKVector<CacheSlot> _cacheSlots;
 			static constexpr uint32 CACHE_SLOTS_PER_LOD = 72;
 

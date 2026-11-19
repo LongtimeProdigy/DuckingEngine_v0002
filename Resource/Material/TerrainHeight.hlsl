@@ -2,6 +2,7 @@
 #define __DEFINE_TERRAIN_HEIGHT__HLSL__
 
 #include "CommonTexture.hlsl"
+#include "Assert.hlsl"
 #include "TerrainStreamingLimits.h"
 
 #define DK_SHADER_TERRAIN_STREAMING
@@ -57,17 +58,19 @@ bool TerrainAvailableRelative(float2 relativeXZ)
     const float2 relativeSample = relativeXZ / _terrainSampleWorldSpacing;
     const int2 whole = int2(floor(relativeSample));
     const int2 sample = int2(_terrainAnchorSampleX, _terrainAnchorSampleZ) + whole;
-    if (any(sample < 0) || any(sample > int2(_terrainCellCountX, _terrainCellCountZ)))
+    const int2 minimumSample = int2(_terrainMinimumSampleX, _terrainMinimumSampleZ);
+    if (any(sample < minimumSample) || any(sample > minimumSample + int2(_terrainCellCountX, _terrainCellCountZ)))
     {
         return false;
     }
     uint2 section;
-    return ResolveTerrainSection(uint2(sample), frac(relativeSample), section);
+    return ResolveTerrainSection(uint2(sample - minimumSample), frac(relativeSample), section);
 }
 
 float4 SampleTerrainPage(uint2 tile, uint lod, uint sectionSlot)
 {
-    const uint2 address = uint2(tile.x % _terrainPageTableEntryCountPerSide, tile.y % _terrainPageTableEntryCountPerSide + (sectionSlot * _terrainOverviewLod + lod) * _terrainPageTableEntryCountPerSide);
+    GPUASSERT(lod < _terrainOverviewLod && sectionSlot < TERRAIN_SECTION_SLOT_COUNT && _terrainPageTableWidthHeight > 0u);
+    const uint2 address = uint2(tile.x % _terrainPageTableWidthHeight, tile.y % _terrainPageTableWidthHeight + (sectionSlot * _terrainOverviewLod + lod) * _terrainPageTableWidthHeight);
     const float4 page = getTexture(_terrainPageTableSRV).Load(int3(address, 0));
     if (any(uint2(page.zw) != tile))
     {
@@ -101,11 +104,8 @@ float3 DecodeTerrainNormal(float2 xz)
 float2 TerrainGridPosition(int2 sample, float2 fraction, uint lod, uint2 cells)
 {
     const uint step = 1u << lod;
-    const uint2 lastRegular = cells / step;
-    const uint2 remainder = cells % step;
-    const float2 position = float2(sample / int(step)) + (float2(sample % int(step)) + fraction) / float(step);
-    const float2 edge = float2(lastRegular) + (float2(sample - int2(lastRegular * step)) + fraction) / float2(max(remainder, 1u));
-    return float2(sample.x >= int(lastRegular.x * step) && remainder.x > 0u ? edge.x : position.x, sample.y >= int(lastRegular.y * step) && remainder.y > 0u ? edge.y : position.y);
+    GPUASSERT(all(cells % step == 0u) && all(sample >= 0) && all(sample <= int2(cells)));
+    return float2(sample / int(step)) + (float2(sample % int(step)) + fraction) / float(step);
 }
 
 float3 SampleTerrainStreamRelative(float2 relativeXZ)
@@ -113,8 +113,10 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
     const float2 relativeSample = relativeXZ / _terrainSampleWorldSpacing;
     const int2 whole = int2(floor(relativeSample));
     const int2 unclamped = int2(_terrainAnchorSampleX, _terrainAnchorSampleZ) + whole;
-    const int2 sample = clamp(unclamped, 0, int2(_terrainCellCountX, _terrainCellCountZ));
-    const float2 fraction = float2(unclamped.x >= 0 && unclamped.x < int(_terrainCellCountX) ? frac(relativeSample.x) : 0.0f, unclamped.y >= 0 && unclamped.y < int(_terrainCellCountZ) ? frac(relativeSample.y) : 0.0f);
+    const int2 minimumSample = int2(_terrainMinimumSampleX, _terrainMinimumSampleZ);
+    const int2 maximumSample = minimumSample + int2(_terrainCellCountX, _terrainCellCountZ);
+    const int2 sample = clamp(unclamped, minimumSample, maximumSample) - minimumSample;
+    const float2 fraction = float2(unclamped.x >= minimumSample.x && unclamped.x < maximumSample.x ? frac(relativeSample.x) : 0.0f, unclamped.y >= minimumSample.y && unclamped.y < maximumSample.y ? frac(relativeSample.y) : 0.0f);
     uint2 section;
     if (ResolveTerrainSection(uint2(sample), fraction, section) == false)
     {
@@ -124,6 +126,7 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
     const TerrainSectionConstants metadata = _terrainSections[sectionSlot];
     const int2 localSample = sample - int2(section * _terrainSectionCellCountPerSide);
     const uint2 cells = uint2(metadata._terrainSectionCellCountX, metadata._terrainSectionCellCountZ);
+    GPUASSERT(all(cells == _terrainSectionCellCountPerSide) && metadata._terrainSectionOverviewSampleCountX == _terrainSectionOverviewSampleCountPerSide && metadata._terrainSectionOverviewSampleCountZ == _terrainSectionOverviewSampleCountPerSide);
     const float2 overviewPosition = TerrainGridPosition(localSample, fraction, _terrainOverviewLod, cells);
     const float2 overviewOffset = float2(section.x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE, section.y % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * _terrainSectionOverviewSampleCountPerSide;
     const float2 overviewUV = (overviewOffset + overviewPosition + 0.5f) / float2(_terrainOverviewSampleCountX, _terrainOverviewSampleCountZ);
@@ -135,7 +138,8 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
     {
         const uint lod = uint(level);
         const uint tileCells = _terrainChunkCellCountPerSide << lod;
-        const uint2 tileCount = (cells - 1u) / tileCells + 1u;
+        GPUASSERT(all(cells % tileCells == 0u));
+        const uint2 tileCount = cells / tileCells;
         const uint2 tile = min(uint2(localSample) / tileCells, tileCount - 1u);
         const float4 page = SampleTerrainPage(tile, lod, sectionSlot);
         if (page.x == 0.0f)
@@ -157,6 +161,7 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
             }
         }
         const uint slot = uint(page.x) - 1u;
+        GPUASSERT(slot < _terrainCacheSlotColumnCount * _terrainCacheSlotRowCount && page.y >= 0.0f && page.y <= 1.0f && all(local >= 0.0f) && all(local <= float(_terrainChunkCellCountPerSide)));
         const uint2 offset = uint2(slot % _terrainCacheSlotColumnCount, slot / _terrainCacheSlotColumnCount) * _terrainCacheSlotTexelCountPerSide;
         const float2 uv = (float2(offset) + local + 0.5f) / float2(_terrainCacheSlotColumnCount * _terrainCacheSlotTexelCountPerSide, _terrainCacheSlotRowCount * _terrainCacheSlotTexelCountPerSide);
         const float3 fine = float3(getTexture(_terrainHeightCacheSRV).SampleLevel(bilinearRepeatSampler, uv, 0.0f).x, getTexture(_terrainNormalCacheSRV).SampleLevel(bilinearRepeatSampler, uv, 0.0f).xy);

@@ -485,8 +485,8 @@ namespace DK
 				return false;
 			}
 			const TerrainStreamingConstants& terrainConstants = _clipmapTerrain._streamingConstants;
-			_grass._grassMapOriginX = terrainConstants._terrainOriginWorldX;
-			_grass._grassMapOriginZ = terrainConstants._terrainOriginWorldZ;
+			_grass._grassMapOriginX = terrainConstants._terrainOriginWorldX + terrainConstants._terrainMinimumSampleX * terrainConstants._terrainSampleWorldSpacing;
+			_grass._grassMapOriginZ = terrainConstants._terrainOriginWorldZ + terrainConstants._terrainMinimumSampleZ * terrainConstants._terrainSampleWorldSpacing;
 			_grass._grassMapWidth = terrainConstants._terrainCellCountX * terrainConstants._terrainSampleWorldSpacing;
 			_grass._grassMapDepth = terrainConstants._terrainCellCountZ * terrainConstants._terrainSampleWorldSpacing;
 			if (readOptionalLevelFloat(*grass, "MapOriginX", _grass._grassMapOriginX) == false ||
@@ -518,6 +518,8 @@ namespace DK
 
 	bool SceneManager::loadTerrain(const DKString& terrainWorld, const DKString& modelPropertyPath, const float2& terrainWorldOrigin)
 	{
+		static_assert(ClipMapTerrain::TILE_RESOLUTION >= 4 && ClipMapTerrain::TILE_RESOLUTION % 2 == 0, "Terrain clipmap tile resolution must be even and at least four cells");
+		static_assert(ClipMapTerrain::NUM_CLIPMAP_LEVELS > 0 && ClipMapTerrain::NUM_CLIPMAP_LEVELS < 31 && ClipMapTerrain::BASE_VERTEX_SPACING > 0.0f, "Terrain clipmap levels and vertex spacing must be positive and fit the grid shift range");
 		_clipmapTerrain._terrainConstantBuffer.clear();
 		_clipmapTerrain._streamer.stop();
 
@@ -620,6 +622,8 @@ namespace DK
         constants._terrainWorldHeightRange = header._heightScale;
         constants._terrainCellCountX = header._width - 1;
         constants._terrainCellCountZ = header._height - 1;
+        constants._terrainMinimumSampleX = world._minimumSampleX;
+        constants._terrainMinimumSampleZ = world._minimumSampleZ;
         constants._terrainChunkCellCountPerSide = header._chunkCellCountPerSide;
         constants._terrainSectionCellCountPerSide = world._sectionCellCountPerSide;
         constants._terrainSectionCountX = world._sectionCountX;
@@ -644,19 +648,24 @@ namespace DK
         constants._terrainCacheSlotRowCount = slotCount / constants._terrainCacheSlotColumnCount;
         const uint32 cacheWidth = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotColumnCount;
         const uint32 cacheHeight = constants._terrainCacheSlotTexelCountPerSide * constants._terrainCacheSlotRowCount;
+        if (std::isfinite(constants._terrainLod0WorldRadius) == false || constants._terrainLod0WorldRadius <= 0.0f)
+        {
+            DK_ASSERT_LOG(false, "Terrain streaming LOD zero radius must be finite and positive");
+            return false;
+        }
         const double pageCountPerDiameter = 4.0 * constants._terrainLod0WorldRadius / (double(header._chunkCellCountPerSide) * header._sampleWorldSpacing);
         if (pageCountPerDiameter != std::floor(pageCountPerDiameter))
         {
             DK_ASSERT_LOG(false, "Terrain streaming diameter must be divisible by the chunk world size");
             return false;
         }
-        if (constants._terrainPageTableEntryCountPerSide < pageCountPerDiameter + 2.0)
+        if (constants._terrainPageTableWidthHeight < pageCountPerDiameter + 2.0)
         {
             DK_ASSERT_LOG(false, "Terrain page table side must cover the streaming diameter and both boundary pages");
             return false;
         }
 
-        const uint32 tableHeight = constants._terrainPageTableEntryCountPerSide * world._overviewLod * TERRAIN_SECTION_SLOT_COUNT;
+        const uint32 tableHeight = constants._terrainPageTableWidthHeight * world._overviewLod * TERRAIN_SECTION_SLOT_COUNT;
 #if defined(_DK_DEBUG_)
         const double clipmapRadius = double(ClipMapTerrain::TILE_RESOLUTION * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
         if (cacheWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
@@ -670,7 +679,7 @@ namespace DK
         terrain._streamingBuffer = rm.createConstantBuffer(sizeof(constants), DK_DEBUG_NAME(L"TerrainStreaming_CBuffer"));
         terrain._heightCache = rm.createTexture(DK_DEBUG_NAME("TerrainHeightCache"), cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         terrain._normalCache = rm.createTexture(DK_DEBUG_NAME("TerrainNormalCache"), cacheWidth, cacheHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
-        terrain._pageTable = rm.createTexture(DK_DEBUG_NAME("TerrainPageTable"), constants._terrainPageTableEntryCountPerSide, tableHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_NONE, state, true, false);
+        terrain._pageTable = rm.createTexture(DK_DEBUG_NAME("TerrainPageTable"), constants._terrainPageTableWidthHeight, tableHeight, static_cast<const byte*>(nullptr), DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         terrain._tailHeight = rm.createTexture(DK_DEBUG_NAME("TerrainSectionHeight"), constants._terrainOverviewSampleCountX, constants._terrainOverviewSampleCountZ, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16_UNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         terrain._tailNormal = rm.createTexture(DK_DEBUG_NAME("TerrainSectionNormal"), constants._terrainOverviewSampleCountX, constants._terrainOverviewSampleCountZ, static_cast<const byte*>(nullptr), DXGI_FORMAT_R16G16_SNORM, D3D12_RESOURCE_FLAG_NONE, state, true, false);
         if (terrain._streamingBuffer == nullptr || terrain._heightCache == nullptr || terrain._normalCache == nullptr || terrain._pageTable == nullptr || terrain._tailHeight == nullptr || terrain._tailNormal == nullptr)
@@ -678,8 +687,8 @@ namespace DK
             DK_ASSERT_LOG(false, "Terrain streaming resource creation failed");
             return false;
         }
-        DKVector<DKArray<float, 4>> pages(size_t(constants._terrainPageTableEntryCountPerSide) * tableHeight);
-        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, constants._terrainPageTableEntryCountPerSide, tableHeight, pages.data(), constants._terrainPageTableEntryCountPerSide * sizeof(pages[0])) == false || terrain._streamer.start(world, slotCount) == false)
+        DKVector<float4> pages(size_t(constants._terrainPageTableWidthHeight) * tableHeight);
+        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, constants._terrainPageTableWidthHeight, tableHeight, pages.data(), constants._terrainPageTableWidthHeight * sizeof(pages[0])) == false || terrain._streamer.start(world, slotCount) == false)
         {
             return false;
         }
@@ -699,9 +708,12 @@ namespace DK
         ClipMapTerrain& terrain = _clipmapTerrain;
         TerrainStreamingConstants& constants = terrain._streamingConstants;
         if (terrain._streamingBuffer == nullptr)
-        {
             return;
-        }
+
+        DK_ASSERT_LOG(std::isfinite(cameraX) && std::isfinite(cameraZ) && std::isfinite(deltaTime) && deltaTime >= 0.0f, "Terrain streaming update requires finite camera coordinates and a nonnegative delta time");
+        DK_ASSERT_LOG(constants._terrainOverviewLod == terrain._world._overviewLod && constants._terrainSectionCellCountPerSide == terrain._world._sectionCellCountPerSide && constants._terrainChunkCellCountPerSide == terrain._world._header._chunkCellCountPerSide && constants._terrainSampleWorldSpacing == terrain._world._header._sampleWorldSpacing, "Terrain streaming layout must match the loaded world");
+        DK_ASSERT_LOG(constants._terrainMinimumSampleX == terrain._world._minimumSampleX && constants._terrainMinimumSampleZ == terrain._world._minimumSampleZ, "Terrain streaming bounds must match the loaded world");
+        DK_ASSERT_LOG(constants._terrainCacheSlotColumnCount > 0 && constants._terrainPageTableWidthHeight > 0 && terrain._cacheSlots.size() == size_t(constants._terrainOverviewLod) * ClipMapTerrain::CACHE_SLOTS_PER_LOD && terrain._cacheSlots.size() == size_t(constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotRowCount, "Terrain cache slots must fill the allocated atlas grid");
         const double localCameraX = cameraX - constants._terrainOriginWorldX;
         const double localCameraZ = cameraZ - constants._terrainOriginWorldZ;
         const double anchorX = std::floor(localCameraX / constants._terrainSampleWorldSpacing);
@@ -713,40 +725,46 @@ namespace DK
         constants._terrainCameraAnchorRelativeWorldZ = static_cast<float>(localCameraZ - anchorZ * constants._terrainSampleWorldSpacing);
         constants._terrainCameraWorldX = static_cast<float>(cameraX);
         constants._terrainCameraWorldZ = static_cast<float>(cameraZ);
+
         const TerrainWorld& world = terrain._world;
-        const DKVector<uint32> sections = world.selectSections(localCameraX, localCameraZ);
+		RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
+
+		// 카메라 주변 필요한 selection 목록 가져오기
+        const DKVector<uint32> sections = selectSections(world, localCameraX, localCameraZ);
+
+		// 이전까지 랜더한 section이 카메라 주변이 아니면 invalid처리
         for (TerrainSectionConstants& section : constants._terrainSections)
         {
             const uint32 id = section._terrainSectionZ * world._sectionCountX + section._terrainSectionX;
             if (std::find(sections.begin(), sections.end(), id) == sections.end())
-            {
                 section._terrainSectionResident = 0;
-            }
         }
-        RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
-        SectionPage sectionPage;
-        for (uint32 uploads = 0; uploads < 2 && terrain._streamer.takeReady(sectionPage); ++uploads)
+
+		// 로딩 완료된 section이 카메라 주변이 아니면 날리고, 카메라 주변이면 sectionpage를 gpu에 업로드 준비
+        SectionLoadResult sectionLoadResult;
+        for (uint32 uploads = 0; uploads < 2 && terrain._streamer.takeReady(sectionLoadResult); ++uploads)
         {
-            if (sectionPage._loaded == false)
+            if (sectionLoadResult._loaded == false)
             {
-                DK_ASSERT_LOG(false, "Terrain section load failed: %u", sectionPage._sectionId);
+                DK_ASSERT_LOG(false, "Terrain section load failed: %u", sectionLoadResult._sectionId);
                 return;
             }
-            if (std::find(sections.begin(), sections.end(), sectionPage._sectionId) == sections.end())
-            {
+            DK_ASSERT_LOG(sectionLoadResult._sectionId < world._sections.size(), "Loaded terrain section ID is outside the world");
+            if (std::find(sections.begin(), sections.end(), sectionLoadResult._sectionId) == sections.end())
                 continue;
-            }
-            const TerrainSection& section = world._sections[sectionPage._sectionId];
+
+            const TerrainSection& section = world._sections[sectionLoadResult._sectionId];
             const uint32 slotX = section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
             const uint32 slotZ = section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
-            const TerrainOverview& overview = sectionPage._overview;
-            const uint32 x = slotX * constants._terrainSectionOverviewSampleCountPerSide;
-            const uint32 z = slotZ * constants._terrainSectionOverviewSampleCountPerSide;
-            if (rm.queueTextureRegion(terrain._tailHeight, x, z, overview._width, overview._height, overview._heights.data(), overview._width * sizeof(overview._heights[0])) == false ||
-                rm.queueTextureRegion(terrain._tailNormal, x, z, overview._width, overview._height, overview._normals.data(), overview._width * sizeof(overview._normals[0])) == false)
-            {
+            const TerrainOverview& overview = sectionLoadResult._overview;
+            DK_ASSERT_LOG(overview._lod == constants._terrainOverviewLod && overview._width == constants._terrainSectionOverviewSampleCountPerSide && overview._height == constants._terrainSectionOverviewSampleCountPerSide && overview._heights.size() == size_t(overview._width) * overview._height && overview._normals.size() == overview._heights.size(), "Terrain section upload must exactly fill one overview atlas slot");
+            const uint32 texelX = slotX * constants._terrainSectionOverviewSampleCountPerSide;
+            const uint32 texelY = slotZ * constants._terrainSectionOverviewSampleCountPerSide;
+            DK_ASSERT_LOG(texelX + overview._width <= constants._terrainOverviewSampleCountX && texelY + overview._height <= constants._terrainOverviewSampleCountZ, "Terrain section upload is outside the overview atlas");
+            if (rm.queueTextureRegion(terrain._tailHeight, texelX, texelY, overview._width, overview._height, overview._heights.data(), overview._width * sizeof(overview._heights[0])) == false ||
+                rm.queueTextureRegion(terrain._tailNormal, texelX, texelY, overview._width, overview._height, overview._normals.data(), overview._width * sizeof(overview._normals[0])) == false)
                 return;
-            }
+
             TerrainSectionConstants& metadata = constants._terrainSections[slotZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + slotX];
             metadata._terrainSectionX = section._x;
             metadata._terrainSectionZ = section._z;
@@ -756,85 +774,103 @@ namespace DK
             metadata._terrainSectionOverviewSampleCountZ = overview._height;
             metadata._terrainSectionResident = 1;
         }
+
+		// 카메라 주변 section이 만약 이전까지 랜더링 되지 않은 section이라면 로딩 요청을 위해 수집
         DKVector<uint32> missingSections;
         for (const uint32 sectionId : sections)
         {
             const TerrainSection& section = world._sections[sectionId];
-            const TerrainSectionConstants& metadata = constants._terrainSections[(section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE];
-            if (metadata._terrainSectionResident == 0 || metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z)
-            {
-                missingSections.push_back(sectionId);
-            }
+			const uint32 slotX = section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+			const uint32 slotZ = section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+            const TerrainSectionConstants& metadata = constants._terrainSections[slotZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + slotX];
+			if (metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z)
+			{
+				DK_ASSERT_LOG(metadata._terrainSectionResident == 0, "New need loading seciton, slot must be empty");
+				missingSections.push_back(sectionId);
+			}
+			if (metadata._terrainSectionResident == 0)
+			{
+				DK_ASSERT_LOG(metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z == 0, "New need loading seciton, slot must be different");
+				missingSections.push_back(sectionId);
+			}
         }
+
+		// cacheslot 업데이트
         for (ClipMapTerrain::CacheSlot& slot : terrain._cacheSlots)
+            slot._fade = Math::min(slot._fade + deltaTime * 4.0f, 1.0f);
+
+		// 요청이 필요한 Chunk 목록 추출
+        const DKVector<PageRequest> wanted = selectPages(world, sections, localCameraX, localCameraZ, constants._terrainLod0WorldRadius, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
+
+		// 로딩 완료된 page중에 현재 필요한 section이면 데이터 업로드
+        PageLoadResult tileLoadingResult;
+        for (uint32 uploads = 0; uploads < 4 && terrain._streamer.takeReady(tileLoadingResult); ++uploads)
         {
-            slot._fade = Math::min(slot._fade + Math::max(deltaTime, 0.0f) * 4.0f, 1.0f);
-        }
-        const DKVector<TileRequest> wanted = selectPages(world, sections, localCameraX, localCameraZ, constants._terrainLod0WorldRadius, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
-        TilePage page;
-        for (uint32 uploads = 0; uploads < 4 && terrain._streamer.takeReady(page); ++uploads)
-        {
-            if (page._loaded == false)
+            if (tileLoadingResult._loaded == false)
             {
-                DK_ASSERT_LOG(false, "Terrain chunk load failed: section=%u", page._request._sectionId);
+                DK_ASSERT_LOG(false, "Terrain chunk load failed: section=%u", tileLoadingResult._request._sectionId);
                 return;
             }
-            if (std::find(wanted.begin(), wanted.end(), page._request) == wanted.end())
-            {
+            DK_ASSERT_LOG(tileLoadingResult._request._sectionId < world._sections.size() && tileLoadingResult._request._lod < constants._terrainOverviewLod, "Loaded terrain tile section ID or LOD is outside the streaming layout");
+            if (std::find(wanted.begin(), wanted.end(), tileLoadingResult._request) == wanted.end())
                 continue;
-            }
-            const DKVector<ClipMapTerrain::CacheSlot>::iterator first = terrain._cacheSlots.begin() + page._request._lod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
+
+            const DKVector<ClipMapTerrain::CacheSlot>::iterator first = terrain._cacheSlots.begin() + tileLoadingResult._request._lod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
             const DKVector<ClipMapTerrain::CacheSlot>::iterator last = first + ClipMapTerrain::CACHE_SLOTS_PER_LOD;
             const DKVector<ClipMapTerrain::CacheSlot>::iterator slot = std::find_if(first, last, [&](const ClipMapTerrain::CacheSlot& value)
             {
                 return value._valid == false || std::find(wanted.begin(), wanted.end(), value._request) == wanted.end();
             });
-            if (slot == last)
-            {
-                continue;
-            }
+
+            DK_ASSERT_LOG(slot != last, "A requested terrain tile must have an available cache slot in its LOD budget");
             const uint32 index = static_cast<uint32>(slot - terrain._cacheSlots.begin());
-            const uint32 x = (index % constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
-            const uint32 y = (index / constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
-            const MipTile& tile = page._tile;
-            if (rm.queueTextureRegion(terrain._heightCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._heights.data(), tile._sampleCountPerSide * sizeof(tile._heights[0])) == false ||
-                rm.queueTextureRegion(terrain._normalCache, x, y, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._normals.data(), tile._sampleCountPerSide * sizeof(tile._normals[0])) == false)
-            {
+            const uint32 texelX = (index % constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
+            const uint32 texelY = (index / constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotTexelCountPerSide;
+            const MipTile& tile = tileLoadingResult._tile;
+            DK_ASSERT_LOG(tile._x == tileLoadingResult._request._x && tile._z == tileLoadingResult._request._z && tile._lod == tileLoadingResult._request._lod && tile._sampleCountPerSide == constants._terrainCacheSlotTexelCountPerSide && tile._heights.size() == size_t(tile._sampleCountPerSide) * tile._sampleCountPerSide && tile._normals.size() == tile._heights.size(), "Terrain tile upload must match its request and exactly fill one cache slot");
+            DK_ASSERT_LOG(index < terrain._cacheSlots.size() && texelY + tile._sampleCountPerSide <= constants._terrainCacheSlotRowCount * constants._terrainCacheSlotTexelCountPerSide, "Terrain tile upload is outside the cache atlas");
+            if (rm.queueTextureRegion(terrain._heightCache, texelX, texelY, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._heights.data(), tile._sampleCountPerSide * sizeof(tile._heights[0])) == false ||
+                rm.queueTextureRegion(terrain._normalCache, texelX, texelY, tile._sampleCountPerSide, tile._sampleCountPerSide, tile._normals.data(), tile._sampleCountPerSide * sizeof(tile._normals[0])) == false)
                 return;
-            }
-            slot->_request = page._request;
+
+            slot->_request = tileLoadingResult._request;
             slot->_fade = 0;
             slot->_valid = true;
         }
-        const uint32 tableSide = constants._terrainPageTableEntryCountPerSide;
-        const uint32 tableHeight = tableSide * constants._terrainOverviewLod * TERRAIN_SECTION_SLOT_COUNT;
-        DKVector<DKArray<float, 4>> pages(size_t(tableSide) * tableHeight);
+
+		// pageTable 업로드
+        const uint32 tableWidthHeight = constants._terrainPageTableWidthHeight;
+        const uint32 tableHeight = tableWidthHeight * constants._terrainOverviewLod * TERRAIN_SECTION_SLOT_COUNT;
+        DKVector<float4> pages(size_t(tableWidthHeight) * tableHeight);
         for (uint32 index = 0; index < terrain._cacheSlots.size(); ++index)
         {
             const ClipMapTerrain::CacheSlot& slot = terrain._cacheSlots[index];
-            if (slot._valid && std::find(wanted.begin(), wanted.end(), slot._request) != wanted.end())
-            {
-                const TerrainSection& section = world._sections[slot._request._sectionId];
-                const uint32 sectionSlot = (section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
-                const uint32 x = slot._request._x % tableSide;
-                const uint32 y = slot._request._z % tableSide + (sectionSlot * constants._terrainOverviewLod + slot._request._lod) * tableSide;
-                DK_ASSERT_LOG(pages[size_t(y) * tableSide + x][0] == 0, "Terrain page table collision");
-                pages[size_t(y) * tableSide + x] = { float(index + 1), slot._fade, float(slot._request._x), float(slot._request._z) };
-            }
+			if (slot._valid == false || std::find(wanted.begin(), wanted.end(), slot._request) == wanted.end())
+				continue;
+
+            DK_ASSERT_LOG(slot._request._sectionId < world._sections.size() && slot._request._lod < constants._terrainOverviewLod && index / ClipMapTerrain::CACHE_SLOTS_PER_LOD == slot._request._lod && slot._fade >= 0.0f && slot._fade <= 1.0f, "Terrain cache slot must belong to its requested LOD and have a valid fade");
+            const TerrainSection& section = world._sections[slot._request._sectionId];
+			const uint32 sectionIndexX = section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+			const uint32 sectionIndexZ = section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
+            const uint32 sectionIndex = sectionIndexZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + sectionIndexX;
+            const uint32 x = slot._request._x % tableWidthHeight;
+            const uint32 y = slot._request._z % tableWidthHeight + (sectionIndex * constants._terrainOverviewLod + slot._request._lod) * tableWidthHeight;
+            DK_ASSERT_LOG(pages[size_t(y) * tableWidthHeight + x].x == 0, "Terrain page table collision");
+            pages[size_t(y) * tableWidthHeight + x] = { float(index + 1), slot._fade, float(slot._request._x), float(slot._request._z) };
         }
-        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, tableSide, tableHeight, pages.data(), tableSide * sizeof(DKArray<float, 4>)) == false)
-        {
+        if (rm.queueTextureRegion(terrain._pageTable, 0, 0, tableWidthHeight, tableHeight, pages.data(), tableWidthHeight * sizeof(pages[0])) == false)
             return;
-        }
-        DKVector<TileRequest> missing;
-        for (const TileRequest& request : wanted)
+
+		//
+        DKVector<PageRequest> missing;
+        for (const PageRequest& request : wanted)
         {
             const TerrainSection& section = world._sections[request._sectionId];
             const uint32 sectionSlot = (section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE) * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
-            const uint32 x = request._x % tableSide;
-            const uint32 y = request._z % tableSide + (sectionSlot * constants._terrainOverviewLod + request._lod) * tableSide;
-            const DKArray<float, 4>& resident = pages[size_t(y) * tableSide + x];
-            if (resident[0] == 0 || resident[2] != float(request._x) || resident[3] != float(request._z))
+            const uint32 x = request._x % tableWidthHeight;
+            const uint32 y = request._z % tableWidthHeight + (sectionSlot * constants._terrainOverviewLod + request._lod) * tableWidthHeight;
+            const float4& resident = pages[size_t(y) * tableWidthHeight + x];
+            if (resident.x == 0 || resident.z != float(request._x) || resident.w != float(request._z))
             {
                 missing.push_back(request);
             }

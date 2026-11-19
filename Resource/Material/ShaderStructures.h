@@ -273,7 +273,7 @@ cbuffer TerrainStreamingConstants : register(b3)
     DK_SHADER_UINT _terrainCacheSlotColumnCount DK_SHADER_DEFAULT(8);
     DK_SHADER_UINT _terrainCacheSlotRowCount DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainCacheSlotTexelCountPerSide DK_SHADER_DEFAULT(0);
-    float _terrainSampleWorldSpacing DK_SHADER_DEFAULT(1);
+    float _terrainSampleWorldSpacing DK_SHADER_DEFAULT(0.5f);
     float _terrainBaseWorldHeight DK_SHADER_DEFAULT(-16);
     float _terrainWorldHeightRange DK_SHADER_DEFAULT(128);
     DK_SHADER_UINT _terrainCellCountX DK_SHADER_DEFAULT(0);
@@ -283,7 +283,7 @@ cbuffer TerrainStreamingConstants : register(b3)
     DK_SHADER_UINT _terrainOverviewLod DK_SHADER_DEFAULT(3);
     DK_SHADER_UINT _terrainOverviewSampleCountX DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainOverviewSampleCountZ DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainPageTableEntryCountPerSide DK_SHADER_DEFAULT(16);
+    DK_SHADER_UINT _terrainPageTableWidthHeight DK_SHADER_DEFAULT(16);
     float _terrainCameraAnchorRelativeWorldX DK_SHADER_DEFAULT(0);
     float _terrainCameraAnchorRelativeWorldZ DK_SHADER_DEFAULT(0);
     DK_SHADER_INT _terrainAnchorSampleX DK_SHADER_DEFAULT(0);
@@ -296,6 +296,8 @@ cbuffer TerrainStreamingConstants : register(b3)
     DK_SHADER_UINT _terrainSectionCountX DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainSectionCountZ DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainSectionOverviewSampleCountPerSide DK_SHADER_DEFAULT(0);
+    DK_SHADER_INT _terrainMinimumSampleX DK_SHADER_DEFAULT(0);
+    DK_SHADER_INT _terrainMinimumSampleZ DK_SHADER_DEFAULT(0);
     DK_SHADER_ARRAY(TerrainSectionConstants, _terrainSections, TERRAIN_SECTION_SLOT_COUNT);
 };
 #endif
@@ -448,8 +450,10 @@ struct GpuAssertRecord
     static_assert(sizeof(OceanParams) == 64);
     static_assert(offsetof(OceanParams, _N) == 32);
     static_assert(sizeof(TerrainSectionConstants) == 32);
-    static_assert(sizeof(TerrainStreamingConstants) == 416);
-    static_assert(offsetof(TerrainStreamingConstants, _terrainSections) == 128);
+    static_assert(sizeof(TerrainStreamingConstants) == 432);
+    static_assert(offsetof(TerrainStreamingConstants, _terrainMinimumSampleX) == 128);
+    static_assert(offsetof(TerrainStreamingConstants, _terrainMinimumSampleZ) == 132);
+    static_assert(offsetof(TerrainStreamingConstants, _terrainSections) == 144);
     static_assert(sizeof(StaticMeshVertex) == 32);
     static_assert(offsetof(StaticMeshVertex, _uv) == 24);
     static_assert(sizeof(SkinnedMeshVertex) == 64);
