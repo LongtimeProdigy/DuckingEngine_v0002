@@ -283,7 +283,7 @@ cbuffer TerrainStreamingConstants : register(b3)
     DK_SHADER_UINT _terrainOverviewLod DK_SHADER_DEFAULT(3);
     DK_SHADER_UINT _terrainOverviewSampleCountX DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainOverviewSampleCountZ DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainPageTableWidthHeight DK_SHADER_DEFAULT(16);
+    DK_SHADER_UINT _terrainPageTableWidth DK_SHADER_DEFAULT(0);
     float _terrainCameraAnchorRelativeWorldX DK_SHADER_DEFAULT(0);
     float _terrainCameraAnchorRelativeWorldZ DK_SHADER_DEFAULT(0);
     DK_SHADER_INT _terrainAnchorSampleX DK_SHADER_DEFAULT(0);
@@ -451,6 +451,7 @@ struct GpuAssertRecord
     static_assert(offsetof(OceanParams, _N) == 32);
     static_assert(sizeof(TerrainSectionConstants) == 32);
     static_assert(sizeof(TerrainStreamingConstants) == 432);
+    static_assert(offsetof(TerrainStreamingConstants, _terrainPageTableWidth) == 76);
     static_assert(offsetof(TerrainStreamingConstants, _terrainMinimumSampleX) == 128);
     static_assert(offsetof(TerrainStreamingConstants, _terrainMinimumSampleZ) == 132);
     static_assert(offsetof(TerrainStreamingConstants, _terrainSections) == 144);

@@ -850,7 +850,7 @@ namespace DK
         const double terrainX = terrainLocalX - std::clamp(terrainLocalX, double(terrainBounds._terrainMinimumSampleX) * terrainBounds._terrainSampleWorldSpacing, (double(terrainBounds._terrainMinimumSampleX) + terrainBounds._terrainCellCountX) * terrainBounds._terrainSampleWorldSpacing);
         const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, double(terrainBounds._terrainMinimumSampleZ) * terrainBounds._terrainSampleWorldSpacing, (double(terrainBounds._terrainMinimumSampleZ) + terrainBounds._terrainCellCountZ) * terrainBounds._terrainSampleWorldSpacing);
         const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainBaseWorldHeight), double(terrainBounds._terrainBaseWorldHeight + terrainBounds._terrainWorldHeightRange));
-        const double terrainRadius = double(SceneManager::ClipMapTerrain::TILE_RESOLUTION * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
+        const double terrainRadius = double(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
         const bool nearTerrain = terrainBounds._terrainCellCountX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
         _renderLocalScene = nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius;
 #if defined(USE_IMGUI)
@@ -933,7 +933,7 @@ namespace DK
 			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
 			constexpr const uint32 morphCells = 4; // 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
 			static_assert(morphCells > 0);
-			static_assert(morphCells <= SceneManager::ClipMapTerrain::TILE_RESOLUTION - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
+			static_assert(morphCells <= SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
 
             const double anchorWorldX = streaming._terrainOriginWorldX + double(streaming._terrainAnchorSampleX) * streaming._terrainSampleWorldSpacing;
             const double anchorWorldZ = streaming._terrainOriginWorldZ + double(streaming._terrainAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
@@ -947,7 +947,7 @@ namespace DK
 				};
 
 #if defined(_DK_DEBUG_)
-			const SceneManager::Mesh* meshes[] = { &terrain._cross, &terrain._tile, &terrain._filter, &terrain._seam, &terrain._trim };
+			const SceneManager::Mesh* meshes[] = { &terrain._cross, &terrain._patch, &terrain._filter, &terrain._seam, &terrain._trim };
 #endif
 			uint32 bufferIndex = 0;
 			const DKFunction<void(uint32, uint32, float2, uint32)> uploadPatch = [&](const uint32 level, const uint32 type, const float2 patchOrigin, const uint32 rotation)
@@ -973,7 +973,7 @@ namespace DK
 					const float2 parentOrigin = snapTerrainGrid(parentSpacing);
 
 					// 현재 Clipmap 배치에서 실제 외곽 경계는 카메라로부터 각 축 방향으로 최소 2*T*spacing만큼 떨어져 있다.
-					const float morphEnd = 2.0f * static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION) * spacing;
+					const float morphEnd = 2.0f * static_cast<float>(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
 					const float morphStart = morphEnd - static_cast<float>(morphCells) * spacing;
 
 					TerrainMeshConstantBuffer cb{};
@@ -994,11 +994,11 @@ namespace DK
 			for (uint32 level = 0; level < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++level)
 			{
 				const float spacing = static_cast<float>(1u << level) * vertexScale;
-				const float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::TILE_RESOLUTION) * spacing;
+				const float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
 				const float2 snappedCameraPos = snapTerrainGrid(spacing);
 				const float2 base = snappedCameraPos - gridScale * 2.0f;
 
-				// Tile
+				// Patch
 				for (uint32 x = 0; x < 4; ++x)
 				{
 					for (uint32 y = 0; y < 4; ++y)
@@ -1007,8 +1007,8 @@ namespace DK
 							continue;
 
 						const float2 fill(x >= 2 ? spacing : 0.0f, y >= 2 ? spacing : 0.0f);
-						const float2 tileOrigin = base + float2(x, y) * gridScale + fill;
-						uploadPatch(level, 1u, tileOrigin, 0u);
+						const float2 patchOrigin = base + float2(x, y) * gridScale + fill;
+						uploadPatch(level, 1u, patchOrigin, 0u);
 					}
 				}
 
@@ -1723,7 +1723,7 @@ namespace DK
 
 				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
 				{
-					// Draw Tile
+					// Draw Patch
 					for (uint32 x = 0; x < 4; ++x)
 					{
 						for (uint32 y = 0; y < 4; ++y)
@@ -1734,9 +1734,9 @@ namespace DK
 							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
 							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
 
-							renderModule.setVertexBuffers(0, 1, terrain._tile._vertexBufferView.get());
-							renderModule.setIndexBuffer(terrain._tile._indexBufferView.get());
-							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._tile._indexCount), 1, 0, 0, 0);
+							renderModule.setVertexBuffers(0, 1, terrain._patch._vertexBufferView.get());
+							renderModule.setIndexBuffer(terrain._patch._indexBufferView.get());
+							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._patch._indexCount), 1, 0, 0, 0);
 						}
 					}
 

@@ -66,7 +66,7 @@ float3 EvaluateParentTriangle(float2 relativeXZ)
     const float3 p00 = EvaluateSurfacePosition(p0, parentLevel);
     const float3 p11 = EvaluateSurfacePosition(p0 + float2(parentSpacing, parentSpacing), parentLevel);
 
-    // 現 Tile 메시의 대각선은 00 → 11이다.
+    // 現 Patch 메시의 대각선은 00 → 11이다.
     // 실제 삼각형의 정점 위치를 barycentric 보간한다.
     if (f.x >= f.y)
     {

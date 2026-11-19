@@ -98,8 +98,8 @@ namespace DK
 
     struct MipTile
     {
-        uint32 _x = 0;
-        uint32 _z = 0;
+        uint32 _sectionLocalTileIndexX = 0;
+        uint32 _sectionLocalTileIndexZ = 0;
         uint32 _lod = 0;
         uint32 _sampleCountPerSide = 0;
         DKVector<uint16_t> _heights;
@@ -121,7 +121,7 @@ namespace DK
         bool open(const DKString& path);
         bool loadChunk(uint32 x, uint32 z, Chunk& out) const;
         bool loadMip(uint32 x, uint32 z, uint32 lod, MipTile& out) const;
-        bool loadVirtualTile(uint32 x, uint32 z, uint32 lod, MipTile& out) const;
+        bool loadVirtualTile(uint32 sectionLocalTileIndexX, uint32 sectionLocalTileIndexZ, uint32 lod, MipTile& out) const;
         bool loadOverview(uint32 lod, TerrainOverview& out) const;
         dk_inline bool isOpen() const
         {

@@ -4,6 +4,7 @@
 #include "CommonTexture.hlsl"
 #include "Assert.hlsl"
 #include "TerrainStreamingLimits.h"
+#include "TerrainPageTable.h"
 
 #define DK_SHADER_TERRAIN_STREAMING
 #include "ShaderStructures.h"
@@ -67,19 +68,20 @@ bool TerrainAvailableRelative(float2 relativeXZ)
     return ResolveTerrainSection(uint2(sample - minimumSample), frac(relativeSample), section);
 }
 
-float4 SampleTerrainPage(uint2 tile, uint lod, uint sectionSlot)
+float4 LoadTerrainPageEntry(uint2 sectionLocalTileIndex, uint lod, uint sectionSlot)
 {
-    GPUASSERT(lod < _terrainOverviewLod && sectionSlot < TERRAIN_SECTION_SLOT_COUNT && _terrainPageTableWidthHeight > 0u);
-    const uint2 address = uint2(tile.x % _terrainPageTableWidthHeight, tile.y % _terrainPageTableWidthHeight + (sectionSlot * _terrainOverviewLod + lod) * _terrainPageTableWidthHeight);
-    const float4 page = getTexture(_terrainPageTableSRV).Load(int3(address, 0));
-    if (any(uint2(page.zw) != tile))
-    {
-        return 0.0f;
-    }
-    return page;
+    GPUASSERT(lod < _terrainOverviewLod && sectionSlot < TERRAIN_SECTION_SLOT_COUNT && _terrainPageTableWidth > 0u);
+    const uint sectionLodTileCountPerSide = _terrainPageTableWidth >> lod;
+    GPUASSERT(all(sectionLocalTileIndex < sectionLodTileCountPerSide));
+    const uint sectionPageTableRowCount = terrainPageTableLodRowOffset(_terrainPageTableWidth, _terrainOverviewLod);
+    const uint lodPageTableRowOffset = terrainPageTableLodRowOffset(_terrainPageTableWidth, lod);
+    const uint2 address = uint2(sectionLocalTileIndex.x, sectionLocalTileIndex.y + sectionSlot * sectionPageTableRowCount + lodPageTableRowOffset);
+    const float4 pageEntry = getTexture(_terrainPageTableSRV).Load(int3(address, 0));
+    GPUASSERT(pageEntry.x == 0.0f || all(uint2(pageEntry.zw) == sectionLocalTileIndex));
+    return pageEntry;
 }
 
-float TerrainPageFade(int2 tile, uint lod, uint2 section)
+float TerrainTileFade(int2 tile, uint lod, uint2 section)
 {
     const int tileCells = int(_terrainChunkCellCountPerSide << lod);
     const int2 sample = int2(section * _terrainSectionCellCountPerSide) + tile * tileCells;
@@ -93,7 +95,7 @@ float TerrainPageFade(int2 tile, uint lod, uint2 section)
         return 0.0f;
     }
     const uint2 neighborTile = (uint2(sample) - neighborSection * _terrainSectionCellCountPerSide) / uint(tileCells);
-    return SampleTerrainPage(neighborTile, lod, TerrainSectionSlot(neighborSection)).y;
+    return LoadTerrainPageEntry(neighborTile, lod, TerrainSectionSlot(neighborSection)).y;
 }
 
 float3 DecodeTerrainNormal(float2 xz)
@@ -141,13 +143,13 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
         GPUASSERT(all(cells % tileCells == 0u));
         const uint2 tileCount = cells / tileCells;
         const uint2 tile = min(uint2(localSample) / tileCells, tileCount - 1u);
-        const float4 page = SampleTerrainPage(tile, lod, sectionSlot);
-        if (page.x == 0.0f)
+        const float4 pageEntry = LoadTerrainPageEntry(tile, lod, sectionSlot);
+        if (pageEntry.x == 0.0f)
         {
             continue;
         }
         const float2 local = TerrainGridPosition(localSample, fraction, lod, cells) - float2(tile * _terrainChunkCellCountPerSide);
-        float fade = page.y;
+        float fade = pageEntry.y;
         for (int z = -1; z <= 1; ++z)
         {
             for (int x = -1; x <= 1; ++x)
@@ -156,13 +158,13 @@ float3 SampleTerrainStreamRelative(float2 relativeXZ)
                 const float dz = z < 0 ? local.y : (z > 0 ? float(_terrainChunkCellCountPerSide) - local.y : 0.0f);
                 if ((x == 0 && z == 0) == false && max(dx, dz) < 2.0f)
                 {
-                    fade = min(fade, lerp(TerrainPageFade(int2(tile) + int2(x, z), lod, section), 1.0f, smoothstep(0.0f, 2.0f, max(dx, dz))));
+                    fade = min(fade, lerp(TerrainTileFade(int2(tile) + int2(x, z), lod, section), 1.0f, smoothstep(0.0f, 2.0f, max(dx, dz))));
                 }
             }
         }
-        const uint slot = uint(page.x) - 1u;
-        GPUASSERT(slot < _terrainCacheSlotColumnCount * _terrainCacheSlotRowCount && page.y >= 0.0f && page.y <= 1.0f && all(local >= 0.0f) && all(local <= float(_terrainChunkCellCountPerSide)));
-        const uint2 offset = uint2(slot % _terrainCacheSlotColumnCount, slot / _terrainCacheSlotColumnCount) * _terrainCacheSlotTexelCountPerSide;
+        const uint cacheSlotIndex = uint(pageEntry.x) - 1u;
+        GPUASSERT(cacheSlotIndex < _terrainCacheSlotColumnCount * _terrainCacheSlotRowCount && pageEntry.y >= 0.0f && pageEntry.y <= 1.0f && all(local >= 0.0f) && all(local <= float(_terrainChunkCellCountPerSide)));
+        const uint2 offset = uint2(cacheSlotIndex % _terrainCacheSlotColumnCount, cacheSlotIndex / _terrainCacheSlotColumnCount) * _terrainCacheSlotTexelCountPerSide;
         const float2 uv = (float2(offset) + local + 0.5f) / float2(_terrainCacheSlotColumnCount * _terrainCacheSlotTexelCountPerSide, _terrainCacheSlotRowCount * _terrainCacheSlotTexelCountPerSide);
         const float3 fine = float3(getTexture(_terrainHeightCacheSRV).SampleLevel(bilinearRepeatSampler, uv, 0.0f).x, getTexture(_terrainNormalCacheSRV).SampleLevel(bilinearRepeatSampler, uv, 0.0f).xy);
         const float lodWeight = lod == lower ? 1.0f - frac(desiredLod) : 1.0f;

@@ -582,8 +582,8 @@ namespace DK
         }
 
         MipTile tile;
-        tile._x = x;
-        tile._z = z;
+        tile._sectionLocalTileIndexX = x;
+        tile._sectionLocalTileIndexZ = z;
         tile._lod = lod;
         tile._sampleCountPerSide = sampleCountPerSide;
         tile._heights = DK::move(heights);
@@ -702,10 +702,10 @@ namespace DK
         return true;
     }
 
-    bool Archive::loadVirtualTile(uint32 x, uint32 z, uint32 lod, MipTile& out) const
+    bool Archive::loadVirtualTile(uint32 sectionLocalTileIndexX, uint32 sectionLocalTileIndexZ, uint32 lod, MipTile& out) const
     {
 #if defined(_DK_DEBUG_)
-        if (isOpen() == false || lod > 20 || uint64(x) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._width - 1 || uint64(z) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._height - 1)
+        if (isOpen() == false || lod > 20 || uint64(sectionLocalTileIndexX) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._width - 1 || uint64(sectionLocalTileIndexZ) * _header._chunkCellCountPerSide * (1ull << lod) >= _header._height - 1)
         {
             DK_ASSERT_LOG(false, "Virtual terrain tile is outside archive");
             return false;
@@ -718,14 +718,14 @@ namespace DK
             return false;
         }
         TerrainOverview grid;
-        const uint32 startX = (x * _header._chunkCellCountPerSide) << lod, startZ = (z * _header._chunkCellCountPerSide) << lod;
+        const uint32 startX = (sectionLocalTileIndexX * _header._chunkCellCountPerSide) << lod, startZ = (sectionLocalTileIndexZ * _header._chunkCellCountPerSide) << lod;
         if (loadGrid(startX, startZ, lod, _header._chunkCellCountPerSide + 1, _header._chunkCellCountPerSide + 1, grid) == false)
         {
             return false;
         }
         MipTile tile;
-        tile._x = x;
-        tile._z = z;
+        tile._sectionLocalTileIndexX = sectionLocalTileIndexX;
+        tile._sectionLocalTileIndexZ = sectionLocalTileIndexZ;
         tile._lod = lod;
         tile._sampleCountPerSide = _header._chunkCellCountPerSide + 1;
         tile._heights = DK::move(grid._heights);

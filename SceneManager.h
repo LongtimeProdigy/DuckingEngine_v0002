@@ -87,9 +87,9 @@ namespace DK
             TerrainWorld _world;
             Streamer _streamer;
 
-			struct CacheSlot
+			struct TileCacheEntry
 			{
-				PageRequest _request;
+				TileRequest _request;
 				bool _valid = false;
 				float _fade = 0;
 			};
@@ -100,16 +100,16 @@ namespace DK
 			ITextureRef _pageTable;
 			ITextureRef _tailHeight;
 			ITextureRef _tailNormal;
-			DKVector<CacheSlot> _cacheSlots;
+			DKVector<TileCacheEntry> _tileCacheEntries;
 			static constexpr uint32 CACHE_SLOTS_PER_LOD = 72;
 
-			static constexpr const uint32 TILE_RESOLUTION = 64;
-			static constexpr const uint32 PATCH_VERT_RESOLUTION = TILE_RESOLUTION + 1;
-			static constexpr const uint32 CLIPMAP_VERT_RESOLUTION = TILE_RESOLUTION * 4 + 1 + 1;
+			static constexpr const uint32 PATCH_CELL_COUNT_PER_SIDE = 64;
+			static constexpr const uint32 PATCH_VERTEX_COUNT_PER_SIDE = PATCH_CELL_COUNT_PER_SIDE + 1;
+			static constexpr const uint32 CLIPMAP_VERT_RESOLUTION = PATCH_CELL_COUNT_PER_SIDE * 4 + 1 + 1;
 			static constexpr const uint32 NUM_CLIPMAP_LEVELS = 10;
 			static constexpr const float BASE_VERTEX_SPACING = 0.5f;
 
-			Mesh _tile;
+			Mesh _patch;
 			Mesh _filter;
 			Mesh _trim;
 			Mesh _cross;
