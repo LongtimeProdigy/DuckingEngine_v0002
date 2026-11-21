@@ -1,4 +1,4 @@
-﻿#if defined(__cplusplus) == 0 || defined(DK_SHADER_STRUCTURES_CPP) == 0
+﻿#ifndef DK_SHADER_STRUCTURES_CPP
 #ifdef __cplusplus
 #define DK_SHADER_STRUCTURES_CPP
 #endif
@@ -14,7 +14,10 @@
 #define DK_SHADER_UINT uint32
 #define DK_SHADER_INT int32
 #define DK_SHADER_CONST const
-#define DK_SHADER_DEFAULT(...) = __VA_ARGS__
+#define DK_SHADER_DEFAULT(value) = value
+#define DK_SHADER_DEFAULT2(x, y) = { x, y }
+#define DK_SHADER_DEFAULT3(x, y, z) = { x, y, z }
+#define DK_SHADER_DEFAULT4(x, y, z, w) = { x, y, z, w }
 #define DK_SHADER_SEMANTIC(name)
 #define DK_SHADER_ALIGN16 alignas(16)
 #define DK_SHADER_CBUFFER(name, slot) struct name
@@ -28,7 +31,10 @@
 #define DK_SHADER_UINT uint
 #define DK_SHADER_INT int
 #define DK_SHADER_CONST
-#define DK_SHADER_DEFAULT(...)
+#define DK_SHADER_DEFAULT(value)
+#define DK_SHADER_DEFAULT2(x, y)
+#define DK_SHADER_DEFAULT3(x, y, z)
+#define DK_SHADER_DEFAULT4(x, y, z, w)
 #define DK_SHADER_SEMANTIC(name) : name
 #define DK_SHADER_ALIGN16
 #define DK_SHADER_CBUFFER(name, slot) cbuffer name : register(slot)
@@ -69,7 +75,7 @@ DK_SHADER_CBUFFER(SceneConstantBuffer, b0)
 #define DK_SHARED_ATMOSPHERE_ABSORPTION_LAYER
 struct AtmosphereAbsorptionLayer
 {
-    DK_SHADER_FLOAT3(_extinction) DK_SHADER_DEFAULT({ 0, 0, 0 }); // RGB coefficient at unit layer density, in inverse metres.
+    DK_SHADER_FLOAT3(_extinction) DK_SHADER_DEFAULT3(0, 0, 0); // RGB coefficient at unit layer density, in inverse metres.
     float _strength DK_SHADER_DEFAULT(0);
     float _peakRadius DK_SHADER_DEFAULT(0); // Absolute distance from the planet centre; independent of terrain.
     float _lowerWidth DK_SHADER_DEFAULT(10000);
@@ -118,7 +124,7 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
     float _scatteringScale DK_SHADER_DEFAULT(1.0f);
     float _cameraAltitude DK_SHADER_DEFAULT(0.0f);
     float _densityReferenceRadius DK_SHADER_DEFAULT(6360000.0f);
-    DK_SHADER_FLOAT3(_planetCentre) DK_SHADER_DEFAULT({ 0, -6360000.0f, 0 });
+    DK_SHADER_FLOAT3(_planetCentre) DK_SHADER_DEFAULT3(0, -6360000.0f, 0);
     float _atmosphereRadius DK_SHADER_DEFAULT(kEarthAtmosphereRadius);
     float _sunAngularRadius DK_SHADER_DEFAULT(0.27f);
     float _exposureEV DK_SHADER_DEFAULT(0.0f);
@@ -135,17 +141,17 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
     float _mieScale DK_SHADER_DEFAULT(1.0f);
     float _mieAbsorptionScale DK_SHADER_DEFAULT(0.0f);
     float _mieAnisotropy DK_SHADER_DEFAULT(0.76f);
-    DK_SHADER_FLOAT3(_sunColor) DK_SHADER_DEFAULT({ 1.0f, 1.0f, 1.0f }); // Linear RGB chromaticity; normalized to unit luminance in the helper.
+    DK_SHADER_FLOAT3(_sunColor) DK_SHADER_DEFAULT3(1.0f, 1.0f, 1.0f); // Linear RGB chromaticity; normalized to unit luminance in the helper.
     float _skyLightingStrength DK_SHADER_DEFAULT(1.0f);
     DK_SHADER_UINT _skyRadianceIndex DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _skyFilteredIndex DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _viewNodeBudget DK_SHADER_DEFAULT(256);
     DK_SHADER_UINT _opticalNodeBudget DK_SHADER_DEFAULT(128);
     AtmosphereAbsorptionLayer _absorptionLayers[DK_ATMOSPHERE_ABSORPTION_LAYER_COUNT];
-    DK_SHADER_FLOAT4(_surfaceRight) DK_SHADER_DEFAULT({ 1, 0, 0, 2000 }); // xyz: world basis, w: half-width in metres.
-    DK_SHADER_FLOAT4(_surfaceUp) DK_SHADER_DEFAULT({ 0, 0, 1, 2000 });
-    DK_SHADER_FLOAT4(_surfaceForward) DK_SHADER_DEFAULT({ 0, -1, 0, 8000 }); // w: total capture depth.
-    DK_SHADER_FLOAT4(_surfaceOrigin) DK_SHADER_DEFAULT({ 0, 4000, 0, 0 }); // Light-view origin relative to the main camera.
+    DK_SHADER_FLOAT4(_surfaceRight) DK_SHADER_DEFAULT4(1, 0, 0, 2000); // xyz: world basis, w: half-width in metres.
+    DK_SHADER_FLOAT4(_surfaceUp) DK_SHADER_DEFAULT4(0, 0, 1, 2000);
+    DK_SHADER_FLOAT4(_surfaceForward) DK_SHADER_DEFAULT4(0, -1, 0, 8000); // w: total capture depth.
+    DK_SHADER_FLOAT4(_surfaceOrigin) DK_SHADER_DEFAULT4(0, 4000, 0, 0); // Light-view origin relative to the main camera.
     DK_SHADER_UINT _surfaceAlbedoIndex DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _surfaceNormalIndex DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _surfaceMaterialIndex DK_SHADER_DEFAULT(0);
@@ -343,8 +349,8 @@ struct SkinnedMeshVertex
     DK_SHADER_CONST float3 _position DK_SHADER_SEMANTIC(POSITION) DK_SHADER_DEFAULT(float3::Zero);
     DK_SHADER_CONST float3 _normal DK_SHADER_SEMANTIC(NORMAL) DK_SHADER_DEFAULT(float3::Zero);
     DK_SHADER_CONST float2 _uv DK_SHADER_SEMANTIC(TEXCOORD0) DK_SHADER_DEFAULT(float2::Zero);
-    DK_SHADER_CONST DK_SHADER_UINT4(_boneIndices) DK_SHADER_SEMANTIC(BONEINDEXES) DK_SHADER_DEFAULT({ static_cast<uint32>(-1), static_cast<uint32>(-1),static_cast<uint32>(-1),static_cast<uint32>(-1) });
-    DK_SHADER_CONST DK_SHADER_FLOAT4(_boneWeights) DK_SHADER_SEMANTIC(BONEWEIGHTS) DK_SHADER_DEFAULT({ 0.0f,0.0f,0.0f,0.0f });
+    DK_SHADER_CONST DK_SHADER_UINT4(_boneIndices) DK_SHADER_SEMANTIC(BONEINDEXES) DK_SHADER_DEFAULT4(static_cast<uint32>(-1), static_cast<uint32>(-1), static_cast<uint32>(-1), static_cast<uint32>(-1));
+    DK_SHADER_CONST DK_SHADER_FLOAT4(_boneWeights) DK_SHADER_SEMANTIC(BONEWEIGHTS) DK_SHADER_DEFAULT4(0.0f, 0.0f, 0.0f, 0.0f);
 };
 #endif
 #endif
