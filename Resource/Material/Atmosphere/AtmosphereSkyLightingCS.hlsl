@@ -49,7 +49,8 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
             const float a = hit.y * u0 * u0 * u0, b = hit.y * u1 * u1 * u1;
             const float width = b - a;
             const float3 p = dir * (hit.x + 0.5f * (a + b));
-            const float4 density = atmosphereDensity(atmosphereHeight(p));
+            const float height = atmosphereHeight(p);
+            const float4 density = atmosphereDensity(height);
             const float3 sigma = atmosphereOpticalExtinction(density);
             GPUASSERT(all(isfinite(sigma)) && all(sigma >= 0.0f));
             const float3 tau = sigma * width;
@@ -59,9 +60,7 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
                 tau.y < FLOAT_EPSILON ? width * (1.0f - tau.y * 0.5f) : (1.0f - transmittance.y) / sigma.y,
                 tau.z < FLOAT_EPSILON ? width * (1.0f - tau.z * 0.5f) : (1.0f - transmittance.z) / sigma.z);
 
-            GPUASSERT(_densityReferenceRadius + atmosphereHeight(p) > 0);
-            const float radius = _densityReferenceRadius + atmosphereHeight(p);
-            GPUASSERT(abs(dot(p - _planetCentre, sunDir)) <= radius, float4(dot(p - _planetCentre, sunDir), length(p - _planetCentre), atmosphereHeight(p), length(p)));
+            const float sunRadialProjection = atmosphereRadialProjection(p, sunDir, height);
             const float3 source = 
                 atmosphereSunIrradiance()               // 태양의 밝기
                 * getSunTransmittance(p, sunDir)        // 태양에서 p까지의 투과율
@@ -69,7 +68,7 @@ void CSRadiance(uint3 id : SV_DispatchThreadID)
                 * (betaR * density.x * phaseR + betaM * density.y * phaseM) // 위상함수 ... 여기까지가 direct
                 + atmosphereSurfaceBounce(p)            // 태양의 표면 반사광
                 * (betaR * density.x + betaM * density.y) / (4.0f * PI) // SurfaceBounce는 방향별 정보가 없기 떄문에 등방성 위상함수를 사용(등방성 위상함수(4/PI))
-                + atmosphereMultipleIncident(atmosphereHeight(p), dot(p - _planetCentre, sunDir)) * (betaR * density.x + betaM * density.y);    // 대기에서 산란된 빛의 양
+                + atmosphereMultipleIncident(height, sunRadialProjection) * (betaR * density.x + betaM * density.y);    // 대기에서 산란된 빛의 양
             radiance += T * source * weight;
             T *= transmittance;
 

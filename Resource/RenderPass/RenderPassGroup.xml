@@ -160,6 +160,17 @@
 		</Pipeline>
 	</RenderPass>
 
+    <RenderPass Name="CloudNoisePass">
+        <ComputePipeline Name="CloudVolumeNoisePipeline">
+            <RootConstant Buffer="CloudNoiseOutputConstants"/>
+            <Shader Entry="CSVolume">Material/Atmosphere/CloudNoiseCS.hlsl</Shader>
+        </ComputePipeline>
+        <ComputePipeline Name="CloudWeatherPipeline">
+            <RootConstant Buffer="CloudNoiseOutputConstants"/>
+            <Shader Entry="CSWeather">Material/Atmosphere/CloudNoiseCS.hlsl</Shader>
+        </ComputePipeline>
+    </RenderPass>
+
     <RenderPass Name="AtmosphereTransmittancePass">
         <ComputePipeline Name="AtmosphereTransmittancePipeline">
             <RootConstant Buffer="AtmosphereLutOutputConstants"/>

@@ -686,6 +686,7 @@ do{ \
 		IBufferRef createIndexBuffer(const uint32* data, const uint32 indexCount, IndexBufferViewRef& outView, const wchar_t* debugName);
 		ITextureRef createTexture(const char* debugName, const uint32 width, const uint32 height, const byte* data, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
 		ITextureRef createTexture(const char* debugName, const uint32 width, const uint32 height, const D3D12_SUBRESOURCE_DATA* initialData, const uint8 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
+		ITextureRef createTexture3D(const char* debugName, const uint32 width, const uint32 height, const uint32 depth, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV);
 		ITextureRef loadAndCreateTexture(const DKString& path);
 		bool queueTextureRegion(const ITextureRef& texture, uint32 x, uint32 y, uint32 width, uint32 height, const void* data, uint32 rowPitch);
 		void deleteTexture(ITexture* texture);
@@ -717,6 +718,7 @@ do{ \
 		const bool allocateTextureSRV(ITexture& texture);
 		const bool allocateTextureUAV(ITexture& texture);
 
+		IBufferRef createTextureBuffer(const D3D12_RESOURCE_DESC& desc, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);
 		IBufferRef createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName);
 		IBufferRef createDefaultBuffer(const void* data, const uint32 bufferSize, const D3D12_RESOURCE_STATES state, const wchar_t* debugName);
 		IBufferRef createAccelerationBuffer(const uint64 size, const D3D12_RESOURCE_STATES state);

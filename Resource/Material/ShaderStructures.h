@@ -180,6 +180,32 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
 #endif
 #endif
 
+#if defined(__cplusplus) || defined(DK_SHADER_CLOUD)
+#ifndef DK_SHARED_CLOUD_CONSTANT_BUFFER
+#define DK_SHARED_CLOUD_CONSTANT_BUFFER
+DK_SHADER_CBUFFER(CloudConstantBuffer, b3)
+{
+    // Terrestrial low-cloud preset. Heights are metres above the atmosphere density reference radius.
+    float _cloudBaseHeight DK_SHADER_DEFAULT(1200.0f);
+    float _cloudTopHeight DK_SHADER_DEFAULT(3000.0f);
+    float _cloudCoverage DK_SHADER_DEFAULT(0.55f);
+    float _cloudExtinction DK_SHADER_DEFAULT(0.028f); // Per metre at unit cloud density.
+    // Regional weather, kilometre-scale puffs and smaller edge erosion repeat at separate scales.
+    float _cloudWeatherPeriod DK_SHADER_DEFAULT(64000.0f);
+    float _cloudShapePeriod DK_SHADER_DEFAULT(4200.0f);
+    float _cloudDetailPeriod DK_SHADER_DEFAULT(560.0f);
+    DK_SHADER_UINT _cloudWeatherIndex DK_SHADER_DEFAULT(0);
+    DK_SHADER_FLOAT2(_cloudWindSpeedXZ) DK_SHADER_DEFAULT2(8.0f, 3.0f); // Metres per second.
+    DK_SHADER_UINT _cloudNoiseIndex DK_SHADER_DEFAULT(0);
+    float _cloudScatteringAlbedo DK_SHADER_DEFAULT(0.999f); // Visible-light scattering dominates droplet absorption.
+
+#if defined(__cplusplus) && defined(_DK_DEBUG_)
+    void validate() const;
+#endif
+};
+#endif
+#endif
+
 #if defined(__cplusplus) || defined(DK_SHADER_TERRAIN_MESH)
 #ifndef DK_SHARED_TERRAIN_MESH_CONSTANT_BUFFER
 #define DK_SHARED_TERRAIN_MESH_CONSTANT_BUFFER
@@ -468,6 +494,10 @@ struct GpuAssertRecord
     static_assert(offsetof(SkinnedMeshVertex, _boneIndices) == 32);
     static_assert(offsetof(SkinnedMeshVertex, _boneWeights) == 48);
     static_assert(sizeof(SceneConstantBuffer) == 224);
+    static_assert(sizeof(CloudConstantBuffer) == 48);
+    static_assert(offsetof(CloudConstantBuffer, _cloudWeatherIndex) == 28);
+    static_assert(offsetof(CloudConstantBuffer, _cloudWindSpeedXZ) == 32);
+    static_assert(offsetof(CloudConstantBuffer, _cloudNoiseIndex) == 40);
     static_assert(offsetof(SceneConstantBuffer, _cameraWorldMatrix) == 32);
     static_assert(sizeof(AtmosphereAbsorptionLayer) == 32, "Match HLSL absorption layer");
     static_assert(sizeof(SurfaceShadowCascade) == 80, "Match HLSL cascade layout");

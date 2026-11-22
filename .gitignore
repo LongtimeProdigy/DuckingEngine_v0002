@@ -343,6 +343,7 @@ healthchecksdb
 
 # resource
 /Resource/meshai/
+/Resource/Terrain/Cooked/
 /Resource/Scenes/Cooked/
 /Resource/Scenes/PracticeTerrain/Cooked/
 /Resource/editor/data/camera-state.txt

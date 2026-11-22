@@ -17,6 +17,7 @@
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
 #include "Resource/Material/GrassTiles.h"
+#include "Resource/Material/Atmosphere/CloudLimits.h"
 
 #include <DirectXCollision.h>
 #include <random>
@@ -34,6 +35,16 @@ namespace DK
         DK_ASSERT_LOG(std::isfinite(_upperWidth) && _upperWidth > 0.0f, "Absorption layer %u: invalid _upperWidth=%g", layerIndex, _upperWidth);
         if (_strength > 0.0f && (_extinction[0] > 0.0f || _extinction[1] > 0.0f || _extinction[2] > 0.0f))
             DK_ASSERT_LOG(_peakRadius >= _lowerWidth, "Absorption layer %u: inner radius is negative, _peakRadius=%g, _lowerWidth=%g", layerIndex, _peakRadius, _lowerWidth);
+    }
+
+    void CloudConstantBuffer::validate() const
+    {
+        DK_ASSERT_LOG(std::isfinite(_cloudBaseHeight) && _cloudBaseHeight >= 0.0f && std::isfinite(_cloudTopHeight) && _cloudTopHeight > _cloudBaseHeight, "Invalid cloud base or top height");
+        DK_ASSERT_LOG(_cloudCoverage >= 0.0f && _cloudCoverage <= 1.0f, "Cloud coverage must be in [0, 1]");
+        DK_ASSERT_LOG(std::isfinite(_cloudExtinction) && _cloudExtinction > 0.0f, "Cloud extinction must be positive");
+        DK_ASSERT_LOG(std::isfinite(_cloudWeatherPeriod) && _cloudWeatherPeriod > 0.0f && std::isfinite(_cloudShapePeriod) && _cloudShapePeriod > 0.0f && std::isfinite(_cloudDetailPeriod) && _cloudDetailPeriod > 0.0f, "Invalid cloud noise scale");
+        DK_ASSERT_LOG(std::isfinite(_cloudWindSpeedXZ[0]) && std::isfinite(_cloudWindSpeedXZ[1]), "Invalid cloud wind speed");
+        DK_ASSERT_LOG(_cloudScatteringAlbedo >= 0.0f && _cloudScatteringAlbedo <= 1.0f, "Cloud scattering albedo must be in [0, 1]");
     }
 
     void AtmosphereConstantBuffer::validate() const
@@ -85,6 +96,7 @@ namespace DK
 #if defined(_DK_DEBUG_)
         _atmosphereConstantBufferData.validate();
         validateSurfaceCaptureParameters();
+        _cloudConstantBufferData.validate();
 #endif
 		if (initialize_createRenderPass() == false)
 			return false;
@@ -97,6 +109,7 @@ namespace DK
 	{
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
+		_cloudNoisePass = renderModule.findRenderPass("CloudNoisePass");
 		_transmittancePass = renderModule.findRenderPass("AtmosphereTransmittancePass");
 		_multipleScatteringPass = renderModule.findRenderPass("AtmosphereMultipleScatteringPass");
 		_surfaceBouncePass = renderModule.findRenderPass("AtmosphereSurfaceBouncePass");
@@ -120,7 +133,7 @@ namespace DK
 				return false;
 		}
 
-		if (_transmittancePass == nullptr || _multipleScatteringPass == nullptr ||
+		if (_cloudNoisePass == nullptr || _transmittancePass == nullptr || _multipleScatteringPass == nullptr ||
 			_surfaceBouncePass == nullptr || _skyLightingPass == nullptr || _oceanPass == nullptr ||
 			_gbufferResolvePass == nullptr || _atmospherePass == nullptr || _bloomHorizontalPass == nullptr ||
 			_bloomVerticalPass == nullptr || _finalOutputPass == nullptr || _mainGeometryPass == nullptr ||
@@ -745,14 +758,24 @@ namespace DK
 	{
 		DK_ASSERT_LOG(Camera::gMainCamera != nullptr, "MainCamera가 먼저 생성되어야합니다.");
 
-		_sceneConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(SceneConstantBuffer), DK_DEBUG_NAME(L"SceneConstantBuffer"));
+		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 
-		_atmosphereConstantBuffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(AtmosphereConstantBuffer), DK_DEBUG_NAME(L"AtmosphereConstantBuffer"));
-		_atmosphereTransmittanceLut = DuckingEngine::getInstance().GetRenderModuleWritable().createTexture(DK_DEBUG_NAME("AtmosphereTransmittanceLut"), kAtmosphereLutWidth, kAtmosphereLutHeight * 2u, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
+		_sceneConstantBuffer = renderModule.createConstantBuffer(sizeof(SceneConstantBuffer), DK_DEBUG_NAME(L"SceneConstantBuffer"));
+
+		_cloudConstantBuffer = renderModule.createConstantBuffer(sizeof(CloudConstantBuffer), DK_DEBUG_NAME(L"CloudConstantBuffer"));
+		_cloudNoise = renderModule.createTexture3D(DK_DEBUG_NAME("CloudNoise"), DK_CLOUD_NOISE_SIZE, DK_CLOUD_NOISE_SIZE, DK_CLOUD_NOISE_SIZE, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, true, true);
+		_cloudWeather = renderModule.createTexture(DK_DEBUG_NAME("CloudWeather"), DK_CLOUD_WEATHER_SIZE, DK_CLOUD_WEATHER_SIZE, nullptr, 1, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, true, true);
+		if (_cloudConstantBuffer == nullptr || _cloudNoise == nullptr || _cloudWeather == nullptr)
+			return false;
+
+		_cloudConstantBufferData._cloudNoiseIndex = _cloudNoise->getSRV();
+		_cloudConstantBufferData._cloudWeatherIndex = _cloudWeather->getSRV();
+
+		_atmosphereConstantBuffer = renderModule.createConstantBuffer(sizeof(AtmosphereConstantBuffer), DK_DEBUG_NAME(L"AtmosphereConstantBuffer"));
+		_atmosphereTransmittanceLut = renderModule.createTexture(DK_DEBUG_NAME("AtmosphereTransmittanceLut"), kAtmosphereLutWidth, kAtmosphereLutHeight * 2u, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, true);
 		if (_atmosphereTransmittanceLut == nullptr)
 			return false;
 
-        RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		for (uint32 i = 0; i < DK_COUNT_OF(_multipleScatteringLut); ++i)
 		{
 			_multipleScatteringLut[i] = renderModule.createTexture(DK_DEBUG_NAME(i == 0 ? "AtmosphereMultipleScattering0" : "AtmosphereMultipleScattering1"), ATMOSPHERE_MULTIPLESCATTERING_WIDTH, ATMOSPHERE_MULTIPLESCATTERING_HEIGHT, nullptr, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, true, true);
@@ -883,6 +906,10 @@ namespace DK
 			relativeAtmosphere._planetCentre[1] = static_cast<float>(-dy);
 			relativeAtmosphere._planetCentre[2] = static_cast<float>(-dz);
 			_atmosphereConstantBuffer->upload(&relativeAtmosphere);
+#if defined(_DK_DEBUG_)
+			_cloudConstantBufferData.validate();
+#endif
+			_cloudConstantBuffer->upload(&_cloudConstantBufferData);
 		}
 
 		// Upload Ocean ConstantBuffer
@@ -1120,6 +1147,7 @@ namespace DK
 		if (gIsReload)
 		{
 			renderModule.reloadShader();
+			_cloudNoiseValid = false;
 			gIsReload = false;
 		}
 #endif
@@ -1323,6 +1351,19 @@ namespace DK
                             atmosphere.validate();
 #endif
 						}
+                        if (ImGui::CollapsingHeader("Volumetric clouds"))
+                        {
+                            InspectorProperty("Coverage", [&] { ImGui::SliderFloat("##value", &_cloudConstantBufferData._cloudCoverage, 0.0f, 1.0f); });
+                            InspectorProperty("Wind XZ (m/s)", [&] { ImGui::DragFloat2("##value", _cloudConstantBufferData._cloudWindSpeedXZ, 0.1f, 0.0f, 0.0f, "%.1f"); });
+                            const float3 cloudBase(atmosphere._planetCentre[0], atmosphere._planetCentre[1] + atmosphere._densityReferenceRadius + _cloudConstantBufferData._cloudBaseHeight, atmosphere._planetCentre[2]);
+                            const float cloudThickness = _cloudConstantBufferData._cloudTopHeight - _cloudConstantBufferData._cloudBaseHeight;
+                            if (ImGui::Button("Cloud layer"))
+                                Camera::gMainCamera->setView(cloudBase + float3(0.0f, cloudThickness * 0.5f, 0.0f), float3(0.0f, 0.0f, 1.0f));
+                            ImGui::SameLine();
+                            if (ImGui::Button("Above clouds"))
+                                Camera::gMainCamera->setView(cloudBase + float3(0.0f, cloudThickness * 1.5f, 0.0f), float3(0.0f, -0.5f, 1.0f));
+                        }
+
                         if (ImGui::CollapsingHeader("Surface to atmosphere"))
                         {
                             InspectorProperty("Sun shadow strength", [&] { ImGui::SliderFloat("##value", &atmosphere._surfaceShadowStrength, 0.0f, 1.0f); });
@@ -2068,6 +2109,29 @@ namespace DK
         endPipeline();
     }
 
+	void SceneRenderer::updateCloudNoise(RenderModule& renderModule)
+	{
+		if (_cloudNoiseValid)
+			return;
+
+		startRenderPass(renderModule, *_cloudNoisePass);
+		startPipeline("CloudVolumeNoisePipeline");
+		renderModule.resourceBarrierTransition(_cloudNoise, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		setRootConstantParameter("_cloudNoiseUav", _cloudNoise->getUAV());
+		renderModule.dispatch(DK_CLOUD_NOISE_SIZE, DK_CLOUD_NOISE_SIZE, DK_CLOUD_NOISE_SIZE);
+		renderModule.resourceBarrierTransition(_cloudNoise, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		endPipeline();
+
+		startPipeline("CloudWeatherPipeline");
+		renderModule.resourceBarrierTransition(_cloudWeather, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		setRootConstantParameter("_cloudWeatherUav", _cloudWeather->getUAV());
+		renderModule.dispatch(DK_CLOUD_WEATHER_SIZE, DK_CLOUD_WEATHER_SIZE, 1);
+		renderModule.resourceBarrierTransition(_cloudWeather, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		endPipeline();
+		endRenderPass();
+		_cloudNoiseValid = true;
+	}
+
 	void SceneRenderer::updateAtmosphereTransmittanceLut()
 	{
 		const AtmosphereConstantBuffer& p = _atmosphereConstantBufferData;
@@ -2199,6 +2263,7 @@ namespace DK
 		RenderModule& renderModule = DuckingEngine::getInstance().GetRenderModuleWritable();
 		renderModule.preRender();
 
+		updateCloudNoise(renderModule);
 		updateAtmosphereTransmittanceLut();
         updateAtmosphereMultipleScattering();
         updateSurfaceTransport();
@@ -2375,6 +2440,7 @@ namespace DK
 				setRootConstantParameter("_sceneDepthIndex", gbuffer._depth._texture->getSRV());
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
+				setConstantBuffer("CloudConstantBuffer", _cloudConstantBuffer);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();
@@ -2419,7 +2485,7 @@ namespace DK
 			endRenderPass();
 		}
 
-		// Final output only applies exposure and tone mapping to the selected HDR source.
+		// Resolve distant sky clouds, then apply exposure and tone mapping to the selected HDR source.
 		startRenderPass(renderModule, *_finalOutputPass);
 		{
 			startPipeline("FinalOutputPipeline");

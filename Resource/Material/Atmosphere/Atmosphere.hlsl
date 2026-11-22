@@ -3,10 +3,12 @@
 
 #include "CommonRendering.hlsl"
 #include "CommonTexture.hlsl"
+#include "GridHash.hlsl"
 #include "Atmosphere/AtmosphereParameters.hlsl"
 #include "Atmosphere/AtmosphereTransmittance.hlsl"
 #include "Atmosphere/AtmosphereSurfaceLighting.hlsl"
 #include "Atmosphere/AtmosphereMultipleScattering.hlsl"
+#include "Atmosphere/CloudDensity.hlsl"
 
 cbuffer AtmosphereInputConstants : register(b2)
 {
@@ -63,43 +65,70 @@ AtmosphereSegment composeAtmosphereIntervals(AtmosphereSegment nearPart, Atmosph
     return result;
 }
 
-AtmosphereSegment evaluateAtmosphereInterval(float3 origin, float3 direction, float start, float end, float3 sunDir, float phaseR, float phaseM, bool allowReference = true)
+float cloudPhase(float mu, float anisotropy)
+{
+    const float denominator = 1.0f + anisotropy * anisotropy - 2.0f * anisotropy * mu;
+    return (1.0f - anisotropy * anisotropy) / (4.0f * PI * denominator * sqrt(denominator));
+}
+
+AtmosphereSegment evaluateAtmosphereInterval(float3 origin, float3 direction, float start, float end, float3 sunDir, float phaseR, float phaseM, bool allowReference = true, bool integrateClouds = false, float sampleOffset = 0.0f)
 {
     AtmosphereSegment result = atmosphereIdentity();
 
     const float segmentLength = end - start;
-    const float3 p = origin + direction * (0.5f * (start + end));
+    const float3 p = origin + direction * (0.5f * (start + end) + segmentLength * sampleOffset);
     const float height = atmosphereHeight(p);
     const float4 segmentDepth = atmosphereDensity(height) * segmentLength;
     const float3 betaR = atmosphereRayleighScattering();
     const float3 betaM = atmosphereMieExtinction();
     const float3 betaMScattering = atmosphereMieScattering();
-    result.transmittance = exp(-atmosphereOpticalExtinction(segmentDepth));
+    const float cameraDistance = integrateClouds ? length(p) : 0.0f;
+    const float pixelFootprint = 2.0f * getFOVTangent() * cameraDistance / float(_resolution.y);
+    const float cloudVolumeFootprint = max(pixelFootprint, segmentLength);
+    const float cloudWeatherFootprint = max(pixelFootprint, segmentLength * length(direction.xz));
+    const float cloudDepth = integrateClouds ? cloudDensity(p, height, cloudVolumeFootprint, cloudWeatherFootprint) * _cloudExtinction * segmentLength : 0.0f;
+    const float3 opticalDepth = atmosphereOpticalExtinction(segmentDepth) + cloudDepth;
+    result.transmittance = exp(-opticalDepth);
 
     const float sunLength = raySphere(_planetCentre, _atmosphereRadius, p, sunDir).y;
     if (sunLength <= 0.0f) 
         return result;
 
-    //GPUASSERT(height <= (_atmosphereRadius - _densityReferenceRadius), float4(height, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius, allowReference ? 1 : 0));
     GPUASSERT(height <= (_atmosphereRadius - _densityReferenceRadius), float4(length(p), (start + end) * 0.5, 0, 0));
-    GPUASSERT(abs(dot(p - _planetCentre, sunDir)) <= length(p - _planetCentre), float4(length(p), length(_planetCentre), length(p - _planetCentre), dot(p - _planetCentre, sunDir)));
-    const AtmosphereOpticalDepth light = atmosphereSunOpticalDepth(height, dot(p - _planetCentre, sunDir), sunLength, allowReference);
+    const float sunRadialProjection = atmosphereRadialProjection(p, sunDir, height);
+    const AtmosphereOpticalDepth light = atmosphereSunOpticalDepth(height, sunRadialProjection, sunLength, allowReference);
     result.limitReached = light.limitReached;
 
     const float sunVisibility = atmosphereSurfaceSunVisibility(p);
-    const float3 intervalWeight = atmosphereIntervalWeight(atmosphereOpticalExtinction(segmentDepth));
-    const float3 attenuation = exp(-atmosphereOpticalExtinction(light.value)) * intervalWeight;
-    result.inScattering = atmosphereSunIrradiance() * sunVisibility * attenuation * (betaR * phaseR * segmentDepth.x + betaMScattering * phaseM * segmentDepth.y);
+    const float3 intervalWeight = atmosphereIntervalWeight(opticalDepth);
+    const float3 sunIrradiance = atmosphereSunIrradiance() * sunVisibility * exp(-atmosphereOpticalExtinction(light.value));
+    float cloudSunTransmittance = 1.0f;
+    const float cloudScatteringDepth = cloudDepth * _cloudScatteringAlbedo;
+    if (cloudDepth > 0.0f && sunVisibility > 0.0f)
+    {
+        const float2 planetHit = raySphere(_planetCentre, _densityReferenceRadius, p, sunDir);
+        if (planetHit.y > 0.0f && planetHit.x < sunLength)
+            cloudSunTransmittance = 0.0f;
+        else
+        {
+            const float cloudSunDepth = cloudSunOpticalDepth(p, sunDir, sunLength, cloudVolumeFootprint, cloudWeatherFootprint);
+            cloudSunTransmittance = exp(-cloudSunDepth);
+            const float mu = clamp(dot(direction, sunDir), -1.0f, 1.0f);
+            // A weaker, broader lobe with reduced extinction approximates higher scattering orders.
+            const float singleScattering = cloudPhase(mu, 0.8f) * cloudSunTransmittance;
+            const float multipleScattering = 0.35f * cloudPhase(mu, 0.35f) * exp(-0.35f * cloudSunDepth);
+            result.inScattering = intervalWeight * sunIrradiance * cloudScatteringDepth * (singleScattering + multipleScattering);
+        }
+    }
+    result.inScattering += intervalWeight * sunIrradiance * cloudSunTransmittance * (betaR * phaseR * segmentDepth.x + betaMScattering * phaseM * segmentDepth.y);
 
     // Isotropic incident field from prior atmospheric scattering orders.
-    const float radius = max(_densityReferenceRadius + height, 0.0f);
-    GPUASSERT(abs(dot(p - _planetCentre, sunDir)) <= radius, float4(dot(p - _planetCentre, sunDir), radius, dot(p - _planetCentre, sunDir) / radius, 0));
-    const float3 multipleIncident = atmosphereMultipleIncident(height, dot(p - _planetCentre, sunDir));
-    result.inScattering += intervalWeight * multipleIncident * (betaR * segmentDepth.x + betaMScattering * segmentDepth.y);
+    const float3 multipleIncident = atmosphereMultipleIncident(height, sunRadialProjection);
+    result.inScattering += intervalWeight * multipleIncident * (betaR * segmentDepth.x + betaMScattering * segmentDepth.y + cloudScatteringDepth);
 
     // First surface bounce, approximated as an isotropic local incident field.
     const float3 surfaceIncident = atmosphereSurfaceBounce(p);
-    result.inScattering += intervalWeight * surfaceIncident * (betaR * segmentDepth.x + betaMScattering * segmentDepth.y) / (4.0f * PI);
+    result.inScattering += intervalWeight * surfaceIncident * (betaR * segmentDepth.x + betaMScattering * segmentDepth.y + cloudScatteringDepth) / (4.0f * PI);
     return result;
 }
 
@@ -116,7 +145,7 @@ AtmosphereSegment calculateAtmosphere(float3 rayOrigin, float3 rayDir, float ray
     // Keep a denser direct reference while production lets the error estimator allocate work.
     const uint seeds = atmosphereUsesLut(allowReference) ? requestedSeeds : max(requestedSeeds, 32u);
     const float height = atmosphereHeight(rayOrigin);
-    const float radialDot = dot(rayOrigin - _planetCentre, rayDir);
+    const float radialDot = atmosphereRadialProjection(rayOrigin, rayDir, height);
 
     // Global work budget, including pending nodes and remaining seeds.
     const uint nodeBudget = clamp(_viewNodeBudget, 128u, 256u);
@@ -181,6 +210,94 @@ AtmosphereSegment calculateAtmosphere(float3 rayOrigin, float3 rayDir, float ray
     return result;
 }
 
+AtmosphereSegment calculateCloudInterval(float3 rayOrigin, float3 rayDir, float start, float end, float3 sunDir, float pixelSampleOffset, out float resolveWeight)
+{
+    AtmosphereSegment result = atmosphereIdentity();
+    resolveWeight = 0.0f;
+    const float mu = clamp(dot(rayDir, sunDir), -1.0f, 1.0f);
+    const float phaseR = atmosphereRayleighPhase(mu);
+    const float phaseM = atmosphereMiePhase(mu);
+    static const uint maxStepCount = 96u;
+    // Keep half the budget at the regular spacing for the visible part of the cloud.
+    static const uint regularStepCount = maxStepCount / 2u;
+    static const uint farStepCount = maxStepCount - regularStepCount;
+    static const float stepsPerShapePeriod = 64.0f;
+    // Two samples per cell of the highest-frequency Worley octave.
+    static const float stepsPerDetailPeriod = 2.0f * DK_CLOUD_HIGH_FREQUENCY_CELL_COUNT;
+    const float regularStepLength = _cloudShapePeriod / stepsPerShapePeriod;
+    const float nearStepLength = min(_cloudDetailPeriod / stepsPerDetailPeriod, regularStepLength);
+    const float shapeCellLength = _cloudShapePeriod / DK_CLOUD_LOW_FREQUENCY_CELL_COUNT;
+    const float originDistance = length(rayOrigin);
+
+    float stepStart = start;
+    float farStepLengthIncrement = 0.0f;
+    [loop]
+    for (uint stepIndex = 0; stepIndex < maxStepCount && stepStart < end; ++stepIndex)
+    {
+        if (stepIndex == regularStepCount)
+        {
+            // Spread only the excess distance across the far steps as an arithmetic series.
+            const float excessLength = max(0.0f, end - stepStart - farStepCount * regularStepLength);
+            farStepLengthIncrement = (2.0f * excessLength) / float(farStepCount * (farStepCount - 1u));
+        }
+
+        const float regularWeight = saturate(stepStart / _cloudDetailPeriod);
+        const float farStepLength = regularStepLength + (float(stepIndex) - float(regularStepCount)) * farStepLengthIncrement;
+        const float stepLength = stepIndex < regularStepCount ? lerp(nearStepLength, regularStepLength, regularWeight) : farStepLength;
+        // Clip the last step and cover any residual distance from float rounding at the budget limit.
+        const float stepEnd = stepIndex + 1u == maxStepCount ? end : min(stepStart + stepLength, end);
+        // Offset distant samples to break up the shared sampling planes of neighboring rays.
+        const float cameraDistance = originDistance + 0.5f * (stepStart + stepEnd);
+        resolveWeight = smoothstep(0.5f * shapeCellLength, shapeCellLength, cameraDistance);
+        const float sampleOffset = pixelSampleOffset * resolveWeight;
+        result = composeAtmosphereIntervals(result, evaluateAtmosphereInterval(rayOrigin, rayDir, stepStart, stepEnd, sunDir, phaseR, phaseM, false, true, sampleOffset));
+        if (all(result.transmittance < 1e-6f))
+            break;
+
+        stepStart = stepEnd;
+    }
+    return result;
+}
+
+AtmosphereSegment calculateAtmosphereWithClouds(float3 rayOrigin, float3 rayDir, float rayLength, float3 sunDir, bool referencePixel, float pixelSampleOffset, out float resolveWeight)
+{
+    resolveWeight = 0.0f;
+    // The gas reference and diagnostics remain comparable with the clear-atmosphere solver.
+    float4 cloudIntervals = 0.0f;
+    if (_cloudCoverage > 0.0f && _atmosphereSamplingMode == ATEMOSPHERE_PRODUCTION && rayLength > 0.0f)
+    {
+        const float2 planetHit = raySphere(_planetCentre, _densityReferenceRadius, rayOrigin, rayDir);
+        const bool entersPlanet = planetHit.y > 0.0f && (planetHit.x > 0.0f || dot(rayOrigin - _planetCentre, rayDir) < 0.0f);
+        const float cloudRayEnd = entersPlanet ? min(planetHit.x, rayLength) : rayLength;
+        cloudIntervals = cloudRayIntervals(rayOrigin, rayDir, cloudRayEnd);
+    }
+
+    AtmosphereSegment result = atmosphereIdentity();
+    float start = 0.0f;
+    [loop]
+    for (uint index = 0; index <= 2; ++index)
+    {
+        const bool hasCloudInterval = index < 2u;
+        const float2 interval = index == 0u ? cloudIntervals.xy : cloudIntervals.zw;
+        if (hasCloudInterval && interval.y <= interval.x)
+            continue;
+
+        const float clearEnd = hasCloudInterval ? interval.x : rayLength;
+        result = composeAtmosphereIntervals(result, calculateAtmosphere(rayOrigin + rayDir * start, rayDir, clearEnd - start, sunDir, referencePixel));
+        if (hasCloudInterval == false || all(result.transmittance < 1e-6f))
+            break;
+
+        float intervalResolveWeight;
+        const AtmosphereSegment clouds = calculateCloudInterval(rayOrigin, rayDir, interval.x, interval.y, sunDir, pixelSampleOffset, intervalResolveWeight);
+        result = composeAtmosphereIntervals(result, clouds);
+        resolveWeight = max(resolveWeight, intervalResolveWeight);
+        if (all(result.transmittance < 1e-6f))
+            break;
+        start = interval.y;
+    }
+    return result;
+}
+
 float renderSun(const float3 rayDir, out float3 sunDir)
 {
     const float sunDegree = radians(_sunDegree);
@@ -208,7 +325,7 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float4 originalCol = renderTexture.Load(uint3(input.uv * _resolution, 0));
     // Debug primitives use the unlit channel and must survive sky/ground composition.
     if (getTexture(_materialIndex).Load(uint3(input.uv * _resolution, 0)).z > 0.5f)
-        return float4(originalCol.rgb, 1);
+        return float4(originalCol.rgb, 0);
 
     float3 sunDir = float3(0, -1, 0);
     const float sunCoverage = renderSun(rayDirWS, sunDir);
@@ -232,7 +349,7 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
 
     // 우주공간
     if(lengthAtmosphere == 0)
-        return float4(backgroundRadiance, 1);
+        return float4(backgroundRadiance, 0);
 
     const float atmosphereEnd = destToAtmosphere + lengthAtmosphere;
     const float rayEnd = hasGeometry ? min(linearDepthDistance, atmosphereEnd) : atmosphereEnd;
@@ -241,19 +358,27 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     
     // Restrict nested direct integration to a 16x16 centre patch. Surrounding pixels use the LUT.
     const bool referencePixel = all(abs(input.position.xy - 0.5f * float2(_resolution)) < 8.0f);
-    const AtmosphereSegment atmosphere = calculateAtmosphere(atmosphereStart, rayDirWS, integrationLength, sunDir, referencePixel);
+    const bool resolveClouds = hasGeometry == false && sunCoverage <= 0.0f;
+    const int2 pixel = int2(input.position.xy);
+    // Each 2x2 block covers four sample strata. Hash the starting phase per block without changing it across frames.
+    const uint sampleStratum = 2u * uint((pixel.x ^ pixel.y) & 1) + uint(pixel.y & 1);
+    const float blockPhase = float(HashGridCell(pixel >> 1) >> 8u) * (1.0f / 16777216.0f);
+    const float pixelSampleOffset = resolveClouds ? 0.25f * (sampleStratum + blockPhase) - 0.5f : 0.0f;
+    float resolveWeight;
+    const AtmosphereSegment atmosphere = calculateAtmosphereWithClouds(atmosphereStart, rayDirWS, integrationLength, sunDir, referencePixel, pixelSampleOffset, resolveWeight);
 
     if (_atmosphereSamplingMode == ATEMOSPHERE_LIMIT_DEBUG && referencePixel)
-        return float4(atmosphere.limitReached != 0u ? float3(1, 0, 0) : float3(0, 0.25f, 0), 1);
+        return float4(atmosphere.limitReached != 0u ? float3(1, 0, 0) : float3(0, 0.25f, 0), 0);
     if (_atmosphereSamplingMode == ATMOSPHERE_WORK_DEBUG)
     {
         const float work = float(atmosphere.workNodes) / clamp(float(_viewNodeBudget), 128.0f, 256.0f);
-        return float4(work, atmosphere.limitReached != 0u ? 0.0f : 0.25f, 1.0f - work, 1);
+        return float4(work, atmosphere.limitReached != 0u ? 0.0f : 0.25f, 1.0f - work, 0);
     }
     if (_atmosphereSamplingMode == ATMOSPHERE_TRANSMITTANCE_DEBUG)
-        return float4(atmosphere.transmittance, 1);
+        return float4(atmosphere.transmittance, 0);
         
     const float3 composedHDR = backgroundRadiance * atmosphere.transmittance + atmosphere.inScattering;
-    return float4(composedHDR, 1);
+    // Alpha carries the sky-cloud resolve weight through bloom to the final HDR resolve.
+    return float4(composedHDR, resolveClouds ? resolveWeight : 0.0f);
 }
 #endif

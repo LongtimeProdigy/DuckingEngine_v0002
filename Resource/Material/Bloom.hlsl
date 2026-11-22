@@ -53,5 +53,6 @@ float4 PSVertical(VS_OUTPUT input) : SV_TARGET
     const Texture2D<float4> originalHDR = getTexture(_originalHdrIndex);
     const int2 pixel = int2(input.position.xy);
     const float3 bloom = blurBloom(source, pixel, int2(0, 1), false);
-    return float4(max(loadClamped(originalHDR, pixel) + bloom * _bloomStrength, 0.0f), 1);
+    const float4 original = loadClampedRGBA(originalHDR, pixel);
+    return float4(max(original.rgb + bloom * _bloomStrength, 0.0f), original.a);
 }

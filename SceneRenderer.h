@@ -49,6 +49,7 @@ namespace DK
 		bool initialize_renderPassHandles();
 		bool initialize_createMaterialDefinition();
 		bool initialize_createSceneConstantBuffer();
+		void updateCloudNoise(RenderModule& renderModule);
 		void updateAtmosphereTransmittanceLut();
         void updateAtmosphereSkyLighting();
         void updateAtmosphereMultipleScattering();
@@ -66,6 +67,7 @@ namespace DK
 
 		DKHashMap<uint64, MaterialDefinition> _materialDefinitionMap;
 
+		RenderPass* _cloudNoisePass = nullptr;
 		RenderPass* _transmittancePass = nullptr;
 		RenderPass* _multipleScatteringPass = nullptr;
 		RenderPass* _surfaceBouncePass = nullptr;
@@ -95,6 +97,12 @@ namespace DK
         // SceneConstant
 		SceneConstantBuffer _sceneConstantBufferData;
 		IBufferRef _sceneConstantBuffer = nullptr;
+
+        CloudConstantBuffer _cloudConstantBufferData;
+        IBufferRef _cloudConstantBuffer;
+        ITextureRef _cloudNoise;
+        ITextureRef _cloudWeather;
+        bool _cloudNoiseValid = false;
 
         // Atmosphere
         AtmosphereConstantBuffer _atmosphereConstantBufferData;

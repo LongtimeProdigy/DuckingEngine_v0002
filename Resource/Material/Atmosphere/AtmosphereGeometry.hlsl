@@ -22,16 +22,33 @@ float atmosphereHeight(float3 cameraRelativePosition)
     return numerator / (length(radial) + _densityReferenceRadius);//clamp(, 0, _atmosphereRadius - _densityReferenceRadius);
 }
 
+float atmosphereRadialProjection(float3 positionRelative, float3 direction, float height)
+{
+    const float radius = _densityReferenceRadius + height;
+    const float radialProjection = dot(positionRelative - _planetCentre, direction);
+    GPUASSERT(radius > 0.0f && abs(radialProjection) <= radius * (1.0f + FLOAT_EPSILON), float4(radialProjection, radius, height, length(direction)));
+    // A normalized ray at the radial pole can exceed the radius by float roundoff.
+    return clamp(radialProjection, -radius, radius);
+}
+
 float2 raySphere(const float3 sphereCentre, const float sphereRadius, const float3 rayOrigin, const float3 rayDir)
 {
     const float3 radial = rayOrigin - sphereCentre;
     const float altitude = atmosphereHeight(rayOrigin) + (_densityReferenceRadius - sphereRadius);
     const float c = altitude * (2.0f * sphereRadius + altitude);
     const float b = dot(radial, rayDir);
-    // A tangent ray makes b*b and c almost equal for a distant camera.
-    // Cross product gives the distance from the centre to the ray directly.
-    const float impact = length(cross(radial, rayDir));
-    const float determinant = (sphereRadius - impact) * (sphereRadius + impact);
+    float determinant;
+    if (altitude <= 0.1f * sphereRadius)
+    {
+        // Near a shell, the stable altitude keeps c small without subtracting two rounded radii.
+        determinant = mad(b, b, -c);
+    }
+    else
+    {
+        // A far tangent ray makes b*b and c almost equal. Use the perpendicular distance instead.
+        const float impact = length(cross(radial, rayDir));
+        determinant = (sphereRadius - impact) * (sphereRadius + impact);
+    }
     if (determinant < 0.0f)
         return float2(FLOAT_MAX, 0);
     const float root = sqrt(determinant);

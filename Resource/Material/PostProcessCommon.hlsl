@@ -14,9 +14,14 @@ VS_OUTPUT VSMain(VS_INPUT input)
     return output;
 }
 
+float4 loadClampedRGBA(Texture2D<float4> source, int2 position)
+{
+    return source.Load(int3(clamp(position, int2(0, 0), int2(_resolution) - 1), 0));
+}
+
 float3 loadClamped(Texture2D<float4> source, int2 position)
 {
-    return source.Load(int3(clamp(position, int2(0, 0), int2(_resolution) - 1), 0)).rgb;
+    return loadClampedRGBA(source, position).rgb;
 }
 
 #endif

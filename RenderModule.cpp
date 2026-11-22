@@ -990,17 +990,18 @@ namespace DK
 		DKVector<D3D12_ROOT_PARAMETER> rootParameters;
 		rootParameters.resize(2); // 기존 bindless SRV/UAV table
 
-		uint32 rootParameterIndex = 0;
-
-		// Bindless Texture 2D Table
+		// Bindless texture views share the same heap slots across dimensional register spaces.
 		// For SRV
 		DKVector<D3D12_DESCRIPTOR_RANGE> srvDescriptorTableRanges;
-		srvDescriptorTableRanges.resize(isRaytracing ? 4 : 1);
+		srvDescriptorTableRanges.resize(isRaytracing ? 5 : 2);
 		srvDescriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		srvDescriptorTableRanges[0].NumDescriptors = kMaxTextureSRVCount;// TEXTUREBINDLESS_MAX_COUNT;
 		srvDescriptorTableRanges[0].RegisterSpace = DK_BINDLESS_TEXTURE_SPACE;
 		srvDescriptorTableRanges[0].BaseShaderRegister = 0;
 		srvDescriptorTableRanges[0].OffsetInDescriptorsFromTableStart = 0;
+
+		srvDescriptorTableRanges.back() = srvDescriptorTableRanges[0];
+		srvDescriptorTableRanges.back().RegisterSpace = DK_BINDLESS_TEXTURE3D_SPACE;
 
 		if (isRaytracing)
 		{
@@ -1027,18 +1028,21 @@ namespace DK
 		srvDescriptorTable.NumDescriptorRanges = srvDescriptorTableRanges.size();
 		srvDescriptorTable.pDescriptorRanges = srvDescriptorTableRanges.data();
 
+		uint32 rootParameterIndex = 0;
 		rootParameters[rootParameterIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		rootParameters[rootParameterIndex].DescriptorTable = srvDescriptorTable;
 		rootParameters[rootParameterIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		++rootParameterIndex;
 
 		// For UAV
-		D3D12_DESCRIPTOR_RANGE  uavDescriptorTableRanges[1];
+		D3D12_DESCRIPTOR_RANGE uavDescriptorTableRanges[2];
 		uavDescriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		uavDescriptorTableRanges[0].NumDescriptors = kMaxTextureUAVCount;// TEXTUREBINDLESS_MAX_COUNT;
 		uavDescriptorTableRanges[0].RegisterSpace = DK_BINDLESS_TEXTURE_SPACE;
 		uavDescriptorTableRanges[0].BaseShaderRegister = 0;
 		uavDescriptorTableRanges[0].OffsetInDescriptorsFromTableStart = kMaxTextureSRVCount;
+		uavDescriptorTableRanges[1] = uavDescriptorTableRanges[0];
+		uavDescriptorTableRanges[1].RegisterSpace = DK_BINDLESS_TEXTURE3D_SPACE;
 		D3D12_ROOT_DESCRIPTOR_TABLE uavDescriptorTable;
 		uavDescriptorTable.NumDescriptorRanges = DK_COUNT_OF(uavDescriptorTableRanges);
 		uavDescriptorTable.pDescriptorRanges = &uavDescriptorTableRanges[0];
@@ -1051,7 +1055,7 @@ namespace DK
 		for(const ShaderResourceReflection& resource : resources)
 		{
 			// check bindless
-			if (resource._bindCount == 0 && (resource._space == DK_BINDLESS_TEXTURE_SPACE || resource._space == RaytracingRenderer::BINDLESSVERTEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSINDEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSMATERIALARRAY_SPACE)
+			if (resource._bindCount == 0 && (resource._space == DK_BINDLESS_TEXTURE_SPACE || resource._space == DK_BINDLESS_TEXTURE3D_SPACE || resource._space == RaytracingRenderer::BINDLESSVERTEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSINDEXARRAY_SPACE || resource._space == RaytracingRenderer::BINDLESSMATERIALARRAY_SPACE)
 				|| resource._type == D3D_SIT_SAMPLER)
 				continue;
 
@@ -2034,10 +2038,15 @@ namespace DK
 	}
 	IBufferRef RenderModule::createBuffer2DInternal(const uint32 width, const uint32 height, const uint32 mipLevelCount, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_HEAP_TYPE type, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName)
 	{
-		ID3D12Resource* buffer;
-		const CD3DX12_RESOURCE_DESC textureDesc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, 1, mipLevelCount, 1, 0, flags);
+		const CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Tex2D(format, width, height, 1, mipLevelCount, 1, 0, flags);
+		return createTextureBuffer(desc, state, clearValue, debugName);
+	}
+
+	IBufferRef RenderModule::createTextureBuffer(const D3D12_RESOURCE_DESC& desc, const D3D12_RESOURCE_STATES state, const D3D12_CLEAR_VALUE* clearValue, const wchar_t* debugName)
+	{
+		ID3D12Resource* buffer = nullptr;
 		const CD3DX12_HEAP_PROPERTIES defaultHeap(D3D12_HEAP_TYPE_DEFAULT);
-		HRESULT hr = _device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &textureDesc, state, clearValue, IID_PPV_ARGS(&buffer));
+		const HRESULT hr = _device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &desc, state, clearValue, IID_PPV_ARGS(&buffer));
 		if (FAILED(hr))
 		{
 			DK_ASSERT_LOG(false, "Texture creation failed");
@@ -2047,7 +2056,7 @@ namespace DK
 		buffer->SetName(debugName);
 #endif
 
-		return IBufferRef(dk_new IBuffer(RenderResourcePtr<ID3D12Resource>(buffer), width, height, 8 * 4, mipLevelCount, state));
+		return IBufferRef(dk_new IBuffer(RenderResourcePtr<ID3D12Resource>(buffer), static_cast<uint32>(desc.Width), desc.Height, 8 * 4, desc.MipLevels, state));
 	}
 
 	IBufferRef RenderModule::createConstantBuffer(const uint32 size, const wchar_t* debugName)
@@ -2153,8 +2162,16 @@ namespace DK
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Format = texture.getFormat();
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = texture.getMipLevelCount();
+		if (texture._textureBuffer._buffer->GetDesc().Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+		{
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+			srvDesc.Texture3D.MipLevels = texture.getMipLevelCount();
+		}
+		else
+		{
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2D.MipLevels = texture.getMipLevelCount();
+		}
 		textureDescriptorHeapHandle.ptr += index * _bindlessViewSize;
 		_device->CreateShaderResourceView(texture._textureBuffer._buffer.get(), &srvDesc, textureDescriptorHeapHandle);
 
@@ -2188,8 +2205,16 @@ namespace DK
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 		uavDesc.Format = texture.getFormat();
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		uavDesc.Texture2D.MipSlice = 0; // UAV로 접근할 Mip 레벨 지정
+		const D3D12_RESOURCE_DESC desc = texture._textureBuffer._buffer->GetDesc();
+		if (desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+		{
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+			uavDesc.Texture3D.WSize = desc.DepthOrArraySize;
+		}
+		else
+		{
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		}
 		textureDescriptorHeapHandle.ptr += (index + kMaxTextureSRVCount) * _bindlessViewSize;
 		_device->CreateUnorderedAccessView(texture._textureBuffer._buffer.get(), nullptr, &uavDesc, textureDescriptorHeapHandle);
 
@@ -2645,6 +2670,33 @@ namespace DK
 
 		return texture;
 	}
+	ITextureRef RenderModule::createTexture3D(const char* debugName, const uint32 width, const uint32 height, const uint32 depth, const DXGI_FORMAT format, const D3D12_RESOURCE_FLAGS flags, const D3D12_RESOURCE_STATES state, const bool createSRV, const bool createUAV)
+	{
+		constexpr uint32 maxDimension = D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;
+		if (width == 0 || height == 0 || depth == 0 || width > maxDimension || height > maxDimension || depth > maxDimension)
+		{
+			DK_ASSERT_LOG(false, "Invalid volume texture dimensions: %u x %u x %u", width, height, depth);
+			return nullptr;
+		}
+		if ((createSRV && (flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE)) || (createUAV && (flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == 0))
+		{
+			DK_ASSERT_LOG(false, "Volume texture flags do not allow requested views");
+			return nullptr;
+		}
+
+		const CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Tex3D(format, width, height, static_cast<uint16>(depth), 1, flags);
+		IBufferRef resource = createTextureBuffer(desc, state, nullptr, DK_DEBUG_NAME(StringUtil::convertCtoWC(debugName).c_str()));
+		if (resource == nullptr)
+			return nullptr;
+
+		ITextureRef texture(dk_new ITexture(debugName, 1, format, DK::move(resource)));
+		if (createSRV && allocateTextureSRV(*texture) == false)
+			return nullptr;
+		if (createUAV && allocateTextureUAV(*texture) == false)
+			return nullptr;
+		return texture;
+	}
+
 	static ITextureRef loadTexture2DDds(RenderModule& renderModule, const DKString& path, const DKString& fullPath)
 	{
 		struct DdsPixelFormat

@@ -780,16 +780,9 @@ namespace DK
 			const uint32 slotX = section._x % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
 			const uint32 slotZ = section._z % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
             const TerrainSectionConstants& metadata = constants._terrainSections[slotZ * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE + slotX];
-			if (metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z)
-			{
-				DK_ASSERT_LOG(metadata._terrainSectionResident == 0, "New need loading seciton, slot must be empty");
-				missingSections.push_back(sectionId);
-			}
-			if (metadata._terrainSectionResident == 0)
-			{
-				DK_ASSERT_LOG(metadata._terrainSectionX != section._x || metadata._terrainSectionZ != section._z == 0, "New need loading seciton, slot must be different");
-				missingSections.push_back(sectionId);
-			}
+            DK_ASSERT_LOG(metadata._terrainSectionResident == 0 || (metadata._terrainSectionX == section._x && metadata._terrainSectionZ == section._z), "A resident terrain slot must match the requested section");
+            if (metadata._terrainSectionResident == 0)
+                missingSections.push_back(sectionId);
         }
 
 		// Tile cache entry 업데이트

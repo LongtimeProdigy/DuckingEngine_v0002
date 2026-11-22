@@ -214,8 +214,8 @@ float3 getSunTransmittance(float3 cameraRelativePosition, float3 sunDir)
     // hit.x > 0은 대기밖에 cameraRelativePosition이 있으므로 heightAtReference가 대기의 높이임
     const float heightAtReference = hit.x > 0.0f ? _atmosphereRadius - _densityReferenceRadius : atmosphereHeight(origin);
     GPUASSERT(heightAtReference <= (_atmosphereRadius - _densityReferenceRadius), float4(heightAtReference, atmosphereTransitionHeight(), _atmosphereRadius - _densityReferenceRadius, 0));
-    GPUASSERT(abs(dot(origin - _planetCentre, sunDir)) <= _densityReferenceRadius + heightAtReference, float4(length(origin), length(_planetCentre), length(origin - _planetCentre), dot(origin - _planetCentre, sunDir)));
-    const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(heightAtReference, dot(origin - _planetCentre, sunDir), hit.y);
+    const float sunRadialProjection = atmosphereRadialProjection(origin, sunDir, heightAtReference);
+    const AtmosphereOpticalDepth optical = atmosphereSunOpticalDepth(heightAtReference, sunRadialProjection, hit.y);
     return exp(-atmosphereOpticalExtinction(optical.value));
 }
 
