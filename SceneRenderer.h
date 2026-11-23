@@ -3,13 +3,14 @@
 #include "Resource/Material/ShaderStructures.h"
 
 #include "Material.h"
-#include "RenderModule.h"
 
 namespace DK
 {
 	struct IBuffer;
 	class SkinnedMeshComponent;
     class RenderModule;
+	struct RenderPass;
+	struct RenderPassInstance;
 	struct MaterialDefinition;
 
 	class RaytracingRenderer;

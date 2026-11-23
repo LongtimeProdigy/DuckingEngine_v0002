@@ -10,7 +10,7 @@ Windows에서 C++과 DirectX 12로 개발 중인 액션 게임 엔진입니다. 
 
 Forest Valley는 **4.096 × 4.096 km** 월드를 16개 Section으로 나눕니다. 카메라 주변 3 × 3 Section의 저해상도 높이·법선과 가까운 Chunk의 상세 데이터를 비동기로 읽어 GPU 캐시에 올립니다. Geometry Clipmap은 LOD 경계에서 부모 격자로 모핑하고, 잔디 셰이더는 지형과 같은 높이 샘플링을 사용해 뿌리 위치를 계산합니다.
 
-[스트리밍 구현](TerrainStreaming.cpp) · [Clipmap 셰이더](Resource/Material/TerrainClipMap.hlsl) · [잔디 셰이더](Resource/Material/GrassPatch.hlsl) · [Terrain Cooker 문서](Tools/TerrainCooker/README.md)
+[Terrain 구현](Terrain.cpp) · [Terrain 셰이더 공통 코드](Resource/Material/Terrain.hlsl) · [Clipmap 셰이더](Resource/Material/TerrainClipMap.hlsl) · [잔디 셰이더](Resource/Material/GrassPatch.hlsl) · [Terrain Cooker 문서](Tools/TerrainCooker/README.md)
 
 ### 행성 규모 대기 렌더링
 
