@@ -1,8 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="StringUtil.cpp">
+      <Filter>0. Common</Filter>
+    </ClCompile>
+    <ClCompile Include="MathTypes.cpp">
       <Filter>0. Common</Filter>
     </ClCompile>
     <ClCompile Include="FileUtil.cpp">
@@ -127,13 +130,7 @@
     <ClCompile Include="RaytracingRenderer.cpp">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClCompile>
-    <ClCompile Include="TerrainStreaming.cpp">
-      <Filter>1. EngineCore\Resource</Filter>
-    </ClCompile>
-    <ClCompile Include="TerrainWorld.cpp">
-      <Filter>1. EngineCore\Resource</Filter>
-    </ClCompile>
-    <ClCompile Include="TerrainData.cpp">
+    <ClCompile Include="Terrain.cpp">
       <Filter>1. EngineCore\Resource</Filter>
     </ClCompile>
   </ItemGroup>
@@ -261,6 +258,12 @@
     <ClInclude Include="CommonLog.h">
       <Filter>0. Common</Filter>
     </ClInclude>
+    <ClInclude Include="MathTypes.h">
+      <Filter>0. Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Ref.h">
+      <Filter>0. Common</Filter>
+    </ClInclude>
     <ClInclude Include="CommonTypes.h">
       <Filter>0. Common</Filter>
     </ClInclude>
@@ -270,14 +273,8 @@
     <ClInclude Include="FileUtil.h">
       <Filter>0. Common</Filter>
     </ClInclude>
-    <ClInclude Include="TerrainWorld.h">
-      <Filter>1. EngineCore</Filter>
-    </ClInclude>
-    <ClInclude Include="TerrainData.h">
-      <Filter>1. EngineCore</Filter>
-    </ClInclude>
-    <ClInclude Include="TerrainStreaming.h">
-      <Filter>1. EngineCore</Filter>
+    <ClInclude Include="Terrain.h">
+      <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
     <ClInclude Include="MeshUtil.h">
       <Filter>0. Common</Filter>
@@ -291,7 +288,7 @@
     <ClInclude Include="GpuAssertDiagnostics.h">
       <Filter>1. EngineCore\Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Resource\Material\TerrainStreamingLimits.h">
+    <ClInclude Include="Resource\Material\TerrainShared.h">
       <Filter>1. EngineCore\Resource</Filter>
     </ClInclude>
   </ItemGroup>

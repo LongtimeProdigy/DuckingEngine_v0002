@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\Microsoft.Direct3D.D3D12.props" Condition="Exists('packages\Microsoft.Direct3D.D3D12.1.721.3-preview\build\native\Microsoft.Direct3D.D3D12.props')" />
   <ItemGroup Label="ProjectConfigurations">
@@ -60,16 +60,13 @@
     <ClCompile Include="StringUtil.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="MathTypes.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="FileUtil.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="TerrainData.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="TerrainWorld.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="TerrainStreaming.cpp">
+    <ClCompile Include="Terrain.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ShaderCompiler.cpp" />
@@ -154,15 +151,14 @@
     <ClInclude Include="RenderableComponent.h" />
     <ClInclude Include="SceneManager.h" />
     <ClInclude Include="CommonTypes.h" />
+    <ClInclude Include="MathTypes.h" />
+    <ClInclude Include="Ref.h" />
     <ClInclude Include="CommonLog.h" />
     <ClInclude Include="FileUtil.h" />
     <ClInclude Include="StringUtil.h" />
-    <ClInclude Include="TerrainData.h" />
-    <ClInclude Include="TerrainWorld.h" />
-    <ClInclude Include="Resource\Material\TerrainStreamingLimits.h" />
-    <ClInclude Include="Resource\Material\TerrainPageTable.h" />
+    <ClInclude Include="Terrain.h" />
+    <ClInclude Include="Resource\Material\TerrainShared.h" />
     <ClInclude Include="Resource\Material\ShaderStructures.h" />
-    <ClInclude Include="TerrainStreaming.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="GpuAssertDiagnostics.h" />
     <ClInclude Include="StaticMeshComponent.h" />

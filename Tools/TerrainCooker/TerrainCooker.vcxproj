@@ -43,8 +43,7 @@
     <ClCompile Include="TerrainCooker.cpp" />
     <ClCompile Include="..\..\FileUtil.cpp" />
     <ClCompile Include="..\..\StringUtil.cpp" />
-    <ClCompile Include="..\..\TerrainData.cpp" />
-    <ClCompile Include="..\..\TerrainWorld.cpp" />
+    <ClCompile Include="..\..\Terrain.cpp" />
     <ClCompile Include="..\..\lib\tinyXML\tinystr.cpp" />
     <ClCompile Include="..\..\lib\tinyXML\tinyxml.cpp" />
     <ClCompile Include="..\..\lib\tinyXML\tinyxmlerror.cpp" />

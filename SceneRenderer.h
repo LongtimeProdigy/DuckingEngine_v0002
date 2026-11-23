@@ -3,13 +3,14 @@
 #include "Resource/Material/ShaderStructures.h"
 
 #include "Material.h"
-#include "RenderModule.h"
 
 namespace DK
 {
 	struct IBuffer;
 	class SkinnedMeshComponent;
     class RenderModule;
+	struct RenderPass;
+	struct RenderPassInstance;
 	struct MaterialDefinition;
 
 	class RaytracingRenderer;
@@ -59,7 +60,7 @@ namespace DK
 #endif
         void updateSurfaceTransport();
         void drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, const SceneConstantBuffer& sceneConstantsData, bool includeDebug);
-    void drawGrass(RenderModule& renderModule);
+        void drawGrass(RenderModule& renderModule);
 
 	private:
         static constexpr uint32 kAtmosphereLutWidth = ATMOSPHERE_LUT_WIDTH;

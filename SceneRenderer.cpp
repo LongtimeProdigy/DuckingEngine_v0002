@@ -955,49 +955,30 @@ namespace DK
 			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
 
 			const TerrainStreamingConstants& streaming = terrain._streamingConstants;
-			const float2 cameraPos(streaming._terrainCameraAnchorRelativeWorldX, streaming._terrainCameraAnchorRelativeWorldZ);
+			const float2 cameraLocalXZ(streaming._terrainCameraLocalX, streaming._terrainCameraLocalZ);
 
 			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
 			constexpr const uint32 morphCells = 4; // 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
 			static_assert(morphCells > 0);
 			static_assert(morphCells <= SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
 
-            const double anchorWorldX = streaming._terrainOriginWorldX + double(streaming._terrainAnchorSampleX) * streaming._terrainSampleWorldSpacing;
-            const double anchorWorldZ = streaming._terrainOriginWorldZ + double(streaming._terrainAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
+            const double cameraAnchorWorldX = streaming._terrainOriginWorldX + double(streaming._terrainCameraAnchorSampleX) * streaming._terrainSampleWorldSpacing;
+            const double cameraAnchorWorldZ = streaming._terrainOriginWorldZ + double(streaming._terrainCameraAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
 
-			// 입력 위치를 월드 원점 기준의 격자에 맞춘 뒤, Anchor 상대 좌표로 돌려주는 함수
+			// 카메리 위치를 월드 원점 기준의 각 Level Scale 격자에 맞춘 뒤, Anchor 상대 좌표로 돌려주는 함수
 			const DKFunction<float2(float)> snapTerrainGrid = [&](float spacing)->float2
 				{
-					const double x = std::floor((anchorWorldX + double(cameraPos.x)) / spacing) * spacing - anchorWorldX;
-					const double z = std::floor((anchorWorldZ + double(cameraPos.y)) / spacing) * spacing - anchorWorldZ;
+					const double x = std::floor((cameraAnchorWorldX + double(cameraLocalXZ.x)) / spacing) * spacing - cameraAnchorWorldX;
+					const double z = std::floor((cameraAnchorWorldZ + double(cameraLocalXZ.y)) / spacing) * spacing - cameraAnchorWorldZ;
 					return float2(static_cast<float>(x), static_cast<float>(z));
 				};
 
-#if defined(_DK_DEBUG_)
-			const SceneManager::Mesh* meshes[] = { &terrain._cross, &terrain._patch, &terrain._filter, &terrain._seam, &terrain._trim };
-#endif
 			uint32 bufferIndex = 0;
 			const DKFunction<void(uint32, uint32, float2, uint32)> uploadPatch = [&](const uint32 level, const uint32 type, const float2 patchOrigin, const uint32 rotation)
 				{
 					const float spacing = static_cast<float>(1u << level) * vertexScale;
-#if defined(_DK_DEBUG_)
-					const SceneManager::Mesh& mesh = *meshes[type];
-					for (uint32 corner = 0; corner < 4; ++corner)
-					{
-						float2 position((corner & 1u) ? mesh._maximum.x : mesh._minimum.x, (corner & 2u) ? mesh._maximum.y : mesh._minimum.y);
-						if (rotation == 1u)
-							position = float2(position.y, -position.x);
-						else if (rotation == 2u)
-							position = float2(-position.y, position.x);
-						else if (rotation == 3u)
-							position = float2(-position.x, -position.y);
-						const double worldX = anchorWorldX + double(patchOrigin.x) + double(position.x) * spacing;
-						const double worldZ = anchorWorldZ + double(patchOrigin.y) + double(position.y) * spacing;
-						//DK_ASSERT_LOG(worldX >= 0.0 && worldZ >= 0.0 && worldX <= double(streaming._terrainCellCountX) * streaming._terrainSampleWorldSpacing && worldZ <= double(streaming._terrainCellCountZ) * streaming._terrainSampleWorldSpacing, "Terrain mesh outside bounds: level=%u, type=%u, worldXZ=(%.3f, %.3f)", level, type, worldX, worldZ);
-					}
-#endif
 					const float parentSpacing = spacing * 2.0f;
-					const float2 parentOrigin = snapTerrainGrid(parentSpacing);
+					const float2 parentOriginRelativeWorldXZ = snapTerrainGrid(parentSpacing);
 
 					// 현재 Clipmap 배치에서 실제 외곽 경계는 카메라로부터 각 축 방향으로 최소 2*T*spacing만큼 떨어져 있다.
 					const float morphEnd = 2.0f * static_cast<float>(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
@@ -1005,12 +986,11 @@ namespace DK
 
 					TerrainMeshConstantBuffer cb{};
 					cb._baseXY_scale_rotate = float4( patchOrigin.x, patchOrigin.y, spacing, static_cast<float>(rotation));
-					cb._morphCenter_start_end = float4( cameraPos.x, cameraPos.y, morphStart, morphEnd);
-					cb._parentOrigin_spacing = float4( parentOrigin.x, parentOrigin.y, parentSpacing, 0.0f);
+					cb._morphCenter_start_end = float4( cameraLocalXZ.x, cameraLocalXZ.y, morphStart, morphEnd);
+					cb._parentOriginRelativeWorldXZ = parentOriginRelativeWorldXZ;
 					cb._type = type;
 					cb._level = level;
 					cb._hasParent = (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS) ? 1u : 0u;
-					cb._padding = 0;
 					DK_ASSERT_LOG(bufferIndex < terrain._terrainConstantBuffer.size(), "Clipmap constant buffer count mismatch.");
 					terrain._terrainConstantBuffer[bufferIndex++]->upload(&cb);
 				};
@@ -1042,19 +1022,19 @@ namespace DK
 				// Filler: 현재 코드에서는 Filter라는 이름을 사용한다.
 				uploadPatch(level, 2u, snappedCameraPos, 0u);
 
-				const float2 parentOrigin = snapTerrainGrid(spacing * 2.0f);
+				const float2 parentOriginRelativeWorldXZ = snapTerrainGrid(spacing * 2.0f);
 
 				// Seam: 부모가 있는 레벨만 생성한다.
 				if (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
 				{
-					const float2 seamOrigin = parentOrigin - gridScale * 2.0f;
+					const float2 seamOrigin = parentOriginRelativeWorldXZ - gridScale * 2.0f;
 					uploadPatch(level, 3u, seamOrigin, 0u);
 				}
 
 				// Trim
 				if ((level + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
 				{
-					const float2 d = cameraPos - parentOrigin;
+					const float2 d = cameraLocalXZ - parentOriginRelativeWorldXZ;
 					const uint32 rotation = (d.x < spacing ? 2u : 0u) | (d.y < spacing ? 1u : 0u);
 					const float2 trimOrigin = snappedCameraPos + float2(spacing * 0.5f, spacing * 0.5f);
 					uploadPatch(level, 4u, trimOrigin, rotation);
@@ -2055,12 +2035,12 @@ namespace DK
         const int lastTileZ = tileAt(maxZ);
         constexpr float bladeOverhang = 1.2f;
         const double grassCellMeters = double(GRASS_TILE_METERS) / grass._tileGridSide;
-        const double anchorX = streaming._terrainOriginWorldX + double(streaming._terrainAnchorSampleX) * streaming._terrainSampleWorldSpacing;
-        const double anchorZ = streaming._terrainOriginWorldZ + double(streaming._terrainAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
-        const int32 grassAnchorX = static_cast<int32>(std::floor(anchorX / grassCellMeters));
-        const int32 grassAnchorZ = static_cast<int32>(std::floor(anchorZ / grassCellMeters));
-        const float grassOffsetX = static_cast<float>(anchorX - double(grassAnchorX) * grassCellMeters);
-        const float grassOffsetZ = static_cast<float>(anchorZ - double(grassAnchorZ) * grassCellMeters);
+        const double cameraAnchorWorldX = streaming._terrainOriginWorldX + double(streaming._terrainCameraAnchorSampleX) * streaming._terrainSampleWorldSpacing;
+        const double cameraAnchorWorldZ = streaming._terrainOriginWorldZ + double(streaming._terrainCameraAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
+        const int32 grassAnchorX = static_cast<int32>(std::floor(cameraAnchorWorldX / grassCellMeters));
+        const int32 grassAnchorZ = static_cast<int32>(std::floor(cameraAnchorWorldZ / grassCellMeters));
+        const float grassOffsetX = static_cast<float>(cameraAnchorWorldX - double(grassAnchorX) * grassCellMeters);
+        const float grassOffsetZ = static_cast<float>(cameraAnchorWorldZ - double(grassAnchorZ) * grassCellMeters);
         RenderModule& currentRenderModule = renderModule;
         startPipeline("GrassPatchPipeline");
         setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);

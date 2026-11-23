@@ -1,6 +1,15 @@
 ﻿#pragma once
 
+#if defined(_DEBUG) && defined(_DK_DEBUG_) == 0
+#define _DK_DEBUG_
+#endif
+
 #define dk_inline inline
+#define dk_new new
+#define dk_delete delete
+#define dk_delete_array delete[]
+
+#define DK_COUNT_OF(value) DK::countOf(value)
 
 #include <array>
 #include <cstddef>
@@ -21,11 +30,17 @@ typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
+typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
 namespace DK
 {
+    template<typename T, size_t Count> dk_inline constexpr size_t countOf(const T (&)[Count]) noexcept
+    {
+        return Count;
+    }
+
     template<typename Signature> using DKFunction = std::function<Signature>;
     using DKString = std::string;
     using DKStringW = std::wstring;
