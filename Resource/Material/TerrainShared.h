@@ -1,5 +1,9 @@
-﻿#ifndef DK_TERRAIN_PAGE_TABLE_H
-#define DK_TERRAIN_PAGE_TABLE_H
+﻿#ifndef DK_TERRAIN_SHARED_H
+#define DK_TERRAIN_SHARED_H
+
+// 카메라의 중심 Section과 인접 Section을 저장하는 CPU/GPU 공통 atlas 배치다.
+#define TERRAIN_SECTION_SLOT_COUNT_PER_SIDE 3u
+#define TERRAIN_SECTION_SLOT_COUNT (TERRAIN_SECTION_SLOT_COUNT_PER_SIDE * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE)
 
 #ifdef __cplusplus
 #include "../../CommonTypes.h"

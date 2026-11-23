@@ -59,7 +59,7 @@ namespace DK
 #endif
         void updateSurfaceTransport();
         void drawSceneGeometry(RenderModule& renderModule, const IBufferRef& sceneConstants, const SceneConstantBuffer& sceneConstantsData, bool includeDebug);
-    void drawGrass(RenderModule& renderModule);
+        void drawGrass(RenderModule& renderModule);
 
 	private:
         static constexpr uint32 kAtmosphereLutWidth = ATMOSPHERE_LUT_WIDTH;

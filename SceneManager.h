@@ -3,8 +3,7 @@
 #include "Resource/Material/ShaderStructures.h"
 
 #include "RenderModule.h"	// TODO: TextureResourceViewType때문에 있는데.. 분리하자
-#include "TerrainData.h"
-#include "TerrainStreaming.h"
+#include "Terrain.h"
 #include "Resource/Material/GrassTiles.h"
 
 namespace DK
@@ -22,26 +21,13 @@ namespace DK
 		{
 			Mesh()
 			{}
-			Mesh(IBufferRef&& vertexBuffer, IBufferRef&& indexBuffer, const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount, const DKVector<float2>& vertices = {})
+			Mesh(IBufferRef&& vertexBuffer, IBufferRef&& indexBuffer, const VertexBufferViewRef& vertexBufferView, const IndexBufferViewRef& indexBufferView, const uint32 indexCount)
 				: _vertexBuffer(DK::move(vertexBuffer))
 				, _indexBuffer(DK::move(indexBuffer))
 				, _vertexBufferView(vertexBufferView)
 				, _indexBufferView(indexBufferView)
 				, _indexCount(indexCount)
-			{
-				if (vertices.empty() == false)
-				{
-					_minimum = vertices.front();
-					_maximum = vertices.front();
-					for (const float2& vertex : vertices)
-					{
-						_minimum.x = Math::min(_minimum.x, vertex.x);
-						_minimum.y = Math::min(_minimum.y, vertex.y);
-						_maximum.x = Math::max(_maximum.x, vertex.x);
-						_maximum.y = Math::max(_maximum.y, vertex.y);
-					}
-				}
-			}
+			{}
 
 		public:
 			IBufferRef _vertexBuffer;
@@ -49,8 +35,6 @@ namespace DK
 			VertexBufferViewRef _vertexBufferView = nullptr;
 			IndexBufferViewRef _indexBufferView = nullptr;
 			uint32 _indexCount = 0;
-			float2 _minimum = float2::Zero;
-			float2 _maximum = float2::Zero;
 		};
 
 		struct PostProcess
@@ -98,8 +82,8 @@ namespace DK
 			ITextureRef _heightCache;
 			ITextureRef _normalCache;
 			ITextureRef _pageTable;
-			ITextureRef _tailHeight;
-			ITextureRef _tailNormal;
+			ITextureRef _overviewHeightAtlas;
+			ITextureRef _overviewNormalAtlas;
 			DKVector<TileCacheEntry> _tileCacheEntries;
 			static constexpr uint32 CACHE_SLOTS_PER_LOD = 72;
 

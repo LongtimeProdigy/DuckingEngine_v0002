@@ -7,10 +7,11 @@
 #ifndef DK_SHADER_STRUCTURE_TYPES
 #define DK_SHADER_STRUCTURE_TYPES
 #include "SkinningLimits.h"
-#include "TerrainStreamingLimits.h"
+#include "TerrainShared.h"
 #include "Atmosphere/AtmosphereLimits.h"
 #ifdef __cplusplus
-#include "../../stdafx.h"
+#include "../../MathTypes.h"
+#include "../../Ref.h"
 #define DK_SHADER_UINT uint32
 #define DK_SHADER_INT int32
 #define DK_SHADER_CONST const
@@ -20,6 +21,7 @@
 #define DK_SHADER_CBUFFER(name, slot) struct name
 #define DK_SHADER_ARRAY(type, name, count) DKArray<type, count> name
 #define DK_SHADER_UINT2(name) uint32 name[2]
+#define DK_SHADER_UINT3(name) uint32 name[3]
 #define DK_SHADER_UINT4(name) uint32 name[4]
 #define DK_SHADER_FLOAT2(name) float name[2]
 #define DK_SHADER_FLOAT3(name) float name[3]
@@ -34,6 +36,7 @@
 #define DK_SHADER_CBUFFER(name, slot) cbuffer name : register(slot)
 #define DK_SHADER_ARRAY(type, name, count) type name[count]
 #define DK_SHADER_UINT2(name) uint2 name
+#define DK_SHADER_UINT3(name) uint3 name
 #define DK_SHADER_UINT4(name) uint4 name
 #define DK_SHADER_FLOAT2(name) float2 name
 #define DK_SHADER_FLOAT3(name) float3 name
@@ -185,11 +188,11 @@ cbuffer TerrainMeshConstantBuffer : register(b2)
 {
     float4 _baseXY_scale_rotate; // xy: Anchor 상대 패치 원점 XZ, z: 현재 정점 간격, w: 회전 번호 0~3
     float4 _morphCenter_start_end; // xy: Anchor 상대 카메라 XZ, z/w: 모핑 시작/종료 거리
-    float4 _parentOrigin_spacing; // xy: Anchor 상대 부모 레벨 스냅 원점, z: 부모 정점 간격, w: 예약
+    float2 _parentOriginRelativeWorldXZ; // Anchor 상대 부모 레벨 스냅 원점 XZ
     DK_SHADER_UINT _type;
     DK_SHADER_UINT _level;
     DK_SHADER_UINT _hasParent;
-    DK_SHADER_UINT _padding;
+    DK_SHADER_UINT3(_padding);
 };
 #endif
 #endif
@@ -243,12 +246,8 @@ DK_SHADER_CBUFFER(OceanParams, b1)
 #define DK_SHARED_TERRAIN_SECTION_CONSTANTS
 struct DK_SHADER_ALIGN16 TerrainSectionConstants
 {
-    DK_SHADER_UINT _terrainSectionX DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainSectionZ DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainSectionCellCountX DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainSectionCellCountZ DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainSectionOverviewSampleCountX DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainSectionOverviewSampleCountZ DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainSectionIndexX DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainSectionIndexZ DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainSectionResident DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainSectionPadding DK_SHADER_DEFAULT(0);
 };
@@ -268,8 +267,8 @@ cbuffer TerrainStreamingConstants : register(b3)
     DK_SHADER_UINT _terrainHeightCacheSRV DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainNormalCacheSRV DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainPageTableSRV DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainOverviewHeightSRV DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainOverviewNormalSRV DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainOverviewHeightAtlasSRV DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainOverviewNormalAtlasSRV DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainCacheSlotColumnCount DK_SHADER_DEFAULT(8);
     DK_SHADER_UINT _terrainCacheSlotRowCount DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainCacheSlotTexelCountPerSide DK_SHADER_DEFAULT(0);
@@ -281,13 +280,13 @@ cbuffer TerrainStreamingConstants : register(b3)
     DK_SHADER_UINT _terrainChunkCellCountPerSide DK_SHADER_DEFAULT(128);
     DK_SHADER_UINT _terrainSectionCellCountPerSide DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainOverviewLod DK_SHADER_DEFAULT(3);
-    DK_SHADER_UINT _terrainOverviewSampleCountX DK_SHADER_DEFAULT(0);
-    DK_SHADER_UINT _terrainOverviewSampleCountZ DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainOverviewAtlasTexelCountX DK_SHADER_DEFAULT(0);
+    DK_SHADER_UINT _terrainOverviewAtlasTexelCountY DK_SHADER_DEFAULT(0);
     DK_SHADER_UINT _terrainPageTableWidth DK_SHADER_DEFAULT(0);
-    float _terrainCameraAnchorRelativeWorldX DK_SHADER_DEFAULT(0);
-    float _terrainCameraAnchorRelativeWorldZ DK_SHADER_DEFAULT(0);
-    DK_SHADER_INT _terrainAnchorSampleX DK_SHADER_DEFAULT(0);
-    DK_SHADER_INT _terrainAnchorSampleZ DK_SHADER_DEFAULT(0);
+    float _terrainCameraLocalX DK_SHADER_DEFAULT(0);
+    float _terrainCameraLocalZ DK_SHADER_DEFAULT(0);
+    DK_SHADER_INT _terrainCameraAnchorSampleX DK_SHADER_DEFAULT(0);
+    DK_SHADER_INT _terrainCameraAnchorSampleZ DK_SHADER_DEFAULT(0);
     float _terrainCameraWorldX DK_SHADER_DEFAULT(0);
     float _terrainCameraWorldZ DK_SHADER_DEFAULT(0);
     float _terrainLod0WorldRadius DK_SHADER_DEFAULT(128.0f);
@@ -446,11 +445,14 @@ struct GpuAssertRecord
     static_assert(sizeof(StaticMeshInstance) == 64);
     static_assert(sizeof(SceneObjectConstantBuffer) == 64);
     static_assert(sizeof(TerrainMeshConstantBuffer) == 64);
-    static_assert(offsetof(TerrainMeshConstantBuffer, _type) == 48);
+    static_assert(offsetof(TerrainMeshConstantBuffer, _parentOriginRelativeWorldXZ) == 32);
+    static_assert(offsetof(TerrainMeshConstantBuffer, _type) == 40 && offsetof(TerrainMeshConstantBuffer, _level) == 44);
+    static_assert(offsetof(TerrainMeshConstantBuffer, _hasParent) == 48 && offsetof(TerrainMeshConstantBuffer, _padding) == 52);
     static_assert(sizeof(OceanParams) == 64);
     static_assert(offsetof(OceanParams, _N) == 32);
-    static_assert(sizeof(TerrainSectionConstants) == 32);
-    static_assert(sizeof(TerrainStreamingConstants) == 432);
+    static_assert(sizeof(TerrainSectionConstants) == 16);
+    static_assert(offsetof(TerrainSectionConstants, _terrainSectionResident) == 8);
+    static_assert(sizeof(TerrainStreamingConstants) == 288);
     static_assert(offsetof(TerrainStreamingConstants, _terrainPageTableWidth) == 76);
     static_assert(offsetof(TerrainStreamingConstants, _terrainMinimumSampleX) == 128);
     static_assert(offsetof(TerrainStreamingConstants, _terrainMinimumSampleZ) == 132);
