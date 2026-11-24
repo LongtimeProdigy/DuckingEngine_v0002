@@ -6,5 +6,6 @@
 	       MapOriginX="0" MapOriginZ="0" MapWidth="2047" MapDepth="2047" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyTrees.xml" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyGroundCover.xml" />
+	<StaticMeshPlacements Path="Scenes/ForestValleyPasture.xml" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyBackdrop.xml" />
 </Level>

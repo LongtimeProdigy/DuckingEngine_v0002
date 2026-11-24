@@ -1,0 +1,38 @@
+<StaticMeshPlacements>
+	<Model Path="Object/Model/ForestValley/Pasture/PastureGrassLeaves.glb">
+		<Instance X="1045.708" Y="6.068" Z="1302.967" Yaw="2.8296" Scale="1.102" />
+		<Instance X="1042.382" Y="6.087" Z="1302.234" Yaw="1.8138" Scale="0.968" />
+		<Instance X="1044.210" Y="6.010" Z="1306.182" Yaw="6.0384" Scale="1.178" />
+		<Instance X="1045.360" Y="6.081" Z="1302.302" Yaw="2.4122" Scale="1.147" />
+		<Instance X="1041.792" Y="6.075" Z="1302.962" Yaw="4.5965" Scale="1.127" />
+		<Instance X="1043.791" Y="6.025" Z="1305.439" Yaw="5.4660" Scale="1.043" />
+		<Instance X="1044.366" Y="6.024" Z="1305.449" Yaw="5.1261" Scale="1.154" />
+		<Instance X="1045.178" Y="6.032" Z="1304.938" Yaw="1.1867" Scale="0.911" />
+		<Instance X="1042.108" Y="5.933" Z="1310.524" Yaw="5.4832" Scale="0.855" />
+		<Instance X="1041.347" Y="5.958" Z="1309.298" Yaw="5.8511" Scale="1.162" />
+		<Instance X="1041.485" Y="5.984" Z="1307.891" Yaw="1.8058" Scale="1.040" />
+		<Instance X="1042.445" Y="5.986" Z="1307.679" Yaw="3.2371" Scale="0.978" />
+		<Instance X="1040.221" Y="5.974" Z="1308.593" Yaw="6.2442" Scale="1.174" />
+		<Instance X="1049.714" Y="5.937" Z="1309.629" Yaw="4.2823" Scale="0.950" />
+		<Instance X="1049.603" Y="5.866" Z="1313.420" Yaw="1.0780" Scale="0.873" />
+		<Instance X="1049.012" Y="5.931" Z="1310.012" Yaw="2.4068" Scale="1.129" />
+		<Instance X="1046.834" Y="5.914" Z="1311.108" Yaw="0.4175" Scale="0.901" />
+		<Instance X="1051.157" Y="5.868" Z="1313.159" Yaw="3.9488" Scale="1.090" />
+		<Instance X="1048.549" Y="5.891" Z="1312.180" Yaw="4.4995" Scale="0.912" />
+		<Instance X="1049.538" Y="5.857" Z="1313.923" Yaw="0.6157" Scale="1.113" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/Pasture/PastureGrassSeedheads.glb">
+		<Instance X="1042.645" Y="6.055" Z="1303.925" Yaw="3.5058" Scale="0.977" />
+		<Instance X="1044.571" Y="6.031" Z="1305.027" Yaw="0.4733" Scale="1.020" />
+		<Instance X="1045.320" Y="5.999" Z="1306.709" Yaw="1.5416" Scale="0.998" />
+		<Instance X="1044.791" Y="6.068" Z="1303.077" Yaw="0.3893" Scale="0.991" />
+		<Instance X="1044.647" Y="6.085" Z="1302.171" Yaw="6.1487" Scale="0.856" />
+		<Instance X="1041.146" Y="5.967" Z="1308.840" Yaw="5.3345" Scale="0.976" />
+		<Instance X="1044.039" Y="5.953" Z="1309.287" Yaw="4.8464" Scale="1.093" />
+		<Instance X="1043.031" Y="5.993" Z="1307.243" Yaw="1.7235" Scale="1.167" />
+		<Instance X="1048.314" Y="5.952" Z="1308.932" Yaw="1.0468" Scale="0.875" />
+		<Instance X="1051.084" Y="5.911" Z="1310.947" Yaw="2.2656" Scale="1.111" />
+		<Instance X="1052.098" Y="5.927" Z="1310.016" Yaw="3.2677" Scale="1.069" />
+		<Instance X="1050.021" Y="5.881" Z="1312.601" Yaw="2.6931" Scale="0.996" />
+	</Model>
+</StaticMeshPlacements>
