@@ -18,7 +18,7 @@ namespace DK
         if (lod == 0)
             return 0;
 
-        // LOD마다 행 수가 절반이므로 앞선 LOD의 행 수 합은 2N - N / 2^(lod - 1)이다.
+        // LOD마다 행 수가 절반이므로 앞선 LOD의 행 수 합은 등비수열의 합 2N - N / 2^(lod - 1)이다.
         return sectionLod0TileCountPerSide * 2 - (sectionLod0TileCountPerSide >> (lod - 1));
     }
 #ifdef __cplusplus

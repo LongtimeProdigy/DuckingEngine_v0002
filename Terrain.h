@@ -94,26 +94,21 @@ namespace DK
         DKString _archivePath;       // terrain.xml의 디렉터리를 기준으로 결합한 Section Archive 경로
     };
 
-    struct TerrainWorldSettings
-    {
-        uint32 _sampleCountX = 0;
-        uint32 _sampleCountZ = 0;
-        uint32 _chunkCellCountPerSide = 128;
-        float _sampleWorldSpacing = 0.5f;
-        float _baseWorldHeight = -16;
-        float _worldHeightRange = 128;
-    };
-
     struct TerrainWorld
     {
-        TerrainWorldSettings _settings;
-        uint32 _sectionCellCountPerSide = 0;    // 모든 Section에 공통인 한 변의 셀 수. 샘플 수는 셀 수 + 1이며, 전체 지형의 X/Z 셀 수를 나누어떨어지게 해야 한다.
-        uint32 _sectionCountX = 0;             // 전체 지형을 X축으로 나눈 Section 개수
-        uint32 _sectionCountZ = 0;             // 전체 지형을 Z축으로 나눈 Section 개수
-        int32 _minimumSampleX = 0;            // 전체 지형 X축 최소 샘플 좌표. Section (0, 0)의 X축 시작점
-        int32 _minimumSampleZ = 0;            // 전체 지형 Z축 최소 샘플 좌표. Section (0, 0)의 Z축 시작점
-        uint32 _overviewLod = 0;               // Section 전체의 저해상도 Height·Normal에 사용하는 LOD. 샘플 간격은 원본의 2^LOD배다.
-        DKVector<TerrainSection> _sections;    // 전체 Section의 경로·격자 위치 목록. Z행 안에서 X가 증가하는 순서이며 인덱스는 Section ID와 같다.
+        uint32 _sampleCountX = 0;             // 전체 지형의 LOD0 X축 샘플 수. 셀 수는 샘플 수 - 1이다.
+        uint32 _sampleCountZ = 0;             // 전체 지형의 LOD0 Z축 샘플 수. 셀 수는 샘플 수 - 1이다.
+        uint32 _chunkCellCountPerSide = 128;  // 스트리밍 Tile 한 변의 셀 수. LOD와 관계없이 샘플 수는 이 값 + 1이다.
+        float _sampleWorldSpacing = 0.5f;     // LOD0에서 인접한 지형 샘플 사이의 월드 거리(m). LOD별 간격은 이 값의 2^LOD배다.
+        float _baseWorldHeight = -16;         // 정규화 높이 0에 대응하는 월드 Y 좌표(m).
+        float _worldHeightRange = 128;        // 정규화 높이 0~1에 대응하는 월드 높이 범위(m). 월드 높이는 기준 높이 + 정규화 높이 * 범위다.
+        uint32 _sectionCellCountPerSide = 0;  // Section 한 변의 LOD0 셀 수. 전체 지형의 X/Z 셀 수를 나누어떨어지게 해야 한다.
+        uint32 _sectionCountX = 0;            // 전체 지형을 X축으로 나눈 Section 개수.
+        uint32 _sectionCountZ = 0;            // 전체 지형을 Z축으로 나눈 Section 개수.
+        int32 _minimumSampleX = 0;            // Section (0, 0)이 시작하는 X축 LOD0 샘플 인덱스. 지형 원점 기준 월드 거리는 이 값 * 샘플 간격이다.
+        int32 _minimumSampleZ = 0;            // Section (0, 0)이 시작하는 Z축 LOD0 샘플 인덱스. 지형 원점 기준 월드 거리는 이 값 * 샘플 간격이다.
+        uint32 _overviewLod = 0;              // Section 전체의 저해상도 Height·Normal LOD. 스트리밍 Tile은 LOD0부터 이 값 - 1까지 사용한다.
+        DKVector<TerrainSection> _sections;   // 전체 Section의 경로·격자 위치 목록. 인덱스는 Section ID이며 Z축 행 안에서 X축 순서로 배치한다.
 
         bool open(const DKString& path);
 #if defined(_DK_DEBUG_)

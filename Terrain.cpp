@@ -201,10 +201,10 @@ namespace DK
         const TiXmlElement* root = document.FirstChildElement("TerrainWorld");
         uint32 version = 0;
         if (document.Error() || root == nullptr || root->QueryUnsignedAttribute("Version", &version) != TIXML_SUCCESS || version != 1 ||
-            root->QueryUnsignedAttribute("Width", &_settings._sampleCountX) != TIXML_SUCCESS || root->QueryUnsignedAttribute("Height", &_settings._sampleCountZ) != TIXML_SUCCESS ||
-            root->QueryUnsignedAttribute("ChunkCells", &_settings._chunkCellCountPerSide) != TIXML_SUCCESS || root->QueryUnsignedAttribute("SectionCells", &_sectionCellCountPerSide) != TIXML_SUCCESS ||
-            root->QueryUnsignedAttribute("OverviewLod", &_overviewLod) != TIXML_SUCCESS || root->QueryFloatAttribute("SampleSpacing", &_settings._sampleWorldSpacing) != TIXML_SUCCESS ||
-            root->QueryFloatAttribute("HeightOffset", &_settings._baseWorldHeight) != TIXML_SUCCESS || root->QueryFloatAttribute("HeightScale", &_settings._worldHeightRange) != TIXML_SUCCESS)
+            root->QueryUnsignedAttribute("Width", &_sampleCountX) != TIXML_SUCCESS || root->QueryUnsignedAttribute("Height", &_sampleCountZ) != TIXML_SUCCESS ||
+            root->QueryUnsignedAttribute("ChunkCells", &_chunkCellCountPerSide) != TIXML_SUCCESS || root->QueryUnsignedAttribute("SectionCells", &_sectionCellCountPerSide) != TIXML_SUCCESS ||
+            root->QueryUnsignedAttribute("OverviewLod", &_overviewLod) != TIXML_SUCCESS || root->QueryFloatAttribute("SampleSpacing", &_sampleWorldSpacing) != TIXML_SUCCESS ||
+            root->QueryFloatAttribute("HeightOffset", &_baseWorldHeight) != TIXML_SUCCESS || root->QueryFloatAttribute("HeightScale", &_worldHeightRange) != TIXML_SUCCESS)
         {
             DK_ASSERT_LOG(false, "Invalid terrain world manifest: %s", path.c_str());
             return false;
@@ -215,37 +215,37 @@ namespace DK
             return false;
         }
 #if defined(_DK_DEBUG_)
-        if (_settings._sampleCountX < 2 || _settings._sampleCountZ < 2 || _settings._sampleCountX > 0x7fffffffu || _settings._sampleCountZ > 0x7fffffffu ||
-            _settings._chunkCellCountPerSide < 2 || _settings._chunkCellCountPerSide > 512 || (_settings._chunkCellCountPerSide & (_settings._chunkCellCountPerSide - 1u)) != 0 ||
-            _sectionCellCountPerSide < _settings._chunkCellCountPerSide || _sectionCellCountPerSide > 524288 || (_sectionCellCountPerSide & (_sectionCellCountPerSide - 1u)) != 0 ||
-            _overviewLod == 0 || _overviewLod >= mipCount(_settings._chunkCellCountPerSide) || (uint64(_settings._chunkCellCountPerSide) << (_overviewLod - 1)) > _sectionCellCountPerSide ||
-            std::isfinite(_settings._sampleWorldSpacing) == false || _settings._sampleWorldSpacing <= 0.0f || std::isfinite(_settings._baseWorldHeight) == false ||
-            std::isfinite(_settings._worldHeightRange) == false || _settings._worldHeightRange <= 0.0f || std::isfinite(_settings._baseWorldHeight + _settings._worldHeightRange) == false)
+        if (_sampleCountX < 2 || _sampleCountZ < 2 || _sampleCountX > 0x7fffffffu || _sampleCountZ > 0x7fffffffu ||
+            _chunkCellCountPerSide < 2 || _chunkCellCountPerSide > 512 || (_chunkCellCountPerSide & (_chunkCellCountPerSide - 1u)) != 0 ||
+            _sectionCellCountPerSide < _chunkCellCountPerSide || _sectionCellCountPerSide > 524288 || (_sectionCellCountPerSide & (_sectionCellCountPerSide - 1u)) != 0 ||
+            _overviewLod == 0 || _overviewLod >= mipCount(_chunkCellCountPerSide) || (uint64(_chunkCellCountPerSide) << (_overviewLod - 1)) > _sectionCellCountPerSide ||
+            std::isfinite(_sampleWorldSpacing) == false || _sampleWorldSpacing <= 0.0f || std::isfinite(_baseWorldHeight) == false ||
+            std::isfinite(_worldHeightRange) == false || _worldHeightRange <= 0.0f || std::isfinite(_baseWorldHeight + _worldHeightRange) == false)
         {
             DK_ASSERT_LOG(false, "Invalid terrain world layout: %s", path.c_str());
             return false;
         }
 
-        if ((_settings._sampleCountX - 1) % _sectionCellCountPerSide != 0 || (_settings._sampleCountZ - 1) % _sectionCellCountPerSide != 0)
+        if ((_sampleCountX - 1) % _sectionCellCountPerSide != 0 || (_sampleCountZ - 1) % _sectionCellCountPerSide != 0)
         {
             DK_ASSERT_LOG(false, "Terrain world cell counts must be divisible by the section cell count");
             return false;
         }
 #endif
 
-        if (_sectionCellCountPerSide % (_settings._chunkCellCountPerSide << (_overviewLod - 1)) != 0 || _sectionCellCountPerSide % (1u << _overviewLod) != 0)
+        if (_sectionCellCountPerSide % (_chunkCellCountPerSide << (_overviewLod - 1)) != 0 || _sectionCellCountPerSide % (1u << _overviewLod) != 0)
         {
             DK_ASSERT_LOG(false, "Terrain section cell count must be divisible by the coarsest streaming tile cell count and overview sample step");
             return false;
         }
 
-        if (_minimumSampleX % int32(_sectionCellCountPerSide) != 0 || _minimumSampleZ % int32(_sectionCellCountPerSide) != 0 || int64(_minimumSampleX) + _settings._sampleCountX - 1 > 0x7fffffffll || int64(_minimumSampleZ) + _settings._sampleCountZ - 1 > 0x7fffffffll)
+        if (_minimumSampleX % int32(_sectionCellCountPerSide) != 0 || _minimumSampleZ % int32(_sectionCellCountPerSide) != 0 || int64(_minimumSampleX) + _sampleCountX - 1 > 0x7fffffffll || int64(_minimumSampleZ) + _sampleCountZ - 1 > 0x7fffffffll)
         {
             DK_ASSERT_LOG(false, "Terrain minimum sample coordinates must align to sections and the maximum coordinates must fit signed shader integers");
             return false;
         }
-        _sectionCountX = (_settings._sampleCountX - 1) / _sectionCellCountPerSide;
-        _sectionCountZ = (_settings._sampleCountZ - 1) / _sectionCellCountPerSide;
+        _sectionCountX = (_sampleCountX - 1) / _sectionCellCountPerSide;
+        _sectionCountZ = (_sampleCountZ - 1) / _sectionCellCountPerSide;
 #if defined(_DK_DEBUG_)
         if (uint64(_sectionCountX) * _sectionCountZ > 1048576)
         {
@@ -299,8 +299,8 @@ namespace DK
 #if defined(_DK_DEBUG_)
     bool TerrainWorld::matchesSectionArchive(const ArchiveHeader& header) const
     {
-        return header._sampleCountX == _sectionCellCountPerSide + 1 && header._sampleCountZ == _sectionCellCountPerSide + 1 && header._chunkCellCountPerSide == _settings._chunkCellCountPerSide &&
-            header._overviewLod == _overviewLod && header._sampleWorldSpacing == _settings._sampleWorldSpacing && header._baseWorldHeight == _settings._baseWorldHeight && header._worldHeightRange == _settings._worldHeightRange;
+        return header._sampleCountX == _sectionCellCountPerSide + 1 && header._sampleCountZ == _sectionCellCountPerSide + 1 && header._chunkCellCountPerSide == _chunkCellCountPerSide &&
+            header._overviewLod == _overviewLod && header._sampleWorldSpacing == _sampleWorldSpacing && header._baseWorldHeight == _baseWorldHeight && header._worldHeightRange == _worldHeightRange;
     }
 #endif
 
@@ -314,10 +314,10 @@ namespace DK
     {
         static_assert(TERRAIN_SECTION_SLOT_COUNT_PER_SIDE > 0 && TERRAIN_SECTION_SLOT_COUNT_PER_SIDE % 2 == 1, "Terrain section residency must have a center slot");
         DK_ASSERT_LOG(std::isfinite(cameraX) && std::isfinite(cameraZ), "Terrain section selection requires finite camera coordinates");
-        DK_ASSERT_LOG(world._sectionCellCountPerSide > 0 && (world._settings._sampleCountX - 1) % world._sectionCellCountPerSide == 0 && (world._settings._sampleCountZ - 1) % world._sectionCellCountPerSide == 0 && world._sectionCountX == (world._settings._sampleCountX - 1) / world._sectionCellCountPerSide && world._sectionCountZ == (world._settings._sampleCountZ - 1) / world._sectionCellCountPerSide && world._sections.size() == size_t(world._sectionCountX) * world._sectionCountZ, "Terrain section selection requires the loaded uniform world grid");
-        const double sectionWorldSize = double(world._sectionCellCountPerSide) * world._settings._sampleWorldSpacing;
-        const double cameraRelativeToTerrainMinimumWorldX = cameraX - double(world._minimumSampleX) * world._settings._sampleWorldSpacing;
-        const double cameraRelativeToTerrainMinimumWorldZ = cameraZ - double(world._minimumSampleZ) * world._settings._sampleWorldSpacing;
+        DK_ASSERT_LOG(world._sectionCellCountPerSide > 0 && (world._sampleCountX - 1) % world._sectionCellCountPerSide == 0 && (world._sampleCountZ - 1) % world._sectionCellCountPerSide == 0 && world._sectionCountX == (world._sampleCountX - 1) / world._sectionCellCountPerSide && world._sectionCountZ == (world._sampleCountZ - 1) / world._sectionCellCountPerSide && world._sections.size() == size_t(world._sectionCountX) * world._sectionCountZ, "Terrain section selection requires the loaded uniform world grid");
+        const double sectionWorldSize = double(world._sectionCellCountPerSide) * world._sampleWorldSpacing;
+        const double cameraRelativeToTerrainMinimumWorldX = cameraX - double(world._minimumSampleX) * world._sampleWorldSpacing;
+        const double cameraRelativeToTerrainMinimumWorldZ = cameraZ - double(world._minimumSampleZ) * world._sampleWorldSpacing;
         const double cameraSectionIndexX = std::floor(cameraRelativeToTerrainMinimumWorldX / sectionWorldSize);
         const double cameraSectionIndexZ = std::floor(cameraRelativeToTerrainMinimumWorldZ / sectionWorldSize);
         DKVector<uint32> result;
@@ -359,25 +359,24 @@ namespace DK
         // 모든 선택 Section의 후보를 합쳐 LOD마다 최대 72개를 반환합니다.
 
         DKVector<TileRequest> result;
-        const TerrainWorldSettings& settings = world._settings;
-        DK_ASSERT_LOG(world._sectionCellCountPerSide > 0 && (settings._sampleCountX - 1) % world._sectionCellCountPerSide == 0 && (settings._sampleCountZ - 1) % world._sectionCellCountPerSide == 0, "Terrain world cell counts must be divisible by the section cell count");
+        DK_ASSERT_LOG(world._sectionCellCountPerSide > 0 && (world._sampleCountX - 1) % world._sectionCellCountPerSide == 0 && (world._sampleCountZ - 1) % world._sectionCellCountPerSide == 0, "Terrain world cell counts must be divisible by the section cell count");
         DK_ASSERT_LOG(std::isfinite(cameraX) && std::isfinite(cameraZ) && std::isfinite(lod0WorldRadius) && lod0WorldRadius > 0.0f && tileBudgetPerLod > 0, "Terrain tile selection requires finite camera coordinates and a positive radius and budget");
-        const double sectionWorldSize = double(world._sectionCellCountPerSide) * settings._sampleWorldSpacing;
+        const double sectionWorldSize = double(world._sectionCellCountPerSide) * world._sampleWorldSpacing;
         for (uint32 lod = 0; lod < world._overviewLod; ++lod)
         {
             DKVector<RankedTerrainTile> ranked;
-            const uint32 tileLod0CellCountPerSide = settings._chunkCellCountPerSide << lod;
+            const uint32 tileLod0CellCountPerSide = world._chunkCellCountPerSide << lod;
             DK_ASSERT_LOG(tileLod0CellCountPerSide > 0 && world._sectionCellCountPerSide % tileLod0CellCountPerSide == 0, "Terrain section cell count must be divisible by each streaming LOD tile cell count");
             const uint32 sectionLodTileCountPerSide = world._sectionCellCountPerSide / tileLod0CellCountPerSide;
-            const double tileWorldSize = double(tileLod0CellCountPerSide) * settings._sampleWorldSpacing;
+            const double tileWorldSize = double(tileLod0CellCountPerSide) * world._sampleWorldSpacing;
             const double radius = double(lod0WorldRadius) * (1u << (lod + 1));
             for (const uint32 sectionId : sections)
             {
                 DK_ASSERT_LOG(sectionId < world._sections.size(), "Terrain tile selection section ID is outside the world");
                 const TerrainSection& section = world._sections[sectionId];
                 DK_ASSERT_LOG(section._sectionIndexX < world._sectionCountX && section._sectionIndexZ < world._sectionCountZ, "Terrain section coordinates must be inside the world grid");
-                const double cameraRelativeToTerrainMinimumWorldX = cameraX - double(world._minimumSampleX) * settings._sampleWorldSpacing;
-                const double cameraRelativeToTerrainMinimumWorldZ = cameraZ - double(world._minimumSampleZ) * settings._sampleWorldSpacing;
+                const double cameraRelativeToTerrainMinimumWorldX = cameraX - double(world._minimumSampleX) * world._sampleWorldSpacing;
+                const double cameraRelativeToTerrainMinimumWorldZ = cameraZ - double(world._minimumSampleZ) * world._sampleWorldSpacing;
                 const double cameraSectionRelativeWorldX = cameraRelativeToTerrainMinimumWorldX - section._sectionIndexX * sectionWorldSize;
                 const double cameraSectionRelativeWorldZ = cameraRelativeToTerrainMinimumWorldZ - section._sectionIndexZ * sectionWorldSize;
                 const int minSectionLocalTileIndexX = int(std::clamp(std::floor((cameraSectionRelativeWorldX - radius) / tileWorldSize), 0.0, double(sectionLodTileCountPerSide)));
@@ -430,12 +429,12 @@ namespace DK
             return false;
         }
 #endif
-        if (world._sectionCellCountPerSide == 0 || world._settings._chunkCellCountPerSide == 0 || world._overviewLod == 0 || world._overviewLod >= mipCount(world._settings._chunkCellCountPerSide))
+        if (world._sectionCellCountPerSide == 0 || world._chunkCellCountPerSide == 0 || world._overviewLod == 0 || world._overviewLod >= mipCount(world._chunkCellCountPerSide))
         {
             DK_ASSERT_LOG(false, "Terrain streamer requires a valid section, chunk and LOD layout");
             return false;
         }
-        if ((world._settings._sampleCountX - 1) % world._sectionCellCountPerSide != 0 || (world._settings._sampleCountZ - 1) % world._sectionCellCountPerSide != 0 || world._sectionCellCountPerSide % (world._settings._chunkCellCountPerSide << (world._overviewLod - 1)) != 0 || world._sectionCellCountPerSide % (1u << world._overviewLod) != 0 || world._sectionCountX != (world._settings._sampleCountX - 1) / world._sectionCellCountPerSide || world._sectionCountZ != (world._settings._sampleCountZ - 1) / world._sectionCellCountPerSide || world._sections.size() != size_t(world._sectionCountX) * world._sectionCountZ)
+        if ((world._sampleCountX - 1) % world._sectionCellCountPerSide != 0 || (world._sampleCountZ - 1) % world._sectionCellCountPerSide != 0 || world._sectionCellCountPerSide % (world._chunkCellCountPerSide << (world._overviewLod - 1)) != 0 || world._sectionCellCountPerSide % (1u << world._overviewLod) != 0 || world._sectionCountX != (world._sampleCountX - 1) / world._sectionCellCountPerSide || world._sectionCountZ != (world._sampleCountZ - 1) / world._sectionCellCountPerSide || world._sections.size() != size_t(world._sectionCountX) * world._sectionCountZ)
         {
             DK_ASSERT_LOG(false, "Terrain streamer requires the loaded uniform world grid");
             return false;
@@ -532,7 +531,7 @@ namespace DK
         {
 #if defined(_DK_DEBUG_)
             DK_ASSERT_LOG(request._sectionId < _world._sections.size() && request._lod < _world._overviewLod, "Terrain tile request section ID or LOD is outside the world layout");
-            const uint32 tileLod0CellCountPerSide = _world._settings._chunkCellCountPerSide << request._lod;
+            const uint32 tileLod0CellCountPerSide = _world._chunkCellCountPerSide << request._lod;
             DK_ASSERT_LOG(_world._sectionCellCountPerSide % tileLod0CellCountPerSide == 0 && request._tileLocalIndexX < _world._sectionCellCountPerSide / tileLod0CellCountPerSide && request._tileLocalIndexZ < _world._sectionCellCountPerSide / tileLod0CellCountPerSide, "Terrain tile request must fit the uniform section grid");
             DK_ASSERT_LOG(std::find(currentSections.begin(), currentSections.end(), request._sectionId) != currentSections.end(), "Terrain tile request must belong to a selected section");
 #endif
@@ -661,7 +660,7 @@ namespace DK
 #if defined(_DK_DEBUG_)
                 if (tileLoadResult._loaded)
                 {
-                    const uint32 sampleCountPerSide = _world._settings._chunkCellCountPerSide + 1;
+                    const uint32 sampleCountPerSide = _world._chunkCellCountPerSide + 1;
                     DK_ASSERT_LOG(tileLoadResult._tile._tileLocalIndexX == request._tileLocalIndexX && tileLoadResult._tile._tileLocalIndexZ == request._tileLocalIndexZ && tileLoadResult._tile._lod == request._lod && tileLoadResult._tile._sampleCountPerSide == sampleCountPerSide && tileLoadResult._tile._heights.size() == size_t(sampleCountPerSide) * sampleCountPerSide && tileLoadResult._tile._normals.size() == tileLoadResult._tile._heights.size(), "Loaded terrain tile does not match its request or cache slot dimensions");
                 }
                 DK_ASSERT_LOG(tileLoadResult._loaded, "Terrain tile load failed: section=%u lod=%u tile=(%u,%u)", request._sectionId, request._lod, request._tileLocalIndexX, request._tileLocalIndexZ);

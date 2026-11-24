@@ -613,19 +613,18 @@ namespace DK
         ClipMapTerrain& terrain = _clipmapTerrain;
         TerrainStreamingConstants& constants = terrain._streamingConstants;
         const TerrainWorld& world = terrain._world;
-        const TerrainWorldSettings& settings = world._settings;
 
         constants = {};
         constants._terrainOriginWorldX = terrainWorldOrigin.x;
         constants._terrainOriginWorldZ = terrainWorldOrigin.y;
-        constants._terrainSampleWorldSpacing = settings._sampleWorldSpacing;
-        constants._terrainBaseWorldHeight = settings._baseWorldHeight;
-        constants._terrainWorldHeightRange = settings._worldHeightRange;
-        constants._terrainCellCountX = settings._sampleCountX - 1;
-        constants._terrainCellCountZ = settings._sampleCountZ - 1;
+        constants._terrainSampleWorldSpacing = world._sampleWorldSpacing;
+        constants._terrainBaseWorldHeight = world._baseWorldHeight;
+        constants._terrainWorldHeightRange = world._worldHeightRange;
+        constants._terrainCellCountX = world._sampleCountX - 1;
+        constants._terrainCellCountZ = world._sampleCountZ - 1;
         constants._terrainMinimumSampleX = world._minimumSampleX;
         constants._terrainMinimumSampleZ = world._minimumSampleZ;
-        constants._terrainChunkCellCountPerSide = settings._chunkCellCountPerSide;
+        constants._terrainChunkCellCountPerSide = world._chunkCellCountPerSide;
         constants._terrainSectionCellCountPerSide = world._sectionCellCountPerSide;
         constants._terrainSectionCountX = world._sectionCountX;
         constants._terrainSectionCountZ = world._sectionCountZ;
@@ -639,7 +638,7 @@ namespace DK
         constants._terrainSectionOverviewSampleCountPerSide = world._sectionCellCountPerSide / overviewSampleStep + 1;
         constants._terrainOverviewAtlasTexelCountX = constants._terrainSectionOverviewSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
         constants._terrainOverviewAtlasTexelCountY = constants._terrainSectionOverviewSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
-        constants._terrainCacheSlotTexelCountPerSide = settings._chunkCellCountPerSide + 1;
+        constants._terrainCacheSlotTexelCountPerSide = world._chunkCellCountPerSide + 1;
         const uint32 cacheSlotCount = world._overviewLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
         if (constants._terrainCacheSlotColumnCount == 0 || cacheSlotCount % constants._terrainCacheSlotColumnCount != 0)
         {
@@ -654,16 +653,17 @@ namespace DK
             DK_ASSERT_LOG(false, "Terrain streaming LOD zero radius must be finite and positive");
             return false;
         }
-        DK_ASSERT_LOG(settings._chunkCellCountPerSide > 0 && world._overviewLod > 0 && world._overviewLod < 32, "Terrain page table requires a valid chunk size and streaming LOD count");
-        const uint32 coarsestTileLod0CellCountPerSide = settings._chunkCellCountPerSide << (world._overviewLod - 1);
+        DK_ASSERT_LOG(world._chunkCellCountPerSide > 0 && world._overviewLod > 0 && world._overviewLod < 32, "Terrain page table requires a valid chunk size and streaming LOD count");
+        const uint32 coarsestTileLod0CellCountPerSide = world._chunkCellCountPerSide << (world._overviewLod - 1);
         DK_ASSERT_LOG(world._sectionCellCountPerSide > 0 && world._sectionCellCountPerSide % coarsestTileLod0CellCountPerSide == 0, "Terrain section must contain a whole grid of tiles at every streaming LOD");
-        constants._terrainPageTableWidth = world._sectionCellCountPerSide / settings._chunkCellCountPerSide;
+        constants._terrainPageTableWidth = world._sectionCellCountPerSide / world._chunkCellCountPerSide;
         const uint32 sectionPageTableRowCount = terrainPageTableLodRowOffset(constants._terrainPageTableWidth, world._overviewLod);
         const uint32 tableHeight = sectionPageTableRowCount * TERRAIN_SECTION_SLOT_COUNT;
 #if defined(_DK_DEBUG_)
         const double clipmapRadius = double(ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
-        if (cacheAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheAtlasTexelCountY > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || constants._terrainPageTableWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
-            constants._terrainOverviewAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * settings._sampleWorldSpacing * 2.0 > clipmapRadius)
+        if (cacheAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheAtlasTexelCountY > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION
+			|| constants._terrainPageTableWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION
+			|| constants._terrainOverviewAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * world._sampleWorldSpacing * 2.0 > clipmapRadius)
         {
             DK_ASSERT_LOG(false, "Terrain section layout exceeds the cache or clipmap coverage");
             return false;
@@ -709,7 +709,7 @@ namespace DK
             return;
 
         DK_ASSERT_LOG(std::isfinite(cameraX) && std::isfinite(cameraZ) && std::isfinite(deltaTime) && deltaTime >= 0.0f, "Terrain streaming update requires finite camera coordinates and a nonnegative delta time");
-        DK_ASSERT_LOG(constants._terrainOverviewLod == terrain._world._overviewLod && constants._terrainSectionCellCountPerSide == terrain._world._sectionCellCountPerSide && constants._terrainChunkCellCountPerSide == terrain._world._settings._chunkCellCountPerSide && constants._terrainSampleWorldSpacing == terrain._world._settings._sampleWorldSpacing, "Terrain streaming layout must match the loaded world");
+        DK_ASSERT_LOG(constants._terrainOverviewLod == terrain._world._overviewLod && constants._terrainSectionCellCountPerSide == terrain._world._sectionCellCountPerSide && constants._terrainChunkCellCountPerSide == terrain._world._chunkCellCountPerSide && constants._terrainSampleWorldSpacing == terrain._world._sampleWorldSpacing, "Terrain streaming layout must match the loaded world");
         DK_ASSERT_LOG(constants._terrainMinimumSampleX == terrain._world._minimumSampleX && constants._terrainMinimumSampleZ == terrain._world._minimumSampleZ, "Terrain streaming bounds must match the loaded world");
         DK_ASSERT_LOG(constants._terrainCacheSlotColumnCount > 0 && constants._terrainPageTableWidth == constants._terrainSectionCellCountPerSide / constants._terrainChunkCellCountPerSide && constants._terrainPageTableWidth > 0 && terrain._tileCacheEntries.size() == size_t(constants._terrainOverviewLod) * ClipMapTerrain::CACHE_SLOTS_PER_LOD && terrain._tileCacheEntries.size() == size_t(constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotRowCount, "Terrain cache slots must fill the allocated atlas grid");
         const double cameraRelativeToTerrainOriginWorldX = cameraX - constants._terrainOriginWorldX;

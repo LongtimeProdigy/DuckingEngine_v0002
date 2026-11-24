@@ -18,12 +18,13 @@ struct VS_OUTPUT
     float2 relativeXZ : TEXCOORD2;
 };
 
+// X, Z는 AnchorX, Z기준의 상대위치이지만 AnchorY는 없기 때문에 y값은 world 기준의 y값이 나옵니다.
 float3 EvaluateSurfacePosition(float2 relativeXZ, uint level)
 {
     return float3(relativeXZ.x, SampleTerrainHeightRelative(relativeXZ), relativeXZ.y);
 }
 
-// ClipMap Vertex 위치이동 (SRT)
+// ClipMap Vertex를 Camera Anchored Local 위치이동 (SRT)
 float2 GetClipmapBaseXZ(float2 vertexPosition)
 {
     float2 p = vertexPosition * _baseXY_scale_rotate.z;
@@ -110,23 +111,21 @@ VS_OUTPUT VSMain(VS_INPUT input)
     const float2 baseXZ = GetClipmapBaseXZ(input.position);
     const float3 relativePos = EvaluateClipmapPosition(baseXZ);
 
-    // relativePos는 X, Z는 AnchorX, Z기준의 상대위치이지만 AnchorY는 없기 때문에 y값은 world 기준의 y값이 나옵니다.
-
     output.relativeXZ = relativePos.xz;
     const float2 cameraAnchorWorldXZ = TerrainCameraAnchorWorldXZ();
     output.worldPosition = relativePos + float3(cameraAnchorWorldXZ.x, 0.0f, cameraAnchorWorldXZ.y);
-    const float2 viewRelativeXZ = getViewPosition().xz - float2(_terrainCameraWorldX, _terrainCameraWorldZ) + float2(_terrainCameraLocalX, _terrainCameraLocalZ);
-    const float3 relativeViewPosition = float3(relativePos.x - viewRelativeXZ.x, relativePos.y - getViewPosition().y, relativePos.z - viewRelativeXZ.y);
-    output.position = float4(mul(relativeViewPosition, (float3x3)_cameraWorldMatrixInv), 1.0f);
+    // const float2 viewAnchorRelativeXZ = getViewPosition().xz - cameraAnchorWorldXZ; // 부동소수점 문제로 아래와같이 계산함
+    const float2 viewAnchorRelativeXZ = getViewPosition().xz - (float2(_terrainCameraWorldX, _terrainCameraWorldZ) - float2(_terrainCameraLocalX, _terrainCameraLocalZ)); // 현재 렌더링에 사용하는 카메라 위치를 지형 앵커 기준 상대 좌표로 바꾸는 계산
+    const float3 positionViewRelative = float3(relativePos.x - viewAnchorRelativeXZ.x, relativePos.y - getViewPosition().y, relativePos.z - viewAnchorRelativeXZ.y);
+    output.position = float4(mul(positionViewRelative, (float3x3)_cameraWorldMatrixInv), 1.0f);
     output.position = mul(output.position, _cameraProjectionMatrix);
 
     return output;
 }
 
-// worldXZ에 해당하는 normal.xyz를 반환
-float3 SampleTerrainNormal(float2 worldXZ)
+float3 DecodeTerrainNormal(float2 normalXZ)
 {
-    return DecodeTerrainNormal(SampleTerrainStream(worldXZ).yz);
+    return normalize(float3(normalXZ.x, sqrt(saturate(1.0f - dot(normalXZ, normalXZ))), normalXZ.y));
 }
 
 struct TerrainMaterialSample

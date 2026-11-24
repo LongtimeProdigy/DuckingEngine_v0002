@@ -62,7 +62,7 @@ Section마다 총 337개 블록을 저장한다. 더 높은 LOD의 청크별 Pyr
 
 ## 로딩 흐름
 
-1. `TerrainWorld::open`이 Manifest의 전체 샘플 수와 공통 샘플 간격·높이 범위를 `TerrainWorldSettings`에 읽는다. Section 격자와 Overview LOD는 World에 보관하고, 바이너리 파일의 `ArchiveHeader`는 Archive에만 둔다.
+1. `TerrainWorld::open`이 Manifest의 전체 샘플 수·샘플 간격·높이 범위·Section 격자·Overview LOD를 `TerrainWorld`에 직접 읽는다. 바이너리 파일의 `ArchiveHeader`는 Archive에만 둔다.
 2. `Streamer`가 주변 Section의 `Archive::open`을 호출한다. Header와 디렉터리를 읽어 블록 수, 크기, LOD, 순서, 파일 offset과 파일 길이를 검증한다.
 3. `loadOverview`는 LOD 인자 없이 첫 번째 블록을 선택한다. `loadVirtualTile`은 LOD별 시작 인덱스와 Tile XZ로 블록을 직접 선택한다.
 4. 공통 `loadBlock`이 시작 위치로 한 번 seek하고 높이·법선을 각각 한 번씩 read한다. 행별 파일 읽기와 청크 조립은 없다.
