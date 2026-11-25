@@ -11,6 +11,17 @@
 // Preserve the transmittance shader's existing diagnostic range on the CPU as well.
 #define ATMOSPHERE_LUT_MAX_RADIAL_DEPTH 32000.0f
 
+// Keep sampling modes in the same order as the renderer's quality selector.
+#define ATMOSPHERE_PRODUCTION 0u
+#define ATMOSPHERE_REFERENCE 1u
+#define ATMOSPHERE_LIMIT_DEBUG 2u
+#define ATMOSPHERE_WORK_DEBUG 3u
+#define ATMOSPHERE_TRANSMITTANCE_DEBUG 4u
+#define ATMOSPHERE_PREVIEW 5u
+// Preview uses a fixed per-pixel budget with enough range to inspect long paths.
+#define ATMOSPHERE_PREVIEW_MIN_VIEW_INTERVALS 4u
+#define ATMOSPHERE_PREVIEW_MAX_VIEW_INTERVALS 32u
+
 // Shared texture resolutions keep CPU allocation and shader sampling in agreement.
 #define ATMOSPHERE_LUT_WIDTH 512u
 #define ATMOSPHERE_LUT_HEIGHT 128u

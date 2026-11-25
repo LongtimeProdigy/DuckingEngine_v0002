@@ -138,7 +138,7 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
     float _densityTransitionRadius DK_SHADER_DEFAULT(6358000.0f); // Inner approximation boundary, in metres from centre.
     float _integrationRelativeTolerance DK_SHADER_DEFAULT(0.002f);
     DK_SHADER_UINT _integrationMaxDepth DK_SHADER_DEFAULT(8);
-    DK_SHADER_UINT _atmosphereSamplingMode DK_SHADER_DEFAULT(0); // 0: production, 1: direct reference, 2: reference limit debug
+    DK_SHADER_UINT _atmosphereSamplingMode DK_SHADER_DEFAULT(ATMOSPHERE_PRODUCTION);
     DK_SHADER_UINT _transmittanceLutIndex DK_SHADER_DEFAULT(0);
     float _rayleighScale DK_SHADER_DEFAULT(1.0f);
     float _mieScale DK_SHADER_DEFAULT(1.0f);
@@ -175,6 +175,11 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
     DK_SHADER_UINT _shadowCascadeCount DK_SHADER_DEFAULT(DK_ATMOSPHERE_SHADOW_CASCADE_COUNT);
     float _shadowCascadeBlend DK_SHADER_DEFAULT(0.1f);
     DK_SHADER_FLOAT2(_shadowCascadePadding) DK_SHADER_DEFAULT({});
+    // Eight intervals give one preview evaluation per production seed, without the refinement evaluations.
+    DK_SHADER_UINT _previewViewIntervalCount DK_SHADER_DEFAULT(8u);
+    DK_SHADER_UINT _previewAtmosphereShadows DK_SHADER_DEFAULT(0u);
+    DK_SHADER_UINT _previewSurfaceBounce DK_SHADER_DEFAULT(0u);
+    DK_SHADER_UINT _previewPadding DK_SHADER_DEFAULT(0u);
 
 #if defined(__cplusplus) && defined(_DK_DEBUG_)
     void validate() const;
@@ -503,7 +508,10 @@ struct GpuAssertRecord
     static_assert(offsetof(SceneConstantBuffer, _cameraWorldMatrix) == 32);
     static_assert(sizeof(AtmosphereAbsorptionLayer) == 32, "Match HLSL absorption layer");
     static_assert(sizeof(SurfaceShadowCascade) == 80, "Match HLSL cascade layout");
-    static_assert(sizeof(AtmosphereConstantBuffer) == 672, "Match the HLSL cbuffer layout");
+    static_assert(sizeof(AtmosphereConstantBuffer) == 688, "Match the HLSL cbuffer layout");
+    static_assert(offsetof(AtmosphereConstantBuffer, _previewViewIntervalCount) == 672);
+    static_assert(offsetof(AtmosphereConstantBuffer, _previewAtmosphereShadows) == 676);
+    static_assert(offsetof(AtmosphereConstantBuffer, _previewSurfaceBounce) == 680);
     static_assert(offsetof(AtmosphereConstantBuffer, _shadowCascades) == 336, "Match HLSL cascades");
     static_assert(offsetof(AtmosphereConstantBuffer, _multipleScatteringLutIndex) == 320, "Match HLSL multiple-scattering controls");
     static_assert(offsetof(AtmosphereConstantBuffer, _absorptionLayers) == 144, "Match HLSL absorption layers");

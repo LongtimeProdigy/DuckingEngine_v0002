@@ -1,6 +1,10 @@
 ﻿#ifndef __DEFINE_ATMOSPHERE_HLSL__
 #define __DEFINE_ATMOSPHERE_HLSL__
 
+#if ATMOSPHERE_PREVIEW_PASS
+#define ATMOSPHERE_FORCE_LUT
+#endif
+
 #include "CommonRendering.hlsl"
 #include "CommonTexture.hlsl"
 #include "GridHash.hlsl"
@@ -132,6 +136,36 @@ AtmosphereSegment evaluateAtmosphereInterval(float3 origin, float3 direction, fl
     return result;
 }
 
+#if ATMOSPHERE_PREVIEW_PASS
+AtmosphereSegment calculateAtmospherePreview(float3 rayOrigin, float3 rayDir, float rayLength, float3 sunDir)
+{
+    AtmosphereSegment result = atmosphereIdentity();
+    if (rayLength <= 0.0f)
+        return result;
+
+    const float mu = clamp(dot(rayDir, sunDir), -1.0f, 1.0f);
+    const float phaseR = atmosphereRayleighPhase(mu);
+    const float phaseM = atmosphereMiePhase(mu);
+    const float inverseIntervalCount = rcp(float(_previewViewIntervalCount));
+    float start = 0.0f;
+
+    [loop]
+    for (uint index = 0u; index < _previewViewIntervalCount; ++index)
+    {
+        const float u = float(index + 1u) * inverseIntervalCount;
+        const float uSquared = u * u;
+        // Concentrate the fixed budget near the camera on long, optically thick paths.
+        const float end = index + 1u == _previewViewIntervalCount ? rayLength : rayLength * uSquared * uSquared;
+        result = composeAtmosphereIntervals(result, evaluateAtmosphereInterval(rayOrigin, rayDir, start, end, sunDir, phaseR, phaseM, false));
+        if (all(result.transmittance < 1e-6f))
+            break;
+
+        start = end;
+    }
+
+    return result;
+}
+#else
 AtmosphereSegment calculateAtmosphere(float3 rayOrigin, float3 rayDir, float rayLength, float3 sunDir, bool allowReference = true)
 {
     AtmosphereSegment result = atmosphereIdentity();
@@ -264,7 +298,7 @@ AtmosphereSegment calculateAtmosphereWithClouds(float3 rayOrigin, float3 rayDir,
     resolveWeight = 0.0f;
     // The gas reference and diagnostics remain comparable with the clear-atmosphere solver.
     float4 cloudIntervals = 0.0f;
-    if (_cloudCoverage > 0.0f && _atmosphereSamplingMode == ATEMOSPHERE_PRODUCTION && rayLength > 0.0f)
+    if (_cloudCoverage > 0.0f && _atmosphereSamplingMode == ATMOSPHERE_PRODUCTION && rayLength > 0.0f)
     {
         const float2 planetHit = raySphere(_planetCentre, _densityReferenceRadius, rayOrigin, rayDir);
         const bool entersPlanet = planetHit.y > 0.0f && (planetHit.x > 0.0f || dot(rayOrigin - _planetCentre, rayDir) < 0.0f);
@@ -297,6 +331,7 @@ AtmosphereSegment calculateAtmosphereWithClouds(float3 rayOrigin, float3 rayDir,
     }
     return result;
 }
+#endif
 
 float renderSun(const float3 rayDir, out float3 sunDir)
 {
@@ -355,7 +390,11 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float rayEnd = hasGeometry ? min(linearDepthDistance, atmosphereEnd) : atmosphereEnd;
     const float integrationLength = max(0.0f, rayEnd - destToAtmosphere);
     const float3 atmosphereStart = rayOrigin + rayDirWS * destToAtmosphere;
-    
+
+    float cloudResolveWeight = 0.0f;
+#if ATMOSPHERE_PREVIEW_PASS
+    const AtmosphereSegment atmosphere = calculateAtmospherePreview(atmosphereStart, rayDirWS, integrationLength, sunDir);
+#else
     // Restrict nested direct integration to a 16x16 centre patch. Surrounding pixels use the LUT.
     const bool referencePixel = all(abs(input.position.xy - 0.5f * float2(_resolution)) < 8.0f);
     const bool resolveClouds = hasGeometry == false && sunCoverage <= 0.0f;
@@ -366,8 +405,9 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float pixelSampleOffset = resolveClouds ? 0.25f * (sampleStratum + blockPhase) - 0.5f : 0.0f;
     float resolveWeight;
     const AtmosphereSegment atmosphere = calculateAtmosphereWithClouds(atmosphereStart, rayDirWS, integrationLength, sunDir, referencePixel, pixelSampleOffset, resolveWeight);
+    cloudResolveWeight = resolveClouds ? resolveWeight : 0.0f;
 
-    if (_atmosphereSamplingMode == ATEMOSPHERE_LIMIT_DEBUG && referencePixel)
+    if (_atmosphereSamplingMode == ATMOSPHERE_LIMIT_DEBUG && referencePixel)
         return float4(atmosphere.limitReached != 0u ? float3(1, 0, 0) : float3(0, 0.25f, 0), 0);
     if (_atmosphereSamplingMode == ATMOSPHERE_WORK_DEBUG)
     {
@@ -376,9 +416,10 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     }
     if (_atmosphereSamplingMode == ATMOSPHERE_TRANSMITTANCE_DEBUG)
         return float4(atmosphere.transmittance, 0);
-        
+#endif
+
     const float3 composedHDR = backgroundRadiance * atmosphere.transmittance + atmosphere.inScattering;
     // Alpha carries the sky-cloud resolve weight through bloom to the final HDR resolve.
-    return float4(composedHDR, resolveClouds ? resolveWeight : 0.0f);
+    return float4(composedHDR, cloudResolveWeight);
 }
 #endif

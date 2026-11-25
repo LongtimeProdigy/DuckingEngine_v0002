@@ -88,6 +88,8 @@ float atmosphereCascadedVisibility(float3 p, bool filtered)
 }
 float atmosphereSurfaceSunVisibility(float3 p)
 {
+    if (_atmosphereSamplingMode == ATMOSPHERE_PREVIEW && _previewAtmosphereShadows == 0u)
+        return 1.0f;
     if (_surfaceMapEnabled == 0u || _surfaceShadowStrength <= 0.0f) 
         return 1.0f;
     if (_shadowCascadeCount > 0u)

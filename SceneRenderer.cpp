@@ -24,6 +24,11 @@
 
 namespace DK
 {
+    static bool atmosphereUsesSurfaceBounce(const AtmosphereConstantBuffer& atmosphere)
+    {
+        return atmosphere._surfaceBounceStrength > 0.0f && (atmosphere._atmosphereSamplingMode != ATMOSPHERE_PREVIEW || atmosphere._previewSurfaceBounce != 0u);
+    }
+
 #if defined(_DK_DEBUG_)
     void AtmosphereAbsorptionLayer::validate([[maybe_unused]] uint32 layerIndex) const
     {
@@ -49,6 +54,8 @@ namespace DK
 
     void AtmosphereConstantBuffer::validate() const
     {
+        DK_ASSERT_LOG(_atmosphereSamplingMode <= ATMOSPHERE_PREVIEW, "Invalid atmosphere sampling mode: %u", _atmosphereSamplingMode);
+        DK_ASSERT_LOG(_previewViewIntervalCount >= ATMOSPHERE_PREVIEW_MIN_VIEW_INTERVALS && _previewViewIntervalCount <= ATMOSPHERE_PREVIEW_MAX_VIEW_INTERVALS, "Invalid preview view interval count: %u", _previewViewIntervalCount);
         DK_ASSERT_LOG(std::isfinite(_densityReferenceRadius) && _densityReferenceRadius > 0.0f, "Invalid _densityReferenceRadius=%g", _densityReferenceRadius);
         DK_ASSERT_LOG(std::isfinite(_densityTransitionRadius) && _densityTransitionRadius > 0.0f && _densityTransitionRadius < _densityReferenceRadius, "Invalid _densityTransitionRadius=%g, _densityReferenceRadius=%g", _densityTransitionRadius, _densityReferenceRadius);
         DK_ASSERT_LOG(std::isfinite(_atmosphereRadius) && _atmosphereRadius > _densityTransitionRadius, "Invalid _atmosphereRadius=%g, _densityTransitionRadius=%g", _atmosphereRadius, _densityTransitionRadius);
@@ -94,6 +101,7 @@ namespace DK
 	bool SceneRenderer::initialize()
 	{
 #if defined(_DK_DEBUG_)
+        _atmosphereConstantBufferData._atmosphereSamplingMode = ATMOSPHERE_PREVIEW;
         _atmosphereConstantBufferData.validate();
         validateSurfaceCaptureParameters();
         _cloudConstantBufferData.validate();
@@ -905,6 +913,8 @@ namespace DK
 			relativeAtmosphere._planetCentre[0] = static_cast<float>(-dx);
 			relativeAtmosphere._planetCentre[1] = static_cast<float>(-dy);
 			relativeAtmosphere._planetCentre[2] = static_cast<float>(-dz);
+            if (atmosphereUsesSurfaceBounce(atmosphere) == false)
+                relativeAtmosphere._surfaceBounceStrength = 0.0f;
 			_atmosphereConstantBuffer->upload(&relativeAtmosphere);
 #if defined(_DK_DEBUG_)
 			_cloudConstantBufferData.validate();
@@ -1392,9 +1402,29 @@ namespace DK
                         }
 						if (ImGui::CollapsingHeader("Sampling quality"))
 						{
-							const char* samplingModes[] = { "Production", "Direct reference", "Reference limits", "Production work", "Production transmittance" };
-							InspectorProperty("Atmosphere integration", [&] { ImGui::Combo("##value", reinterpret_cast<int*>(&atmosphere._atmosphereSamplingMode), samplingModes, 5); });
-                            if (atmosphere._atmosphereSamplingMode == 1u || atmosphere._atmosphereSamplingMode == 2u)
+							const char* samplingModes[] = { "Production", "Direct reference", "Reference limits", "Production work", "Production transmittance", "Development preview" };
+                            static_assert(DK_COUNT_OF(samplingModes) == ATMOSPHERE_PREVIEW + 1u);
+							InspectorProperty("Atmosphere integration", [&] { ImGui::Combo("##value", reinterpret_cast<int*>(&atmosphere._atmosphereSamplingMode), samplingModes, DK_COUNT_OF(samplingModes)); });
+                            if (atmosphere._atmosphereSamplingMode == ATMOSPHERE_PREVIEW)
+                            {
+                                InspectorProperty("Preview view intervals", [&] {
+                                    int intervalCount = static_cast<int>(atmosphere._previewViewIntervalCount);
+                                    if (ImGui::SliderInt("##value", &intervalCount, ATMOSPHERE_PREVIEW_MIN_VIEW_INTERVALS, ATMOSPHERE_PREVIEW_MAX_VIEW_INTERVALS, "%d", ImGuiSliderFlags_AlwaysClamp))
+                                        atmosphere._previewViewIntervalCount = static_cast<uint32>(intervalCount);
+                                });
+                                InspectorProperty("Atmosphere shadows", [&] {
+                                    bool enabled = atmosphere._previewAtmosphereShadows != 0u;
+                                    if (ImGui::Checkbox("##value", &enabled))
+                                        atmosphere._previewAtmosphereShadows = enabled ? 1u : 0u;
+                                });
+                                InspectorProperty("Surface bounce into atmosphere", [&] {
+                                    bool enabled = atmosphere._previewSurfaceBounce != 0u;
+                                    if (ImGui::Checkbox("##value", &enabled))
+                                        atmosphere._previewSurfaceBounce = enabled ? 1u : 0u;
+                                });
+                                ImGui::TextWrapped("Preview omits volumetric clouds. Surface shadows still use the scene shadow settings.");
+                            }
+                            if (atmosphere._atmosphereSamplingMode == ATMOSPHERE_REFERENCE || atmosphere._atmosphereSamplingMode == ATMOSPHERE_LIMIT_DEBUG)
                                 ImGui::TextWrapped("Direct integration is limited to the centre 16x16 pixels. Surrounding pixels use Production. Move the camera to inspect a feature at the centre.");
 							InspectorProperty("View work budget", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._viewNodeBudget), 128, 256); });
                             InspectorProperty("Light work budget", [&] { ImGui::SliderInt("##value", reinterpret_cast<int*>(&atmosphere._opticalNodeBudget), 64, 128); });
@@ -1566,7 +1596,7 @@ namespace DK
 #endif
         DK_ASSERT_LOG(atmosphereData._shadowCascadeCount <= DK_ATMOSPHERE_SHADOW_CASCADE_COUNT, "Invalid shadow cascade count");
 
-        atmosphereData._surfaceMapEnabled = _renderLocalScene && (atmosphereData._surfaceShadowStrength > 0 || atmosphereData._surfaceBounceStrength > 0) ? 1u : 0u;
+        atmosphereData._surfaceMapEnabled = _renderLocalScene && (atmosphereData._surfaceShadowStrength > 0.0f || atmosphereUsesSurfaceBounce(atmosphereData)) ? 1u : 0u;
 
         const float depth = _surfaceCaptureDepth;
         const float directionalLightAngle = atmosphereData._sunDegree * Math::kToRadian;
@@ -1675,7 +1705,7 @@ namespace DK
 		drawSceneGeometry(renderModule, _surfaceSceneConstantBuffer, _surfaceSceneConstantsData[DK_ATMOSPHERE_SHADOW_CASCADE_COUNT - 1u], false);
 		endRenderPass();
 
-        if (updateBounce && _atmosphereConstantBufferData._surfaceBounceStrength > 0.0f)
+        if (updateBounce && atmosphereUsesSurfaceBounce(surface))
         {
             startRenderPass(renderModule, *_surfaceBouncePass);
 			{
@@ -2201,6 +2231,7 @@ namespace DK
         bool dirty = _skyLightingValid == false || p._multipleScatteringStrength != old._multipleScatteringStrength
             || p._multipleScatteringMaxOrder != old._multipleScatteringMaxOrder || p._surfaceMapEnabled != old._surfaceMapEnabled
             || p._surfaceShadowStrength != old._surfaceShadowStrength || p._surfaceBounceStrength != old._surfaceBounceStrength
+            || p._atmosphereSamplingMode != old._atmosphereSamplingMode || p._previewAtmosphereShadows != old._previewAtmosphereShadows || p._previewSurfaceBounce != old._previewSurfaceBounce
             || p._sunDegree != old._sunDegree
             || p._sunIrradiance != old._sunIrradiance || p._mieAnisotropy != old._mieAnisotropy;
         for (uint32 i = 0; i < 3; ++i)
@@ -2412,7 +2443,8 @@ namespace DK
 
         startRenderPass(renderModule, *_atmospherePass);
 		{
-			startPipeline("AtmospherePipeline");
+            const bool preview = _atmosphereConstantBufferData._atmosphereSamplingMode == ATMOSPHERE_PREVIEW;
+			startPipelinePermutation("AtmospherePipeline", preview ? 1u : 0u);
 			{
 				setRootConstantParameter("_materialIndex", gbuffer._colors[2]._texture->getSRV());
 				renderModule.resourceBarrierTransition(lighting->getTextureBuffer(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -2420,7 +2452,8 @@ namespace DK
 				setRootConstantParameter("_sceneDepthIndex", gbuffer._depth._texture->getSRV());
 				setConstantBuffer("SceneConstantBuffer", _sceneConstantBuffer);
 				setConstantBuffer("AtmosphereConstantBuffer", _atmosphereConstantBuffer);
-				setConstantBuffer("CloudConstantBuffer", _cloudConstantBuffer);
+                if (preview == false)
+                    setConstantBuffer("CloudConstantBuffer", _cloudConstantBuffer);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
 				SceneManager::PostProcess& postProcess = sceneManager.getPostProcessWritable();

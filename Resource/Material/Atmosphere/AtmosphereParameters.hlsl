@@ -4,19 +4,13 @@
 #include "Assert.hlsl"
 #include "Atmosphere/AtmosphereLimits.h"
 
-#define ATEMOSPHERE_PRODUCTION 0
-#define ATEMOSPHERE_REFERENCE 1
-#define ATEMOSPHERE_LIMIT_DEBUG 2
-#define ATMOSPHERE_WORK_DEBUG 3
-#define ATMOSPHERE_TRANSMITTANCE_DEBUG 4
-
 #define DK_SHADER_ATMOSPHERE
 #include "ShaderStructures.h"
 #undef DK_SHADER_ATMOSPHERE
 
 bool atmosphereUsesLut(bool allowReference = true)
 {
-    return allowReference == false || _atmosphereSamplingMode == ATEMOSPHERE_PRODUCTION || _atmosphereSamplingMode >= 3u;
+    return allowReference == false || (_atmosphereSamplingMode != ATMOSPHERE_REFERENCE && _atmosphereSamplingMode != ATMOSPHERE_LIMIT_DEBUG);
 }
 
 // 태양 방향에 수직인 단위 면적이 받는 태양 원반 전체의 빛

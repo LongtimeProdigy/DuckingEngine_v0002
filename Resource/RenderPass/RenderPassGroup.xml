@@ -202,6 +202,7 @@
     </RenderPass>
     <RenderPass Name="AtmosphereRenderPass" Target="Atmosphere" Load="Load">
 		<Pipeline Name="AtmospherePipeline" PrimitiveTopologyType="Triangle" DepthEnable="False" FillMode="Solid">
+			<Permutation Name="ATMOSPHERE_PREVIEW_PASS" Values="0,1"/>
 			<RootConstant Buffer="AtmosphereInputConstants"/>
 			<LayoutInfo>
 				<Element Type="float2">POSITION</Element>
