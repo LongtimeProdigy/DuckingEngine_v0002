@@ -1,4 +1,4 @@
-<TerrainWorld Version="1" Width="16385" Height="16385" ChunkCells="128" SectionCells="2048" OverviewLod="3" MinimumSampleX="-8192" MinimumSampleZ="-8192" SampleSpacing="0.5" HeightOffset="-16" HeightScale="128">
+<TerrainWorld Version="1" Width="16385" Height="16385" ChunkCells="128" SectionCells="2048" OverviewLod="3" MinimumSampleX="-8192" MinimumSampleZ="-8192" SampleSpacing="0.5" HeightOffset="-16" HeightScale="768">
     <Section X="0" Z="0" Archive="source_0_0/section_0_0.dkterrain" />
     <Section X="1" Z="0" Archive="source_0_0/section_1_0.dkterrain" />
     <Section X="2" Z="0" Archive="source_0_0/section_2_0.dkterrain" />

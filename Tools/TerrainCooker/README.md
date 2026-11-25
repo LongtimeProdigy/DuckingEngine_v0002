@@ -21,9 +21,9 @@ TerrainCooker.exe --verify-world <terrain.xml>
 기본값은 샘플 간격 0.5m, 높이 기준값 -16m, 높이 범위 128m, Chunk 128셀, Overview LOD3이다. `--verify`와 `--verify-world`는 Debug 빌드에서 모든 저장 블록을 실제 런타임 로더로 읽는다.
 
 ```text
-TerrainCooker.exe Resource/Scenes/textures/forest_valley_extended_height_8k.png output/forest_valley_extended.dkterrain
-TerrainCooker.exe --split output/forest_valley_extended.dkterrain output/forest_valley_world 2048
-TerrainCooker.exe --verify-world output/forest_valley_world/terrain.xml
+TerrainCooker.exe Platform/height_16k.png Platform/forest_valley.dkterrain 0.5 -16 768 128 3
+TerrainCooker.exe --split Platform/forest_valley.dkterrain Platform/forest_valley_world 2048
+TerrainCooker.exe --verify-world Platform/forest_valley_world/terrain.xml
 ```
 
 출력 Archive와 출력 디렉터리는 새 경로여야 한다. 입력 이미지는 셀 수가 모든 상세 LOD Tile 크기와 Overview 샘플 간격으로 나누어떨어져야 한다. 잘못된 크기를 자동 보정하지 않는다.
@@ -70,7 +70,7 @@ Section마다 총 337개 블록을 저장한다. 더 높은 LOD의 청크별 Pyr
 
 현재 실행 레벨은 `Resource/Scenes/PracticeTerrain/Cooked/Sections_2048/terrain.xml`이다. 전체 16384×16384셀, 샘플 간격 0.5m로 8192×8192m를 표현한다. 최소 샘플 좌표는 (-8192, -8192)이며, Section 8×8개와 Section당 1024m를 사용한다.
 
-구형 단일 `forest_valley.dkterrain`은 기존 2048×2048 샘플의 마지막 행·열을 한 번 연장한 2049×2049 샘플로 재쿠킹했다. 대응 원본 이미지도 함께 정렬했으며 기존 높이 샘플과 1m 간격은 보존했다. 현재 실행 레벨에는 사용하지 않는다.
+`Platform/height_16k.png`는 `Resource/Scenes/textures/forest_valley_extended_height_8k.png`의 8193×8193 Gray16 샘플 사이에 쌍선형 보간한 중간 샘플을 채워 만든 16385×16385 Gray16 이미지다. 월드 높이는 `-16 + 768 × (샘플 / 65535)`m이며, 현재 높이 범위는 약 0.38~740.83m다. `--split`으로 만든 Section (X, Z)는 기존 manifest의 같은 좌표에 배치하고 `HeightScale`을 768로 맞춘다. 나무와 목초의 `Instance Y`는 새 높이맵의 해당 X/Z를 샘플링해 갱신한다.
 
 ## 공용 API 사용
 

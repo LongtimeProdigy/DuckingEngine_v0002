@@ -188,7 +188,8 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
     const float wetness = (1.0f - smoothstep(1.5f, 22.0f, worldPosition.y)) * (1.0f - smoothstep(0.03f, 0.18f, inclination));
     const float moss = TerrainMossCoverage(macro) * (1.0f - smoothstep(0.06f, 0.27f, inclination));
     const float mossWeight = saturate(moss + 0.22f * wetness);
-    const float rockWeight = smoothstep(0.10f, 0.33f, inclination + (macro - 0.5f) * 0.10f);
+    const float alpineRock = smoothstep(_alpineRockStartWorldHeight, _alpineRockEndWorldHeight, worldPosition.y);
+    const float rockWeight = max(alpineRock, smoothstep(0.10f, 0.33f, inclination + (macro - 0.5f) * 0.10f));
 
     TerrainMaterialSample litter = SampleTerrainDetail(getTexture(_diffuseTexture), getTexture(_mossSurfaceTexture), worldXZ / 3.0f, dx / 3.0f, dy / 3.0f);
     litter._albedo *= float3(0.70f, 1.08f, 1.16f);
@@ -208,7 +209,7 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
     const float2 mapXZ = worldXZ - mapOrigin;
     const float distanceOutside = length(mapXZ - clamp(mapXZ, 0.0f, mapSize));
     const float coverageFade = 1.0f - smoothstep(0.0f, max(_groundCoverageFadeMeters, 1e-4f), distanceOutside);
-    const float groundCoverageFactor = smoothstep(0.09f, 0.85f, worldPosition.y) * smoothstep(0.59f, 0.80f, terrainNormal.y);
+    const float groundCoverageFactor = (1.0f - alpineRock) * smoothstep(0.09f, 0.85f, worldPosition.y) * smoothstep(0.59f, 0.80f, terrainNormal.y);
     if (groundCoverageFactor > 0.0f)
     {
         const float exteriorMeadow = _groundCoverageExteriorMeadow * lerp(0.58f, 1.0f, mossWeight);
@@ -243,8 +244,8 @@ GBufferOutput PSMain(VS_OUTPUT input)
     const float2 minimum = float2(minimumSample - int2(_terrainCameraAnchorSampleX, _terrainCameraAnchorSampleZ)) * _terrainSampleWorldSpacing;
     const float2 maximum = float2(minimumSample + int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainCameraAnchorSampleX, _terrainCameraAnchorSampleZ)) * _terrainSampleWorldSpacing;
     const float2 boundaryDistance = min(input.relativeXZ - minimum, maximum - input.relativeXZ);
-    clip(min(boundaryDistance.x, boundaryDistance.y));
-    clip(TerrainAvailableRelative(input.relativeXZ) ? 1.0f : -1.0f);
+    //clip(min(boundaryDistance.x, boundaryDistance.y));
+    //clip(TerrainAvailableRelative(input.relativeXZ) ? 1.0f : -1.0f);
 
     float3 normal;
     if (_terrainStreamingEnabled)

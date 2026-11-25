@@ -230,6 +230,8 @@ cbuffer TerrainClipMap : register(b1)
     float _groundCoverageDepth;
     float _groundCoverageFadeMeters;
     float _groundCoverageExteriorMeadow;
+    float _alpineRockStartWorldHeight;
+    float _alpineRockEndWorldHeight;
 }
 
 float TerrainNoise(float2 position)

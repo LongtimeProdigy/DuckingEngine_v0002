@@ -16,4 +16,6 @@
 	<Parameter Name="_groundCoverageDepth" Type="float">0.0</Parameter>
 	<Parameter Name="_groundCoverageFadeMeters" Type="float">0.0</Parameter>
 	<Parameter Name="_groundCoverageExteriorMeadow" Type="float">0.0</Parameter>
+	<Parameter Name="_alpineRockStartWorldHeight" Type="float">180.0</Parameter>
+	<Parameter Name="_alpineRockEndWorldHeight" Type="float">350.0</Parameter>
 </Material>

@@ -8,7 +8,7 @@ Windows에서 C++과 DirectX 12로 개발 중인 액션 게임 엔진입니다. 
 
 ### 지형 스트리밍과 절차적 잔디
 
-Forest Valley는 **4.096 × 4.096 km** 월드를 16개 Section으로 나눕니다. 카메라 주변 3 × 3 Section의 저해상도 높이·법선과 가까운 Chunk의 상세 데이터를 비동기로 읽어 GPU 캐시에 올립니다. Geometry Clipmap은 LOD 경계에서 부모 격자로 모핑하고, 잔디 셰이더는 지형과 같은 높이 샘플링을 사용해 뿌리 위치를 계산합니다.
+Forest Valley는 **8.192 × 8.192 km** 월드를 64개 Section으로 나눕니다. 카메라 주변 3 × 3 Section의 저해상도 높이·법선과 가까운 Chunk의 상세 데이터를 비동기로 읽어 GPU 캐시에 올립니다. Geometry Clipmap은 LOD 경계에서 부모 격자로 모핑하고, 잔디 셰이더는 지형과 같은 높이 샘플링을 사용해 뿌리 위치를 계산합니다.
 
 [Terrain 구현](Terrain.cpp) · [Terrain 셰이더 공통 코드](Resource/Material/Terrain.hlsl) · [Clipmap 셰이더](Resource/Material/TerrainClipMap.hlsl) · [잔디 셰이더](Resource/Material/GrassPatch.hlsl) · [Terrain Cooker 문서](Tools/TerrainCooker/README.md)
 
@@ -37,14 +37,9 @@ msbuild .\DuckingEngine_v0002.sln /restore /p:RestorePackagesConfig=true /p:Conf
 msbuild .\Tools\TerrainCooker\TerrainCooker.vcxproj /p:Configuration=Release /p:Platform=x64 /p:OutDir=../../Platform/Tools/TerrainCooker/ /p:IntDir=../../Platform/Tools/TerrainCooker/Intermediate/
 ```
 
-데모가 사용하는 `Resource/Scenes/Cooked/`는 Git에서 제외됩니다. 저장소에 포함된 높이맵으로 아카이브를 만든 뒤 Section으로 분할합니다. `--split`의 출력 폴더는 아직 존재하지 않아야 합니다.
+데모는 저장소의 `Resource/Scenes/PracticeTerrain/Cooked/Sections_2048/terrain.xml`과 64개 Section 아카이브를 사용합니다. 엔진 빌드 후 다음 명령으로 실행합니다. 지형을 다시 쿠킹하려면 [Terrain Cooker 문서](Tools/TerrainCooker/README.md)를 참고합니다.
 
 ```powershell
-$cooker = '.\Platform\Tools\TerrainCooker\TerrainCooker.exe'
-$cooked = '.\Resource\Scenes\Cooked'
-New-Item -ItemType Directory -Path $cooked -Force | Out-Null
-& $cooker .\Resource\Scenes\textures\forest_valley_extended_height_8k.png "$cooked\forest_valley_extended.dkterrain" 0.5 -16 128 128
-& $cooker --split "$cooked\forest_valley_extended.dkterrain" "$cooked\forest_valley_world" 2048
 .\Platform\x64\Debug\Binaries\DuckginEngine_v0002.exe --resourcePath=Resource --level=Scenes/ForestValley.xml
 ```
 
