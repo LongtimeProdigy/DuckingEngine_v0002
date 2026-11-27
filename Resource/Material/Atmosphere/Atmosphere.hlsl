@@ -307,6 +307,10 @@ AtmosphereSegment calculateAtmosphereWithClouds(float3 rayOrigin, float3 rayDir,
     }
 
     AtmosphereSegment result = atmosphereIdentity();
+
+    //0	.xy가 유효하면 그 앞의 맑은 대기와 .xy 구름층을 적분
+    //1	.zw가 유효하면 그 앞의 맑은 대기와 .zw 구름층을 적분
+    //2	마지막으로 처리한 구름층 끝부터 rayLength까지 맑은 대기를 적분
     float start = 0.0f;
     [loop]
     for (uint index = 0; index <= 2; ++index)
@@ -327,8 +331,10 @@ AtmosphereSegment calculateAtmosphereWithClouds(float3 rayOrigin, float3 rayDir,
         resolveWeight = max(resolveWeight, intervalResolveWeight);
         if (all(result.transmittance < 1e-6f))
             break;
+
         start = interval.y;
     }
+    
     return result;
 }
 #endif

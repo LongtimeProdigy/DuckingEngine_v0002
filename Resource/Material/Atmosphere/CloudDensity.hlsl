@@ -10,7 +10,10 @@
 #include "ShaderStructures.h"
 #undef DK_SHADER_CLOUD
 
-// Two ordered shell intervals in metres. Equal endpoints denote an empty interval.
+// 광선의 [0, rayEnd] 범위에서 바깥 구 내부 구간을 구한 뒤, 안쪽 구 내부 구간을 빼서 구름층 통과 구간을 얻는다.
+// .xy는 앞쪽 구간, .zw는 뒤쪽 구간의 시작·끝 거리(m)이다. 거리는 origin 기준이다.
+// 시작과 끝이 같으면 빈 구간이다. 구름층 아래에서 위를 보면 .xy는 비고 .zw만 유효하다.
+// 우주에서 본다고 가정하고 "광선 → [가까운 쪽 구름층 .xy] → 구름층 아래 공간 → [반대편 구름층 .zw]"같이 통과하면 zw가 필요해짐 (구름층이 2개가됨)
 float4 cloudRayIntervals(float3 origin, float3 direction, float rayEnd)
 {
     const float2 outer = raySphere(_planetCentre, _densityReferenceRadius + _cloudTopHeight, origin, direction);
@@ -22,7 +25,8 @@ float4 cloudRayIntervals(float3 origin, float3 direction, float rayEnd)
     if (inner.y <= 0.0f || inner.x >= end)
         return float4(outer.x, end, end, end);
 
-    return float4(outer.x, max(outer.x, inner.x), min(inner.x + inner.y, end), end);
+    GPUASSERT(outer.x <= inner.x);
+    return float4(outer.x, inner.x, min(inner.x + inner.y, end), end);
 }
 
 float cloudResolvedNoiseWeight(float footprint, float period, uint cellCount)

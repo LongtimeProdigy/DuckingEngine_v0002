@@ -2139,6 +2139,7 @@ namespace DK
 		renderModule.resourceBarrierTransition(_cloudWeather, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		endPipeline();
 		endRenderPass();
+
 		_cloudNoiseValid = true;
 	}
 
