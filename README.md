@@ -34,20 +34,11 @@ Visual Studio 2022의 **C++를 사용한 데스크톱 개발** 워크로드와 W
 
 ```powershell
 msbuild .\DuckingEngine_v0002.sln /restore /p:RestorePackagesConfig=true /p:Configuration=Debug /p:Platform=x64
-msbuild .\Tools\TerrainCooker\TerrainCooker.vcxproj /p:Configuration=Release /p:Platform=x64 /p:OutDir=../../Platform/Tools/TerrainCooker/ /p:IntDir=../../Platform/Tools/TerrainCooker/Intermediate/
-```
-
-데모가 사용하는 `Resource/Scenes/Cooked/`는 Git에서 제외됩니다. 저장소에 포함된 높이맵으로 아카이브를 만든 뒤 Section으로 분할합니다. `--split`의 출력 폴더는 아직 존재하지 않아야 합니다.
-
-```powershell
-$cooker = '.\Platform\Tools\TerrainCooker\TerrainCooker.exe'
-$cooked = '.\Resource\Scenes\Cooked'
-New-Item -ItemType Directory -Path $cooked -Force | Out-Null
-& $cooker .\Resource\Scenes\textures\forest_valley_extended_height_8k.png "$cooked\forest_valley_extended.dkterrain" 0.5 -16 128 128
-& $cooker --split "$cooked\forest_valley_extended.dkterrain" "$cooked\forest_valley_world" 2048
 .\Platform\x64\Debug\Binaries\DuckginEngine_v0002.exe --resourcePath=Resource --level=Scenes/ForestValley.xml
 ```
 
+Forest Valley는 저장소에 포함된 [PracticeTerrain 지형](Resource/Scenes/PracticeTerrain/Cooked/Sections_2048/terrain.xml)을 읽습니다. 높이맵으로부터 지형을 다시 생성하는 절차는 [TerrainCooker 문서](Tools/TerrainCooker/README.md)를 참고합니다.
+
 실행 후 `Inspector`에서 대기·조명·이미지 설정을 조절할 수 있습니다. `F1`은 UI를 숨기거나 표시합니다.
 
-`Scenes/ForestValley.xml`은 저장소에 포함된 8.192km PracticeTerrain에서 실행합니다. 두 레벨의 새 식생은 같은 GLB를 참조하며 각 높이맵에 맞춘 별도의 배치 XML을 읽습니다. 초지 잔디 배치 맵의 R 채널은 밀도, 알파 채널은 풀 높이 배율입니다. `HeightMaskStrength`는 알파 채널의 적용 강도이며 기본값은 0입니다. `AlbedoScale`은 절차적 풀의 알베도 배율이며 기본값은 1입니다.
+`Scenes/ForestValley.xml`은 8.192km PracticeTerrain 높이에 맞춘 식생 배치 XML을 읽습니다. 초지 잔디 배치 맵의 R 채널은 밀도, 알파 채널은 풀 높이 배율입니다. `HeightMaskStrength`는 알파 채널의 적용 강도이며 기본값은 0입니다. `AlbedoScale`은 절차적 풀의 알베도 배율이며 기본값은 1입니다.

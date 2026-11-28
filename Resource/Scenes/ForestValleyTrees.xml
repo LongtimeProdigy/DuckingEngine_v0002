@@ -240,7 +240,6 @@
 		<Instance X="1288.835" Y="29.623" Z="1341.392" Yaw="6.2771" Scale="0.2630" />
 		<Instance X="1228.596" Y="53.761" Z="1474.096" Yaw="0.9349" Scale="0.3113" />
 		<Instance X="1150.414" Y="66.070" Z="1452.844" Yaw="0.6335" Scale="0.3361" />
-		<Instance X="1127.841" Y="57.751" Z="1433.574" Yaw="5.5087" Scale="0.3387" />
 		<Instance X="1005.666" Y="13.579" Z="1242.335" Yaw="1.0566" Scale="0.2852" />
 		<Instance X="1103.806" Y="38.197" Z="1311.931" Yaw="4.8632" Scale="0.3478" />
 		<Instance X="1105.431" Y="54.484" Z="1437.650" Yaw="5.1121" Scale="0.2572" />
@@ -1182,5 +1181,8 @@
 		<Instance X="1129.717" Y="55.200" Z="1421.465" Yaw="4.8224" Scale="1.1371" />
 		<Instance X="1127.706" Y="54.376" Z="1419.403" Yaw="2.3780" Scale="1.5510" />
 		<Instance X="1127.234" Y="52.868" Z="1415.384" Yaw="3.5426" Scale="1.3646" />
+	</Model>
+	<Model Path="Object/Model/ForestValley/TreeSmall02.glb">
+		<Instance X="1127.841" Y="57.751" Z="1433.574" Yaw="5.5087" Scale="1.1794" />
 	</Model>
 </StaticMeshPlacements>
