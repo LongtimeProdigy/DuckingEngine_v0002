@@ -1,0 +1,8 @@
+<Level>
+	<Camera X="604.3" Y="4.25" Z="592.2" TargetX="605.0" TargetY="3.4" TargetZ="605.0" />
+	<Terrain Geometry="Grid" World="Scenes/FoliageTest/Terrain/terrain.xml"
+	         ModelProperty="Scenes/FoliageTest/TerrainMaterial.xml"
+	         OriginX="600" OriginZ="600" />
+	<Grass PlacementMap="Scenes/FoliageTest/GrassPlacement.png" TileGridSide="96" HeightMaskStrength="1" AlbedoScale="0.64" />
+	<StaticMeshPlacements Path="Scenes/FoliageTest/Vegetation.xml" />
+</Level>

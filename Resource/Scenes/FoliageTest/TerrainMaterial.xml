@@ -1,0 +1,15 @@
+<ModelProperty>
+	<SubMeshArr Count="1">
+		<SubMesh Name="TerrainClipMap">
+			<Parameters>
+				<Parameter Name="_diffuseTexture" Type="Texture">Scenes/textures/forest_leaves_02_albedo.dds</Parameter>
+				<Parameter Name="_soilDiffuseTexture" Type="Texture">Scenes/textures/dirt_floor_albedo.dds</Parameter>
+				<Parameter Name="_mossSurfaceTexture" Type="Texture">Scenes/textures/forest_leaves_02_surface.dds</Parameter>
+				<Parameter Name="_soilSurfaceTexture" Type="Texture">Scenes/textures/dirt_floor_surface.dds</Parameter>
+				<Parameter Name="_rockDiffuseTexture" Type="Texture">Scenes/textures/forest_ground_04_albedo.dds</Parameter>
+				<Parameter Name="_rockSurfaceTexture" Type="Texture">Scenes/textures/forest_ground_04_surface.dds</Parameter>
+				<Parameter Name="_groundCoverageTexture" Type="Texture">Scenes/FoliageTest/GroundCoverage.png</Parameter>
+			</Parameters>
+		</SubMesh>
+	</SubMeshArr>
+</ModelProperty>

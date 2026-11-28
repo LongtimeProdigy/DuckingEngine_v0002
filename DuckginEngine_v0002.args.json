@@ -5,6 +5,10 @@
     {
       "Id": "39a5800f-5558-4c5e-a583-299e4f59fbd9",
       "Command": "--resourcePath=Resource --level=Scenes/ForestValley.xml"
+    },
+    {
+      "Id": "fc2195f2-1674-4241-8850-c390c31764d1",
+      "Command": "--resourcePath=Resource --level=Scenes/FoliageTest.xml"
     }
   ]
 }

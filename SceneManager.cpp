@@ -4,6 +4,7 @@
 #include "FileUtil.h"
 
 #include "DuckingEngine.h"
+#include "Camera.h"
 #include "RenderModule.h"
 #include "Material.h"
 #include "ResourceManager.h"
@@ -43,36 +44,36 @@ namespace DK
 		//_skyDome._mesh._indexCount = indexArr.size();
 	}
 
-	static const bool createSquareMesh(const uint32 resolution, const float2 resolutionScale, DKVector<float2>& vertexArr, DKVector<uint32>& indexArr)
+	static void createGridMesh(const uint32 cellCountX, const uint32 cellCountZ, const float2 scale, DKVector<float2>& vertexArr, DKVector<uint32>& indexArr)
 	{
-		const uint32 vertResolution = resolution + 1;
+		const uint32 vertexCountX = cellCountX + 1;
+		const uint32 vertexCountZ = cellCountZ + 1;
 
-		vertexArr.resize(vertResolution * vertResolution);
+		vertexArr.resize(vertexCountX * vertexCountZ);
 		uint32 n = 0;
-		for (uint32 y = 0; y < vertResolution; y++)
+		for (uint32 z = 0; z < vertexCountZ; z++)
 		{
-			for (uint32 x = 0; x < vertResolution; x++)
-				vertexArr[n++] = float2(x, y) * resolutionScale;
+			for (uint32 x = 0; x < vertexCountX; x++)
+				vertexArr[n++] = float2(x, z) * scale;
 		}
 
-		indexArr.resize(resolution * resolution * 6);
+		indexArr.resize(cellCountX * cellCountZ * 6);
 		n = 0;
-		for (uint32 y = 0; y < resolution; y++)
+		for (uint32 z = 0; z < cellCountZ; z++)
 		{
-			uint32 yPos0 = y * vertResolution;
-			uint32 yPos1 = (y + 1) * vertResolution;
-			for (uint32 x = 0; x < resolution; x++) {
-				indexArr[n++] = yPos0 + x;
-				indexArr[n++] = yPos1 + x;
-				indexArr[n++] = yPos1 + x + 1;
-				indexArr[n++] = yPos1 + x + 1;
-				indexArr[n++] = yPos0 + x + 1;
-				indexArr[n++] = yPos0 + x;
+			const uint32 row0 = z * vertexCountX;
+			const uint32 row1 = row0 + vertexCountX;
+			for (uint32 x = 0; x < cellCountX; x++)
+			{
+				indexArr[n++] = row0 + x;
+				indexArr[n++] = row1 + x;
+				indexArr[n++] = row1 + x + 1;
+				indexArr[n++] = row1 + x + 1;
+				indexArr[n++] = row0 + x + 1;
+				indexArr[n++] = row0 + x;
 			}
 		}
 		DK_ASSERT_LOG(n == indexArr.size(), "Size가 안맞습니다.");
-
-		return true;
 	}
 	static const bool createPrimitiveBuffer(const DKVector<float2>& vertexArr, const DKVector<uint32>& indexArr, IBufferRef& vertexBuffer, IBufferRef& indexBuffer, VertexBufferViewRef& vertexBufferView, IndexBufferViewRef& indexBufferView)
 	{
@@ -92,7 +93,8 @@ namespace DK
 	{
 		DKVector<float2> vertexArr;
 		DKVector<uint32> indexArr;
-		createSquareMesh(Ocean::OCEAN_LENGTH, static_cast<float>(Ocean::OCEAN_N) / static_cast<float>(Ocean::OCEAN_LENGTH), vertexArr, indexArr);
+		const uint32 cellCountPerSide = static_cast<uint32>(Ocean::OCEAN_LENGTH);
+		createGridMesh(cellCountPerSide, cellCountPerSide, static_cast<float>(Ocean::OCEAN_N) / Ocean::OCEAN_LENGTH, vertexArr, indexArr);
 
 		IBufferRef vertexBuffer;
 		IBufferRef indexBuffer;
@@ -243,17 +245,18 @@ namespace DK
 		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
 		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, indexArr.size());
 	}
-	static SceneManager::Mesh loadLevel_ClipMap_Patch(const uint32 patchCellCountPerSide)
+	static SceneManager::Mesh loadTerrainGrid(const uint32 cellCountX, const uint32 cellCountZ)
 	{
 		DKVector<float2> vertexArr;
 		DKVector<uint32> indexArr;
-		createSquareMesh(patchCellCountPerSide, float2::Identity, vertexArr, indexArr);
+		createGridMesh(cellCountX, cellCountZ, float2::Identity, vertexArr, indexArr);
 
 		IBufferRef vertexBuffer;
 		IBufferRef indexBuffer;
 		VertexBufferViewRef vertexBufferView;
 		IndexBufferViewRef indexBufferView;
-		createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView);
+		if (createPrimitiveBuffer(vertexArr, indexArr, vertexBuffer, indexBuffer, vertexBufferView, indexBufferView) == false)
+			return {};
 		return SceneManager::Mesh(DK::move(vertexBuffer), DK::move(indexBuffer), vertexBufferView, indexBufferView, static_cast<uint32>(indexArr.size()));
 	}
 	static SceneManager::Mesh loadLevel_ClipMap_Filter(const uint32 patchVertexCountPerSide, const uint32 patchCellCountPerSide)
@@ -329,30 +332,30 @@ namespace DK
 	static SceneManager::Mesh loadLevel_ClipMap_Trim()
 	{
 		DKVector<float2> vertexArr;
-		vertexArr.resize((SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 2 + 1) * 2);
+		vertexArr.resize((SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 2 + 1) * 2);
 		uint32 n = 0;
 		// vertical part of L
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION + 1; i++)
+		for (uint32 i = 0; i < SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION + 1; i++)
 		{
-			vertexArr[n++] = float2(0, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i);
-			vertexArr[n++] = float2(1, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i);
+			vertexArr[n++] = float2(0, SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION - i);
+			vertexArr[n++] = float2(1, SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION - i);
 		}
 		uint32 start_of_horizontal = n;
 		// horizontal part of L
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION; i++)
+		for (uint32 i = 0; i < SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION; i++)
 		{
 			vertexArr[n++] = float2(i + 1, 0);
 			vertexArr[n++] = float2(i + 1, 1);
 		}
 		// move to center (for Rotation)
 		for (float2& v : vertexArr)
-			v = v - float2(0.5f * (SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION + 1), 0.5f * (SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION + 1));
+			v = v - float2(0.5f * (SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION + 1), 0.5f * (SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION + 1));
 		DK_ASSERT_LOG(n == vertexArr.size(), "Size가 안맞습니다.");
 
 		DKVector<uint32> indexArr;
-		indexArr.resize((SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 2 - 1) * 6);
+		indexArr.resize((SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 2 - 1) * 6);
 		n = 0;
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION; i++)
+		for (uint32 i = 0; i < SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION; i++)
 		{
 			uint32 bl = (i + 1) * 2 + 0;
 			uint32 tl = (i + 0) * 2 + 0;
@@ -368,7 +371,7 @@ namespace DK
 			indexArr[n++] = bl;
 
 		}
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - 1; i++)
+		for (uint32 i = 0; i < SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION - 1; i++)
 		{
 			uint32 bl = start_of_horizontal + (i + 1) * 2 + 0;
 			uint32 tl = start_of_horizontal + (i + 0) * 2 + 0;
@@ -395,19 +398,19 @@ namespace DK
 	static SceneManager::Mesh loadLevel_ClipMap_Seam()
 	{
 		DKVector<float2> vertexArr;
-		vertexArr.resize(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 4);
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION; i++)
+		vertexArr.resize(SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 4);
+		for (uint32 i = 0; i < SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION; i++)
 		{
-			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 0 + i] = float2(i, 0);
-			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 1 + i] = float2(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION, i);
-			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 2 + i] = float2(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION);
-			vertexArr[SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 3 + i] = float2(0, SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION - i);
+			vertexArr[SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 0 + i] = float2(i, 0);
+			vertexArr[SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 1 + i] = float2(SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION, i);
+			vertexArr[SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 2 + i] = float2(SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION - i, SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION);
+			vertexArr[SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 3 + i] = float2(0, SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION - i);
 		}
 
 		DKVector<uint32> indexArr;
-		indexArr.resize(SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 6);
+		indexArr.resize(SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 6);
 		uint32 n = 0;
-		for (uint32 i = 0; i < SceneManager::ClipMapTerrain::CLIPMAP_VERT_RESOLUTION * 4; i += 2)
+		for (uint32 i = 0; i < SceneManager::Terrain::CLIPMAP_VERT_RESOLUTION * 4; i += 2)
 		{
 			indexArr[n++] = i;
 			indexArr[n++] = i + 1;
@@ -451,6 +454,20 @@ namespace DK
 			return false;
 		}
 
+		const TiXmlElement* camera = level->FirstChildElement("Camera");
+		float3 cameraPosition = float3::Zero;
+		float3 cameraTarget = float3::Zero;
+		const auto readPosition = [](const TiXmlElement& element, const char* x, const char* y, const char* z, float3& position)
+		{
+			return element.QueryFloatAttribute(x, &position.x) == TIXML_SUCCESS && element.QueryFloatAttribute(y, &position.y) == TIXML_SUCCESS && element.QueryFloatAttribute(z, &position.z) == TIXML_SUCCESS &&
+				std::isfinite(position.x) && std::isfinite(position.y) && std::isfinite(position.z);
+		};
+		if (camera != nullptr && (readPosition(*camera, "X", "Y", "Z", cameraPosition) == false || readPosition(*camera, "TargetX", "TargetY", "TargetZ", cameraTarget) == false || cameraPosition == cameraTarget))
+		{
+			DK_ASSERT_LOG(false, "Level camera needs a finite position and a distinct target: %s", fullPath.c_str());
+			return false;
+		}
+
 		const char* terrainWorld = terrain->Attribute("World");
 		const char* terrainModelProperty = terrain->Attribute("ModelProperty");
 		if (terrainWorld == nullptr || terrainWorld[0] == '\0' || terrainModelProperty == nullptr || terrainModelProperty[0] == '\0')
@@ -466,7 +483,14 @@ namespace DK
 			return false;
 		}
 
-		if (loadTerrain(terrainWorld, terrainModelProperty, terrainWorldOrigin) == false)
+		const char* geometry = terrain->Attribute("Geometry");
+		const bool useGrid = geometry != nullptr && StringUtil::strcmp(geometry, "Grid") == 0;
+		if (geometry != nullptr && useGrid == false && StringUtil::strcmp(geometry, "Clipmap") != 0)
+		{
+			DK_ASSERT_LOG(false, "Terrain Geometry must be Grid or Clipmap: %s", fullPath.c_str());
+			return false;
+		}
+		if (loadTerrain(terrainWorld, terrainModelProperty, terrainWorldOrigin, useGrid) == false)
 			return false;
 
 		_grass = {};
@@ -485,7 +509,7 @@ namespace DK
 				DK_ASSERT_LOG(false, "Grass TileGridSide must be a multiple of 32 between 32 and 128: %s", fullPath.c_str());
 				return false;
 			}
-			const TerrainStreamingConstants& terrainConstants = _clipmapTerrain._streamingConstants;
+			const TerrainStreamingConstants& terrainConstants = _terrain._streamingConstants;
 			_grass._grassMapOriginX = terrainConstants._terrainOriginWorldX + terrainConstants._terrainMinimumSampleX * terrainConstants._terrainSampleWorldSpacing;
 			_grass._grassMapOriginZ = terrainConstants._terrainOriginWorldZ + terrainConstants._terrainMinimumSampleZ * terrainConstants._terrainSampleWorldSpacing;
 			_grass._grassMapWidth = terrainConstants._terrainCellCountX * terrainConstants._terrainSampleWorldSpacing;
@@ -524,27 +548,58 @@ namespace DK
 			if (DuckingEngine::getInstance().GetSceneObjectManagerWritable().loadStaticMeshPlacements(placementPath) == false)
 				return false;
 		}
+		if (camera != nullptr)
+			Camera::gMainCamera->setLevelView(cameraPosition, cameraTarget - cameraPosition);
 		return true;
 	}
 
-	bool SceneManager::loadTerrain(const DKString& terrainWorld, const DKString& modelPropertyPath, const float2& terrainWorldOrigin)
+	bool SceneManager::loadTerrain(const DKString& terrainWorld, const DKString& modelPropertyPath, const float2& terrainWorldOrigin, bool useGrid)
 	{
-		static_assert(ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE >= 4 && ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE % 2 == 0, "Terrain clipmap patch cell count must be even and at least four cells");
-		static_assert(ClipMapTerrain::NUM_CLIPMAP_LEVELS > 0 && ClipMapTerrain::NUM_CLIPMAP_LEVELS < 31 && ClipMapTerrain::BASE_VERTEX_SPACING > 0.0f, "Terrain clipmap levels and vertex spacing must be positive and fit the grid shift range");
-		_clipmapTerrain._terrainConstantBuffer.clear();
-		_clipmapTerrain._streamer.stop();
+		static_assert(Terrain::PATCH_CELL_COUNT_PER_SIDE >= 4 && Terrain::PATCH_CELL_COUNT_PER_SIDE % 2 == 0, "Terrain clipmap patch cell count must be even and at least four cells");
+		static_assert(Terrain::NUM_CLIPMAP_LEVELS > 0 && Terrain::NUM_CLIPMAP_LEVELS < 31 && Terrain::BASE_VERTEX_SPACING > 0.0f, "Terrain clipmap levels and vertex spacing must be positive and fit the grid shift range");
+		_terrain._terrainConstantBuffer.clear();
+		_terrain._streamer.stop();
+		_terrain._grid = {};
 
 		const ScopeString<DK_MAX_PATH> worldPath = GlobalPath::makeResourceFullPath(terrainWorld.c_str());
-		if (_clipmapTerrain._world.open(worldPath.c_str()) == false || initializeTerrainStreaming(terrainWorldOrigin) == false)
+		if (_terrain._world.open(worldPath.c_str()) == false)
 			return false;
 
-		// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
-		// Clipmap meshes
-		_clipmapTerrain._cross = loadLevel_ClipMap_Cross(SceneManager::ClipMapTerrain::PATCH_VERTEX_COUNT_PER_SIDE, SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE);
-		_clipmapTerrain._patch = loadLevel_ClipMap_Patch(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE);
-		_clipmapTerrain._filter = loadLevel_ClipMap_Filter(SceneManager::ClipMapTerrain::PATCH_VERTEX_COUNT_PER_SIDE, SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE);
-		_clipmapTerrain._trim = loadLevel_ClipMap_Trim();
-		_clipmapTerrain._seam = loadLevel_ClipMap_Seam();
+		if (useGrid)
+		{
+			const TerrainWorld& world = _terrain._world;
+			const uint32 cellCountX = world._sampleCountX - 1;
+			const uint32 cellCountZ = world._sampleCountZ - 1;
+			const uint64 vertexCount = uint64(world._sampleCountX) * world._sampleCountZ;
+			const uint64 cellCount = uint64(cellCountX) * cellCountZ;
+			if (vertexCount > UINT32_MAX / sizeof(float2) || cellCount > UINT32_MAX / (6 * sizeof(uint32)))
+			{
+				DK_ASSERT_LOG(false, "Terrain Grid exceeds the vertex or index buffer size: %s", worldPath.c_str());
+				return false;
+			}
+			_terrain._grid = loadTerrainGrid(cellCountX, cellCountZ);
+			if (_terrain.hasGrid() == false)
+				return false;
+			_terrain._cross = {};
+			_terrain._patch = {};
+			_terrain._filter = {};
+			_terrain._trim = {};
+			_terrain._seam = {};
+		}
+		else
+		{
+			// 출처: https://mikejsavage.co.uk/blog/geometry-clipmaps.html
+			_terrain._cross = loadLevel_ClipMap_Cross(Terrain::PATCH_VERTEX_COUNT_PER_SIDE, Terrain::PATCH_CELL_COUNT_PER_SIDE);
+			_terrain._patch = loadTerrainGrid(Terrain::PATCH_CELL_COUNT_PER_SIDE, Terrain::PATCH_CELL_COUNT_PER_SIDE);
+			if (_terrain._patch._indexCount == 0)
+				return false;
+			_terrain._filter = loadLevel_ClipMap_Filter(Terrain::PATCH_VERTEX_COUNT_PER_SIDE, Terrain::PATCH_CELL_COUNT_PER_SIDE);
+			_terrain._trim = loadLevel_ClipMap_Trim();
+			_terrain._seam = loadLevel_ClipMap_Seam();
+		}
+
+		if (initializeTerrainStreaming(terrainWorldOrigin) == false)
+			return false;
 
 		const ModelPropertyRef modelProperty = DuckingEngine::getInstance().GetResourceManagerWritable().loadModelProperty(modelPropertyPath);
 		if (modelProperty == nullptr)
@@ -555,20 +610,19 @@ namespace DK
 			DK_ASSERT_LOG(false, "Terrain requires one material: %s", modelPropertyPath.c_str());
 			return false;
 		}
-		_clipmapTerrain._material.assign(Material::createMaterial(materials[0]));
-		if (_clipmapTerrain._material.get() == nullptr)
+		_terrain._material.assign(Material::createMaterial(materials[0]));
+		if (_terrain._material.get() == nullptr)
 			return false;
 
-		// Cross(1) + (patch(4) + Filter(1) + Trim(1) + Seam(1)) * (level count)
-		const uint32 meshCountPerClipMap = 1 + (4 * 4 + 1 + 1 + 1) * ClipMapTerrain::NUM_CLIPMAP_LEVELS;
-		_clipmapTerrain._terrainConstantBuffer.reserve(meshCountPerClipMap);
-		for (uint32 i = 0; i < meshCountPerClipMap; ++i)
+		const uint32 meshCount = useGrid ? 1u : 1u + (4u * 4u + 1u + 1u + 1u) * Terrain::NUM_CLIPMAP_LEVELS;
+		_terrain._terrainConstantBuffer.reserve(meshCount);
+		for (uint32 i = 0; i < meshCount; ++i)
 		{
 			IBufferRef buffer = DuckingEngine::getInstance().GetRenderModuleWritable().createConstantBuffer(sizeof(TerrainMeshConstantBuffer), DK_DEBUG_NAME(L"TerrainMesh_CBuffer"));
 			if (buffer == nullptr)
 				return false;
 
-			_clipmapTerrain._terrainConstantBuffer.push_back(buffer);
+			_terrain._terrainConstantBuffer.push_back(buffer);
 		}
 
 		return true;
@@ -620,7 +674,7 @@ namespace DK
     bool SceneManager::initializeTerrainStreaming(const float2& terrainWorldOrigin)
     {
         RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
-        ClipMapTerrain& terrain = _clipmapTerrain;
+        Terrain& terrain = _terrain;
         TerrainStreamingConstants& constants = terrain._streamingConstants;
         const TerrainWorld& world = terrain._world;
 
@@ -649,7 +703,7 @@ namespace DK
         constants._terrainOverviewAtlasTexelCountX = constants._terrainSectionOverviewSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
         constants._terrainOverviewAtlasTexelCountY = constants._terrainSectionOverviewSampleCountPerSide * TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
         constants._terrainCacheSlotTexelCountPerSide = world._chunkCellCountPerSide + 1;
-        const uint32 cacheSlotCount = world._overviewLod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
+        const uint32 cacheSlotCount = world._overviewLod * Terrain::CACHE_SLOTS_PER_LOD;
         if (constants._terrainCacheSlotColumnCount == 0 || cacheSlotCount % constants._terrainCacheSlotColumnCount != 0)
         {
             DK_ASSERT_LOG(false, "Terrain cache slot count must be divisible by the cache column count");
@@ -670,10 +724,10 @@ namespace DK
         const uint32 sectionPageTableRowCount = terrainPageTableLodRowOffset(constants._terrainPageTableWidth, world._overviewLod);
         const uint32 tableHeight = sectionPageTableRowCount * TERRAIN_SECTION_SLOT_COUNT;
 #if defined(_DK_DEBUG_)
-        const double clipmapRadius = double(ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE * 2 - 2) * ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1));
+        const double clipmapRadius = double(Terrain::PATCH_CELL_COUNT_PER_SIDE * 2 - 2) * Terrain::BASE_VERTEX_SPACING * (1u << (Terrain::NUM_CLIPMAP_LEVELS - 1));
         if (cacheAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || cacheAtlasTexelCountY > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION
 			|| constants._terrainPageTableWidth > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || tableHeight > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION
-			|| constants._terrainOverviewAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || double(world._sectionCellCountPerSide) * world._sampleWorldSpacing * 2.0 > clipmapRadius)
+			|| constants._terrainOverviewAtlasTexelCountX > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION || (terrain.hasGrid() == false && double(world._sectionCellCountPerSide) * world._sampleWorldSpacing * 2.0 > clipmapRadius))
         {
             DK_ASSERT_LOG(false, "Terrain section layout exceeds the cache or clipmap coverage");
             return false;
@@ -713,7 +767,7 @@ namespace DK
 
     void SceneManager::prepareTerrainStreaming(double cameraX, double cameraZ, float deltaTime)
     {
-        ClipMapTerrain& terrain = _clipmapTerrain;
+        Terrain& terrain = _terrain;
         TerrainStreamingConstants& constants = terrain._streamingConstants;
         if (terrain._streamingBuffer == nullptr)
             return;
@@ -721,7 +775,7 @@ namespace DK
         DK_ASSERT_LOG(std::isfinite(cameraX) && std::isfinite(cameraZ) && std::isfinite(deltaTime) && deltaTime >= 0.0f, "Terrain streaming update requires finite camera coordinates and a nonnegative delta time");
         DK_ASSERT_LOG(constants._terrainOverviewLod == terrain._world._overviewLod && constants._terrainSectionCellCountPerSide == terrain._world._sectionCellCountPerSide && constants._terrainChunkCellCountPerSide == terrain._world._chunkCellCountPerSide && constants._terrainSampleWorldSpacing == terrain._world._sampleWorldSpacing, "Terrain streaming layout must match the loaded world");
         DK_ASSERT_LOG(constants._terrainMinimumSampleX == terrain._world._minimumSampleX && constants._terrainMinimumSampleZ == terrain._world._minimumSampleZ, "Terrain streaming bounds must match the loaded world");
-        DK_ASSERT_LOG(constants._terrainCacheSlotColumnCount > 0 && constants._terrainPageTableWidth == constants._terrainSectionCellCountPerSide / constants._terrainChunkCellCountPerSide && constants._terrainPageTableWidth > 0 && terrain._tileCacheEntries.size() == size_t(constants._terrainOverviewLod) * ClipMapTerrain::CACHE_SLOTS_PER_LOD && terrain._tileCacheEntries.size() == size_t(constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotRowCount, "Terrain cache slots must fill the allocated atlas grid");
+        DK_ASSERT_LOG(constants._terrainCacheSlotColumnCount > 0 && constants._terrainPageTableWidth == constants._terrainSectionCellCountPerSide / constants._terrainChunkCellCountPerSide && constants._terrainPageTableWidth > 0 && terrain._tileCacheEntries.size() == size_t(constants._terrainOverviewLod) * Terrain::CACHE_SLOTS_PER_LOD && terrain._tileCacheEntries.size() == size_t(constants._terrainCacheSlotColumnCount) * constants._terrainCacheSlotRowCount, "Terrain cache slots must fill the allocated atlas grid");
         const double cameraRelativeToTerrainOriginWorldX = cameraX - constants._terrainOriginWorldX;
         const double cameraRelativeToTerrainOriginWorldZ = cameraZ - constants._terrainOriginWorldZ;
         const double cameraAnchorSampleX = std::floor(cameraRelativeToTerrainOriginWorldX / constants._terrainSampleWorldSpacing);
@@ -738,7 +792,7 @@ namespace DK
 		RenderModule& rm = DuckingEngine::getInstance().GetRenderModuleWritable();
 
 		// 카메라 주변 필요한 selection 목록 가져오기
-        const DKVector<uint32> currentSections = selectSections(world, cameraRelativeToTerrainOriginWorldX, cameraRelativeToTerrainOriginWorldZ);
+        const DKVector<uint32> currentSections = terrain.hasGrid() && world._sections.size() == 1 ? DKVector<uint32>{0u} : selectSections(world, cameraRelativeToTerrainOriginWorldX, cameraRelativeToTerrainOriginWorldZ);
 
 		// 이전까지 랜더한 section이 카메라 주변이 아니면 invalid처리
         for (TerrainSectionConstants& section : constants._terrainSections)
@@ -798,11 +852,11 @@ namespace DK
         }
 
 		// Tile cache entry 업데이트
-        for (ClipMapTerrain::TileCacheEntry& cacheEntry : terrain._tileCacheEntries)
+        for (Terrain::TileCacheEntry& cacheEntry : terrain._tileCacheEntries)
             cacheEntry._fade = Math::min(cacheEntry._fade + deltaTime * 4.0f, 1.0f);
 
 		// 요청이 필요한 Tile들 LOD별로 목록 가져오기
-        const DKVector<TileRequest> currentTiles = selectTiles(world, currentSections, cameraRelativeToTerrainOriginWorldX, cameraRelativeToTerrainOriginWorldZ, constants._terrainLod0WorldRadius, ClipMapTerrain::CACHE_SLOTS_PER_LOD);
+        const DKVector<TileRequest> currentTiles = selectTiles(world, currentSections, cameraRelativeToTerrainOriginWorldX, cameraRelativeToTerrainOriginWorldZ, constants._terrainLod0WorldRadius, Terrain::CACHE_SLOTS_PER_LOD);
 
 		// 로딩 완료된 Tile중에 현재 필요한 section에 포함되는 tile이면 slot정보를 채우고 GPU에 업로드
         TileLoadResult tileLoadResult;
@@ -817,9 +871,9 @@ namespace DK
             if (std::find(currentTiles.begin(), currentTiles.end(), tileLoadResult._request) == currentTiles.end())
                 continue;
 
-            const DKVector<ClipMapTerrain::TileCacheEntry>::iterator first = terrain._tileCacheEntries.begin() + tileLoadResult._request._lod * ClipMapTerrain::CACHE_SLOTS_PER_LOD;
-            const DKVector<ClipMapTerrain::TileCacheEntry>::iterator last = first + ClipMapTerrain::CACHE_SLOTS_PER_LOD;
-            const DKVector<ClipMapTerrain::TileCacheEntry>::iterator cacheEntry = std::find_if(first, last, [&](const ClipMapTerrain::TileCacheEntry& value)
+            const DKVector<Terrain::TileCacheEntry>::iterator first = terrain._tileCacheEntries.begin() + tileLoadResult._request._lod * Terrain::CACHE_SLOTS_PER_LOD;
+            const DKVector<Terrain::TileCacheEntry>::iterator last = first + Terrain::CACHE_SLOTS_PER_LOD;
+            const DKVector<Terrain::TileCacheEntry>::iterator cacheEntry = std::find_if(first, last, [&](const Terrain::TileCacheEntry& value)
             {
                 return value._valid == false || std::find(currentTiles.begin(), currentTiles.end(), value._request) == currentTiles.end();
             });
@@ -851,11 +905,11 @@ namespace DK
         DKVector<float4> pageEntries(size_t(tableWidth) * tableHeight);
         for (uint32 cacheSlotIndex = 0; cacheSlotIndex < terrain._tileCacheEntries.size(); ++cacheSlotIndex)
         {
-            const ClipMapTerrain::TileCacheEntry& cacheEntry = terrain._tileCacheEntries[cacheSlotIndex];
+            const Terrain::TileCacheEntry& cacheEntry = terrain._tileCacheEntries[cacheSlotIndex];
 			if (cacheEntry._valid == false || std::find(currentTiles.begin(), currentTiles.end(), cacheEntry._request) == currentTiles.end())
 				continue;
 
-            DK_ASSERT_LOG(cacheEntry._request._sectionId < world._sections.size() && cacheEntry._request._lod < constants._terrainOverviewLod && cacheSlotIndex / ClipMapTerrain::CACHE_SLOTS_PER_LOD == cacheEntry._request._lod && cacheEntry._fade >= 0.0f && cacheEntry._fade <= 1.0f, "Terrain tile cache entry must belong to its requested LOD and have a valid fade");
+            DK_ASSERT_LOG(cacheEntry._request._sectionId < world._sections.size() && cacheEntry._request._lod < constants._terrainOverviewLod && cacheSlotIndex / Terrain::CACHE_SLOTS_PER_LOD == cacheEntry._request._lod && cacheEntry._fade >= 0.0f && cacheEntry._fade <= 1.0f, "Terrain tile cache entry must belong to its requested LOD and have a valid fade");
             const TerrainSection& section = world._sections[cacheEntry._request._sectionId];
 			const uint32 sectionSlotIndexX = section._sectionIndexX % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
 			const uint32 sectionSlotIndexY = section._sectionIndexZ % TERRAIN_SECTION_SLOT_COUNT_PER_SIDE;
@@ -889,6 +943,14 @@ namespace DK
 
         terrain._streamer.request(currentSections, missingSections, missingTiles);
         terrain._streamingBuffer->upload(&constants);
+        if (terrain.hasGrid())
+        {
+            const float originRelativeWorldX = static_cast<float>((world._minimumSampleX - cameraAnchorSampleX) * constants._terrainSampleWorldSpacing);
+            const float originRelativeWorldZ = static_cast<float>((world._minimumSampleZ - cameraAnchorSampleZ) * constants._terrainSampleWorldSpacing);
+            TerrainMeshConstantBuffer meshConstants{};
+            meshConstants._baseXY_scale_rotate = float4(originRelativeWorldX, originRelativeWorldZ, constants._terrainSampleWorldSpacing, 0.0f);
+            terrain._terrainConstantBuffer.front()->upload(&meshConstants);
+        }
     }
 
 	void SceneManager::loadPostProcess()

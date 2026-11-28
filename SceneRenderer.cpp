@@ -876,13 +876,14 @@ namespace DK
         const double gx = double(cameraPosition.x) - _localGeometryCentre.x;
         const double gy = double(cameraPosition.y) - _localGeometryCentre.y;
         const double gz = double(cameraPosition.z) - _localGeometryCentre.z;
-        const TerrainStreamingConstants& terrainBounds = DuckingEngine::getInstance().getSceneManagerWritable().getClipMapTerrainWritable()._streamingConstants;
+        SceneManager::Terrain& terrain = DuckingEngine::getInstance().getSceneManagerWritable().getTerrainWritable();
+        const TerrainStreamingConstants& terrainBounds = terrain._streamingConstants;
         const double terrainLocalX = preciseCamera[0] - terrainBounds._terrainOriginWorldX;
         const double terrainLocalZ = preciseCamera[2] - terrainBounds._terrainOriginWorldZ;
         const double terrainX = terrainLocalX - std::clamp(terrainLocalX, double(terrainBounds._terrainMinimumSampleX) * terrainBounds._terrainSampleWorldSpacing, (double(terrainBounds._terrainMinimumSampleX) + terrainBounds._terrainCellCountX) * terrainBounds._terrainSampleWorldSpacing);
         const double terrainZ = terrainLocalZ - std::clamp(terrainLocalZ, double(terrainBounds._terrainMinimumSampleZ) * terrainBounds._terrainSampleWorldSpacing, (double(terrainBounds._terrainMinimumSampleZ) + terrainBounds._terrainCellCountZ) * terrainBounds._terrainSampleWorldSpacing);
         const double terrainY = preciseCamera[1] - std::clamp(preciseCamera[1], double(terrainBounds._terrainBaseWorldHeight), double(terrainBounds._terrainBaseWorldHeight + terrainBounds._terrainWorldHeightRange));
-        const double terrainRadius = double(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE * 2u) * SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING * (1u << (SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS - 1u));
+        const double terrainRadius = double(SceneManager::Terrain::PATCH_CELL_COUNT_PER_SIDE * 2u) * SceneManager::Terrain::BASE_VERTEX_SPACING * (1u << (SceneManager::Terrain::NUM_CLIPMAP_LEVELS - 1u));
         const bool nearTerrain = terrainBounds._terrainCellCountX > 0 && terrainX * terrainX + terrainY * terrainY + terrainZ * terrainZ < terrainRadius * terrainRadius;
         _renderLocalScene = nearTerrain || gx * gx + gy * gy + gz * gz < double(_localGeometryRadius) * _localGeometryRadius;
 #if defined(USE_IMGUI)
@@ -960,18 +961,15 @@ namespace DK
 		}
 
 		// Upload Terrain CBuffer
-		if (_renderLocalScene)
+		if (_renderLocalScene && terrain.hasGrid() == false)
 		{
-			SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-			SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
-
 			const TerrainStreamingConstants& streaming = terrain._streamingConstants;
 			const float2 cameraLocalXZ(streaming._terrainCameraLocalX, streaming._terrainCameraLocalZ);
 
-			const float vertexScale = SceneManager::ClipMapTerrain::BASE_VERTEX_SPACING;
+			const float vertexScale = SceneManager::Terrain::BASE_VERTEX_SPACING;
 			constexpr const uint32 morphCells = 4; // 현재 레벨 정점 간격을 기준으로 한 전환 영역의 폭.
 			static_assert(morphCells > 0);
-			static_assert(morphCells <= SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
+			static_assert(morphCells <= SceneManager::Terrain::PATCH_CELL_COUNT_PER_SIDE - 2);	// 부모의 안쪽 경계가 부모 자신의 모핑 영역에 들어가지 않게 제한한다.
 
             const double cameraAnchorWorldX = streaming._terrainOriginWorldX + double(streaming._terrainCameraAnchorSampleX) * streaming._terrainSampleWorldSpacing;
             const double cameraAnchorWorldZ = streaming._terrainOriginWorldZ + double(streaming._terrainCameraAnchorSampleZ) * streaming._terrainSampleWorldSpacing;
@@ -992,7 +990,7 @@ namespace DK
 					const float2 parentOriginRelativeWorldXZ = snapTerrainGrid(parentSpacing);
 
 					// 현재 Clipmap 배치에서 실제 외곽 경계는 카메라로부터 각 축 방향으로 최소 2*T*spacing만큼 떨어져 있다.
-					const float morphEnd = 2.0f * static_cast<float>(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
+					const float morphEnd = 2.0f * static_cast<float>(SceneManager::Terrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
 					const float morphStart = morphEnd - static_cast<float>(morphCells) * spacing;
 
 					TerrainMeshConstantBuffer cb{};
@@ -1001,7 +999,7 @@ namespace DK
 					cb._parentOriginRelativeWorldXZ = parentOriginRelativeWorldXZ;
 					cb._type = type;
 					cb._level = level;
-					cb._hasParent = (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS) ? 1u : 0u;
+					cb._hasParent = (level + 1u < SceneManager::Terrain::NUM_CLIPMAP_LEVELS) ? 1u : 0u;
 					DK_ASSERT_LOG(bufferIndex < terrain._terrainConstantBuffer.size(), "Clipmap constant buffer count mismatch.");
 					terrain._terrainConstantBuffer[bufferIndex++]->upload(&cb);
 				};
@@ -1009,10 +1007,10 @@ namespace DK
 			// Draw Cross
 			uploadPatch(0u, 0u, snapTerrainGrid(vertexScale), 0u);
 
-			for (uint32 level = 0; level < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++level)
+			for (uint32 level = 0; level < SceneManager::Terrain::NUM_CLIPMAP_LEVELS; ++level)
 			{
 				const float spacing = static_cast<float>(1u << level) * vertexScale;
-				const float gridScale = static_cast<float>(SceneManager::ClipMapTerrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
+				const float gridScale = static_cast<float>(SceneManager::Terrain::PATCH_CELL_COUNT_PER_SIDE) * spacing;
 				const float2 snappedCameraPos = snapTerrainGrid(spacing);
 				const float2 base = snappedCameraPos - gridScale * 2.0f;
 
@@ -1036,14 +1034,14 @@ namespace DK
 				const float2 parentOriginRelativeWorldXZ = snapTerrainGrid(spacing * 2.0f);
 
 				// Seam: 부모가 있는 레벨만 생성한다.
-				if (level + 1u < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+				if (level + 1u < SceneManager::Terrain::NUM_CLIPMAP_LEVELS)
 				{
 					const float2 seamOrigin = parentOriginRelativeWorldXZ - gridScale * 2.0f;
 					uploadPatch(level, 3u, seamOrigin, 0u);
 				}
 
 				// Trim
-				if ((level + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
+				if ((level + 1) < SceneManager::Terrain::NUM_CLIPMAP_LEVELS)
 				{
 					const float2 d = cameraLocalXZ - parentOriginRelativeWorldXZ;
 					const uint32 rotation = (d.x < spacing ? 2u : 0u) | (d.y < spacing ? 1u : 0u);
@@ -1757,71 +1755,44 @@ namespace DK
 				setConstantBuffer("SceneConstantBuffer", sceneConstants);
 
 				SceneManager& sceneManager = DuckingEngine::getInstance().getSceneManagerWritable();
-				SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
+				SceneManager::Terrain& terrain = sceneManager.getTerrainWritable();
 				Material* material = terrain._material.get();
 				setConstantBuffer(material->get_materialNameHash(), material->get_parameterBufferForGPUWritable());
 				setConstantBuffer("TerrainStreamingConstants", terrain._streamingBuffer);
 
-				uint32 terrainConstantBufferTypeIndex = 0;
-				// Draw Cross
+				const ShaderParameter* meshParameter = gCurrentBindedPipeline->getShaderParameter("TerrainMeshConstantBuffer");
+				RENDERING_VERIFY(meshParameter, "TerrainMeshConstantBuffer");
+				uint32 terrainBufferIndex = 0;
+				const auto drawTerrainMesh = [&](const SceneManager::Mesh& mesh)
 				{
-					IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-					setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-					renderModule.setVertexBuffers(0, 1, terrain._cross._vertexBufferView.get());
-					renderModule.setIndexBuffer(terrain._cross._indexBufferView.get());
-					renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._cross._indexCount), 1, 0, 0, 0);
-				}
-
-				for (uint32 i = 0; i < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS; ++i)
+					DK_ASSERT_LOG(terrainBufferIndex < terrain._terrainConstantBuffer.size(), "Terrain draw is missing mesh constants");
+					renderModule.bindConstantBuffer(meshParameter->_rootParameterIndex, terrain._terrainConstantBuffer[terrainBufferIndex++], gCurrentBindedPipeline->_type);
+					renderModule.setVertexBuffers(0, 1, mesh._vertexBufferView.get());
+					renderModule.setIndexBuffer(mesh._indexBufferView.get());
+					renderModule.drawIndexedInstanced(mesh._indexCount, 1, 0, 0, 0);
+				};
+				if (terrain.hasGrid())
+					drawTerrainMesh(terrain._grid);
+				else
 				{
-					// Draw Patch
-					for (uint32 x = 0; x < 4; ++x)
+					drawTerrainMesh(terrain._cross);
+					for (uint32 level = 0; level < SceneManager::Terrain::NUM_CLIPMAP_LEVELS; ++level)
 					{
-						for (uint32 y = 0; y < 4; ++y)
+						for (uint32 x = 0; x < 4; ++x)
 						{
-							if (i != 0 && (x == 1 || x == 2) && (y == 1 || y == 2))
-								continue;
-
-							IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-							setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-							renderModule.setVertexBuffers(0, 1, terrain._patch._vertexBufferView.get());
-							renderModule.setIndexBuffer(terrain._patch._indexBufferView.get());
-							renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._patch._indexCount), 1, 0, 0, 0);
+							for (uint32 z = 0; z < 4; ++z)
+							{
+								if (level != 0 && (x == 1 || x == 2) && (z == 1 || z == 2))
+									continue;
+								drawTerrainMesh(terrain._patch);
+							}
 						}
-					}
-
-					// Draw Filter
-					{
-						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-						renderModule.setVertexBuffers(0, 1, terrain._filter._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._filter._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._filter._indexCount), 1, 0, 0, 0);
-					}
-
-					// Draw Seam
-					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
-					{
-						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-						renderModule.setVertexBuffers(0, 1, terrain._seam._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._seam._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._seam._indexCount), 1, 0, 0, 0);
-					}
-
-					// Draw Trim
-					if ((i + 1) < SceneManager::ClipMapTerrain::NUM_CLIPMAP_LEVELS)
-					{
-						IBufferRef& terrainConstantBuffer = terrain._terrainConstantBuffer[terrainConstantBufferTypeIndex++];
-						setConstantBuffer("TerrainMeshConstantBuffer", terrainConstantBuffer);
-
-						renderModule.setVertexBuffers(0, 1, terrain._trim._vertexBufferView.get());
-						renderModule.setIndexBuffer(terrain._trim._indexBufferView.get());
-						renderModule.drawIndexedInstanced(static_cast<UINT>(terrain._trim._indexCount), 1, 0, 0, 0);
+						drawTerrainMesh(terrain._filter);
+						if (level + 1 < SceneManager::Terrain::NUM_CLIPMAP_LEVELS)
+						{
+							drawTerrainMesh(terrain._seam);
+							drawTerrainMesh(terrain._trim);
+						}
 					}
 				}
 			}
@@ -2022,7 +1993,7 @@ namespace DK
             return;
 
         const float3 camera = Camera::gMainCamera->get_worldTransform().get_translation();
-        const SceneManager::ClipMapTerrain& terrain = sceneManager.getClipMapTerrainWritable();
+        const SceneManager::Terrain& terrain = sceneManager.getTerrainWritable();
         const TerrainStreamingConstants& streaming = terrain._streamingConstants;
         const float mapMinX = Math::max(grass._grassMapOriginX, streaming._terrainOriginWorldX + streaming._terrainMinimumSampleX * streaming._terrainSampleWorldSpacing);
         const float mapMinZ = Math::max(grass._grassMapOriginZ, streaming._terrainOriginWorldZ + streaming._terrainMinimumSampleZ * streaming._terrainSampleWorldSpacing);

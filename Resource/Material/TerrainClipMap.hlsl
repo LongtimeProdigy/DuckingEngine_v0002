@@ -240,13 +240,6 @@ GBufferOutput EvaluateTerrainMaterial(float3 worldPosition, float3 terrainNormal
 
 GBufferOutput PSMain(VS_OUTPUT input)
 {
-    const int2 minimumSample = int2(_terrainMinimumSampleX, _terrainMinimumSampleZ);
-    const float2 minimum = float2(minimumSample - int2(_terrainCameraAnchorSampleX, _terrainCameraAnchorSampleZ)) * _terrainSampleWorldSpacing;
-    const float2 maximum = float2(minimumSample + int2(_terrainCellCountX, _terrainCellCountZ) - int2(_terrainCameraAnchorSampleX, _terrainCameraAnchorSampleZ)) * _terrainSampleWorldSpacing;
-    const float2 boundaryDistance = min(input.relativeXZ - minimum, maximum - input.relativeXZ);
-    //clip(min(boundaryDistance.x, boundaryDistance.y));
-    //clip(TerrainAvailableRelative(input.relativeXZ) ? 1.0f : -1.0f);
-
     float3 normal;
     if (_terrainStreamingEnabled)
         normal = DecodeTerrainNormal(SampleTerrainStreamRelative(input.relativeXZ).yz);

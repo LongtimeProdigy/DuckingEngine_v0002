@@ -66,7 +66,7 @@ namespace DK
 			Mesh _cross;
 			Mesh _seam;
 		};
-		struct ClipMapTerrain
+		struct Terrain
 		{
             TerrainWorld _world;
             Streamer _streamer;
@@ -93,6 +93,7 @@ namespace DK
 			static constexpr const uint32 NUM_CLIPMAP_LEVELS = 10;
 			static constexpr const float BASE_VERTEX_SPACING = 0.5f;
 
+			Mesh _grid;
 			Mesh _patch;
 			Mesh _filter;
 			Mesh _trim;
@@ -100,6 +101,8 @@ namespace DK
 			Mesh _seam;
 			Ptr<Material> _material;
 			DKVector<IBufferRef> _terrainConstantBuffer;
+
+			bool hasGrid() const { return _grid._indexCount != 0; }
 		};
 		struct Grass
 		{
@@ -131,20 +134,20 @@ namespace DK
 
 		SkyDome& getSkyDomeWritable() { return _skyDome; }
 		Ocean& getOceanWritable() { return _ocean; }
-		ClipMapTerrain& getClipMapTerrainWritable() { return _clipmapTerrain; }
+		Terrain& getTerrainWritable() { return _terrain; }
 		const Grass& getGrass() const { return _grass; }
 		PostProcess& getPostProcessWritable() { return _postProcess; }
 		GBuffer& getGBufferWritable() { return _gBuffer; }
 
 	private:
-		bool loadTerrain(const DKString& terrainWorld, const DKString& modelPropertyPath, const float2& terrainWorldOrigin);
+		bool loadTerrain(const DKString& terrainWorld, const DKString& modelPropertyPath, const float2& terrainWorldOrigin, bool useGrid);
 		bool loadGrass(const DKString& placementTexturePath, uint32 tileGridSide);
 		bool initializeTerrainStreaming(const float2& terrainWorldOrigin);
 
 	private:
 		SkyDome _skyDome;
 		Ocean _ocean;
-		ClipMapTerrain _clipmapTerrain;
+		Terrain _terrain;
 		Grass _grass;
 		PostProcess _postProcess;
 		GBuffer _gBuffer;

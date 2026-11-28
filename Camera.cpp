@@ -85,6 +85,9 @@ namespace DK
 
 	bool Camera::saveViewState()
 	{
+		if (_saveViewState == false)
+			return false;
+
 		const DKString path = cameraStatePath();
 		if (FileUtil::createDirectory(FileUtil::parentPath(path)) == false)
 		{

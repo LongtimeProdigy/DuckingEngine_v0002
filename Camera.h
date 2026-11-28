@@ -40,6 +40,14 @@ namespace DK
 			setWorldPosition(position.x, position.y, position.z);
 		}
 
+		void setLevelView(const float3& position, const float3& direction)
+		{
+			setView(position, direction);
+#if defined(_DK_DEBUG_)
+			_saveViewState = false;
+#endif
+		}
+
 		void setWorldPosition(double x, double y, double z);
 		const DKArray<double, 3>& getWorldPosition();
 
@@ -108,6 +116,9 @@ namespace DK
 		dk_inline float getNearPlaneDistance() const { return _nearPlaneDistance; }
 
 	private:
+#if defined(_DK_DEBUG_)
+		bool _saveViewState = true;
+#endif
 		DKArray<double, 3> _worldPosition = {};
 		float3 _lastPosition = float3::Zero;
 		float _halfFov = 45.0f * Math::kToRadian;
