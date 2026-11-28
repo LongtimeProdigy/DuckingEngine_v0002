@@ -130,7 +130,7 @@ DK_SHADER_CBUFFER(AtmosphereConstantBuffer, b1)
     DK_SHADER_FLOAT3(_planetCentre) DK_SHADER_DEFAULT3(0, -6360000.0f, 0);
     float _atmosphereRadius DK_SHADER_DEFAULT(kEarthAtmosphereRadius);
     float _sunAngularRadius DK_SHADER_DEFAULT(0.27f);
-    float _exposureEV DK_SHADER_DEFAULT(0.0f);
+    float _exposureEV DK_SHADER_DEFAULT(-1.0f);
     float _bloomStrength DK_SHADER_DEFAULT(0.02f);
     float _bloomRadius DK_SHADER_DEFAULT(16.0f);
     float _bloomThreshold DK_SHADER_DEFAULT(2.0f);

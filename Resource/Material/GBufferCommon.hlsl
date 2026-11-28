@@ -18,12 +18,12 @@ float3 transformNormal(float3 normal, float3x3 transform)
     float determinant = dot(transform[0], cofactor[0]);
     return safeNormal(mul(normal, cofactor) * (determinant < 0 ? -1.0f : 1.0f));
 }
-GBufferOutput writeGBuffer(float3 baseColor, float3 normal, float metallic, float roughness, float unlit = 0)
+GBufferOutput writeGBuffer(float3 baseColor, float3 normal, float metallic, float roughness, float unlit = 0, float occlusion = 1)
 {
     GBufferOutput output;
     output.baseColor = float4(max(baseColor, 0), 1);
     output.normalRoughness = float4(safeNormal(normal), clamp(roughness, 0.04f, 1));
-    output.material = float4(saturate(metallic), 1, unlit, 0);
+    output.material = float4(saturate(metallic), occlusion, unlit, 0);
     return output;
 }
 #endif

@@ -4,4 +4,9 @@
 	<Parameter Name="_metallic" Type="float">0.0</Parameter>
 	<Parameter Name="_roughness" Type="float">0.6</Parameter>
 	<Parameter Name="_alphaCutoff" Type="float">0.0</Parameter>
+	<Parameter Name="_normalTexture" Type="Texture"/>
+	<Parameter Name="_metallicRoughnessTexture" Type="Texture"/>
+	<Parameter Name="_occlusionTexture" Type="Texture"/>
+	<Parameter Name="_normalScale" Type="float">1.0</Parameter>
+	<Parameter Name="_occlusionStrength" Type="float">1.0</Parameter>
 </Material>

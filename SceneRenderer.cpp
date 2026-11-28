@@ -741,7 +741,8 @@ namespace DK
 				}
 				break;
 				case MaterialParameterType::TEXTURE:
-					parameterDefinition._value = value;
+					if (value != nullptr)
+						parameterDefinition._value = value;
 					break;
 				default:
 					DK_ASSERT_LOG(false, "지원하지 않는 MaterialParameterDefinition Type입니다.");

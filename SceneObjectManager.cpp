@@ -165,12 +165,19 @@ namespace DK
 
 		DKVector<ITextureRef> textures;
 		textures.resize(gltfModel.textures.size());
+		DKVector<ITextureRef> linearTextures(gltfModel.textures.size());
+		DKVector<bool> surfaceTextures(gltfModel.textures.size(), false);
 		DKVector<bool> baseColorTextures(gltfModel.textures.size(), false);
 		for (const tinygltf::Material& material : gltfModel.materials)
 		{
 			const int textureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
 			if (textureIndex >= 0 && static_cast<size_t>(textureIndex) < baseColorTextures.size())
 				baseColorTextures[textureIndex] = true;
+			for (const int index : { material.normalTexture.index, material.pbrMetallicRoughness.metallicRoughnessTexture.index, material.occlusionTexture.index })
+			{
+				if (index >= 0 && static_cast<size_t>(index) < surfaceTextures.size())
+					surfaceTextures[index] = true;
+			}
 		}
 		for (size_t i = 0; i < gltfModel.textures.size(); ++i)
 		{
@@ -221,91 +228,25 @@ namespace DK
 			textures[i] = renderModule.createTexture(DK_DEBUG_NAME(src.uri.c_str()), src.width, src.height, src.image.data(), format, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
 			if (textures[i] == nullptr)
 				return false;
+			linearTextures[i] = textures[i];
+			if (surfaceTextures[i] && format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+			{
+				linearTextures[i] = renderModule.createTexture(DK_DEBUG_NAME(src.uri.c_str()), src.width, src.height, src.image.data(), DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true, false);
+				if (linearTextures[i] == nullptr)
+					return false;
+			}
 		}
-
-		// Material 추출
-		struct TextureBinding
-		{
-			// CpuModel::textures 인덱스. 없으면 -1.
-			int _textureIndex = -1;
-			// glTF material textureInfo.texCoord 값. 이 샘플 Vertex는 uv0, uv1만 보관합니다.
-			int _texCoord = 0;
-		};
-		struct CpuMaterial
-		{
-#if defined(_DK_DEBUG_)
-			DKString _name;
-#endif
-
-			// glTF metallic-roughness PBR
-			float4 _baseColorFactor{ 1.0f, 1.0f, 1.0f, 1.0f };
-			float _metallicFactor = 1.0f;
-			float _roughnessFactor = 1.0f;
-			float4 _emissiveFactor{ 0.0f, 0.0f, 0.0f };
-
-			TextureBinding _baseColorTexture;
-			TextureBinding _metallicRoughnessTexture;
-			TextureBinding _normalTexture;
-			TextureBinding _occlusionTexture;
-			TextureBinding _emissiveTexture;
-
-			float _normalScale = 1.0f;
-			float _occlusionStrength = 1.0f;
-
-			bool _doubleSided = false;
-			uint64 _alphaModeHash = StringUtil::hash("OPAQUE"); // OPAQUE / MASK / BLEND
-			float _alphaCutoff = 0.5f;
-		};
 
 		DKVector<Ptr<Material>> materials;
 		materials.reserve(gltfModel.materials.size());
-
-		TextureBinding (*const MakeTextureBinding)(const tinygltf::Model&, int, int) = [](const tinygltf::Model & model, int textureIndex, int texCoord)->TextureBinding
+		const auto ConvertMaterial = [&textures, &linearTextures](const tinygltf::Model& model, const tinygltf::Material& src) -> Material*
 		{
-			TextureBinding result;
-			result._textureIndex = textureIndex;
-			result._texCoord = texCoord;
-			return result;
-		};
-		const DKFunction<Material*(const tinygltf::Model&, const tinygltf::Material&)> ConvertMaterial = [&MakeTextureBinding, &textures](const tinygltf::Model& model, const tinygltf::Material& src)->Material*
-		{
-			CpuMaterial dst;
-#if defined(_DK_DEBUG_)
-			dst._name = src.name;
-#endif
-
-			//{
-			//	DKArray<float, 4> factor{ dst._baseColorFactor.x, dst._baseColorFactor.y, dst._baseColorFactor.z, dst._baseColorFactor.w };
-			//	CopyFactor(src.pbrMetallicRoughness.baseColorFactor, factor);
-			//	dst._baseColorFactor = { factor[0], factor[1], factor[2], factor[3] };
-			//}
-
-			dst._metallicFactor = static_cast<float>(src.pbrMetallicRoughness.metallicFactor);
-			dst._roughnessFactor = static_cast<float>(src.pbrMetallicRoughness.roughnessFactor);
-
-			//{
-			//	DKArray<float, 3> factor{ dst._emissiveFactor.x, dst._emissiveFactor.y, dst._emissiveFactor.z };
-			//	CopyFactor(src.emissiveFactor, factor);
-			//	dst._emissiveFactor = { factor[0], factor[1], factor[2] };
-			//}
-
 			const int textureCount = static_cast<int>(model.textures.size());
 			if (src.pbrMetallicRoughness.baseColorTexture.index < 0 || src.pbrMetallicRoughness.baseColorTexture.index >= textureCount || src.pbrMetallicRoughness.metallicRoughnessTexture.index < -1 || src.pbrMetallicRoughness.metallicRoughnessTexture.index >= textureCount || src.normalTexture.index < -1 || src.normalTexture.index >= textureCount || src.occlusionTexture.index < -1 || src.occlusionTexture.index >= textureCount || src.emissiveTexture.index < -1 || src.emissiveTexture.index >= textureCount)
 			{
 				DK_ASSERT_LOG(false, "Unsupported or invalid glTF material texture indices");
 				return nullptr;
 			}
-
-			dst._baseColorTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.baseColorTexture.index, src.pbrMetallicRoughness.baseColorTexture.texCoord);
-			dst._metallicRoughnessTexture = MakeTextureBinding(model, src.pbrMetallicRoughness.metallicRoughnessTexture.index, src.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
-			dst._normalTexture = MakeTextureBinding(model, src.normalTexture.index, src.normalTexture.texCoord);
-			dst._occlusionTexture = MakeTextureBinding(model, src.occlusionTexture.index, src.occlusionTexture.texCoord);
-			dst._emissiveTexture = MakeTextureBinding(model, src.emissiveTexture.index, src.emissiveTexture.texCoord);
-			dst._normalScale = static_cast<float>(src.normalTexture.scale);
-			dst._occlusionStrength = static_cast<float>(src.occlusionTexture.strength);
-			dst._doubleSided = src.doubleSided;
-			dst._alphaModeHash = StringUtil::registerHash(src.alphaMode.empty() ? "OPAQUE" : src.alphaMode.c_str());
-			dst._alphaCutoff = static_cast<float>(src.alphaCutoff);
 
 			SceneRenderer& sceneRenderer = DuckingEngine::getInstance().getSceneRenderWritable();
 			const MaterialDefinition* materialDefinition = sceneRenderer.getMaterialDefinition("StaticMeshStandard");
@@ -321,19 +262,35 @@ namespace DK
 			if (outMaterial.get() == nullptr)
 				return nullptr;
 
-			const ITextureRef& baseColorTexture = textures[dst._baseColorTexture._textureIndex];
+			const auto bindSurfaceTexture = [&linearTextures](MaterialParameter& parameter, const auto& textureInfo)
+			{
+				// StaticMeshVertex contains UV0. Assets with alternate UVs or a texture transform must bake them to UV0.
+				if (textureInfo.index >= 0 && textureInfo.texCoord == 0 && textureInfo.extensions.count("KHR_texture_transform") == 0)
+					static_cast<MaterialParameterTexture&>(parameter).setParameterValue(linearTextures[textureInfo.index]);
+			};
+			const tinygltf::PbrMetallicRoughness& pbr = src.pbrMetallicRoughness;
 			for (uint32 i = 0; i < parameterCount; ++i)
 			{
-				MaterialParameter* parameter = outMaterial->_parameterArr[i].get();
-				const uint64 nameHash = parameter->getParameterNameHash();
+				MaterialParameter& parameter = *outMaterial->_parameterArr[i].get();
+				const uint64 nameHash = parameter.getParameterNameHash();
 				if (nameHash == StringUtil::hash("_diffuseTexture"))
-					static_cast<MaterialParameterTexture*>(parameter)->setParameterValue(baseColorTexture);
-				if (nameHash == StringUtil::hash("_metallic"))
-					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._metallicFactor);
-				if (nameHash == StringUtil::hash("_roughness"))
-					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._roughnessFactor);
-				if (nameHash == StringUtil::hash("_alphaCutoff") && dst._alphaModeHash == StringUtil::hash("MASK"))
-					static_cast<MaterialParameterFloat*>(parameter)->setParameterValue(dst._alphaCutoff);
+					static_cast<MaterialParameterTexture&>(parameter).setParameterValue(textures[pbr.baseColorTexture.index]);
+				else if (nameHash == StringUtil::hash("_normalTexture"))
+					bindSurfaceTexture(parameter, src.normalTexture);
+				else if (nameHash == StringUtil::hash("_metallicRoughnessTexture"))
+					bindSurfaceTexture(parameter, pbr.metallicRoughnessTexture);
+				else if (nameHash == StringUtil::hash("_occlusionTexture"))
+					bindSurfaceTexture(parameter, src.occlusionTexture);
+				else if (nameHash == StringUtil::hash("_metallic"))
+					static_cast<MaterialParameterFloat&>(parameter).setParameterValue(static_cast<float>(pbr.metallicFactor));
+				else if (nameHash == StringUtil::hash("_roughness"))
+					static_cast<MaterialParameterFloat&>(parameter).setParameterValue(static_cast<float>(pbr.roughnessFactor));
+				else if (nameHash == StringUtil::hash("_normalScale"))
+					static_cast<MaterialParameterFloat&>(parameter).setParameterValue(static_cast<float>(src.normalTexture.scale));
+				else if (nameHash == StringUtil::hash("_occlusionStrength"))
+					static_cast<MaterialParameterFloat&>(parameter).setParameterValue(static_cast<float>(src.occlusionTexture.strength));
+				else if (nameHash == StringUtil::hash("_alphaCutoff") && src.alphaMode == "MASK")
+					static_cast<MaterialParameterFloat&>(parameter).setParameterValue(static_cast<float>(src.alphaCutoff));
 			}
 
 			outMaterial->_parameterBufferForGPU->upload(outMaterial->_parameterBufferForCPU.data());
