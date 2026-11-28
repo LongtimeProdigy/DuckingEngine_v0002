@@ -16,6 +16,12 @@ float3 toneMapACES(float3 x)
     return saturate((2.51f * x + 0.03f) / (2.43f * x + 0.59f + 0.14f / max(x, 1e-20f)));
 }
 
+float linearToSrgb(float channel)
+{
+    // The SDR back buffer uses a UNORM view, so apply the IEC sRGB transfer here.
+    return channel <= 0.0031308f ? 12.92f * channel : 1.055f * pow(channel, 1.0f / 2.4f) - 0.055f;
+}
+
 float3 resolveCloudSamples(Texture2D<float4> source, int2 pixel, float4 center)
 {
     if (center.a <= 0.0f)
@@ -47,7 +53,8 @@ float4 PSMain(VS_OUTPUT input) : SV_TARGET
     const float4 original = loadClampedRGBA(renderTexture, pixel);
     const float3 originalCol = resolveCloudSamples(renderTexture, pixel, original);
     const float3 exposedHDR = max(originalCol, 0.0f) * exp2(_exposureEV);
-    return float4(toneMapACES(exposedHDR), 1);
+    const float3 displayLinear = toneMapACES(exposedHDR);
+    return float4(linearToSrgb(displayLinear.r), linearToSrgb(displayLinear.g), linearToSrgb(displayLinear.b), 1);
 }
 
 #endif
