@@ -42,9 +42,9 @@ float cloudPerlin(float3 uvw, uint count)
         const int3 offset = int3(corner & 1u, (corner >> 1u) & 1u, corner >> 2u);
         const float3 gradient = normalize(cloudCellRandom(cell + offset, count) * 2.0f - 1.0f);         // 그 좌표를 해시해서 만든 고정된 단위 방향 벡터
         const float3 distance = fraction - offset;                                                      // cell에서 샘플까지의 변위 벡터
-        const float value = dot(gradient, distance);                                                    // 샘플이 꼭짓점의 화살표 방향으로 얼마나 일치하는지(이동하는지)
+        const float cornerContribution = dot(gradient, distance);                                       // 샘플이 꼭짓점의 화살표 방향으로 얼마나 일치하는지(이동하는지)
         const float3 cornerWeight = lerp(1.0f - weight, weight, float3(offset));                        // 1.0f - weight는 옆 cell끼리 이어질 수 있도록 하는 처리 (바로 주변 cell은 weight를 사용하므로 경계면 uvw는 같은 수치를 지닐 수 있음)
-        value += cornerWeight.x * cornerWeight.y * cornerWeight.z * value;
+        value += cornerWeight.x * cornerWeight.y * cornerWeight.z * cornerContribution;
     }
     return saturate(0.5f + value);
 }
