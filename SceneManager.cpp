@@ -499,6 +499,16 @@ namespace DK
 				DK_ASSERT_LOG(false, "Grass map needs a finite origin and positive extent: %s", fullPath.c_str());
 				return false;
 			}
+			if (readOptionalLevelFloat(*grass, "HeightMaskStrength", _grass._grassHeightMaskStrength) == false || _grass._grassHeightMaskStrength < 0.0f || _grass._grassHeightMaskStrength > 1.0f)
+			{
+				DK_ASSERT_LOG(false, "Grass HeightMaskStrength must be between 0 and 1: %s", fullPath.c_str());
+				return false;
+			}
+			if (readOptionalLevelFloat(*grass, "AlbedoScale", _grass._grassAlbedoScale) == false || _grass._grassAlbedoScale < 0.0f)
+			{
+				DK_ASSERT_LOG(false, "Grass AlbedoScale must be nonnegative: %s", fullPath.c_str());
+				return false;
+			}
 			if (loadGrass(placementMap, static_cast<uint32>(tileGridSide)) == false)
 				return false;
 		}

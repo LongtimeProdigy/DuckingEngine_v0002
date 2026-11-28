@@ -19,6 +19,8 @@ cbuffer GrassPatchConstants : register(b2)
     float _grassMapOriginZ;
     float _grassMapWidth;
     float _grassMapDepth;
+    float _grassHeightMaskStrength;
+    float _grassAlbedoScale;
 }
 
 struct GrassVertex
@@ -111,7 +113,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     if (blade >= profile.bladeCount)
         return output;
 
-    const float3 placement = SampleTerrainMap(_grassPlacementTexture, mapUV).rgb;
+    const float4 placement = SampleTerrainMap(_grassPlacementTexture, mapUV);
     if (GrassRandom(HashGridCell(worldCell + int2(183, -71))) >= placement.r)
         return output;
 
@@ -140,7 +142,8 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     sincos(angle, heading.y, heading.x);
     const float2 side = float2(-heading.y, heading.x);
 
-    const float height = profile.height * distanceFade * lerp(0.67f, 1.24f, GrassRandom(bladeSeed >> 16));
+    const float heightScale = lerp(1.0f, placement.a, _grassHeightMaskStrength);
+    const float height = profile.height * heightScale * distanceFade * lerp(0.67f, 1.24f, GrassRandom(bladeSeed >> 16));
     const float width = profile.width * lerp(0.83f, 1.38f, GrassRandom(bladeSeed >> 8));
     const float2 bladeRoot = heading * profile.spread * lerp(0.14f, 1.0f, GrassRandom(bladeSeed >> 6));
     const float2 windDirection = float2(0.84f, 0.5426f);
@@ -159,7 +162,7 @@ GrassVertex VSMain(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
     const float3 rootColor = lerp(float3(0.016f, 0.033f, 0.008f), float3(0.037f, 0.038f, 0.011f), dry);
     const float3 tipColor = lerp(float3(0.053f, 0.113f, 0.022f), float3(0.137f, 0.128f, 0.036f), dry);
     const float colorVariation = lerp(0.86f, 1.15f, GrassRandom(shape >> 8));
-    output.albedo = lerp(rootColor, tipColor, t) * colorVariation;
+    output.albedo = lerp(rootColor, tipColor, t) * (colorVariation * _grassAlbedoScale);
     output.normal = normalize(float3(-0.55f * heading.x, 1.0f, -0.55f * heading.y));
     return output;
 }

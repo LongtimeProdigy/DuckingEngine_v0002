@@ -110,6 +110,8 @@ namespace DK
 			float _grassMapOriginZ = 0;
 			float _grassMapWidth = 0;
 			float _grassMapDepth = 0;
+			float _grassHeightMaskStrength = 0;
+			float _grassAlbedoScale = 1;
 			ITextureRef _placementTexture;
 			IBufferRef _indexBuffer;
 			IndexBufferViewRef _indexBufferView;

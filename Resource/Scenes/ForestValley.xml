@@ -2,10 +2,11 @@
 	<Terrain World="Scenes/PracticeTerrain/Cooked/Sections_2048/terrain.xml"
 	         ModelProperty="Scenes/ModelProperty/TerrainClipMap.xml"
 	         OriginX="0" OriginZ="0" />
-	<Grass PlacementMap="Scenes/ForestValleyGrassPlacement.png" TileGridSide="128"
+	<Grass PlacementMap="Scenes/ForestValleyMeadowGrassPlacement.png" TileGridSide="128" HeightMaskStrength="1" AlbedoScale="0.64"
 	       MapOriginX="0" MapOriginZ="0" MapWidth="2047" MapDepth="2047" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyTrees.xml" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyGroundCover.xml" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyPasture.xml" />
+	<StaticMeshPlacements Path="Scenes/ForestValleyMeadowPracticePlacements.xml" />
 	<StaticMeshPlacements Path="Scenes/ForestValleyBackdrop.xml" />
 </Level>

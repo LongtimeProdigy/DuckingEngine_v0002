@@ -2085,6 +2085,8 @@ namespace DK
         setRootConstantParameter("_grassMapOriginZ", grass._grassMapOriginZ);
         setRootConstantParameter("_grassMapWidth", grass._grassMapWidth);
         setRootConstantParameter("_grassMapDepth", grass._grassMapDepth);
+        setRootConstantParameter("_grassHeightMaskStrength", grass._grassHeightMaskStrength);
+        setRootConstantParameter("_grassAlbedoScale", grass._grassAlbedoScale);
         renderModule.setIndexBuffer(grass._indexBufferView.get());
         for (int tileZ = firstTileZ; tileZ <= lastTileZ; ++tileZ)
         {
